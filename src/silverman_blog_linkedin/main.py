@@ -5,13 +5,21 @@ from __future__ import annotations
 import logging
 
 from fastapi import Depends, FastAPI
+from pydantic import BaseModel, field_validator
 
 from silverman_blog_linkedin import SERVICE_NAME, __version__
 from silverman_blog_linkedin.auth import require_api_key
 from silverman_blog_linkedin.config import Settings, load_settings
+from silverman_blog_linkedin.file_reader import (
+    derive_filename,
+    normalize_relative_path,
+    read_blog_post_file,
+)
 from silverman_blog_linkedin.paths import validate_folders
 from silverman_blog_linkedin.ready_scan import ScanResult, scan_ready_folder
 from silverman_blog_linkedin.run_metadata import (
+    build_process_file_metadata_payload,
+    build_process_file_response,
     build_process_ready_response,
     build_run_metadata_payload,
     check_metadata_runs_ready,
@@ -31,6 +39,18 @@ _EMPTY_SCAN = ScanResult(
     invalid_count=0,
     ignored_count=0,
 )
+
+
+class ProcessFileRequest(BaseModel):
+    relative_path: str
+
+    @field_validator("relative_path")
+    @classmethod
+    def validate_relative_path(cls, value: str) -> str:
+        normalized = normalize_relative_path(value)
+        if not normalized:
+            raise ValueError("relative_path must not be empty")
+        return normalized
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -160,6 +180,129 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             metadata_written=metadata_written,
             folders_ready=True,
             scan=scan,
+            errors=errors,
+        )
+
+    @app.post("/process-file")
+    def process_file(
+        body: ProcessFileRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        run_id = generate_run_id()
+        started_at = utc_now_iso()
+        relative_path = body.relative_path
+        filename = derive_filename(relative_path)
+
+        metadata_readiness = check_metadata_runs_ready(settings.base_path)
+        if not metadata_readiness.ready:
+            errors = [metadata_readiness.error_code or "metadata_runs_not_ready"]
+            logger.info(
+                "process-file run_id=%s status=failed metadata_written=false "
+                "relative_path=%s",
+                run_id,
+                relative_path,
+            )
+            return build_process_file_response(
+                run_id=run_id,
+                status="failed",
+                metadata_written=False,
+                folders_ready=False,
+                relative_path=relative_path,
+                filename=filename,
+                size_bytes=None,
+                content_sha256=None,
+                markdown_content=None,
+                errors=errors,
+            )
+
+        folder_validation = validate_folders(settings.base_path)
+        folders_ready = folder_validation.folders_ready
+
+        if not folders_ready:
+            completed_at = utc_now_iso()
+            errors = ["editorial_folders_not_ready"]
+            payload = build_process_file_metadata_payload(
+                run_id=run_id,
+                status="failed",
+                base_path=settings.base_path,
+                folders_ready=False,
+                relative_path=relative_path,
+                filename=filename,
+                size_bytes=None,
+                content_sha256=None,
+                errors=errors,
+                started_at=started_at,
+                completed_at=completed_at,
+            )
+            metadata_written = write_run_metadata(
+                settings.base_path, run_id, payload
+            )
+            logger.info(
+                "process-file run_id=%s status=failed folders_ready=false "
+                "metadata_written=%s relative_path=%s",
+                run_id,
+                metadata_written,
+                relative_path,
+            )
+            return build_process_file_response(
+                run_id=run_id,
+                status="failed",
+                metadata_written=metadata_written,
+                folders_ready=False,
+                relative_path=relative_path,
+                filename=filename,
+                size_bytes=None,
+                content_sha256=None,
+                markdown_content=None,
+                errors=errors if metadata_written else errors + ["metadata_write_failed"],
+            )
+
+        read_result = read_blog_post_file(settings.base_path, relative_path)
+        completed_at = utc_now_iso()
+        status = "completed" if not read_result.errors else "failed"
+        payload = build_process_file_metadata_payload(
+            run_id=run_id,
+            status=status,
+            base_path=settings.base_path,
+            folders_ready=True,
+            relative_path=read_result.relative_path,
+            filename=read_result.filename,
+            size_bytes=read_result.size_bytes,
+            content_sha256=read_result.content_sha256,
+            errors=read_result.errors,
+            started_at=started_at,
+            completed_at=completed_at,
+        )
+        metadata_written = write_run_metadata(settings.base_path, run_id, payload)
+        errors = list(read_result.errors)
+        if not metadata_written:
+            status = "failed"
+            errors = errors + ["metadata_write_failed"]
+
+        logger.info(
+            "process-file run_id=%s status=%s relative_path=%s size_bytes=%s",
+            run_id,
+            status,
+            read_result.relative_path,
+            read_result.size_bytes,
+        )
+        if read_result.content_sha256:
+            logger.debug(
+                "process-file run_id=%s content_sha256=%s",
+                run_id,
+                read_result.content_sha256,
+            )
+
+        return build_process_file_response(
+            run_id=run_id,
+            status=status,
+            metadata_written=metadata_written,
+            folders_ready=True,
+            relative_path=read_result.relative_path,
+            filename=read_result.filename,
+            size_bytes=read_result.size_bytes,
+            content_sha256=read_result.content_sha256,
+            markdown_content=read_result.markdown_content,
             errors=errors,
         )
 

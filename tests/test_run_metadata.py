@@ -97,3 +97,75 @@ def test_write_run_metadata_skipped_when_missing(tmp_path):
     written = write_run_metadata(tmp_path, run_id, payload)
 
     assert written is False
+
+
+def test_build_process_file_metadata_payload_success():
+    from silverman_blog_linkedin.run_metadata import (
+        TRIGGER_PROCESS_FILE,
+        build_process_file_metadata_payload,
+    )
+
+    payload = build_process_file_metadata_payload(
+        run_id="run-20260704T223045Z-a1b2",
+        status="completed",
+        base_path=Path("/data/silverman-blog-linkedin"),
+        folders_ready=True,
+        relative_path="blog-posts/ready/my-post.md",
+        filename="my-post.md",
+        size_bytes=42,
+        content_sha256="abc123",
+        errors=[],
+        started_at="2026-07-04T22:30:45Z",
+        completed_at="2026-07-04T22:30:45Z",
+    )
+
+    assert payload["trigger"] == TRIGGER_PROCESS_FILE
+    assert payload["relative_path"] == "blog-posts/ready/my-post.md"
+    assert payload["filename"] == "my-post.md"
+    assert payload["size_bytes"] == 42
+    assert payload["content_sha256"] == "abc123"
+    assert "markdown_content" not in payload
+    assert "api_key" not in payload
+
+
+def test_build_process_file_metadata_payload_failure_nulls():
+    from silverman_blog_linkedin.run_metadata import build_process_file_metadata_payload
+
+    payload = build_process_file_metadata_payload(
+        run_id="run-20260704T223045Z-a1b2",
+        status="failed",
+        base_path=Path("/data/silverman-blog-linkedin"),
+        folders_ready=False,
+        relative_path="blog-posts/ready/my-post.md",
+        filename="my-post.md",
+        size_bytes=None,
+        content_sha256=None,
+        errors=["editorial_folders_not_ready"],
+        started_at="2026-07-04T22:30:45Z",
+        completed_at="2026-07-04T22:30:45Z",
+    )
+
+    assert payload["size_bytes"] is None
+    assert payload["content_sha256"] is None
+    assert "markdown_content" not in payload
+
+
+def test_build_process_file_response_shape():
+    from silverman_blog_linkedin.run_metadata import build_process_file_response
+
+    response = build_process_file_response(
+        run_id="run-20260704T223045Z-a1b2",
+        status="failed",
+        metadata_written=False,
+        folders_ready=False,
+        relative_path="blog-posts/ready/my-post.md",
+        filename="my-post.md",
+        size_bytes=None,
+        content_sha256=None,
+        markdown_content=None,
+        errors=["metadata_runs_not_ready"],
+    )
+
+    assert response["relative_path"] == "blog-posts/ready/my-post.md"
+    assert response["markdown_content"] is None
+    assert response["metadata_path"] is None

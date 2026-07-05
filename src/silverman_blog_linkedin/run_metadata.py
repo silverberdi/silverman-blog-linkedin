@@ -14,6 +14,7 @@ from silverman_blog_linkedin.ready_scan import ScanResult
 
 METADATA_RUNS_RELATIVE = "metadata/runs"
 TRIGGER_PROCESS_READY = "POST /process-ready"
+TRIGGER_PROCESS_FILE = "POST /process-file"
 
 
 @dataclass(frozen=True)
@@ -102,6 +103,72 @@ def build_run_metadata_payload(
         "valid_files": scan_valid_files,
         "invalid_files": scan_invalid_files,
         "ignored_files": scan_ignored_files,
+        "errors": errors,
+    }
+
+
+def build_process_file_metadata_payload(
+    *,
+    run_id: str,
+    status: str,
+    base_path: Path,
+    folders_ready: bool,
+    relative_path: str,
+    filename: str | None,
+    size_bytes: int | None,
+    content_sha256: str | None,
+    errors: list[str],
+    started_at: str,
+    completed_at: str,
+) -> dict[str, Any]:
+    """Build run metadata for POST /process-file (no markdown_content or secrets)."""
+    return {
+        "run_id": run_id,
+        "trigger": TRIGGER_PROCESS_FILE,
+        "started_at": started_at,
+        "completed_at": completed_at,
+        "status": status,
+        "base_path": str(base_path),
+        "folders_ready": folders_ready,
+        "relative_path": relative_path,
+        "filename": filename,
+        "size_bytes": size_bytes,
+        "content_sha256": content_sha256,
+        "errors": errors,
+    }
+
+
+def build_process_file_response(
+    *,
+    run_id: str,
+    status: str,
+    metadata_written: bool,
+    folders_ready: bool,
+    relative_path: str,
+    filename: str | None,
+    size_bytes: int | None,
+    content_sha256: str | None,
+    markdown_content: str | None,
+    errors: list[str],
+) -> dict[str, Any]:
+    """Build POST /process-file HTTP response body."""
+    metadata_path: str | None
+    if metadata_written:
+        metadata_path = metadata_relative_path(run_id)
+    else:
+        metadata_path = None
+
+    return {
+        "run_id": run_id,
+        "status": status,
+        "metadata_written": metadata_written,
+        "metadata_path": metadata_path,
+        "folders_ready": folders_ready,
+        "relative_path": relative_path,
+        "filename": filename,
+        "size_bytes": size_bytes,
+        "content_sha256": content_sha256,
+        "markdown_content": markdown_content,
         "errors": errors,
     }
 
