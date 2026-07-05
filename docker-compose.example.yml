@@ -1,0 +1,19 @@
+services:
+  worker:
+    build: .
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      SILVERMAN_BLOG_LINKEDIN_BASE_PATH: /data/silverman-blog-linkedin
+      SILVERMAN_BLOG_LINKEDIN_API_KEY: ${SILVERMAN_BLOG_LINKEDIN_API_KEY:?set SILVERMAN_BLOG_LINKEDIN_API_KEY}
+      PORT: "8000"
+    volumes:
+      # Local example: mount a host editorial tree into the container path.
+      # On the Linux server, use the shared folder path documented in README.
+      - ./data/silverman-blog-linkedin:/data/silverman-blog-linkedin:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

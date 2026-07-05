@@ -1,0 +1,40 @@
+schema: spec-driven
+
+context: |
+  Repository: silverman-blog-linkedin.
+
+  This repository will contain a local HTTP worker service for blog-to-LinkedIn
+  content automation. n8n runs on a Linux server and must call the worker over
+  HTTP only. n8n Execute Command must not be used.
+
+  Development happens locally on Mac using Cursor and OpenSpec. Deployment happens
+  later as a Docker container on the Linux server.
+
+  Server host folder: /home/silverman/compartido_mac/silverman-blog-linkedin
+  Container-mounted folder: /data/silverman-blog-linkedin
+
+  Blog posts are canonical content. LinkedIn posts are generated distribution assets.
+
+  Phase 1 excludes Dairector, automatic LinkedIn publishing, GitHub publishing,
+  and OpenAI processing until the relevant change.
+
+  Endpoint sequence: foundation GET /health, then POST /process-ready, then
+  POST /process-file, then n8n integration workflows.
+
+  The worker must validate expected folder paths before processing, must not
+  expose secrets in responses, must be configurable through environment variables,
+  and must return structured JSON suitable for n8n branching.
+
+  Extended context: docs/context/, ADRs in docs/decisions/, flows in docs/workflows/.
+
+rules:
+  proposal:
+    - Include explicit goals and non-goals sections.
+    - Explain why a dedicated HTTP worker is used instead of n8n Execute Command.
+    - Keep scope small and aligned with a single coherent capability per change.
+  design:
+    - Describe the HTTP boundary, configuration, path validation, Docker deployment direction, and security considerations.
+    - Do not design future endpoints unless they are explicitly in scope for the change.
+  tasks:
+    - Include validation steps and tests appropriate to the change scope.
+    - Do not include tasks for out-of-scope features (Dairector, auto-publish, GitHub sync, Execute Command).

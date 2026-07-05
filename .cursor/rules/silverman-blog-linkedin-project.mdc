@@ -1,0 +1,52 @@
+---
+description: Project purpose, architecture constraints, and OpenSpec discipline for silverman-blog-linkedin
+alwaysApply: true
+---
+
+# silverman-blog-linkedin
+
+## Project Purpose
+
+Local HTTP worker service for the `silverman-blog-linkedin` content automation system. n8n orchestrates; the worker performs controlled file processing and LinkedIn draft generation from Markdown blog posts.
+
+Business context: support Silverio Bernal's positioning as a Solutions Architect—short-term goal attracting recruiters/C-level for remote senior roles (~USD 7k/month); long-term recognition in AI, architecture, digital transformation, agility, governance, and technology efficiency.
+
+## Architecture Constraints
+
+- **n8n calls worker over HTTP only** — HTTP Request nodes; never n8n Execute Command (see ADR-0001).
+- **Worker owns** file I/O, path validation, content generation, metadata writes, and moving files between `ready` / `processed` / `error`.
+- **Expected endpoints:** `GET /health`, `POST /process-ready`, `POST /process-file` (implement only when the corresponding OpenSpec change is approved).
+- **Configurable via environment variables**; never expose secrets in HTTP responses.
+- **Validate expected folders** before processing.
+- **Develop locally on Mac**; **deploy as Docker container** on Linux server (`192.168.0.194`, mount `/data/silverman-blog-linkedin`). Do not assume development on the server.
+
+## Editorial Rules
+
+- **Blog post is canonical**; LinkedIn posts are generated distribution assets (ADR-0002).
+- Generate at least three variants per post: executive/recruiter, technical leadership, short provocative.
+- English primary; practical, senior, executive-friendly tone.
+- Forbidden: news commentary, tool comparisons, unsupported personal stories.
+- **Dairector is out of scope for phase 1.**
+
+## Editorial Folder Layout
+
+```
+blog-posts/{ready,processed,error}/
+linkedin-posts/{review,approved,published}/
+metadata/{runs,campaigns,backups}/
+prompts/
+```
+
+## OpenSpec Discipline
+
+- **Do not implement application code without an approved OpenSpec change.**
+- Changes represent coherent capabilities—not one change per tiny file.
+- Bootstrap context lives in `docs/context/`, ADRs in `docs/decisions/`, flows in `docs/workflows/`.
+- Proposal/tasks/spec files are created through OpenSpec workflow when a change starts. Use Cursor commands installed in this repository: `/opsx-propose`, `/opsx-explore`, `/opsx-apply`, `/opsx-sync`, `/opsx-archive`.
+- Phasing: foundation (`/health`) → process-ready → process-file → n8n integration → GitHub publish → LinkedIn publish (see `docs/context/backlog-and-phasing.md`).
+
+## Before Implementing
+
+1. Read relevant context docs and ADRs.
+2. Confirm an OpenSpec change exists, is approved, and matches the requested work.
+3. Do not add FastAPI routes, Dockerfiles, or n8n workflows outside the active change scope.
