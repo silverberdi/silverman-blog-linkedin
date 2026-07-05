@@ -448,6 +448,73 @@ When `metadata/runs/` is missing or not writable, the response has `provider: "d
 
 **n8n integration:** chain `POST /process-file` → `POST /generate-linkedin-draft`. Pass `relative_path` as `source_relative_path` and `markdown_content` from the process-file response. Optionally pass `content_sha256` as `source_content_sha256`. Branch on `status`, `draft_written`, `generated_draft_content`, and `errors`.
 
+## n8n workflow: draft generation orchestration
+
+Importable workflow JSON: `n8n/workflows/silverman-blog-linkedin-draft-generation.json`
+
+This workflow orchestrates the worker over HTTP only (see [ADR-0001](docs/decisions/ADR-0001-use-worker-instead-of-n8n-execute-command.md)). n8n does **not** read or write editorial files, call DeepSeek directly, publish to LinkedIn/GitHub, or move blog posts out of `blog-posts/ready/`. The worker remains the filesystem and LLM boundary.
+
+### Import
+
+1. In n8n, open **Workflows** → **Import from File**.
+2. Select `n8n/workflows/silverman-blog-linkedin-draft-generation.json`.
+3. Open the imported workflow **Silverman Blog LinkedIn Draft Generation**.
+
+### Configure before first run
+
+Edit the **Set Configuration** node (first node after Manual Trigger):
+
+| Field | Placeholder | Purpose |
+|-------|-------------|---------|
+| `worker_base_url` | `http://localhost:8000` | Worker root URL (no trailing slash). Use your Docker service hostname on the server, e.g. `http://silverman-blog-linkedin-worker:8000`. |
+| `worker_api_key` | `CHANGE_ME_WORKER_API_KEY` | Must match `SILVERMAN_BLOG_LINKEDIN_API_KEY` on the worker. |
+| `tone` | `executive` | Editorial hint passed to `POST /generate-linkedin-draft`. |
+| `audience` | `recruiters and engineering leaders` | Editorial hint for generation. |
+| `variant` | `executive-recruiter` | Editorial hint for draft filename/slug segment. |
+
+The exported JSON contains **no real secrets**. Replace placeholders after import.
+
+Authenticated HTTP Request nodes use `Authorization: Bearer {{ $('Set Configuration').first().json.worker_api_key }}` via expressions—not hardcoded tokens.
+
+Ensure the worker has `DEEPSEEK_API_KEY` set when using generation (see DeepSeek env vars above).
+
+### Node flow
+
+```
+Manual Trigger
+  → Set Configuration
+  → Health Check (GET /health)
+  → IF Health Ready (status healthy + folders_ready)
+  → Process Ready (POST /process-ready)
+  → IF Process Ready Failed → error output → stop
+  → IF Has Valid Candidates (valid_count > 0)
+      → else: clean stop (no candidates)
+  → Split Out Valid Files
+  → Process File (POST /process-file)
+  → IF Process File OK
+      → Generate LinkedIn Draft (POST /generate-linkedin-draft)
+      → IF Generate Completed
+          → success: draft_relative_path, metadata_path, source_relative_path
+          → failure: errors, metadata_path, source_relative_path
+      → else: process-file errors on item
+```
+
+### Expected outcomes
+
+- **Success:** draft file under `linkedin-posts/review/` (written by worker); workflow output includes `draft_relative_path` and `metadata_path`.
+- **No candidates:** workflow stops cleanly when `valid_count` is 0.
+- **Failures:** health not ready, process-ready failed, process-file failed, or generate failed branches expose `errors` and `metadata_path` when the worker returns them.
+- **Source posts:** remain in `blog-posts/ready/` (this workflow does not move them).
+
+### Run manually
+
+1. Place at least one valid `.md` file in `blog-posts/ready/` on the worker base path.
+2. Start the worker with `SILVERMAN_BLOG_LINKEDIN_API_KEY` and `DEEPSEEK_API_KEY` configured.
+3. Execute the workflow from the n8n editor (Manual Trigger).
+4. Review generated drafts under `linkedin-posts/review/` on the editorial data mount.
+
+For per-endpoint HTTP Request examples, see sections above (`GET /health`, `POST /process-ready`, `POST /process-file`, `POST /generate-linkedin-draft`).
+
 ## Project context
 
 - Architecture and phasing: `docs/context/`

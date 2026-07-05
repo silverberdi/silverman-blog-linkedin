@@ -1,0 +1,818 @@
+{
+  "name": "Silverman Blog LinkedIn Draft Generation",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "df78e2fd-b6a8-478c-b5ce-44a1494d993f",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "571ade30-270b-4c2f-ad84-d86b0bc739d4",
+              "name": "worker_base_url",
+              "value": "http://localhost:8000",
+              "type": "string"
+            },
+            {
+              "id": "dc109a51-b095-44f8-a31f-36a254ac3d0c",
+              "name": "worker_api_key",
+              "value": "CHANGE_ME_WORKER_API_KEY",
+              "type": "string"
+            },
+            {
+              "id": "b50b1b3f-8bef-402c-b111-35a5a21ef036",
+              "name": "tone",
+              "value": "executive",
+              "type": "string"
+            },
+            {
+              "id": "4ba04a3f-98ed-4880-802a-9106057b6865",
+              "name": "audience",
+              "value": "recruiters and engineering leaders",
+              "type": "string"
+            },
+            {
+              "id": "aba77a16-f16c-47bf-a7f2-9c2591b3ca5a",
+              "name": "variant",
+              "value": "executive-recruiter",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2f2e016a-1fec-4ea7-9e82-46571496929f",
+      "name": "Set Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ],
+      "notes": "Edit worker_base_url, worker_api_key, and editorial hints before running."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Set Configuration').first().json.worker_base_url }}/health",
+        "options": {}
+      },
+      "id": "2018295a-6fb4-43c6-9adc-1c32f437df68",
+      "name": "Health Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "notes": "GET /health \u2014 no authentication required."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a41d025f-f65d-456a-86f3-35f465db30ff",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "healthy"
+            },
+            {
+              "id": "d7ef5203-6d08-4acb-a5e6-69488770265c",
+              "leftValue": "={{ $json.folders_ready }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "26b635d3-73af-4aac-9a41-92cf2576a390",
+      "name": "IF Health Ready",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "42c5c352-8db8-4f69-95a9-96ff0102ad15",
+              "name": "outcome",
+              "value": "health_not_ready",
+              "type": "string"
+            },
+            {
+              "id": "ed576145-3644-4af9-b865-7c88a1e91e8e",
+              "name": "status",
+              "value": "={{ $json.status }}",
+              "type": "string"
+            },
+            {
+              "id": "534a28cd-cfd8-4b06-b93d-c3dbdb36b3f0",
+              "name": "folders_ready",
+              "value": "={{ $json.folders_ready }}",
+              "type": "boolean"
+            },
+            {
+              "id": "02fd5d87-ec83-4823-8452-9227afb79b09",
+              "name": "errors",
+              "value": "={{ ['worker_not_healthy'] }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "87c42fdf-3d7c-454c-b7ca-3eafdd28fb81",
+      "name": "Set Health Not Ready",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        520
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "50a619be-3fdd-4c47-9c31-d24689d8a838",
+      "name": "Stop Health Not Ready",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set Configuration').first().json.worker_base_url }}/process-ready",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Set Configuration').first().json.worker_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {}
+      },
+      "id": "7525d076-5e83-436a-a90a-b51c8b065438",
+      "name": "Process Ready",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "notes": "POST /process-ready \u2014 scans blog-posts/ready/."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bab97d06-a7f0-4c60-91c6-7c5884b73f27",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "failed"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "58015f95-77c5-45ec-b47b-1e53e9d8d111",
+      "name": "IF Process Ready Failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f28f5518-8589-411f-b250-fc7f6803c73f",
+              "name": "outcome",
+              "value": "process_ready_failed",
+              "type": "string"
+            },
+            {
+              "id": "af68b211-d77b-4088-82f9-ba3b6ce16c44",
+              "name": "errors",
+              "value": "={{ $json.errors }}",
+              "type": "array"
+            },
+            {
+              "id": "b90cbd60-1070-4b33-bed2-42a6290dda97",
+              "name": "metadata_path",
+              "value": "={{ $json.metadata_path }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9aef17ac-c58c-4fa5-985f-9cefbaf98ed4",
+      "name": "Set Process Ready Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1320,
+        520
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "f50a64e2-2a49-448a-8076-17caec01c79e",
+      "name": "Stop Process Ready Error",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f578ffac-296a-4592-bde7-88339c76480a",
+              "leftValue": "={{ $json.valid_count }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dfbc5692-9357-40f7-9a23-c05bc176371c",
+      "name": "IF Has Valid Candidates",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "2e03eb97-005c-4ae9-a196-052886bdb712",
+      "name": "Stop No Candidates",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        120
+      ],
+      "notes": "Clean stop when valid_count is 0."
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "valid_files",
+        "include": "noOtherFields"
+      },
+      "id": "cd5ac6b9-da41-4189-9e62-165e4a31f965",
+      "name": "Split Out Valid Files",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        300
+      ],
+      "notes": "One item per valid_files entry from process-ready."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set Configuration').first().json.worker_base_url }}/process-file",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Set Configuration').first().json.worker_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ relative_path: $json.relative_path }) }}",
+        "options": {}
+      },
+      "id": "0aab35f5-3c6c-4e4e-90af-459a1084eeb4",
+      "name": "Process File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        300
+      ],
+      "notes": "POST /process-file \u2014 reads one Markdown blog post."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "20bfbbb7-1a7f-4b85-b7b8-a5c5b23e4d7e",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "completed"
+            },
+            {
+              "id": "ef4233fe-16ed-4a16-9102-796927d6d592",
+              "leftValue": "={{ $json.markdown_content }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e3b0b500-95cc-411f-9669-da201f308e70",
+      "name": "IF Process File OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "70849c5c-6ac8-4872-a084-f60a9639fe01",
+              "name": "outcome",
+              "value": "process_file_failed",
+              "type": "string"
+            },
+            {
+              "id": "8e6a4489-e04f-476c-a536-38dda380b8a9",
+              "name": "source_relative_path",
+              "value": "={{ $json.relative_path }}",
+              "type": "string"
+            },
+            {
+              "id": "a287f0f8-63d3-4137-9547-45a5d2d431be",
+              "name": "errors",
+              "value": "={{ $json.errors }}",
+              "type": "array"
+            },
+            {
+              "id": "63bc76ed-751a-4902-8f4a-a27c0af62bb4",
+              "name": "metadata_path",
+              "value": "={{ $json.metadata_path }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "db558473-7014-4856-b771-ad77ef2f04a6",
+      "name": "Set Process File Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2200,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set Configuration').first().json.worker_base_url }}/generate-linkedin-draft",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Set Configuration').first().json.worker_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source_relative_path: $('Process File').item.json.relative_path, markdown_content: $('Process File').item.json.markdown_content, source_content_sha256: $('Process File').item.json.content_sha256, tone: $('Set Configuration').first().json.tone, audience: $('Set Configuration').first().json.audience, variant: $('Set Configuration').first().json.variant }) }}",
+        "options": {}
+      },
+      "id": "72d9a597-8641-404b-8a71-bdc2ce893964",
+      "name": "Generate LinkedIn Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        300
+      ],
+      "notes": "POST /generate-linkedin-draft \u2014 DeepSeek runs inside the worker."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ddc632cd-631a-41e4-80c0-15f499ada9d5",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "completed"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f57f6a8f-c5f1-4701-b2f2-6c597a278f2e",
+      "name": "IF Generate Completed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3dea5eb3-f90a-4b30-902d-47ba1d7e6d51",
+              "name": "outcome",
+              "value": "generate_completed",
+              "type": "string"
+            },
+            {
+              "id": "9ea54217-7058-4809-a81a-d0f5f032ba2f",
+              "name": "source_relative_path",
+              "value": "={{ $json.source_relative_path }}",
+              "type": "string"
+            },
+            {
+              "id": "d0850008-dac1-4916-be2e-9f423d6e8901",
+              "name": "draft_relative_path",
+              "value": "={{ $json.draft_relative_path }}",
+              "type": "string"
+            },
+            {
+              "id": "6fe99f08-016e-41eb-af3a-d1290eba9198",
+              "name": "metadata_path",
+              "value": "={{ $json.metadata_path }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7327f7fe-8317-4d62-9e5d-dcb4d9a602f3",
+      "name": "Set Generate Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2640,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c1438d1e-4175-4f70-be7c-a0e6cad17a3d",
+              "name": "outcome",
+              "value": "generate_failed",
+              "type": "string"
+            },
+            {
+              "id": "be18f4f5-3e95-4cc0-bbf6-c40e2b1ea60a",
+              "name": "source_relative_path",
+              "value": "={{ $json.source_relative_path }}",
+              "type": "string"
+            },
+            {
+              "id": "cb41d63b-65ab-44f7-9a6b-f6c9232ffa7d",
+              "name": "errors",
+              "value": "={{ $json.errors }}",
+              "type": "array"
+            },
+            {
+              "id": "772c21ed-6c2c-464e-a147-460f46f2d30e",
+              "name": "metadata_path",
+              "value": "={{ $json.metadata_path }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2216ce72-90a5-453e-909d-e1269ebcebda",
+      "name": "Set Generate Failure",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2640,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Configuration": {
+      "main": [
+        [
+          {
+            "node": "Health Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Health Check": {
+      "main": [
+        [
+          {
+            "node": "IF Health Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Health Ready": {
+      "main": [
+        [
+          {
+            "node": "Process Ready",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Health Not Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Health Not Ready": {
+      "main": [
+        [
+          {
+            "node": "Stop Health Not Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Ready": {
+      "main": [
+        [
+          {
+            "node": "IF Process Ready Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Process Ready Failed": {
+      "main": [
+        [
+          {
+            "node": "Set Process Ready Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF Has Valid Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Process Ready Error": {
+      "main": [
+        [
+          {
+            "node": "Stop Process Ready Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Has Valid Candidates": {
+      "main": [
+        [
+          {
+            "node": "Split Out Valid Files",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop No Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out Valid Files": {
+      "main": [
+        [
+          {
+            "node": "Process File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process File": {
+      "main": [
+        [
+          {
+            "node": "IF Process File OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Process File OK": {
+      "main": [
+        [
+          {
+            "node": "Generate LinkedIn Draft",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Process File Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate LinkedIn Draft": {
+      "main": [
+        [
+          {
+            "node": "IF Generate Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Generate Completed": {
+      "main": [
+        [
+          {
+            "node": "Set Generate Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Generate Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b0865cba-705a-4d52-9e44-996da54d4f76",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}
