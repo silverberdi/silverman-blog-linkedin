@@ -46,4 +46,4 @@
 - [x] 8.1 Run full test suite (`pytest`) and ensure all tests pass
 - [x] 8.2 Run `openspec validate add-n8n-worker-orchestration-flow`
 - [x] 8.3 Run `openspec validate --all`
-- [ ] 8.4 Manual smoke test (optional): import workflow into n8n, configure variables, run against local worker with a ready `.md` file and `DEEPSEEK_API_KEY` set; confirm draft in `linkedin-posts/review/` and source file unchanged in `blog-posts/ready/`
+- [x] 8.4 Manual smoke test (optional): import workflow into n8n, configure variables, run against local worker with a ready `.md` file and `DEEPSEEK_API_KEY` set; confirm draft in `linkedin-posts/review/` and source file unchanged in `blog-posts/ready/`
