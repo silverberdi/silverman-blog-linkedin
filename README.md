@@ -2,7 +2,7 @@
 
 Local HTTP worker for the **silverman-blog-linkedin** content automation system. n8n orchestrates workflows; this service performs bounded file processing and health checks over HTTP (see ADR-0001).
 
-Current capabilities: configuration, editorial folder validation, `GET /health`, authenticated `POST /process-ready` (read-only scan of Markdown candidates in `blog-posts/ready/`), and authenticated `POST /process-file` (read one Markdown blog post by `relative_path`).
+Current capabilities: configuration, editorial folder validation, `GET /health`, authenticated `POST /process-ready` (read-only scan of Markdown candidates in `blog-posts/ready/`), authenticated `POST /process-file` (read one Markdown blog post by `relative_path`), and authenticated `POST /write-linkedin-draft` (persist one LinkedIn review draft from client-supplied content).
 
 ## Requirements
 
@@ -14,7 +14,7 @@ Current capabilities: configuration, editorial folder validation, `GET /health`,
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
 | `SILVERMAN_BLOG_LINKEDIN_BASE_PATH` | No | `./data/silverman-blog-linkedin` | Root path for editorial data |
-| `SILVERMAN_BLOG_LINKEDIN_API_KEY` | **Yes** | None | Shared secret for authenticated endpoints (`POST /process-ready`, `POST /process-file`) |
+| `SILVERMAN_BLOG_LINKEDIN_API_KEY` | **Yes** | None | Shared secret for authenticated endpoints (`POST /process-ready`, `POST /process-file`, `POST /write-linkedin-draft`) |
 | `PORT` | No | `8000` | HTTP listen port |
 
 The worker **fails fast at startup** if `SILVERMAN_BLOG_LINKEDIN_API_KEY` is missing or empty. The API key is never included in HTTP responses or error messages.
@@ -83,7 +83,7 @@ export SILVERMAN_BLOG_LINKEDIN_API_KEY="your-key"
 docker compose -f docker-compose.example.yml up --build
 ```
 
-The example mounts `./data/silverman-blog-linkedin` into `/data/silverman-blog-linkedin` inside the container. Write access to `metadata/runs/` is required for `POST /process-ready` and `POST /process-file` (the example mount is read-write).
+The example mounts `./data/silverman-blog-linkedin` into `/data/silverman-blog-linkedin` inside the container. Write access to `metadata/runs/` and `linkedin-posts/review/` is required for processing endpoints (the example mount is read-write).
 
 Quick check (host-side JSON formatting):
 
@@ -232,6 +232,103 @@ When `metadata/runs/` is missing or not writable, the response has `status: "fai
 Run metadata never includes `markdown_content`. The HTTP response includes `markdown_content` only on successful UTF-8 reads.
 
 **n8n integration:** after `POST /process-ready`, use an HTTP Request node with method `POST`, URL `{worker_base_url}/process-file`, header `Authorization: Bearer {{api_key}}`, and JSON body `{ "relative_path": "{{ $json.valid_files[0].relative_path }}" }`. Branch on `status`, `markdown_content`, and `errors`.
+
+## POST /write-linkedin-draft
+
+Authenticated endpoint that persists one LinkedIn review draft Markdown file under `linkedin-posts/review/` from client-supplied `draft_content`, writes run metadata to `metadata/runs/` when writable (summary fields only—no full draft body), and returns structured JSON for n8n branching. Does not call AI providers, publish to LinkedIn or GitHub, or move or modify source blog files.
+
+**Authentication:** `Authorization: Bearer <SILVERMAN_BLOG_LINKEDIN_API_KEY>`
+
+**Request body (allowed fields only):**
+
+```json
+{
+  "source_relative_path": "blog-posts/ready/my-post.md",
+  "draft_content": "LinkedIn draft text here.",
+  "source_content_sha256": "abc123...",
+  "title": "Optional human title",
+  "slug_hint": "executive"
+}
+```
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `source_relative_path` | Yes | Non-empty after normalization; shape validated under `blog-posts/ready/` (file is not re-read) |
+| `draft_content` | Yes | Non-empty after strip; written as UTF-8 (optional single trailing newline) |
+| `source_content_sha256` | No | Echoed in response/metadata when provided |
+| `title` | No | Stored in metadata only |
+| `slug_hint` | No | Optional variant label; affects generated filename |
+
+The worker rejects extra fields (`draft_relative_path`, `output_path`, `filename`, `target_path`, or any other unexpected field) with HTTP `422`. The client cannot choose the output path; the server generates filenames under `linkedin-posts/review/`.
+
+Missing body, missing required fields, empty `draft_content` after strip, or empty `source_relative_path` returns HTTP `422` (the write-linkedin-draft response contract does not apply).
+
+**Example (successful write):**
+
+```bash
+curl -s -X POST http://localhost:8000/write-linkedin-draft \
+  -H "Authorization: Bearer your-local-dev-key" \
+  -H "Content-Type: application/json" \
+  -d '{"source_relative_path":"blog-posts/ready/my-post.md","draft_content":"LinkedIn draft text.","slug_hint":"executive"}' | python3 -m json.tool
+```
+
+```json
+{
+  "run_id": "run-20260705T150045Z-a1b2",
+  "status": "completed",
+  "metadata_written": true,
+  "metadata_path": "metadata/runs/run-20260705T150045Z-a1b2.json",
+  "draft_written": true,
+  "draft_relative_path": "linkedin-posts/review/20260705T150045Z-my-post-executive.md",
+  "source_relative_path": "blog-posts/ready/my-post.md",
+  "source_content_sha256": null,
+  "draft_content_sha256": "def456...",
+  "size_bytes": 21,
+  "errors": []
+}
+```
+
+**Example (review directory unavailable):**
+
+```json
+{
+  "run_id": "run-20260705T150045Z-a1b2",
+  "status": "failed",
+  "metadata_written": true,
+  "metadata_path": "metadata/runs/run-20260705T150045Z-a1b2.json",
+  "draft_written": false,
+  "draft_relative_path": null,
+  "source_relative_path": "blog-posts/ready/my-post.md",
+  "source_content_sha256": null,
+  "draft_content_sha256": null,
+  "size_bytes": null,
+  "errors": ["review_dir_not_ready"]
+}
+```
+
+**Example (partial failure—draft written, metadata write failed):**
+
+```json
+{
+  "run_id": "run-20260705T150045Z-a1b2",
+  "status": "failed",
+  "metadata_written": false,
+  "metadata_path": null,
+  "draft_written": true,
+  "draft_relative_path": "linkedin-posts/review/20260705T150045Z-my-post-executive.md",
+  "source_relative_path": "blog-posts/ready/my-post.md",
+  "source_content_sha256": "abc123...",
+  "draft_content_sha256": "def456...",
+  "size_bytes": 512,
+  "errors": ["metadata_write_failed"]
+}
+```
+
+When `metadata/runs/` is missing or not writable, the response has `status: "failed"`, `metadata_written: false`, `metadata_path: null`, `draft_written: false`, and an error such as `metadata_runs_not_ready` or `metadata_runs_not_writable`—no draft or metadata files are created.
+
+Run metadata never includes `draft_content`. The HTTP response never includes API keys or submitted tokens.
+
+**n8n integration:** after an external or future LLM step produces draft text, use an HTTP Request node with method `POST`, URL `{worker_base_url}/write-linkedin-draft`, header `Authorization: Bearer {{api_key}}`, and JSON body containing `source_relative_path` (from `POST /process-file`) and `draft_content`. Optionally pass `source_content_sha256` from the process-file response for traceability. Branch on `status`, `draft_written`, `metadata_written`, and `errors`.
 
 ## Project context
 

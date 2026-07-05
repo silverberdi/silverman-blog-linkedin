@@ -15,6 +15,7 @@ from silverman_blog_linkedin.ready_scan import ScanResult
 METADATA_RUNS_RELATIVE = "metadata/runs"
 TRIGGER_PROCESS_READY = "POST /process-ready"
 TRIGGER_PROCESS_FILE = "POST /process-file"
+TRIGGER_WRITE_LINKEDIN_DRAFT = "POST /write-linkedin-draft"
 
 
 @dataclass(frozen=True)
@@ -169,6 +170,81 @@ def build_process_file_response(
         "size_bytes": size_bytes,
         "content_sha256": content_sha256,
         "markdown_content": markdown_content,
+        "errors": errors,
+    }
+
+
+def build_write_linkedin_draft_metadata_payload(
+    *,
+    run_id: str,
+    status: str,
+    base_path: Path,
+    source_relative_path: str,
+    draft_relative_path: str | None,
+    source_content_sha256: str | None,
+    draft_content_sha256: str | None,
+    size_bytes: int | None,
+    draft_written: bool,
+    title: str | None,
+    slug_hint: str | None,
+    errors: list[str],
+    started_at: str,
+    completed_at: str,
+) -> dict[str, Any]:
+    """Build run metadata for POST /write-linkedin-draft (no draft_content or secrets)."""
+    payload: dict[str, Any] = {
+        "run_id": run_id,
+        "trigger": TRIGGER_WRITE_LINKEDIN_DRAFT,
+        "started_at": started_at,
+        "completed_at": completed_at,
+        "status": status,
+        "base_path": str(base_path),
+        "source_relative_path": source_relative_path,
+        "draft_relative_path": draft_relative_path,
+        "source_content_sha256": source_content_sha256,
+        "draft_content_sha256": draft_content_sha256,
+        "size_bytes": size_bytes,
+        "draft_written": draft_written,
+        "errors": errors,
+    }
+    if title is not None:
+        payload["title"] = title
+    if slug_hint is not None:
+        payload["slug_hint"] = slug_hint
+    return payload
+
+
+def build_write_linkedin_draft_response(
+    *,
+    run_id: str,
+    status: str,
+    metadata_written: bool,
+    source_relative_path: str,
+    source_content_sha256: str | None,
+    draft_written: bool,
+    draft_relative_path: str | None,
+    draft_content_sha256: str | None,
+    size_bytes: int | None,
+    errors: list[str],
+) -> dict[str, Any]:
+    """Build POST /write-linkedin-draft HTTP response body."""
+    metadata_path: str | None
+    if metadata_written:
+        metadata_path = metadata_relative_path(run_id)
+    else:
+        metadata_path = None
+
+    return {
+        "run_id": run_id,
+        "status": status,
+        "metadata_written": metadata_written,
+        "metadata_path": metadata_path,
+        "draft_written": draft_written,
+        "draft_relative_path": draft_relative_path,
+        "source_relative_path": source_relative_path,
+        "source_content_sha256": source_content_sha256,
+        "draft_content_sha256": draft_content_sha256,
+        "size_bytes": size_bytes,
         "errors": errors,
     }
 

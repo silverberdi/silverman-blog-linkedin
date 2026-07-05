@@ -8,7 +8,7 @@ Authenticated `POST /process-ready` endpoint for scanning and validating Markdow
 
 ### Requirement: API key authentication for processing endpoints
 
-The worker SHALL require valid API key authentication for processing endpoints (`POST /process-ready` and `POST /process-file`) using the configured `SILVERMAN_BLOG_LINKEDIN_API_KEY`.
+The worker SHALL require valid API key authentication for processing endpoints (`POST /process-ready`, `POST /process-file`, and `POST /write-linkedin-draft`) using the configured `SILVERMAN_BLOG_LINKEDIN_API_KEY`.
 
 The client MUST send the key in the `Authorization` header as a Bearer token: `Authorization: Bearer <SILVERMAN_BLOG_LINKEDIN_API_KEY>`.
 
@@ -22,19 +22,24 @@ The client MUST send the key in the `Authorization` header as a Bearer token: `A
 - **WHEN** a client sends `POST /process-file` with a correct Bearer token matching `SILVERMAN_BLOG_LINKEDIN_API_KEY`
 - **THEN** the worker proceeds with request body validation, folder validation, and metadata directory readiness checks before reading the requested file
 
+#### Scenario: Valid API key for write-linkedin-draft
+
+- **WHEN** a client sends `POST /write-linkedin-draft` with a correct Bearer token matching `SILVERMAN_BLOG_LINKEDIN_API_KEY`
+- **THEN** the worker proceeds with request body validation and targeted directory readiness checks before writing a review draft
+
 #### Scenario: Missing Authorization header
 
-- **WHEN** a client sends `POST /process-ready` or `POST /process-file` without an `Authorization` header
+- **WHEN** a client sends `POST /process-ready`, `POST /process-file`, or `POST /write-linkedin-draft` without an `Authorization` header
 - **THEN** the worker responds with HTTP `401` and a JSON body that does not expose secret values
 
 #### Scenario: Invalid API key
 
-- **WHEN** a client sends `POST /process-ready` or `POST /process-file` with an incorrect Bearer token
+- **WHEN** a client sends `POST /process-ready`, `POST /process-file`, or `POST /write-linkedin-draft` with an incorrect Bearer token
 - **THEN** the worker responds with HTTP `401` and a JSON body that does not expose the expected key or configured secret
 
 #### Scenario: Auth failure does not leak secrets
 
-- **WHEN** authentication fails for `POST /process-ready` or `POST /process-file`
+- **WHEN** authentication fails for `POST /process-ready`, `POST /process-file`, or `POST /write-linkedin-draft`
 - **THEN** the response and logs MUST NOT include `SILVERMAN_BLOG_LINKEDIN_API_KEY` or the submitted token value
 
 ### Requirement: Pre-process editorial folder validation

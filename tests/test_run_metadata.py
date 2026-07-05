@@ -169,3 +169,90 @@ def test_build_process_file_response_shape():
     assert response["relative_path"] == "blog-posts/ready/my-post.md"
     assert response["markdown_content"] is None
     assert response["metadata_path"] is None
+
+
+def test_build_write_linkedin_draft_metadata_payload_success():
+    from silverman_blog_linkedin.run_metadata import (
+        TRIGGER_WRITE_LINKEDIN_DRAFT,
+        build_write_linkedin_draft_metadata_payload,
+    )
+
+    payload = build_write_linkedin_draft_metadata_payload(
+        run_id="run-20260704T223045Z-a1b2",
+        status="completed",
+        base_path=Path("/data/silverman-blog-linkedin"),
+        source_relative_path="blog-posts/ready/my-post.md",
+        draft_relative_path="linkedin-posts/review/20260704T223045Z-my-post.md",
+        source_content_sha256="abc123",
+        draft_content_sha256="def456",
+        size_bytes=512,
+        draft_written=True,
+        title="Optional title",
+        slug_hint="executive",
+        errors=[],
+        started_at="2026-07-04T22:30:45Z",
+        completed_at="2026-07-04T22:30:45Z",
+    )
+
+    assert payload["trigger"] == TRIGGER_WRITE_LINKEDIN_DRAFT
+    assert payload["draft_written"] is True
+    assert payload["title"] == "Optional title"
+    assert payload["slug_hint"] == "executive"
+    assert "draft_content" not in payload
+    assert "api_key" not in payload
+
+
+def test_build_write_linkedin_draft_metadata_payload_failure():
+    from silverman_blog_linkedin.run_metadata import (
+        build_write_linkedin_draft_metadata_payload,
+    )
+
+    payload = build_write_linkedin_draft_metadata_payload(
+        run_id="run-20260704T223045Z-a1b2",
+        status="failed",
+        base_path=Path("/data/silverman-blog-linkedin"),
+        source_relative_path="blog-posts/processed/post.md",
+        draft_relative_path=None,
+        source_content_sha256=None,
+        draft_content_sha256=None,
+        size_bytes=None,
+        draft_written=False,
+        title=None,
+        slug_hint=None,
+        errors=["path_outside_ready"],
+        started_at="2026-07-04T22:30:45Z",
+        completed_at="2026-07-04T22:30:45Z",
+    )
+
+    assert payload["draft_relative_path"] is None
+    assert payload["draft_content_sha256"] is None
+    assert payload["size_bytes"] is None
+    assert payload["draft_written"] is False
+    assert "title" not in payload
+    assert "slug_hint" not in payload
+    assert "draft_content" not in payload
+
+
+def test_build_write_linkedin_draft_response_partial_failure():
+    from silverman_blog_linkedin.run_metadata import (
+        build_write_linkedin_draft_response,
+    )
+
+    response = build_write_linkedin_draft_response(
+        run_id="run-20260704T223045Z-a1b2",
+        status="failed",
+        metadata_written=False,
+        source_relative_path="blog-posts/ready/my-post.md",
+        source_content_sha256="abc123",
+        draft_written=True,
+        draft_relative_path="linkedin-posts/review/20260704T223045Z-my-post.md",
+        draft_content_sha256="def456",
+        size_bytes=512,
+        errors=["metadata_write_failed"],
+    )
+
+    assert response["draft_written"] is True
+    assert response["metadata_written"] is False
+    assert response["metadata_path"] is None
+    assert response["draft_relative_path"] is not None
+    assert "draft_content" not in response

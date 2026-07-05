@@ -5,11 +5,16 @@ from __future__ import annotations
 import logging
 
 from fastapi import Depends, FastAPI
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from silverman_blog_linkedin import SERVICE_NAME, __version__
 from silverman_blog_linkedin.auth import require_api_key
 from silverman_blog_linkedin.config import Settings, load_settings
+from silverman_blog_linkedin.draft_writer import (
+    check_review_dir_ready,
+    validate_source_path_shape,
+    write_draft_file,
+)
 from silverman_blog_linkedin.file_reader import (
     derive_filename,
     normalize_relative_path,
@@ -22,6 +27,8 @@ from silverman_blog_linkedin.run_metadata import (
     build_process_file_response,
     build_process_ready_response,
     build_run_metadata_payload,
+    build_write_linkedin_draft_metadata_payload,
+    build_write_linkedin_draft_response,
     check_metadata_runs_ready,
     generate_run_id,
     utc_now_iso,
@@ -51,6 +58,31 @@ class ProcessFileRequest(BaseModel):
         if not normalized:
             raise ValueError("relative_path must not be empty")
         return normalized
+
+
+class WriteLinkedinDraftRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_relative_path: str
+    draft_content: str
+    source_content_sha256: str | None = None
+    title: str | None = None
+    slug_hint: str | None = None
+
+    @field_validator("source_relative_path")
+    @classmethod
+    def validate_source_relative_path(cls, value: str) -> str:
+        normalized = normalize_relative_path(value)
+        if not normalized:
+            raise ValueError("source_relative_path must not be empty")
+        return normalized
+
+    @field_validator("draft_content")
+    @classmethod
+    def validate_draft_content(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("draft_content must not be empty or whitespace-only")
+        return value
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -303,6 +335,233 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             size_bytes=read_result.size_bytes,
             content_sha256=read_result.content_sha256,
             markdown_content=read_result.markdown_content,
+            errors=errors,
+        )
+
+    @app.post("/write-linkedin-draft")
+    def write_linkedin_draft(
+        body: WriteLinkedinDraftRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        run_id = generate_run_id()
+        started_at = utc_now_iso()
+        source_relative_path = body.source_relative_path
+        source_content_sha256 = body.source_content_sha256
+
+        metadata_readiness = check_metadata_runs_ready(settings.base_path)
+        if not metadata_readiness.ready:
+            errors = [metadata_readiness.error_code or "metadata_runs_not_ready"]
+            logger.info(
+                "write-linkedin-draft run_id=%s status=failed metadata_written=false "
+                "source_relative_path=%s",
+                run_id,
+                source_relative_path,
+            )
+            return build_write_linkedin_draft_response(
+                run_id=run_id,
+                status="failed",
+                metadata_written=False,
+                source_relative_path=source_relative_path,
+                source_content_sha256=source_content_sha256,
+                draft_written=False,
+                draft_relative_path=None,
+                draft_content_sha256=None,
+                size_bytes=None,
+                errors=errors,
+            )
+
+        review_readiness = check_review_dir_ready(settings.base_path)
+        path_errors = validate_source_path_shape(
+            settings.base_path, source_relative_path
+        )
+
+        if not review_readiness.ready:
+            completed_at = utc_now_iso()
+            errors = [review_readiness.error_code or "review_dir_not_ready"]
+            payload = build_write_linkedin_draft_metadata_payload(
+                run_id=run_id,
+                status="failed",
+                base_path=settings.base_path,
+                source_relative_path=source_relative_path,
+                draft_relative_path=None,
+                source_content_sha256=source_content_sha256,
+                draft_content_sha256=None,
+                size_bytes=None,
+                draft_written=False,
+                title=body.title,
+                slug_hint=body.slug_hint,
+                errors=errors,
+                started_at=started_at,
+                completed_at=completed_at,
+            )
+            metadata_written = write_run_metadata(
+                settings.base_path, run_id, payload
+            )
+            logger.info(
+                "write-linkedin-draft run_id=%s status=failed draft_written=false "
+                "metadata_written=%s source_relative_path=%s",
+                run_id,
+                metadata_written,
+                source_relative_path,
+            )
+            return build_write_linkedin_draft_response(
+                run_id=run_id,
+                status="failed",
+                metadata_written=metadata_written,
+                source_relative_path=source_relative_path,
+                source_content_sha256=source_content_sha256,
+                draft_written=False,
+                draft_relative_path=None,
+                draft_content_sha256=None,
+                size_bytes=None,
+                errors=errors if metadata_written else errors + ["metadata_write_failed"],
+            )
+
+        if path_errors:
+            completed_at = utc_now_iso()
+            payload = build_write_linkedin_draft_metadata_payload(
+                run_id=run_id,
+                status="failed",
+                base_path=settings.base_path,
+                source_relative_path=source_relative_path,
+                draft_relative_path=None,
+                source_content_sha256=source_content_sha256,
+                draft_content_sha256=None,
+                size_bytes=None,
+                draft_written=False,
+                title=body.title,
+                slug_hint=body.slug_hint,
+                errors=path_errors,
+                started_at=started_at,
+                completed_at=completed_at,
+            )
+            metadata_written = write_run_metadata(
+                settings.base_path, run_id, payload
+            )
+            logger.info(
+                "write-linkedin-draft run_id=%s status=failed draft_written=false "
+                "metadata_written=%s source_relative_path=%s errors=%s",
+                run_id,
+                metadata_written,
+                source_relative_path,
+                path_errors,
+            )
+            return build_write_linkedin_draft_response(
+                run_id=run_id,
+                status="failed",
+                metadata_written=metadata_written,
+                source_relative_path=source_relative_path,
+                source_content_sha256=source_content_sha256,
+                draft_written=False,
+                draft_relative_path=None,
+                draft_content_sha256=None,
+                size_bytes=None,
+                errors=path_errors if metadata_written else path_errors + ["metadata_write_failed"],
+            )
+
+        draft_result = write_draft_file(
+            settings.base_path,
+            draft_content=body.draft_content,
+            source_relative_path=source_relative_path,
+            slug_hint=body.slug_hint,
+            run_id=run_id,
+        )
+
+        if draft_result.errors:
+            completed_at = utc_now_iso()
+            errors = list(draft_result.errors)
+            payload = build_write_linkedin_draft_metadata_payload(
+                run_id=run_id,
+                status="failed",
+                base_path=settings.base_path,
+                source_relative_path=source_relative_path,
+                draft_relative_path=None,
+                source_content_sha256=source_content_sha256,
+                draft_content_sha256=None,
+                size_bytes=None,
+                draft_written=False,
+                title=body.title,
+                slug_hint=body.slug_hint,
+                errors=errors,
+                started_at=started_at,
+                completed_at=completed_at,
+            )
+            metadata_written = write_run_metadata(
+                settings.base_path, run_id, payload
+            )
+            logger.info(
+                "write-linkedin-draft run_id=%s status=failed draft_written=false "
+                "metadata_written=%s source_relative_path=%s errors=%s",
+                run_id,
+                metadata_written,
+                source_relative_path,
+                errors,
+            )
+            return build_write_linkedin_draft_response(
+                run_id=run_id,
+                status="failed",
+                metadata_written=metadata_written,
+                source_relative_path=source_relative_path,
+                source_content_sha256=source_content_sha256,
+                draft_written=False,
+                draft_relative_path=None,
+                draft_content_sha256=None,
+                size_bytes=None,
+                errors=errors if metadata_written else errors + ["metadata_write_failed"],
+            )
+
+        completed_at = utc_now_iso()
+        payload = build_write_linkedin_draft_metadata_payload(
+            run_id=run_id,
+            status="completed",
+            base_path=settings.base_path,
+            source_relative_path=source_relative_path,
+            draft_relative_path=draft_result.draft_relative_path,
+            source_content_sha256=source_content_sha256,
+            draft_content_sha256=draft_result.draft_content_sha256,
+            size_bytes=draft_result.size_bytes,
+            draft_written=True,
+            title=body.title,
+            slug_hint=body.slug_hint,
+            errors=[],
+            started_at=started_at,
+            completed_at=completed_at,
+        )
+        metadata_written = write_run_metadata(settings.base_path, run_id, payload)
+        errors: list[str] = []
+        status = "completed"
+        if not metadata_written:
+            status = "failed"
+            errors = ["metadata_write_failed"]
+
+        logger.info(
+            "write-linkedin-draft run_id=%s status=%s draft_written=true "
+            "metadata_written=%s source_relative_path=%s draft_relative_path=%s "
+            "size_bytes=%s",
+            run_id,
+            status,
+            metadata_written,
+            source_relative_path,
+            draft_result.draft_relative_path,
+            draft_result.size_bytes,
+        )
+        if draft_result.draft_content_sha256:
+            logger.debug(
+                "write-linkedin-draft run_id=%s draft_content_sha256=%s",
+                run_id,
+                draft_result.draft_content_sha256,
+            )
+
+        return build_write_linkedin_draft_response(
+            run_id=run_id,
+            status=status,
+            metadata_written=metadata_written,
+            source_relative_path=source_relative_path,
+            source_content_sha256=source_content_sha256,
+            draft_written=True,
+            draft_relative_path=draft_result.draft_relative_path,
+            draft_content_sha256=draft_result.draft_content_sha256,
+            size_bytes=draft_result.size_bytes,
             errors=errors,
         )
 
