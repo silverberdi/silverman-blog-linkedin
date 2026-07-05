@@ -256,3 +256,150 @@ def test_build_write_linkedin_draft_response_partial_failure():
     assert response["metadata_path"] is None
     assert response["draft_relative_path"] is not None
     assert "draft_content" not in response
+
+
+def test_build_generate_linkedin_draft_metadata_payload_success():
+    from silverman_blog_linkedin.run_metadata import (
+        PROVIDER_DEEPSEEK,
+        TRIGGER_GENERATE_LINKEDIN_DRAFT,
+        build_generate_linkedin_draft_metadata_payload,
+    )
+
+    payload = build_generate_linkedin_draft_metadata_payload(
+        run_id="run-20260704T223045Z-a1b2",
+        status="completed",
+        base_path=Path("/data/silverman-blog-linkedin"),
+        provider=PROVIDER_DEEPSEEK,
+        model="deepseek-v4-flash",
+        source_relative_path="blog-posts/ready/my-post.md",
+        draft_relative_path="linkedin-posts/review/20260704T223045Z-my-post.md",
+        source_content_sha256="abc123",
+        draft_content_sha256="def456",
+        size_bytes=512,
+        draft_written=True,
+        title="Optional title",
+        slug_hint="executive",
+        tone="professional",
+        audience="CTOs",
+        variant="technical",
+        errors=[],
+        started_at="2026-07-04T22:30:45Z",
+        completed_at="2026-07-04T22:30:45Z",
+    )
+
+    assert payload["trigger"] == TRIGGER_GENERATE_LINKEDIN_DRAFT
+    assert payload["provider"] == PROVIDER_DEEPSEEK
+    assert payload["model"] == "deepseek-v4-flash"
+    assert payload["tone"] == "professional"
+    assert payload["audience"] == "CTOs"
+    assert payload["variant"] == "technical"
+    assert "markdown_content" not in payload
+    assert "generated_draft_content" not in payload
+    assert "api_key" not in payload
+
+
+def test_build_generate_linkedin_draft_metadata_payload_failure():
+    from silverman_blog_linkedin.run_metadata import (
+        build_generate_linkedin_draft_metadata_payload,
+    )
+
+    payload = build_generate_linkedin_draft_metadata_payload(
+        run_id="run-20260704T223045Z-a1b2",
+        status="failed",
+        base_path=Path("/data/silverman-blog-linkedin"),
+        provider="deepseek",
+        model=None,
+        source_relative_path="blog-posts/ready/my-post.md",
+        draft_relative_path=None,
+        source_content_sha256="computed-hash",
+        draft_content_sha256=None,
+        size_bytes=None,
+        draft_written=False,
+        title=None,
+        slug_hint=None,
+        tone=None,
+        audience=None,
+        variant=None,
+        errors=["deepseek_config_invalid"],
+        started_at="2026-07-04T22:30:45Z",
+        completed_at="2026-07-04T22:30:45Z",
+    )
+
+    assert payload["model"] is None
+    assert payload["draft_written"] is False
+    assert "tone" not in payload
+    assert "markdown_content" not in payload
+
+
+def test_build_generate_linkedin_draft_response_completed():
+    from silverman_blog_linkedin.run_metadata import (
+        build_generate_linkedin_draft_response,
+    )
+
+    response = build_generate_linkedin_draft_response(
+        run_id="run-20260704T223045Z-a1b2",
+        status="completed",
+        metadata_written=True,
+        source_relative_path="blog-posts/ready/my-post.md",
+        source_content_sha256="abc123",
+        draft_written=True,
+        draft_relative_path="linkedin-posts/review/draft.md",
+        draft_content_sha256="def456",
+        size_bytes=100,
+        provider="deepseek",
+        model="deepseek-v4-flash",
+        errors=[],
+        generated_draft_content="Draft text for review.",
+    )
+
+    assert response["provider"] == "deepseek"
+    assert response["generated_draft_content"] == "Draft text for review."
+    assert "markdown_content" not in response
+
+
+def test_build_generate_linkedin_draft_response_failure_no_generated_content():
+    from silverman_blog_linkedin.run_metadata import (
+        build_generate_linkedin_draft_response,
+    )
+
+    response = build_generate_linkedin_draft_response(
+        run_id="run-20260704T223045Z-a1b2",
+        status="failed",
+        metadata_written=True,
+        source_relative_path="blog-posts/ready/my-post.md",
+        source_content_sha256="abc123",
+        draft_written=False,
+        draft_relative_path=None,
+        draft_content_sha256=None,
+        size_bytes=None,
+        provider="deepseek",
+        model="deepseek-v4-flash",
+        errors=["deepseek_auth_failed"],
+    )
+
+    assert "generated_draft_content" not in response
+
+
+def test_build_generate_linkedin_draft_response_partial_failure():
+    from silverman_blog_linkedin.run_metadata import (
+        build_generate_linkedin_draft_response,
+    )
+
+    response = build_generate_linkedin_draft_response(
+        run_id="run-20260704T223045Z-a1b2",
+        status="failed",
+        metadata_written=False,
+        source_relative_path="blog-posts/ready/my-post.md",
+        source_content_sha256="abc123",
+        draft_written=True,
+        draft_relative_path="linkedin-posts/review/20260704T223045Z-my-post.md",
+        draft_content_sha256="def456",
+        size_bytes=512,
+        provider="deepseek",
+        model="deepseek-v4-flash",
+        errors=["metadata_write_failed"],
+    )
+
+    assert response["draft_written"] is True
+    assert response["metadata_written"] is False
+    assert "generated_draft_content" not in response

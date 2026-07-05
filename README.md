@@ -2,7 +2,7 @@
 
 Local HTTP worker for the **silverman-blog-linkedin** content automation system. n8n orchestrates workflows; this service performs bounded file processing and health checks over HTTP (see ADR-0001).
 
-Current capabilities: configuration, editorial folder validation, `GET /health`, authenticated `POST /process-ready` (read-only scan of Markdown candidates in `blog-posts/ready/`), authenticated `POST /process-file` (read one Markdown blog post by `relative_path`), and authenticated `POST /write-linkedin-draft` (persist one LinkedIn review draft from client-supplied content).
+Current capabilities: configuration, editorial folder validation, `GET /health`, authenticated `POST /process-ready` (read-only scan of Markdown candidates in `blog-posts/ready/`), authenticated `POST /process-file` (read one Markdown blog post by `relative_path`), authenticated `POST /write-linkedin-draft` (persist one LinkedIn review draft from client-supplied content), and authenticated `POST /generate-linkedin-draft` (generate one LinkedIn review draft from blog Markdown via DeepSeek).
 
 ## Requirements
 
@@ -14,10 +14,22 @@ Current capabilities: configuration, editorial folder validation, `GET /health`,
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
 | `SILVERMAN_BLOG_LINKEDIN_BASE_PATH` | No | `./data/silverman-blog-linkedin` | Root path for editorial data |
-| `SILVERMAN_BLOG_LINKEDIN_API_KEY` | **Yes** | None | Shared secret for authenticated endpoints (`POST /process-ready`, `POST /process-file`, `POST /write-linkedin-draft`) |
+| `SILVERMAN_BLOG_LINKEDIN_API_KEY` | **Yes** | None | Shared secret for authenticated endpoints (`POST /process-ready`, `POST /process-file`, `POST /write-linkedin-draft`, `POST /generate-linkedin-draft`) |
 | `PORT` | No | `8000` | HTTP listen port |
 
 The worker **fails fast at startup** if `SILVERMAN_BLOG_LINKEDIN_API_KEY` is missing or empty. The API key is never included in HTTP responses or error messages.
+
+### DeepSeek (optional — required only for `POST /generate-linkedin-draft`)
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `DEEPSEEK_API_KEY` | For generate only | — | DeepSeek API key for chat completions |
+| `DEEPSEEK_BASE_URL` | No | `https://api.deepseek.com` | DeepSeek-compatible API base URL (trailing slash stripped; `/chat/completions` appended; no automatic `/v1`) |
+| `DEEPSEEK_MODEL` | No | `deepseek-v4-flash` | Model name for generation |
+| `DEEPSEEK_TIMEOUT_SECONDS` | No | `60` | Request timeout (positive number) |
+| `DEEPSEEK_MAX_OUTPUT_TOKENS` | No | `1024` | Max output tokens (positive integer) |
+
+The worker starts without `DEEPSEEK_API_KEY`. Other endpoints work normally. Invalid optional DeepSeek settings do not block startup; they cause `POST /generate-linkedin-draft` to return `deepseek_config_invalid`. The DeepSeek API key is never included in HTTP responses, run metadata, or info-level logs.
 
 ### Local vs container base path
 
@@ -329,6 +341,112 @@ When `metadata/runs/` is missing or not writable, the response has `status: "fai
 Run metadata never includes `draft_content`. The HTTP response never includes API keys or submitted tokens.
 
 **n8n integration:** after an external or future LLM step produces draft text, use an HTTP Request node with method `POST`, URL `{worker_base_url}/write-linkedin-draft`, header `Authorization: Bearer {{api_key}}`, and JSON body containing `source_relative_path` (from `POST /process-file`) and `draft_content`. Optionally pass `source_content_sha256` from the process-file response for traceability. Branch on `status`, `draft_written`, `metadata_written`, and `errors`.
+
+## POST /generate-linkedin-draft
+
+Authenticated endpoint that generates one LinkedIn review draft from supplied blog Markdown using the DeepSeek chat completions API, persists the draft under `linkedin-posts/review/`, writes run metadata to `metadata/runs/` when writable (summary fields only—no markdown body or generated text), and returns structured JSON for n8n branching. Does not publish to LinkedIn or GitHub, or move or modify source blog files.
+
+**Authentication:** `Authorization: Bearer <SILVERMAN_BLOG_LINKEDIN_API_KEY>`
+
+**DeepSeek:** requires `DEEPSEEK_API_KEY` at request time (worker starts without it). Configure optional `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`, `DEEPSEEK_TIMEOUT_SECONDS`, and `DEEPSEEK_MAX_OUTPUT_TOKENS` as needed.
+
+**Request body (allowed fields only):**
+
+```json
+{
+  "source_relative_path": "blog-posts/ready/my-post.md",
+  "markdown_content": "# Title\n\nBlog body from POST /process-file.",
+  "source_content_sha256": "abc123...",
+  "title": "Optional human title",
+  "slug_hint": "executive",
+  "tone": "professional",
+  "audience": "senior architects",
+  "variant": "technical-leadership"
+}
+```
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `source_relative_path` | Yes | Non-empty after normalization; shape validated under `blog-posts/ready/` (file is not re-read) |
+| `markdown_content` | Yes | Non-empty after strip; typically from `POST /process-file` response |
+| `source_content_sha256` | No | Echoed unchanged when provided; otherwise computed as lowercase SHA-256 of UTF-8 `markdown_content` |
+| `title` | No | Prompt hint and metadata |
+| `slug_hint` | No | Filename segment; when absent, `variant` may be used as slug segment |
+| `tone` | No | Prompt hint and metadata |
+| `audience` | No | Prompt hint and metadata |
+| `variant` | No | Prompt hint and metadata |
+
+The worker rejects extra fields with HTTP `422`. The client cannot choose the output path.
+
+**Example (successful generation):**
+
+```bash
+curl -s -X POST http://localhost:8000/generate-linkedin-draft \
+  -H "Authorization: Bearer your-local-dev-key" \
+  -H "Content-Type: application/json" \
+  -d '{"source_relative_path":"blog-posts/ready/my-post.md","markdown_content":"# Architecture\n\nSenior insight.","slug_hint":"executive"}' | python3 -m json.tool
+```
+
+```json
+{
+  "run_id": "run-20260705T160045Z-a1b2",
+  "status": "completed",
+  "metadata_written": true,
+  "metadata_path": "metadata/runs/run-20260705T160045Z-a1b2.json",
+  "draft_written": true,
+  "draft_relative_path": "linkedin-posts/review/20260705T160045Z-my-post-executive.md",
+  "source_relative_path": "blog-posts/ready/my-post.md",
+  "source_content_sha256": "a1b2c3...",
+  "draft_content_sha256": "def456...",
+  "size_bytes": 128,
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "generated_draft_content": "LinkedIn draft text for human review.",
+  "errors": []
+}
+```
+
+**Example (DeepSeek API key missing):**
+
+```json
+{
+  "run_id": "run-20260705T160045Z-a1b2",
+  "status": "failed",
+  "metadata_written": true,
+  "metadata_path": "metadata/runs/run-20260705T160045Z-a1b2.json",
+  "draft_written": false,
+  "draft_relative_path": null,
+  "source_relative_path": "blog-posts/ready/my-post.md",
+  "source_content_sha256": "a1b2c3...",
+  "draft_content_sha256": null,
+  "size_bytes": null,
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "errors": ["deepseek_api_key_missing"]
+}
+```
+
+**Example (DeepSeek failure):**
+
+```json
+{
+  "run_id": "run-20260705T160045Z-a1b2",
+  "status": "failed",
+  "metadata_written": true,
+  "metadata_path": "metadata/runs/run-20260705T160045Z-a1b2.json",
+  "draft_written": false,
+  "draft_relative_path": null,
+  "source_relative_path": "blog-posts/ready/my-post.md",
+  "source_content_sha256": "a1b2c3...",
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "errors": ["deepseek_rate_limited"]
+}
+```
+
+When `metadata/runs/` is missing or not writable, the response has `provider: "deepseek"`, `model: null`, `metadata_written: false`, and no draft or metadata files are created. Run metadata never includes `markdown_content`, `generated_draft_content`, prompt text, or API keys.
+
+**n8n integration:** chain `POST /process-file` → `POST /generate-linkedin-draft`. Pass `relative_path` as `source_relative_path` and `markdown_content` from the process-file response. Optionally pass `content_sha256` as `source_content_sha256`. Branch on `status`, `draft_written`, `generated_draft_content`, and `errors`.
 
 ## Project context
 

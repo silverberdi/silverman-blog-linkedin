@@ -16,6 +16,8 @@ METADATA_RUNS_RELATIVE = "metadata/runs"
 TRIGGER_PROCESS_READY = "POST /process-ready"
 TRIGGER_PROCESS_FILE = "POST /process-file"
 TRIGGER_WRITE_LINKEDIN_DRAFT = "POST /write-linkedin-draft"
+TRIGGER_GENERATE_LINKEDIN_DRAFT = "POST /generate-linkedin-draft"
+PROVIDER_DEEPSEEK = "deepseek"
 
 
 @dataclass(frozen=True)
@@ -247,6 +249,102 @@ def build_write_linkedin_draft_response(
         "size_bytes": size_bytes,
         "errors": errors,
     }
+
+
+def build_generate_linkedin_draft_metadata_payload(
+    *,
+    run_id: str,
+    status: str,
+    base_path: Path,
+    provider: str,
+    model: str | None,
+    source_relative_path: str,
+    draft_relative_path: str | None,
+    source_content_sha256: str,
+    draft_content_sha256: str | None,
+    size_bytes: int | None,
+    draft_written: bool,
+    title: str | None,
+    slug_hint: str | None,
+    tone: str | None,
+    audience: str | None,
+    variant: str | None,
+    errors: list[str],
+    started_at: str,
+    completed_at: str,
+) -> dict[str, Any]:
+    """Build run metadata for POST /generate-linkedin-draft (no content bodies or secrets)."""
+    payload: dict[str, Any] = {
+        "run_id": run_id,
+        "trigger": TRIGGER_GENERATE_LINKEDIN_DRAFT,
+        "started_at": started_at,
+        "completed_at": completed_at,
+        "status": status,
+        "base_path": str(base_path),
+        "provider": provider,
+        "model": model,
+        "source_relative_path": source_relative_path,
+        "draft_relative_path": draft_relative_path,
+        "source_content_sha256": source_content_sha256,
+        "draft_content_sha256": draft_content_sha256,
+        "size_bytes": size_bytes,
+        "draft_written": draft_written,
+        "errors": errors,
+    }
+    if title is not None:
+        payload["title"] = title
+    if slug_hint is not None:
+        payload["slug_hint"] = slug_hint
+    if tone is not None:
+        payload["tone"] = tone
+    if audience is not None:
+        payload["audience"] = audience
+    if variant is not None:
+        payload["variant"] = variant
+    return payload
+
+
+def build_generate_linkedin_draft_response(
+    *,
+    run_id: str,
+    status: str,
+    metadata_written: bool,
+    source_relative_path: str,
+    source_content_sha256: str,
+    draft_written: bool,
+    draft_relative_path: str | None,
+    draft_content_sha256: str | None,
+    size_bytes: int | None,
+    provider: str,
+    model: str | None,
+    errors: list[str],
+    generated_draft_content: str | None = None,
+) -> dict[str, Any]:
+    """Build POST /generate-linkedin-draft HTTP response body."""
+    metadata_path: str | None
+    if metadata_written:
+        metadata_path = metadata_relative_path(run_id)
+    else:
+        metadata_path = None
+
+    response: dict[str, Any] = {
+        "run_id": run_id,
+        "status": status,
+        "metadata_written": metadata_written,
+        "metadata_path": metadata_path,
+        "draft_written": draft_written,
+        "draft_relative_path": draft_relative_path,
+        "source_relative_path": source_relative_path,
+        "source_content_sha256": source_content_sha256,
+        "draft_content_sha256": draft_content_sha256,
+        "size_bytes": size_bytes,
+        "provider": provider,
+        "model": model,
+        "errors": errors,
+    }
+    if status == "completed" and generated_draft_content is not None:
+        response["generated_draft_content"] = generated_draft_content
+    return response
 
 
 def build_process_ready_response(
