@@ -10,7 +10,7 @@ services:
     volumes:
       # Local example: mount a host editorial tree into the container path.
       # On the Linux server, use the shared folder path documented in README.
-      - ./data/silverman-blog-linkedin:/data/silverman-blog-linkedin:ro
+      - ./data/silverman-blog-linkedin:/data/silverman-blog-linkedin
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 30s

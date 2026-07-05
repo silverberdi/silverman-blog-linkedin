@@ -2,7 +2,7 @@
 
 Local HTTP worker for the **silverman-blog-linkedin** content automation system. n8n orchestrates workflows; this service performs bounded file processing and health checks over HTTP (see ADR-0001).
 
-Phase 1 foundation: configuration, editorial folder validation, and `GET /health`. Processing endpoints (`POST /process-ready`, `POST /process-file`) are planned for later changes.
+Current capabilities: configuration, editorial folder validation, `GET /health`, and authenticated `POST /process-ready` (read-only scan of Markdown candidates in `blog-posts/ready/`). `POST /process-file` is planned for a later change.
 
 ## Requirements
 
@@ -14,7 +14,7 @@ Phase 1 foundation: configuration, editorial folder validation, and `GET /health
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
 | `SILVERMAN_BLOG_LINKEDIN_BASE_PATH` | No | `./data/silverman-blog-linkedin` | Root path for editorial data |
-| `SILVERMAN_BLOG_LINKEDIN_API_KEY` | **Yes** | None | Shared secret for future authenticated endpoints |
+| `SILVERMAN_BLOG_LINKEDIN_API_KEY` | **Yes** | None | Shared secret for authenticated endpoints (`POST /process-ready`) |
 | `PORT` | No | `8000` | HTTP listen port |
 
 The worker **fails fast at startup** if `SILVERMAN_BLOG_LINKEDIN_API_KEY` is missing or empty. The API key is never included in HTTP responses or error messages.
@@ -83,7 +83,7 @@ export SILVERMAN_BLOG_LINKEDIN_API_KEY="your-key"
 docker compose -f docker-compose.example.yml up --build
 ```
 
-The example mounts `./data/silverman-blog-linkedin` read-only into `/data/silverman-blog-linkedin` inside the container.
+The example mounts `./data/silverman-blog-linkedin` into `/data/silverman-blog-linkedin` inside the container. Write access to `metadata/runs/` is required for `POST /process-ready` (the example mount is read-write).
 
 Quick check (host-side JSON formatting):
 
@@ -126,6 +126,49 @@ Quick check:
 ```bash
 curl -s http://localhost:8000/health | python3 -m json.tool
 ```
+
+## POST /process-ready
+
+Authenticated endpoint that scans `blog-posts/ready/` for Markdown candidates, validates basic file properties, writes run metadata to `metadata/runs/` when writable, and returns structured JSON for n8n branching. Does not generate LinkedIn drafts, call OpenAI, or move source files.
+
+**Authentication:** `Authorization: Bearer <SILVERMAN_BLOG_LINKEDIN_API_KEY>`
+
+**Request:** empty body (no required JSON). The worker does not accept arbitrary paths from the request.
+
+**Example (successful scan):**
+
+```bash
+curl -s -X POST http://localhost:8000/process-ready \
+  -H "Authorization: Bearer your-local-dev-key" | python3 -m json.tool
+```
+
+```json
+{
+  "run_id": "run-20260704T223045Z-a1b2",
+  "status": "completed",
+  "metadata_written": true,
+  "metadata_path": "metadata/runs/run-20260704T223045Z-a1b2.json",
+  "folders_ready": true,
+  "candidate_count": 1,
+  "valid_count": 1,
+  "invalid_count": 0,
+  "ignored_count": 0,
+  "valid_files": [
+    {
+      "filename": "my-post.md",
+      "relative_path": "blog-posts/ready/my-post.md",
+      "size_bytes": 42
+    }
+  ],
+  "invalid_files": [],
+  "ignored_files": [],
+  "errors": []
+}
+```
+
+When `metadata/runs/` is missing or not writable, the response has `status: "failed"`, `metadata_written: false`, `metadata_path: null`, and an error code such as `metadata_runs_not_ready` or `metadata_runs_not_writable`. When other editorial folders are missing but `metadata/runs/` is writable, the worker writes failed run metadata and returns `errors: ["editorial_folders_not_ready"]`.
+
+**n8n integration:** use an HTTP Request node with method `POST`, URL `{worker_base_url}/process-ready`, and header `Authorization: Bearer {{api_key}}`. Branch on `status`, `metadata_written`, `valid_count`, and `errors`.
 
 ## Project context
 
