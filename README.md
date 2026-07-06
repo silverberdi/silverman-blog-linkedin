@@ -88,6 +88,8 @@ python -m pytest
 
 ## Docker
 
+### Local development
+
 Build and run with the example compose file (set `SILVERMAN_BLOG_LINKEDIN_API_KEY` in your environment first):
 
 ```bash
@@ -102,6 +104,10 @@ Quick check (host-side JSON formatting):
 ```bash
 curl -s http://localhost:8000/health | python3 -m json.tool
 ```
+
+### Ubuntu server deployment
+
+For the isolated worker deployment on Ubuntu server `192.168.0.194` (host port `8010`, separate from `local-ai-stack`), see [docs/deployment/ubuntu-server-worker-deployment.md](docs/deployment/ubuntu-server-worker-deployment.md).
 
 ## GET /health
 
