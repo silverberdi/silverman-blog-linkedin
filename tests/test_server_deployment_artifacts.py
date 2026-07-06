@@ -15,6 +15,8 @@ COMPOSE_PATH = DEPLOY_SERVER / "silverman-worker.compose.yaml"
 ENV_EXAMPLE_PATH = DEPLOY_SERVER / "silverman-worker.env.example"
 DEPLOY_SCRIPT_PATH = DEPLOY_SERVER / "deploy-worker.sh"
 SMOKE_SCRIPT_PATH = DEPLOY_SERVER / "smoke-worker.sh"
+VERIFY_ROTATION_SCRIPT_PATH = DEPLOY_SERVER / "verify-worker-api-key-rotation.sh"
+DEPLOYMENT_DOC_PATH = REPO_ROOT / "docs" / "deployment" / "ubuntu-server-worker-deployment.md"
 
 REQUIRED_ENV_VARS = (
     "SILVERMAN_BLOG_LINKEDIN_API_KEY",
@@ -119,3 +121,41 @@ def test_deploy_script_syncs_src_directory_as_top_level_folder() -> None:
     assert '"${REPO_ROOT}/src" \\' in content
     assert '"${REPO_ROOT}/src/" \\' not in content
     assert 'cp -R "${REPO_ROOT}/src" "${TARGET_DIR}/src"' in content
+
+
+def test_verify_rotation_script_exists() -> None:
+    assert VERIFY_ROTATION_SCRIPT_PATH.is_file()
+
+
+def test_verify_rotation_script_is_executable() -> None:
+    mode = VERIFY_ROTATION_SCRIPT_PATH.stat().st_mode
+    assert mode & stat.S_IXUSR, "verify-worker-api-key-rotation.sh is not executable (owner)"
+
+
+def test_verify_rotation_script_references_old_key_env_var() -> None:
+    content = VERIFY_ROTATION_SCRIPT_PATH.read_text(encoding="utf-8")
+    assert "OLD_SILVERMAN_BLOG_LINKEDIN_API_KEY" in content
+    assert "SILVERMAN_BLOG_LINKEDIN_API_KEY" in content
+
+
+def test_verify_rotation_script_has_no_obvious_secret_literals() -> None:
+    content = VERIFY_ROTATION_SCRIPT_PATH.read_text(encoding="utf-8")
+    for pattern in SECRET_PATTERNS:
+        assert not pattern.search(content), (
+            f"verify-worker-api-key-rotation.sh may contain a real secret: {pattern}"
+        )
+    assert "local-test-key" not in content
+    assert "CHANGE_ME" not in content
+
+
+def test_deploy_script_syncs_verify_rotation_script() -> None:
+    content = DEPLOY_SCRIPT_PATH.read_text(encoding="utf-8")
+    assert "verify-worker-api-key-rotation.sh" in content
+
+
+def test_deployment_doc_documents_worker_api_key_rotation() -> None:
+    content = DEPLOYMENT_DOC_PATH.read_text(encoding="utf-8")
+    assert "## Worker API key rotation" in content
+    assert "OLD_SILVERMAN_BLOG_LINKEDIN_API_KEY" in content
+    assert "verify-worker-api-key-rotation.sh" in content
+    assert "Silverman Blog LinkedIn Draft Generation" in content

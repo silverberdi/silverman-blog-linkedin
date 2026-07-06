@@ -39,6 +39,7 @@ if command -v rsync >/dev/null 2>&1; then
     "${SCRIPT_DIR}/silverman-worker.env.example" \
     "${SCRIPT_DIR}/deploy-worker.sh" \
     "${SCRIPT_DIR}/smoke-worker.sh" \
+    "${SCRIPT_DIR}/verify-worker-api-key-rotation.sh" \
     "${TARGET_DIR}/"
 else
   echo "    rsync not found; using cp (no delete of stale files)"
@@ -49,10 +50,13 @@ else
     "${SCRIPT_DIR}/silverman-worker.env.example" \
     "${SCRIPT_DIR}/deploy-worker.sh" \
     "${SCRIPT_DIR}/smoke-worker.sh" \
+    "${SCRIPT_DIR}/verify-worker-api-key-rotation.sh" \
     "${TARGET_DIR}/"
 fi
 
-chmod +x "${TARGET_DIR}/deploy-worker.sh" "${TARGET_DIR}/smoke-worker.sh"
+chmod +x "${TARGET_DIR}/deploy-worker.sh" \
+  "${TARGET_DIR}/smoke-worker.sh" \
+  "${TARGET_DIR}/verify-worker-api-key-rotation.sh"
 
 if [[ ! -f "${TARGET_DIR}/silverman-worker.env.example" ]]; then
   echo "ERROR: silverman-worker.env.example missing in ${TARGET_DIR}" >&2

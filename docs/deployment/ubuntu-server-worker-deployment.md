@@ -93,6 +93,97 @@ Re-run the deploy script after pulling or syncing new code:
 
 The deploy uses `--build` to refresh the image.
 
+## Worker API key rotation
+
+Rotate `SILVERMAN_BLOG_LINKEDIN_API_KEY` when replacing a temporary or compromised key. Real keys must exist **only** in the server-local `.env` and n8n workflow configuration—never in git.
+
+**Warning:** Do not commit `.env`, paste keys into the repository, or store them in workflow JSON checked into git.
+
+### Preparation
+
+1. Generate a strong replacement key on the server or a trusted machine (example):
+
+   ```bash
+   openssl rand -hex 32
+   ```
+
+2. Record the **current** values in a secure location (password manager or encrypted notes—not git):
+   - `SILVERMAN_BLOG_LINKEDIN_API_KEY` from `/home/silverman/silverman-blog-linkedin-worker/.env`
+   - `worker_api_key` from the n8n **Set Configuration** node in workflow **Silverman Blog LinkedIn Draft Generation**
+
+3. Back up the server-local `.env`:
+
+   ```bash
+   cp /home/silverman/silverman-blog-linkedin-worker/.env \
+      /home/silverman/silverman-blog-linkedin-worker/.env.bak.$(date +%Y%m%d%H%M%S)
+   ```
+
+### Rotation order (worker first, then n8n)
+
+Update the worker before n8n so validation can run on the server. n8n may return HTTP 401 briefly until `worker_api_key` is updated.
+
+1. **Update worker `.env`** on the server:
+
+   ```bash
+   cd /home/silverman/silverman-blog-linkedin-worker
+   # Edit .env and set SILVERMAN_BLOG_LINKEDIN_API_KEY to the new value
+   ```
+
+2. **Restart the worker container** (isolated compose only):
+
+   ```bash
+   cd /home/silverman/silverman-blog-linkedin-worker
+   docker compose -f silverman-worker.compose.yaml up -d
+   ```
+
+3. **Validate worker auth** (replace the env value with your **previous** key):
+
+   ```bash
+   cd /home/silverman/silverman-blog-linkedin-worker
+   OLD_SILVERMAN_BLOG_LINKEDIN_API_KEY='<previous-key>' ./verify-worker-api-key-rotation.sh
+   ./smoke-worker.sh
+   ```
+
+   `verify-worker-api-key-rotation.sh` checks:
+   - `GET /health` → HTTP 200
+   - `POST /process-ready` with previous Bearer → HTTP 401
+   - `POST /process-ready` with current Bearer (from `.env`) → HTTP 200
+
+   The script never prints key values. Pass the old key only via `OLD_SILVERMAN_BLOG_LINKEDIN_API_KEY` (not as a script argument).
+
+4. **Update n8n** at `http://192.168.0.194:5678`:
+   - Open workflow **Silverman Blog LinkedIn Draft Generation**
+   - In **Set Configuration**, set `worker_api_key` to the same value as the new `SILVERMAN_BLOG_LINKEDIN_API_KEY`
+   - Leave `worker_base_url` as `http://192.168.0.194:8010`
+
+5. **Manual n8n workflow smoke:**
+   - Run the workflow manually
+   - Confirm a new draft appears under `linkedin-posts/review/`
+   - Confirm the source post remains in `blog-posts/ready/`
+
+### Rollback (API key rotation)
+
+If rotation fails after changing the worker or n8n:
+
+1. Restore the previous `SILVERMAN_BLOG_LINKEDIN_API_KEY` in `/home/silverman/silverman-blog-linkedin-worker/.env` (from backup or secure notes).
+
+2. Restart the worker:
+
+   ```bash
+   cd /home/silverman/silverman-blog-linkedin-worker
+   docker compose -f silverman-worker.compose.yaml up -d
+   ```
+
+3. Run smoke test:
+
+   ```bash
+   /home/silverman/silverman-blog-linkedin-worker/smoke-worker.sh
+   ```
+
+4. If n8n was already updated, restore the previous `worker_api_key` in **Set Configuration**.
+
+5. Re-run the n8n workflow and confirm draft generation works.
+
 ## Rollback
 
 Stop the worker **only** from the isolated deployment directory:
@@ -154,4 +245,5 @@ Real `SILVERMAN_BLOG_LINKEDIN_API_KEY` and `DEEPSEEK_API_KEY` values must exist 
 | `deploy/server/silverman-worker.env.example` | Documented env placeholders |
 | `deploy/server/deploy-worker.sh` | Deploy script |
 | `deploy/server/smoke-worker.sh` | HTTP smoke tests |
+| `deploy/server/verify-worker-api-key-rotation.sh` | Post-rotation auth verification |
 | `docker-compose.example.yml` | Local/dev compose (not for server) |
