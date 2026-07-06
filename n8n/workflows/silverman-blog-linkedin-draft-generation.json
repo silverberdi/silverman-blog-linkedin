@@ -47,6 +47,18 @@
               "name": "variant",
               "value": "executive-recruiter",
               "type": "string"
+            },
+            {
+              "id": "c8f3a2b1-4d5e-6f70-8192-a3b4c5d6e7f8",
+              "name": "source_public_url",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "d9e4b3c2-5e6f-7081-9203-b4c5d6e7f809",
+              "name": "topic_theme",
+              "value": "",
+              "type": "string"
             }
           ]
         },
@@ -60,7 +72,7 @@
         220,
         300
       ],
-      "notes": "Edit worker_base_url, worker_api_key, and editorial hints before running."
+      "notes": "Edit worker_base_url, worker_api_key, editorial hints, and optional source_public_url (after publish) before running."
     },
     {
       "parameters": {
@@ -481,7 +493,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ source_relative_path: $('Process File').item.json.relative_path, markdown_content: $('Process File').item.json.markdown_content, source_content_sha256: $('Process File').item.json.content_sha256, tone: $('Set Configuration').first().json.tone, audience: $('Set Configuration').first().json.audience, variant: $('Set Configuration').first().json.variant }) }}",
+        "jsonBody": "={{ (() => { const config = $('Set Configuration').first().json; const pf = $('Process File').item.json; const body = { source_relative_path: pf.relative_path, markdown_content: pf.markdown_content, source_content_sha256: pf.content_sha256, tone: config.tone, audience: config.audience, variant: config.variant }; const url = (config.source_public_url || '').trim(); const theme = (config.topic_theme || '').trim(); if (url) body.source_public_url = url; if (theme) body.topic_theme = theme; return JSON.stringify(body); })() }}",
         "options": {}
       },
       "id": "72d9a597-8641-404b-8a71-bdc2ce893964",
@@ -555,6 +567,18 @@
               "id": "6fe99f08-016e-41eb-af3a-d1290eba9198",
               "name": "metadata_path",
               "value": "={{ $json.metadata_path }}",
+              "type": "string"
+            },
+            {
+              "id": "e1f2a3b4-c5d6-4789-a012-3456789abcde",
+              "name": "source_public_url",
+              "value": "={{ $json.source_public_url }}",
+              "type": "string"
+            },
+            {
+              "id": "f2a3b4c5-d6e7-4890-b123-456789abcdef0",
+              "name": "topic_theme",
+              "value": "={{ $json.topic_theme }}",
               "type": "string"
             }
           ]

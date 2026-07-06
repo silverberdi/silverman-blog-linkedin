@@ -175,3 +175,63 @@ def test_workflow_set_configuration_has_editorial_hints(workflow: dict):
     assert {"tone", "audience", "variant", "worker_base_url", "worker_api_key"}.issubset(
         names
     )
+
+
+def test_workflow_set_configuration_has_optional_public_context(workflow: dict):
+    config_node = next(
+        node for node in workflow["nodes"] if node["name"] == "Set Configuration"
+    )
+    assignments = {
+        item["name"]: item["value"]
+        for item in config_node["parameters"]["assignments"]["assignments"]
+    }
+    assert "source_public_url" in assignments
+    assert "topic_theme" in assignments
+    assert assignments["source_public_url"] == ""
+    assert assignments["topic_theme"] == ""
+
+
+def _generate_linkedin_draft_node(workflow: dict) -> dict:
+    return next(
+        node for node in workflow["nodes"] if node["name"] == "Generate LinkedIn Draft"
+    )
+
+
+def test_generate_linkedin_draft_json_body_maps_optional_fields_conditionally(
+    workflow: dict,
+):
+    json_body = _generate_linkedin_draft_node(workflow)["parameters"]["jsonBody"]
+    assert "source_public_url" in json_body
+    assert "topic_theme" in json_body
+    assert ".trim()" in json_body
+    assert "if (url)" in json_body
+    assert "if (theme)" in json_body
+    for field in (
+        "source_relative_path",
+        "markdown_content",
+        "source_content_sha256",
+        "tone",
+        "audience",
+        "variant",
+    ):
+        assert field in json_body
+
+
+def test_generate_linkedin_draft_does_not_send_empty_optional_literals(workflow: dict):
+    json_body = _generate_linkedin_draft_node(workflow)["parameters"]["jsonBody"]
+    compact = json_body.replace(" ", "")
+    assert 'source_public_url:""' not in compact
+    assert "source_public_url:''" not in compact
+    assert 'topic_theme:""' not in compact
+    assert "topic_theme:''" not in compact
+
+
+def test_set_generate_success_exposes_optional_public_context(workflow: dict):
+    success_node = next(
+        node for node in workflow["nodes"] if node["name"] == "Set Generate Success"
+    )
+    names = {
+        item["name"]
+        for item in success_node["parameters"]["assignments"]["assignments"]
+    }
+    assert {"source_public_url", "topic_theme"}.issubset(names)

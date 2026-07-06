@@ -483,8 +483,12 @@ Edit the **Set Configuration** node (first node after Manual Trigger):
 | `tone` | `executive` | Editorial hint passed to `POST /generate-linkedin-draft`. |
 | `audience` | `recruiters and engineering leaders` | Editorial hint for generation. |
 | `variant` | `executive-recruiter` | Editorial hint for draft filename/slug segment. |
+| `source_public_url` | _(empty)_ | Optional public article URL (`https://…`) after the post is live on [silverman.pro](https://silverman.pro). Omit or leave empty to generate without a blog CTA. |
+| `topic_theme` | _(empty)_ | Optional editorial hint for CTA wording when `source_public_url` is set (e.g. `domain-first architecture`). |
 
 The exported JSON contains **no real secrets**. Replace placeholders after import.
+
+**Publishing context:** This workflow does **not** publish to GitHub Pages. Use the [blog publishing bridge CLI](#blog-publishing-bridge-github-pages) separately, then set `source_public_url` in **Set Configuration** to the live article URL before running draft generation. A future orchestration workflow may pass `public_url` automatically from a publishing step.
 
 Authenticated HTTP Request nodes use `Authorization: Bearer {{ $('Set Configuration').first().json.worker_api_key }}` via expressions—not hardcoded tokens.
 
@@ -506,14 +510,14 @@ Manual Trigger
   → IF Process File OK
       → Generate LinkedIn Draft (POST /generate-linkedin-draft)
       → IF Generate Completed
-          → success: draft_relative_path, metadata_path, source_relative_path
+          → success: draft_relative_path, metadata_path, source_relative_path, source_public_url, topic_theme (when echoed)
           → failure: errors, metadata_path, source_relative_path
       → else: process-file errors on item
 ```
 
 ### Expected outcomes
 
-- **Success:** draft file under `linkedin-posts/review/` (written by worker); workflow output includes `draft_relative_path` and `metadata_path`.
+- **Success:** draft file under `linkedin-posts/review/` (written by worker); workflow output includes `draft_relative_path`, `metadata_path`, and when configured and echoed by the worker, `source_public_url` and `topic_theme`.
 - **No candidates:** workflow stops cleanly when `valid_count` is 0.
 - **Failures:** health not ready, process-ready failed, process-file failed, or generate failed branches expose `errors` and `metadata_path` when the worker returns them.
 - **Source posts:** remain in `blog-posts/ready/` (this workflow does not move them).
