@@ -367,7 +367,9 @@ Authenticated endpoint that generates one LinkedIn review draft from supplied bl
   "slug_hint": "executive",
   "tone": "professional",
   "audience": "senior architects",
-  "variant": "technical-leadership"
+  "variant": "technical-leadership",
+  "source_public_url": "https://silverman.pro/2026/07/06/my-post/",
+  "topic_theme": "architecture"
 }
 ```
 
@@ -381,8 +383,10 @@ Authenticated endpoint that generates one LinkedIn review draft from supplied bl
 | `tone` | No | Prompt hint and metadata |
 | `audience` | No | Prompt hint and metadata |
 | `variant` | No | Prompt hint and metadata |
+| `source_public_url` | No | Public blog article URL (`http` or `https` only); when provided, the generated draft includes it once as a natural end CTA |
+| `topic_theme` | No | Editorial hint; with `source_public_url`, may influence CTA wording (e.g. "Read the full {topic_theme} story here") |
 
-The worker rejects extra fields with HTTP `422`. The client cannot choose the output path.
+The worker rejects extra fields (including `cta_style`) with HTTP `422`. The client cannot choose the output path.
 
 **Example (successful generation):**
 
@@ -408,6 +412,8 @@ curl -s -X POST http://localhost:8000/generate-linkedin-draft \
   "provider": "deepseek",
   "model": "deepseek-v4-flash",
   "generated_draft_content": "LinkedIn draft text for human review.",
+  "source_public_url": "https://silverman.pro/2026/07/06/my-post/",
+  "topic_theme": "architecture",
   "errors": []
 }
 ```
@@ -452,7 +458,7 @@ curl -s -X POST http://localhost:8000/generate-linkedin-draft \
 
 When `metadata/runs/` is missing or not writable, the response has `provider: "deepseek"`, `model: null`, `metadata_written: false`, and no draft or metadata files are created. Run metadata never includes `markdown_content`, `generated_draft_content`, prompt text, or API keys.
 
-**n8n integration:** chain `POST /process-file` → `POST /generate-linkedin-draft`. Pass `relative_path` as `source_relative_path` and `markdown_content` from the process-file response. Optionally pass `content_sha256` as `source_content_sha256`. Branch on `status`, `draft_written`, `generated_draft_content`, and `errors`.
+**n8n integration:** chain `POST /process-file` → (optional GitHub Pages publish) → `POST /generate-linkedin-draft`. Pass `relative_path` as `source_relative_path` and `markdown_content` from the process-file response. After the blog is published to https://silverman.pro, pass the public article URL as `source_public_url` so the generated LinkedIn draft includes a natural call to action pointing readers to the full article. Optionally pass `content_sha256` as `source_content_sha256` and `topic_theme` for CTA wording. Branch on `status`, `draft_written`, `generated_draft_content`, and `errors`.
 
 ## n8n workflow: draft generation orchestration
 

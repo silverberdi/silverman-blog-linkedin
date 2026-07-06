@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -104,6 +105,8 @@ class GenerateLinkedinDraftRequest(BaseModel):
     tone: str | None = None
     audience: str | None = None
     variant: str | None = None
+    source_public_url: str | None = None
+    topic_theme: str | None = None
 
     @field_validator("source_relative_path")
     @classmethod
@@ -119,6 +122,56 @@ class GenerateLinkedinDraftRequest(BaseModel):
         if not value.strip():
             raise ValueError("markdown_content must not be empty or whitespace-only")
         return value
+
+    @field_validator("source_public_url")
+    @classmethod
+    def validate_source_public_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("source_public_url must not be empty or whitespace-only")
+        parsed = urlparse(stripped)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("source_public_url must use http or https scheme")
+        if not parsed.netloc:
+            raise ValueError("source_public_url must have a valid host")
+        return stripped
+
+    @field_validator("topic_theme")
+    @classmethod
+    def validate_topic_theme(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("topic_theme must not be empty or whitespace-only")
+        return stripped
+
+
+def _generate_linkedin_draft_editorial_fields(
+    body: GenerateLinkedinDraftRequest,
+) -> dict[str, str | None]:
+    """Editorial and public URL fields shared by generate-linkedin-draft builders."""
+    return {
+        "title": body.title,
+        "slug_hint": body.slug_hint,
+        "tone": body.tone,
+        "audience": body.audience,
+        "variant": body.variant,
+        "source_public_url": body.source_public_url,
+        "topic_theme": body.topic_theme,
+    }
+
+
+def _generate_linkedin_draft_public_fields(
+    body: GenerateLinkedinDraftRequest,
+) -> dict[str, str | None]:
+    """Public blog URL fields echoed in generate-linkedin-draft HTTP responses."""
+    return {
+        "source_public_url": body.source_public_url,
+        "topic_theme": body.topic_theme,
+    }
 
 
 def _resolve_source_content_sha256(
@@ -653,6 +706,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 provider=PROVIDER_DEEPSEEK,
                 model=None,
                 errors=errors,
+                **_generate_linkedin_draft_public_fields(body),
             )
 
         deepseek_load = load_deepseek_settings(os.environ)
@@ -671,14 +725,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 draft_content_sha256=None,
                 size_bytes=None,
                 draft_written=False,
-                title=body.title,
-                slug_hint=body.slug_hint,
-                tone=body.tone,
-                audience=body.audience,
-                variant=body.variant,
                 errors=errors,
                 started_at=started_at,
                 completed_at=completed_at,
+                **_generate_linkedin_draft_editorial_fields(body),
             )
             metadata_written = write_run_metadata(
                 settings.base_path, run_id, payload
@@ -703,6 +753,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 provider=PROVIDER_DEEPSEEK,
                 model=None,
                 errors=errors if metadata_written else errors + ["metadata_write_failed"],
+                **_generate_linkedin_draft_public_fields(body),
             )
 
         deepseek_settings = deepseek_load.settings
@@ -723,14 +774,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 draft_content_sha256=None,
                 size_bytes=None,
                 draft_written=False,
-                title=body.title,
-                slug_hint=body.slug_hint,
-                tone=body.tone,
-                audience=body.audience,
-                variant=body.variant,
                 errors=errors,
                 started_at=started_at,
                 completed_at=completed_at,
+                **_generate_linkedin_draft_editorial_fields(body),
             )
             metadata_written = write_run_metadata(
                 settings.base_path, run_id, payload
@@ -756,6 +803,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 provider=PROVIDER_DEEPSEEK,
                 model=model_name,
                 errors=errors if metadata_written else errors + ["metadata_write_failed"],
+                **_generate_linkedin_draft_public_fields(body),
             )
 
         review_readiness = check_review_dir_ready(settings.base_path)
@@ -774,14 +822,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 draft_content_sha256=None,
                 size_bytes=None,
                 draft_written=False,
-                title=body.title,
-                slug_hint=body.slug_hint,
-                tone=body.tone,
-                audience=body.audience,
-                variant=body.variant,
                 errors=errors,
                 started_at=started_at,
                 completed_at=completed_at,
+                **_generate_linkedin_draft_editorial_fields(body),
             )
             metadata_written = write_run_metadata(
                 settings.base_path, run_id, payload
@@ -807,6 +851,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 provider=PROVIDER_DEEPSEEK,
                 model=model_name,
                 errors=errors if metadata_written else errors + ["metadata_write_failed"],
+                **_generate_linkedin_draft_public_fields(body),
             )
 
         path_errors = validate_source_path_shape(
@@ -826,14 +871,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 draft_content_sha256=None,
                 size_bytes=None,
                 draft_written=False,
-                title=body.title,
-                slug_hint=body.slug_hint,
-                tone=body.tone,
-                audience=body.audience,
-                variant=body.variant,
                 errors=path_errors,
                 started_at=started_at,
                 completed_at=completed_at,
+                **_generate_linkedin_draft_editorial_fields(body),
             )
             metadata_written = write_run_metadata(
                 settings.base_path, run_id, payload
@@ -859,6 +900,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 provider=PROVIDER_DEEPSEEK,
                 model=model_name,
                 errors=path_errors if metadata_written else path_errors + ["metadata_write_failed"],
+                **_generate_linkedin_draft_public_fields(body),
             )
 
         messages = build_chat_messages(
@@ -867,6 +909,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             tone=body.tone,
             audience=body.audience,
             variant=body.variant,
+            source_public_url=body.source_public_url,
+            topic_theme=body.topic_theme,
         )
         generation = generate_linkedin_draft_content(deepseek_settings, messages)
         if generation.error_code:
@@ -884,14 +928,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 draft_content_sha256=None,
                 size_bytes=None,
                 draft_written=False,
-                title=body.title,
-                slug_hint=body.slug_hint,
-                tone=body.tone,
-                audience=body.audience,
-                variant=body.variant,
                 errors=errors,
                 started_at=started_at,
                 completed_at=completed_at,
+                **_generate_linkedin_draft_editorial_fields(body),
             )
             metadata_written = write_run_metadata(
                 settings.base_path, run_id, payload
@@ -917,6 +957,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 provider=PROVIDER_DEEPSEEK,
                 model=model_name,
                 errors=errors if metadata_written else errors + ["metadata_write_failed"],
+                **_generate_linkedin_draft_public_fields(body),
             )
 
         generated_text = generation.content
@@ -945,14 +986,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 draft_content_sha256=None,
                 size_bytes=None,
                 draft_written=False,
-                title=body.title,
-                slug_hint=body.slug_hint,
-                tone=body.tone,
-                audience=body.audience,
-                variant=body.variant,
                 errors=errors,
                 started_at=started_at,
                 completed_at=completed_at,
+                **_generate_linkedin_draft_editorial_fields(body),
             )
             metadata_written = write_run_metadata(
                 settings.base_path, run_id, payload
@@ -978,6 +1015,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 provider=PROVIDER_DEEPSEEK,
                 model=model_name,
                 errors=errors if metadata_written else errors + ["metadata_write_failed"],
+                **_generate_linkedin_draft_public_fields(body),
             )
 
         completed_at = utc_now_iso()
@@ -993,14 +1031,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             draft_content_sha256=draft_result.draft_content_sha256,
             size_bytes=draft_result.size_bytes,
             draft_written=True,
-            title=body.title,
-            slug_hint=body.slug_hint,
-            tone=body.tone,
-            audience=body.audience,
-            variant=body.variant,
             errors=[],
             started_at=started_at,
             completed_at=completed_at,
+            **_generate_linkedin_draft_editorial_fields(body),
         )
         metadata_written = write_run_metadata(settings.base_path, run_id, payload)
         errors: list[str] = []
@@ -1043,6 +1077,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             model=model_name,
             errors=errors,
             generated_draft_content=generated_text if status == "completed" else None,
+            **_generate_linkedin_draft_public_fields(body),
         )
 
     return app

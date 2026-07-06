@@ -14,6 +14,7 @@ from tests.conftest import auth_header, create_full_layout, make_settings
 
 MARKDOWN = "# Architecture\n\nA senior perspective on systems design.\n"
 SOURCE_PATH = "blog-posts/ready/my-post.md"
+PUBLIC_URL = "https://silverman.pro/2026/07/06/why-i-did-not-start-with-the-database/"
 DEEPSEEK_KEY = "sk-test-deepseek-key"
 
 
@@ -165,6 +166,7 @@ def test_extra_fields_return_422(tmp_path):
         "filename",
         "target_path",
         "draft_content",
+        "cta_style",
         "unexpected_field",
     ):
         response = client.post(
@@ -496,3 +498,163 @@ def test_source_blog_file_not_modified(tmp_path, monkeypatch):
 
     assert response.status_code == 200
     assert source.read_text(encoding="utf-8") == original
+
+
+@pytest.mark.parametrize(
+    "source_public_url",
+    [
+        PUBLIC_URL,
+        "http://silverman.pro/2026/07/06/my-post/",
+    ],
+)
+def test_valid_source_public_url_accepted(
+    tmp_path, monkeypatch, source_public_url
+):
+    base = tmp_path / "editorial"
+    create_full_layout(base)
+    monkeypatch.setattr(
+        "silverman_blog_linkedin.main.generate_linkedin_draft_content",
+        lambda *_args, **_kwargs: _mock_deepseek_success(),
+    )
+
+    client = TestClient(create_app(make_settings(base)))
+    response = client.post(
+        "/generate-linkedin-draft",
+        headers=auth_header(),
+        json=_valid_payload(source_public_url=source_public_url),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "completed"
+    assert body["source_public_url"] == source_public_url
+
+
+@pytest.mark.parametrize(
+    "source_public_url",
+    [
+        "not-a-url",
+        "javascript:alert(1)",
+        "file:///etc/passwd",
+        "//silverman.pro/post/",
+        "   ",
+    ],
+)
+def test_invalid_source_public_url_returns_422(tmp_path, source_public_url):
+    base = tmp_path / "editorial"
+    create_full_layout(base)
+    client = TestClient(create_app(make_settings(base)))
+
+    response = client.post(
+        "/generate-linkedin-draft",
+        headers=auth_header(),
+        json=_valid_payload(source_public_url=source_public_url),
+    )
+
+    assert response.status_code == 422
+    assert "run_id" not in response.json()
+
+
+def test_whitespace_topic_theme_returns_422(tmp_path):
+    base = tmp_path / "editorial"
+    create_full_layout(base)
+    client = TestClient(create_app(make_settings(base)))
+
+    response = client.post(
+        "/generate-linkedin-draft",
+        headers=auth_header(),
+        json=_valid_payload(topic_theme="   "),
+    )
+
+    assert response.status_code == 422
+    assert "run_id" not in response.json()
+
+
+def test_public_url_and_topic_theme_in_metadata_and_response(tmp_path, monkeypatch):
+    base = tmp_path / "editorial"
+    create_full_layout(base)
+    monkeypatch.setattr(
+        "silverman_blog_linkedin.main.generate_linkedin_draft_content",
+        lambda *_args, **_kwargs: _mock_deepseek_success(),
+    )
+
+    client = TestClient(create_app(make_settings(base)))
+    response = client.post(
+        "/generate-linkedin-draft",
+        headers=auth_header(),
+        json=_valid_payload(
+            source_public_url=PUBLIC_URL,
+            topic_theme="architecture",
+        ),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source_public_url"] == PUBLIC_URL
+    assert body["topic_theme"] == "architecture"
+
+    metadata = json.loads(
+        (base / body["metadata_path"]).read_text(encoding="utf-8")
+    )
+    assert metadata["source_public_url"] == PUBLIC_URL
+    assert metadata["topic_theme"] == "architecture"
+    assert "markdown_content" not in metadata
+    assert "generated_draft_content" not in metadata
+
+
+def test_public_url_fields_omitted_when_not_provided(tmp_path, monkeypatch):
+    base = tmp_path / "editorial"
+    create_full_layout(base)
+    monkeypatch.setattr(
+        "silverman_blog_linkedin.main.generate_linkedin_draft_content",
+        lambda *_args, **_kwargs: _mock_deepseek_success(),
+    )
+
+    client = TestClient(create_app(make_settings(base)))
+    response = client.post(
+        "/generate-linkedin-draft",
+        headers=auth_header(),
+        json=_valid_payload(),
+    )
+
+    body = response.json()
+    assert "source_public_url" not in body
+    assert "topic_theme" not in body
+
+    metadata = json.loads(
+        (base / body["metadata_path"]).read_text(encoding="utf-8")
+    )
+    assert "source_public_url" not in metadata
+    assert "topic_theme" not in metadata
+
+
+def test_backward_compatible_generation_without_public_url_fields(
+    tmp_path, monkeypatch
+):
+    base = tmp_path / "editorial"
+    create_full_layout(base)
+    monkeypatch.setattr(
+        "silverman_blog_linkedin.main.generate_linkedin_draft_content",
+        lambda *_args, **_kwargs: _mock_deepseek_success(),
+    )
+
+    client = TestClient(create_app(make_settings(base)))
+    response = client.post(
+        "/generate-linkedin-draft",
+        headers=auth_header(),
+        json=_valid_payload(
+            source_content_sha256="abc123",
+            title="Optional title",
+            slug_hint="executive",
+            tone="professional",
+            audience="CTOs",
+            variant="technical",
+        ),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "completed"
+    assert body["draft_written"] is True
+    assert "source_public_url" not in body
+    assert "topic_theme" not in body

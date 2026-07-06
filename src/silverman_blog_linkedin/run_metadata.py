@@ -269,6 +269,8 @@ def build_generate_linkedin_draft_metadata_payload(
     tone: str | None,
     audience: str | None,
     variant: str | None,
+    source_public_url: str | None = None,
+    topic_theme: str | None = None,
     errors: list[str],
     started_at: str,
     completed_at: str,
@@ -301,6 +303,10 @@ def build_generate_linkedin_draft_metadata_payload(
         payload["audience"] = audience
     if variant is not None:
         payload["variant"] = variant
+    if source_public_url is not None:
+        payload["source_public_url"] = source_public_url
+    if topic_theme is not None:
+        payload["topic_theme"] = topic_theme
     return payload
 
 
@@ -319,6 +325,8 @@ def build_generate_linkedin_draft_response(
     model: str | None,
     errors: list[str],
     generated_draft_content: str | None = None,
+    source_public_url: str | None = None,
+    topic_theme: str | None = None,
 ) -> dict[str, Any]:
     """Build POST /generate-linkedin-draft HTTP response body."""
     metadata_path: str | None
@@ -344,6 +352,10 @@ def build_generate_linkedin_draft_response(
     }
     if status == "completed" and generated_draft_content is not None:
         response["generated_draft_content"] = generated_draft_content
+    if source_public_url is not None:
+        response["source_public_url"] = source_public_url
+    if topic_theme is not None:
+        response["topic_theme"] = topic_theme
     return response
 
 

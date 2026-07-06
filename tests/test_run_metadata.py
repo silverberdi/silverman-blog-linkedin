@@ -403,3 +403,119 @@ def test_build_generate_linkedin_draft_response_partial_failure():
     assert response["draft_written"] is True
     assert response["metadata_written"] is False
     assert "generated_draft_content" not in response
+
+
+def test_build_generate_linkedin_draft_metadata_includes_public_url_fields():
+    from silverman_blog_linkedin.run_metadata import (
+        build_generate_linkedin_draft_metadata_payload,
+    )
+
+    payload = build_generate_linkedin_draft_metadata_payload(
+        run_id="run-20260704T223045Z-a1b2",
+        status="completed",
+        base_path=Path("/data/silverman-blog-linkedin"),
+        provider="deepseek",
+        model="deepseek-v4-flash",
+        source_relative_path="blog-posts/ready/my-post.md",
+        draft_relative_path="linkedin-posts/review/draft.md",
+        source_content_sha256="abc123",
+        draft_content_sha256="def456",
+        size_bytes=100,
+        draft_written=True,
+        title=None,
+        slug_hint=None,
+        tone=None,
+        audience=None,
+        variant=None,
+        source_public_url="https://silverman.pro/2026/07/06/my-post/",
+        topic_theme="architecture",
+        errors=[],
+        started_at="2026-07-04T22:30:45Z",
+        completed_at="2026-07-04T22:30:45Z",
+    )
+
+    assert payload["source_public_url"] == "https://silverman.pro/2026/07/06/my-post/"
+    assert payload["topic_theme"] == "architecture"
+    assert "markdown_content" not in payload
+    assert "generated_draft_content" not in payload
+
+
+def test_build_generate_linkedin_draft_metadata_omits_public_url_fields():
+    from silverman_blog_linkedin.run_metadata import (
+        build_generate_linkedin_draft_metadata_payload,
+    )
+
+    payload = build_generate_linkedin_draft_metadata_payload(
+        run_id="run-20260704T223045Z-a1b2",
+        status="completed",
+        base_path=Path("/data/silverman-blog-linkedin"),
+        provider="deepseek",
+        model="deepseek-v4-flash",
+        source_relative_path="blog-posts/ready/my-post.md",
+        draft_relative_path="linkedin-posts/review/draft.md",
+        source_content_sha256="abc123",
+        draft_content_sha256="def456",
+        size_bytes=100,
+        draft_written=True,
+        title=None,
+        slug_hint=None,
+        tone=None,
+        audience=None,
+        variant=None,
+        errors=[],
+        started_at="2026-07-04T22:30:45Z",
+        completed_at="2026-07-04T22:30:45Z",
+    )
+
+    assert "source_public_url" not in payload
+    assert "topic_theme" not in payload
+
+
+def test_build_generate_linkedin_draft_response_echoes_public_url_fields():
+    from silverman_blog_linkedin.run_metadata import (
+        build_generate_linkedin_draft_response,
+    )
+
+    response = build_generate_linkedin_draft_response(
+        run_id="run-20260704T223045Z-a1b2",
+        status="failed",
+        metadata_written=True,
+        source_relative_path="blog-posts/ready/my-post.md",
+        source_content_sha256="abc123",
+        draft_written=False,
+        draft_relative_path=None,
+        draft_content_sha256=None,
+        size_bytes=None,
+        provider="deepseek",
+        model="deepseek-v4-flash",
+        errors=["deepseek_auth_failed"],
+        source_public_url="https://silverman.pro/2026/07/06/my-post/",
+        topic_theme="architecture",
+    )
+
+    assert response["source_public_url"] == "https://silverman.pro/2026/07/06/my-post/"
+    assert response["topic_theme"] == "architecture"
+
+
+def test_build_generate_linkedin_draft_response_omits_public_url_fields():
+    from silverman_blog_linkedin.run_metadata import (
+        build_generate_linkedin_draft_response,
+    )
+
+    response = build_generate_linkedin_draft_response(
+        run_id="run-20260704T223045Z-a1b2",
+        status="failed",
+        metadata_written=True,
+        source_relative_path="blog-posts/ready/my-post.md",
+        source_content_sha256="abc123",
+        draft_written=False,
+        draft_relative_path=None,
+        draft_content_sha256=None,
+        size_bytes=None,
+        provider="deepseek",
+        model="deepseek-v4-flash",
+        errors=["deepseek_auth_failed"],
+    )
+
+    assert "source_public_url" not in response
+    assert "topic_theme" not in response
