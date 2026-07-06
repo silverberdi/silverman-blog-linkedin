@@ -21,7 +21,7 @@
             {
               "id": "571ade30-270b-4c2f-ad84-d86b0bc739d4",
               "name": "worker_base_url",
-              "value": "http://localhost:8000",
+              "value": "http://192.168.0.194:8010",
               "type": "string"
             },
             {
