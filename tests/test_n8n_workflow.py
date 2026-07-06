@@ -68,11 +68,16 @@ WORKER_ENDPOINT_FRAGMENTS = (
     "/generate-linkedin-draft",
 )
 
-CONFIG_PLACEHOLDERS = (
-    "http://localhost:8000",
+EXPECTED_CONFIG_VALUES = (
+    "http://192.168.0.194:8010",
     "CHANGE_ME_WORKER_API_KEY",
     "worker_base_url",
     "worker_api_key",
+)
+
+STALE_WORKER_URLS = (
+    "http://localhost:8000",
+    "http://192.168.0.195:8000",
 )
 
 
@@ -133,8 +138,10 @@ def test_workflow_has_no_obvious_real_secrets(workflow_text: str):
 
 
 def test_workflow_contains_configuration_placeholders(workflow_text: str):
-    for placeholder in CONFIG_PLACEHOLDERS:
-        assert placeholder in workflow_text
+    for value in EXPECTED_CONFIG_VALUES:
+        assert value in workflow_text
+    for stale_url in STALE_WORKER_URLS:
+        assert stale_url not in workflow_text
 
 
 def test_workflow_authenticated_calls_use_bearer_expression(workflow: dict):

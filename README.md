@@ -521,6 +521,12 @@ Manual Trigger
 
 For per-endpoint HTTP Request examples, see sections above (`GET /health`, `POST /process-ready`, `POST /process-file`, `POST /generate-linkedin-draft`).
 
+## Blog publishing bridge (GitHub Pages)
+
+Operator CLI to prepare one ready editorial post pair (`<source-slug>.md` + `<source-slug>.png`) for the public Jekyll site at [silverman.pro](https://silverman.pro). Source slugs may include numeric ordering prefixes (`01-`, `02-`); the helper derives a public slug for URLs and published filenames. Dry-run by default; writes require `--apply`. No HTTP endpoint, no automatic git push.
+
+See [docs/workflows/blog-publishing-bridge.md](docs/workflows/blog-publishing-bridge.md) for paths, environment variables, and manual commit/push steps.
+
 ## Project context
 
 - Architecture and phasing: `docs/context/`

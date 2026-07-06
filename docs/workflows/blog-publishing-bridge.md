@@ -1,0 +1,169 @@
+# Blog publishing bridge (GitHub Pages)
+
+Operator workflow for preparing one editorial blog post pair from `blog-posts/ready/` into a local checkout of [silverberdi.github.io](https://github.com/silverberdi/silverberdi.github.io) for publication at [silverman.pro](https://silverman.pro).
+
+This is a **CLI helper only**. It is not an HTTP worker endpoint and does not use n8n Execute Command. It does not run `git commit` or `git push`, move sources out of `ready/`, or publish to LinkedIn.
+
+## Input convention
+
+The CLI accepts a **source slug** that locates editorial files in `blog-posts/ready/`. Numeric ordering prefixes such as `01-` are editorial only and are stripped when deriving the **public slug** used for URLs and published filenames.
+
+Example with ordering prefix:
+
+| Editorial source | Path |
+|------------------|------|
+| Markdown | `blog-posts/ready/01-why-i-did-not-start-with-the-database.md` |
+| Hero image | `blog-posts/ready/01-why-i-did-not-start-with-the-database.png` |
+
+Derived public slug: `why-i-did-not-start-with-the-database`
+
+Example without prefix:
+
+| Editorial source | Path |
+|------------------|------|
+| Markdown | `blog-posts/ready/my-post.md` |
+| Hero image | `blog-posts/ready/my-post.png` |
+
+Derived public slug: `my-post`
+
+Both source slug and public slug must match `^[a-z0-9]+(?:-[a-z0-9]+)*$`.
+
+Override the derived public slug when needed:
+
+```bash
+./deploy/server/publish-blog-post.sh 01-my-post --public-slug my-post
+```
+
+## Output convention
+
+Written to the public blog repo checkout when `--apply` is used (using the **public slug**):
+
+| Asset | Path |
+|-------|------|
+| Jekyll post | `_posts/YYYY-MM-DD-<public-slug>.md` |
+| Image | `assets/images/<public-slug>.png` |
+
+Frontmatter includes `layout`, `title`, `date`, `categories`, `tags`, `description`, and `image: /assets/images/<public-slug>.png`.
+
+### Metadata expectations
+
+Before real publication, source posts in `blog-posts/ready/` should already include appropriate `categories` and `tags`. The helper preserves them when present and defaults to empty lists when absent; it does not fabricate taxonomy.
+
+`status` is editorial-only (for example `draft` in the internal workspace) and is **not** written to the public Jekyll post.
+
+When `description` is missing or empty, a non-empty source `subtitle` is used as the public `description` fallback. The helper does not invent descriptions from body content or other fields.
+
+Expected public URL:
+
+`https://silverman.pro/YYYY/MM/DD/<public-slug>/`
+
+For the ordering-prefix example above:
+
+`https://silverman.pro/2026/07/06/why-i-did-not-start-with-the-database/`
+
+## Environment variables
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `SILVERMAN_BLOG_LINKEDIN_BASE_PATH` | No | `./data/silverman-blog-linkedin` | Editorial workspace root |
+| `SILVERMAN_GITHUB_PAGES_REPO_PATH` | **Yes** | — | Local clone of `silverberdi.github.io` |
+| `SILVERMAN_SITE_URL` | No | `https://silverman.pro` | Canonical public site URL |
+
+### Example paths
+
+**Local Mac development:**
+
+```bash
+export SILVERMAN_BLOG_LINKEDIN_BASE_PATH="$PWD/data/silverman-blog-linkedin"
+export SILVERMAN_GITHUB_PAGES_REPO_PATH="$HOME/src/silverberdi.github.io"
+```
+
+**Ubuntu server:**
+
+```bash
+export SILVERMAN_BLOG_LINKEDIN_BASE_PATH="/home/silverman/compartido_mac/silverman-blog-linkedin"
+export SILVERMAN_GITHUB_PAGES_REPO_PATH="/home/silverman/src/silverberdi.github.io"
+```
+
+Confirm the public repo clone path on the server before first use.
+
+## Dry-run (default)
+
+Preview planned outputs without writing files:
+
+```bash
+./deploy/server/publish-blog-post.sh 01-why-i-did-not-start-with-the-database
+```
+
+Or directly:
+
+```bash
+python -m silverman_blog_linkedin.github_pages_publish 01-why-i-did-not-start-with-the-database
+```
+
+With an explicit publication date:
+
+```bash
+./deploy/server/publish-blog-post.sh 01-why-i-did-not-start-with-the-database --date 2026-07-06
+```
+
+Example output:
+
+```
+source_slug: 01-why-i-did-not-start-with-the-database
+public_slug: why-i-did-not-start-with-the-database
+mode: dry-run
+publication_date: 2026-07-06
+post_target: _posts/2026-07-06-why-i-did-not-start-with-the-database.md
+image_target: assets/images/why-i-did-not-start-with-the-database.png
+public_url: https://silverman.pro/2026/07/06/why-i-did-not-start-with-the-database/
+status: ready
+```
+
+Dry-run validates sources, repo layout, slug safety, and non-overwrite constraints. If a target post or image already exists, the helper exits with an error and writes nothing.
+
+## Apply mode
+
+Write prepared files after reviewing dry-run output:
+
+```bash
+./deploy/server/publish-blog-post.sh 01-why-i-did-not-start-with-the-database --date 2026-07-06 --apply
+```
+
+Apply copies the PNG and writes normalized Jekyll Markdown. Source files in `blog-posts/ready/` are not modified, moved, or deleted.
+
+## Manual git commit and push
+
+After a successful `--apply`:
+
+```bash
+cd "$SILVERMAN_GITHUB_PAGES_REPO_PATH"
+git status
+git diff
+git add _posts/2026-07-06-why-i-did-not-start-with-the-database.md assets/images/why-i-did-not-start-with-the-database.png
+git commit -m "Add blog post: why-i-did-not-start-with-the-database"
+git push origin main
+```
+
+GitHub Pages rebuilds from the pushed commit. The helper does not automate any git operations.
+
+## JSON output
+
+For scripting or inspection:
+
+```bash
+python -m silverman_blog_linkedin.github_pages_publish 01-why-i-did-not-start-with-the-database --date 2026-07-06 --json
+```
+
+## Safety rules
+
+- Default is dry-run; writes require explicit `--apply`.
+- Refuses to overwrite existing `_posts/YYYY-MM-DD-<public-slug>.md` or `assets/images/<public-slug>.png`.
+- Does not modify editorial sources under `blog-posts/ready/`.
+- Does not expose secrets in output.
+
+## Related docs
+
+- Worker HTTP endpoints (LinkedIn pipeline): [README.md](../../README.md)
+- Architecture phasing: [docs/context/backlog-and-phasing.md](../context/backlog-and-phasing.md)
+- ADR-0001 (worker over Execute Command): [docs/decisions/ADR-0001-use-worker-instead-of-n8n-execute-command.md](../decisions/ADR-0001-use-worker-instead-of-n8n-execute-command.md)
