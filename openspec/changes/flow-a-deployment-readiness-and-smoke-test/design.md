@@ -226,6 +226,16 @@ Readiness reports failure with remediation text pointing to `deploy/server/deplo
 
 **Readiness interaction:** Phase 0 `n8n_workflow_import` may remain **pending** when HTTP reachability alone cannot confirm import (no n8n API credentials required). A successful `import-flow-a-n8n-workflow.sh` run with `OVERALL: PASS` satisfies manual import verification evidence.
 
+### D8: Repeatable Flow A post-smoke evidence collection
+
+**Decision:** Add `deploy/server/collect-flow-a-smoke-evidence.sh` for Ubuntu server operators to collect Phase 3/4 verification evidence without ad-hoc SSH heredocs.
+
+**Observed failure (2026-07):** Manual post-smoke evidence commands failed due to fragile shell quoting around `docker inspect --format`. Operators also assumed `SILVERMAN_BLOG_LINKEDIN_BASE_PATH` exists in `/home/silverman/silverman-blog-linkedin-worker/.env`, but the server `.env` may contain only `SILVERMAN_BLOG_LINKEDIN_API_KEY`. The editorial root must be resolved from container env, Docker mounts, `GET /health`, or known host candidates.
+
+**Script behavior:** Read-only; no secrets printed; no n8n activation; no LinkedIn API calls; no deploy/restart. Resolves base path with explicit source reporting; checks worker `/health` and `/openapi.json` Flow A paths; lists latest `metadata/runs/`, `metadata/campaigns/`, `linkedin-posts/generated/` artifacts and published blog files matching `POST_SLUG_FRAGMENT`; exports n8n workflows and confirms `silvermanFlowAPublish01` is inactive with 26 nodes. Overall `PASS` / `PENDING` / `FAIL` semantics gate on worker health, n8n inactive state, and presence of smoke artifacts.
+
+**Slice 8 remains deferred.** Workflow must stay inactive until a future operational change.
+
 ## Risks / Trade-offs
 
 | Risk | Mitigation |

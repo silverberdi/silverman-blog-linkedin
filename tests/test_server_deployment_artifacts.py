@@ -18,6 +18,7 @@ DEPLOY_SCRIPT_PATH = DEPLOY_SERVER / "deploy-worker.sh"
 SMOKE_SCRIPT_PATH = DEPLOY_SERVER / "smoke-worker.sh"
 VERIFY_DEPLOY_SCRIPT_PATH = DEPLOY_SERVER / "verify-worker-deploy.sh"
 IMPORT_FLOW_A_SCRIPT_PATH = DEPLOY_SERVER / "import-flow-a-n8n-workflow.sh"
+COLLECT_FLOW_A_EVIDENCE_SCRIPT_PATH = DEPLOY_SERVER / "collect-flow-a-smoke-evidence.sh"
 VERIFY_ROTATION_SCRIPT_PATH = DEPLOY_SERVER / "verify-worker-api-key-rotation.sh"
 DEPLOYMENT_DOC_PATH = REPO_ROOT / "docs" / "deployment" / "ubuntu-server-worker-deployment.md"
 
@@ -439,3 +440,118 @@ def test_deployment_doc_documents_flow_a_n8n_import() -> None:
     assert "silvermanFlowAPublish01" in content
     assert "n8n-gateway" in content or "nginx gateway" in content.lower()
     assert "workflow must remain inactive" in content.lower() or "remains inactive" in content.lower()
+
+
+@pytest.fixture
+def collect_flow_a_evidence_script_content() -> str:
+    assert COLLECT_FLOW_A_EVIDENCE_SCRIPT_PATH.is_file(), (
+        f"missing evidence script: {COLLECT_FLOW_A_EVIDENCE_SCRIPT_PATH}"
+    )
+    return COLLECT_FLOW_A_EVIDENCE_SCRIPT_PATH.read_text(encoding="utf-8")
+
+
+def test_collect_flow_a_evidence_script_exists() -> None:
+    assert COLLECT_FLOW_A_EVIDENCE_SCRIPT_PATH.is_file()
+
+
+def test_collect_flow_a_evidence_script_is_executable() -> None:
+    mode = COLLECT_FLOW_A_EVIDENCE_SCRIPT_PATH.stat().st_mode
+    assert mode & stat.S_IXUSR, "collect-flow-a-smoke-evidence.sh is not executable (owner)"
+
+
+def test_collect_flow_a_evidence_script_is_read_only_and_safe(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    lowered = content.lower()
+    assert "read-only" in lowered
+    assert "deploy-worker.sh" not in content
+    assert "docker compose up" not in lowered
+    assert "docker compose build" not in lowered
+    assert "force-recreate" not in lowered
+    assert "import:workflow" not in content
+    assert "activate" not in lowered or "no n8n activation" in lowered
+    assert "cron" not in lowered or "no cron" in lowered
+    assert "webhook" not in lowered or "no cron" in lowered
+    assert "linkedin api" in lowered
+    assert "no linkedin api" in lowered
+
+
+def test_collect_flow_a_evidence_script_resolves_base_path_from_container_env_or_mounts(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert "SILVERMAN_BLOG_LINKEDIN_BASE_PATH" in content
+    assert "resolve_base_path_from_container_env" in content
+    assert "resolve_base_path_from_container_mounts" in content
+    assert "docker inspect" in content
+    assert "Mounts" in content
+    assert "BASE_PATH" in content
+    assert "known host candidate path" in content
+
+
+def test_collect_flow_a_evidence_script_checks_worker_health_and_openapi_paths(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert "/health" in content
+    assert "/openapi.json" in content
+    for path in (
+        "/publish-blog-post",
+        "/generate-linkedin-package",
+        "/schedule-linkedin-distribution",
+    ):
+        assert path in content
+
+
+def test_collect_flow_a_evidence_script_checks_n8n_workflow_inactive_and_node_count(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert "silvermanFlowAPublish01" in content
+    assert "EXPECTED_NODE_COUNT=26" in content
+    assert 'match.get("active") is not False' in content
+    assert "export:workflow" in content
+    assert "find_n8n_container" in content
+
+
+def test_collect_flow_a_evidence_script_supports_slug_fragment(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert "POST_SLUG_FRAGMENT" in content
+    assert "why-i-did-not-start-with-the-database" in content
+    assert "_posts" in content
+    assert "assets/images" in content
+
+
+def test_collect_flow_a_evidence_script_collects_metadata_and_generated_artifacts(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert "metadata/runs" in content
+    assert "metadata/campaigns" in content
+    assert "linkedin-posts/generated" in content
+
+
+def test_collect_flow_a_evidence_script_does_not_print_secrets(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    for pattern in SECRET_PATTERNS:
+        assert not pattern.search(content), (
+            f"collect-flow-a-smoke-evidence.sh may contain a real secret: {pattern}"
+        )
+    assert "SILVERMAN_BLOG_LINKEDIN_API_KEY" not in content
+    assert "DEEPSEEK_API_KEY" not in content
+    assert "worker_api_key" not in content
+    assert "no secrets" in content.lower()
+
+
+def test_collect_flow_a_evidence_script_reports_overall_status_values(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert 'OVERALL: PASS' in content
+    assert 'OVERALL: PENDING' in content
+    assert 'OVERALL: FAIL' in content

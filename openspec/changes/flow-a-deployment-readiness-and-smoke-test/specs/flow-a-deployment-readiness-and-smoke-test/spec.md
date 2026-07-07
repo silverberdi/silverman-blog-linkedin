@@ -200,6 +200,38 @@ The change SHALL include automated tests for readiness parsing and checking logi
 - **WHEN** an operator reads README or `docs/deployment/` after apply
 - **THEN** documentation explains Phase 0–4, default URLs, and that Phase 0 must pass before Flow A smoke execution
 
+### Requirement: Post-smoke evidence collection script
+
+The repository SHALL provide a repeatable server-side script at `deploy/server/collect-flow-a-smoke-evidence.sh` that collects read-only Flow A post-smoke evidence on the Ubuntu server without ad-hoc SSH heredoc commands.
+
+#### Scenario: Evidence script resolves editorial base path
+
+- **WHEN** an operator runs the evidence script on the Ubuntu server without `BASE_PATH` set
+- **THEN** the script resolves the editorial root from container env `SILVERMAN_BLOG_LINKEDIN_BASE_PATH`, Docker mounts, `GET /health`, or known host candidates
+- **AND** prints how the base path was resolved
+- **AND** if unresolved, reports `OVERALL: FAIL` with remediation guidance and no stack trace
+
+#### Scenario: Evidence script collects worker, file, and n8n checks
+
+- **WHEN** the evidence script runs successfully against a deployed environment
+- **THEN** it verifies worker `GET /health` and `GET /openapi.json` include Flow A paths `/publish-blog-post`, `/generate-linkedin-package`, and `/schedule-linkedin-distribution`
+- **AND** reports latest metadata and generated LinkedIn artifacts under the resolved base path
+- **AND** exports n8n workflows from the real n8n container and confirms workflow id or name match with `active: false` and 26 nodes
+
+#### Scenario: Evidence script safety constraints
+
+- **WHEN** the evidence script runs
+- **THEN** it does not print API keys or secret env values, does not activate the n8n workflow, does not call the LinkedIn API, and does not deploy or restart services
+
+#### Scenario: Evidence script overall status
+
+- **WHEN** worker and n8n checks pass and campaign metadata or generated LinkedIn artifacts exist
+- **THEN** the script reports `OVERALL: PASS`
+- **WHEN** worker and n8n checks pass but smoke artifacts are not found yet
+- **THEN** the script reports `OVERALL: PENDING`
+- **WHEN** base path is unresolved, Flow A OpenAPI paths are missing, the workflow is active, or n8n is missing
+- **THEN** the script reports `OVERALL: FAIL`
+
 ### Requirement: Apply scope boundaries
 
 Archive, commit, and push SHALL be out of scope for the apply phase of this change unless explicitly requested in a separate operator action.

@@ -75,3 +75,13 @@
 - [x] 9.5 Add tests in `tests/test_server_deployment_artifacts.py` for import script behavior and safety constraints
 - [x] 9.6 Document import procedure in README and `docs/deployment/ubuntu-server-worker-deployment.md`
 - [x] 9.7 Update design/spec with gateway vs n8n container, stable workflow id requirement, and pending readiness semantics
+
+## 10. Flow A post-smoke evidence collection (Ubuntu validation)
+
+- [x] 10.1 Add `deploy/server/collect-flow-a-smoke-evidence.sh` — read-only; resolve base path from env/mounts/health/candidates; no secrets printed
+- [x] 10.2 Collect worker `/health` + `/openapi.json` Flow A path evidence; latest metadata/campaign/generated artifacts; slug fragment blog publish files
+- [x] 10.3 Export n8n workflows from real n8n container; confirm `silvermanFlowAPublish01` inactive with 26 nodes
+- [x] 10.4 Implement `PASS` / `PENDING` / `FAIL` overall status semantics; optional `--json` output
+- [x] 10.5 Add tests in `tests/test_server_deployment_artifacts.py` for script existence, safety, base path detection, worker/n8n checks, slug fragment, no secrets
+- [x] 10.6 Document evidence collection in README and `docs/deployment/ubuntu-server-worker-deployment.md` (replace ad-hoc SSH heredocs)
+- [x] 10.7 Update design/spec with fragile manual evidence failure reason and Phase 3/4 verification flow; slice 8 remains deferred; workflow inactive requirement unchanged

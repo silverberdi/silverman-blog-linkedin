@@ -200,6 +200,28 @@ The script reads `SILVERMAN_BLOG_LINKEDIN_API_KEY` from the worker `.env`, updat
 
 Phase 0 `n8n_workflow_import` may remain **pending** when the readiness script cannot verify import over HTTP alone; a successful import script run satisfies manual import verification evidence.
 
+### 5a. Collect Flow A post-smoke evidence
+
+After a manual Flow A n8n execution (Phase 3), collect read-only evidence with the server-side script. **Do not** use ad-hoc SSH heredocs with nested `docker inspect --format` quoting — manual evidence commands failed in practice due to shell quoting and because the server `.env` may not define `SILVERMAN_BLOG_LINKEDIN_BASE_PATH` (only `SILVERMAN_BLOG_LINKEDIN_API_KEY`).
+
+```bash
+# Target layout (on Ubuntu server)
+/home/silverman/silverman-blog-linkedin-worker/collect-flow-a-smoke-evidence.sh
+
+# Repo layout
+./deploy/server/collect-flow-a-smoke-evidence.sh
+```
+
+**Defaults:** `WORKER_BASE_URL=http://localhost:8010`, `WORKER_CONTAINER=silverman-blog-linkedin-worker`, workflow id `silvermanFlowAPublish01`, slug fragment `why-i-did-not-start-with-the-database`.
+
+**Base path resolution (in order):** `BASE_PATH` override if set and directory exists; worker container env `SILVERMAN_BLOG_LINKEDIN_BASE_PATH`; Docker mount mapped to host source containing `/data/silverman-blog-linkedin`; `GET /health` `base_path`; known host candidates (`/home/silverman/compartido_mac/silverman-blog-linkedin`, etc.). The script prints how the path was resolved.
+
+**Collected evidence:** worker `GET /health` and `GET /openapi.json` (Flow A paths); latest `metadata/runs/*.json`, `metadata/campaigns/*.json`, `linkedin-posts/generated/` files; published `_posts` and `assets/images` matching the slug fragment; n8n workflow export confirming `active=false` and 26 nodes.
+
+**Overall status:** `PASS` when worker and n8n checks pass and campaign metadata or generated LinkedIn artifacts exist; `PENDING` when worker and n8n are OK but smoke artifacts are not found yet; `FAIL` when base path is unresolved, Flow A OpenAPI paths are missing, workflow is active, or n8n is missing.
+
+The script is read-only: no secrets printed, no n8n activation, no LinkedIn API calls, no deploy/restart. Optional `--json` for machine-readable summary.
+
 ## Updates
 
 Re-run the deploy script on the **Ubuntu server** after pulling or syncing new code:
@@ -384,5 +406,6 @@ Real `SILVERMAN_BLOG_LINKEDIN_API_KEY` and `DEEPSEEK_API_KEY` values must exist 
 | `deploy/server/deploy-worker.sh` | Deploy script (sync, build, recreate, verify) |
 | `deploy/server/verify-worker-deploy.sh` | Post-deploy worker readiness wait + Flow A OpenAPI verification |
 | `deploy/server/smoke-worker.sh` | HTTP smoke tests |
+| `deploy/server/collect-flow-a-smoke-evidence.sh` | Read-only Flow A post-smoke evidence collection |
 | `deploy/server/verify-worker-api-key-rotation.sh` | Post-rotation auth verification |
 | `docker-compose.example.yml` | Local/dev compose (not for server) |
