@@ -8,7 +8,7 @@ import os
 from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from silverman_blog_linkedin import SERVICE_NAME, __version__
 from silverman_blog_linkedin.auth import require_api_key
@@ -27,6 +27,7 @@ from silverman_blog_linkedin.file_reader import (
     read_blog_post_file,
 )
 from silverman_blog_linkedin.github_pages_publish import DEFAULT_SITE_URL, ENV_REPO_PATH
+from silverman_blog_linkedin.linkedin_package_flow import generate_linkedin_package
 from silverman_blog_linkedin.linkedin_prompt import build_chat_messages
 from silverman_blog_linkedin.paths import validate_folders
 from silverman_blog_linkedin.ready_scan import ScanResult, scan_ready_folder
@@ -149,6 +150,71 @@ class GenerateLinkedinDraftRequest(BaseModel):
         if not stripped:
             raise ValueError("topic_theme must not be empty or whitespace-only")
         return stripped
+
+
+class GenerateLinkedInPackageRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str | None = None
+    source_relative_path: str | None = None
+    variants: list[str] | None = None
+    topic_theme: str | None = None
+    site_url: str | None = None
+
+    @field_validator("source_relative_path")
+    @classmethod
+    def validate_source_relative_path(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = normalize_relative_path(value)
+        if not normalized:
+            raise ValueError("source_relative_path must not be empty")
+        return normalized
+
+    @field_validator("campaign_id")
+    @classmethod
+    def validate_campaign_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("campaign_id must not be empty")
+        return stripped
+
+    @field_validator("topic_theme")
+    @classmethod
+    def validate_topic_theme(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("topic_theme must not be empty or whitespace-only")
+        return stripped
+
+    @field_validator("site_url")
+    @classmethod
+    def validate_site_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip().rstrip("/")
+        if not stripped:
+            raise ValueError("site_url must not be empty or whitespace-only")
+        parsed = urlparse(stripped)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("site_url must use http or https scheme")
+        if not parsed.netloc:
+            raise ValueError("site_url must have a valid host")
+        return stripped
+
+    @model_validator(mode="after")
+    def validate_exactly_one_identifier(self) -> GenerateLinkedInPackageRequest:
+        has_campaign = self.campaign_id is not None
+        has_source = self.source_relative_path is not None
+        if has_campaign == has_source:
+            raise ValueError(
+                "provide exactly one of campaign_id or source_relative_path"
+            )
+        return self
 
 
 class PublishBlogPostRequest(BaseModel):
@@ -1122,6 +1188,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             generated_draft_content=generated_text if status == "completed" else None,
             **_generate_linkedin_draft_public_fields(body),
         )
+
+    @app.post("/generate-linkedin-package")
+    def generate_linkedin_package_endpoint(
+        body: GenerateLinkedInPackageRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = generate_linkedin_package(
+            settings.base_path,
+            campaign_id=body.campaign_id,
+            source_relative_path=body.source_relative_path,
+            variants=body.variants,
+            topic_theme=body.topic_theme,
+            site_url=body.site_url,
+            environ=os.environ,
+        )
+        logger.info(
+            "generate-linkedin-package status=%s campaign_id=%s state=%s",
+            result.status,
+            result.campaign_id,
+            result.state,
+        )
+        return result.to_dict()
 
     @app.post("/publish-blog-post")
     def publish_blog_post_endpoint(

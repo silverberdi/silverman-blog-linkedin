@@ -15,13 +15,13 @@
 | 1 | `editorial-canon-and-linkedin-distribution-strategy` | **completed** (archived) | Spec: `openspec/specs/editorial-canon/spec.md`; artifact: `content-strategy/silverman-editorial-system.md`; commit `ae3eb43` |
 | 2 | `flow-a-lifecycle-and-duplicate-prevention` | **completed** (archived) | Spec: `openspec/specs/flow-a-lifecycle/spec.md`; worker: `src/silverman_blog_linkedin/campaign_lifecycle.py`; commit `aa48e6c` |
 | 3 | `ready-post-editorial-validation` | **completed** (archived) | Spec: `openspec/specs/ready-post-editorial-validation/spec.md`; worker: `src/silverman_blog_linkedin/ready_post_validation.py`; tests: `tests/test_ready_post_validation.py` |
-| 4 | `worker-blog-publishing-endpoint` | **completed** (archived) | Spec: `openspec/specs/worker-blog-publishing-endpoint/spec.md`; endpoint `POST /publish-blog-post`; service `src/silverman_blog_linkedin/blog_publish_flow.py`; HTTP `src/silverman_blog_linkedin/main.py`; tests `tests/test_blog_publish_flow.py`; commit pending until git commit |
-| 5 | `linkedin-derivative-package-generation` | **pending** | — |
+| 4 | `worker-blog-publishing-endpoint` | **completed** (archived) | Spec: `openspec/specs/worker-blog-publishing-endpoint/spec.md`; endpoint `POST /publish-blog-post`; service `src/silverman_blog_linkedin/blog_publish_flow.py`; HTTP `src/silverman_blog_linkedin/main.py`; tests `tests/test_blog_publish_flow.py`; commit `c9a0cb2` feat(flow-a): add blog publishing endpoint |
+| 5 | `linkedin-derivative-package-generation` | **completed** (archived) | Spec: `openspec/specs/linkedin-derivative-package-generation/spec.md`; endpoint `POST /generate-linkedin-package`; service `src/silverman_blog_linkedin/linkedin_package_flow.py`; tests `tests/test_linkedin_package_generation.py` |
 | 6 | `linkedin-distribution-scheduling-model` | **pending** | — |
 | 7 | `n8n-flow-a-blog-publish-orchestration` | **pending** | — |
 | 8 | `linkedin-publication-integration` | **deferred** | LinkedIn API publish; depends on integration constraints |
 
-The umbrella remains **active**. Slices 1–4 are **completed** (archived); slices 5–7 remain pending; slice 8 is deferred.
+The umbrella remains **active**. Slices 1–5 are **completed** (archived); slices 6–7 remain pending; slice 8 is deferred.
 
 ## 2. Child Change: editorial-canon-and-linkedin-distribution-strategy
 
@@ -70,7 +70,7 @@ The umbrella remains **active**. Slices 1–4 are **completed** (archived); slic
 
 ## 5. Child Change: worker-blog-publishing-endpoint
 
-**Status:** **completed** (archived). Canonical spec: `openspec/specs/worker-blog-publishing-endpoint/spec.md`. Endpoint `POST /publish-blog-post`; service `src/silverman_blog_linkedin/blog_publish_flow.py`; HTTP `src/silverman_blog_linkedin/main.py`; tests `tests/test_blog_publish_flow.py`. Commit: pending until git commit.
+**Status:** **completed** (archived). Canonical spec: `openspec/specs/worker-blog-publishing-endpoint/spec.md`. Endpoint `POST /publish-blog-post`; service `src/silverman_blog_linkedin/blog_publish_flow.py`; HTTP `src/silverman_blog_linkedin/main.py`; tests `tests/test_blog_publish_flow.py`. Commit: `c9a0cb2` feat(flow-a): add blog publishing endpoint.
 
 **Proposed with:** `/opsx-propose worker-blog-publishing-endpoint`
 
@@ -84,16 +84,18 @@ The umbrella remains **active**. Slices 1–4 are **completed** (archived); slic
 
 ## 6. Child Change: linkedin-derivative-package-generation
 
-**Status:** **pending**
+**Status:** **completed** (archived). Canonical spec: `openspec/specs/linkedin-derivative-package-generation/spec.md`. Endpoint `POST /generate-linkedin-package`; service `src/silverman_blog_linkedin/linkedin_package_flow.py`; tests `tests/test_linkedin_package_generation.py`.
 
-**Propose with:** `/opsx-propose linkedin-derivative-package-generation`
+**Applied with:** `/opsx-apply linkedin-derivative-package-generation`
 
-- [ ] 6.1 Implement `POST /generate-linkedin-package` (multi-variant)
-- [ ] 6.2 Require publish-confirmed `source_public_url` for Flow A CTAs
-- [ ] 6.3 Apply anti-AI-writing rules strongly to generated variants
-- [ ] 6.4 Link variants to `campaign_id` in metadata
-- [ ] 6.5 Idempotent per `source_content_sha256` + `variant` + `flow_a`
-- [ ] 6.6 Add tests for package structure and fidelity rules
+**Archived with:** `/opsx-archive linkedin-derivative-package-generation`
+
+- [x] 6.1 Implement `POST /generate-linkedin-package` (multi-variant)
+- [x] 6.2 Require publish-confirmed `source_public_url` for Flow A CTAs
+- [x] 6.3 Apply anti-AI-writing rules strongly to generated variants
+- [x] 6.4 Link variants to `campaign_id` in metadata
+- [x] 6.5 Idempotent per `source_content_sha256` + `variant` + `flow_a`
+- [x] 6.6 Add tests for package structure and fidelity rules
 
 **Depends on:** 2, 3; 5 for confirmed URL
 
