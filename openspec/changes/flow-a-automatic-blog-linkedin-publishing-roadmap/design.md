@@ -1,8 +1,8 @@
 ## Context
 
-### Current State
+### Current State (Flow A Core Complete — 2026-07)
 
-The Silverman Blog LinkedIn automation system runs as an HTTP worker on an Ubuntu server, orchestrated by n8n over HTTP only (ADR-0001). Implemented capabilities include:
+The Silverman Blog LinkedIn automation system runs as an HTTP worker on an Ubuntu server, orchestrated by n8n over HTTP only (ADR-0001). **Flow A Core is implemented and operationally verified** through child slices 1–7 and deployment readiness/smoke verification:
 
 | Component | Status |
 |-----------|--------|
@@ -11,20 +11,36 @@ The Silverman Blog LinkedIn automation system runs as an HTTP worker on an Ubunt
 | `POST /process-file` | Implemented — reads one ready Markdown post |
 | `POST /generate-linkedin-draft` | Implemented — generates one LinkedIn draft variant |
 | GitHub Pages publishing bridge | Implemented as CLI/domain capability (dry-run default, `--apply` required) |
-| `POST /publish-blog-post` | Implemented — Flow A blog publish with validation, lifecycle, and GitHub Pages bridge |
-| n8n draft-generation workflow | Implemented — manual trigger, health → process-ready → process-file → compute URL → generate draft |
-| Public blog URL in LinkedIn drafts | Implemented — `source_public_url` derived per post |
+| `POST /publish-blog-post` | Implemented — Flow A blog publish with validation, lifecycle, reconciliation, and GitHub Pages bridge |
+| `POST /generate-linkedin-package` | Implemented — multi-variant Flow A package generation |
+| `POST /schedule-linkedin-distribution` | Implemented — staggered scheduling metadata; `publish_state: pending` |
+| Editorial canon | Implemented — `content-strategy/silverman-editorial-system.md` |
+| Flow A lifecycle / campaign metadata | Implemented — `campaign_lifecycle.py`, `metadata/campaigns/` |
+| Ready-post validation | Implemented — `ready_post_validation.py` |
+| n8n Flow A orchestration workflow | Implemented — `silverman-blog-linkedin-flow-a-publish.json`, `"active": false`, 26 nodes |
+| Deployment readiness + smoke verification | Implemented and archived — `scripts/flow_a_readiness.py`, `deploy/server/run-flow-a-worker-smoke.sh`, `collect-flow-a-smoke-evidence.sh` |
 
-Gaps for Flow A completion:
+**Operational verification (Ubuntu server, 2026-07):** Worker smoke `OVERALL: PASS` end-to-end (`publish-blog-post` → `generate-linkedin-package` → `schedule-linkedin-distribution`); final campaign state `distribution_scheduled`; public image adopted safely during publish reconciliation; evidence collector `OVERALL: PASS`; n8n workflow inactive by design.
 
-- No automated editorial validation gate for Flow A pre-approval policy.
-- Blog publishing is operator-invoked CLI, not worker HTTP endpoint or n8n-orchestrated.
-- Public URL is derived (expected), not publish-confirmed after GitHub Pages apply.
-- LinkedIn generation produces single drafts per call, not a coordinated derivative package with distribution strategy.
-- No scheduling model for staggered LinkedIn publication.
-- No lifecycle metadata tying blog publish, derivative package, and scheduled posts together.
-- No idempotency/duplicate-prevention across re-runs.
-- No canonical editorial artifact file operationalized for worker/prompt consumption.
+**Flow A Core boundary:** The pipeline stops at generated LinkedIn artifacts under `linkedin-posts/generated/`, scheduled distribution metadata with `publish_state: pending`, and campaign state `distribution_scheduled`. No LinkedIn API publication, no n8n activation, no cron/webhook triggers.
+
+**Deferred (slice 8 — outside umbrella closure):** `linkedin-publication-integration` — LinkedIn API publish when schedule matures; propose as a **new follow-up OpenSpec change** after this umbrella is archived.
+
+### Prior Gaps (resolved by Flow A Core)
+
+The following gaps existed before child slice implementation and are now addressed:
+- ~~No automated editorial validation gate for Flow A pre-approval policy.~~ → **Resolved** (slice 3)
+- ~~Blog publishing is operator-invoked CLI, not worker HTTP endpoint or n8n-orchestrated.~~ → **Resolved** (slice 4 + 7)
+- ~~Public URL is derived (expected), not publish-confirmed after GitHub Pages apply.~~ → **Resolved** (slice 4)
+- ~~LinkedIn generation produces single drafts per call, not a coordinated derivative package with distribution strategy.~~ → **Resolved** (slice 5)
+- ~~No scheduling model for staggered LinkedIn publication.~~ → **Resolved** (slice 6)
+- ~~No lifecycle metadata tying blog publish, derivative package, and scheduled posts together.~~ → **Resolved** (slice 2)
+- ~~No idempotency/duplicate-prevention across re-runs.~~ → **Resolved** (slice 2 + worker endpoints)
+- ~~No canonical editorial artifact file operationalized for worker/prompt consumption.~~ → **Resolved** (slice 1)
+
+**Remaining gap (slice 8 — deferred follow-up change):**
+
+- LinkedIn API publication when scheduled slots mature (`linkedin-publication-integration`; propose as new OpenSpec change after umbrella archive)
 
 ### Stakeholders and Constraints
 
@@ -310,47 +326,69 @@ flow-a-automatic-blog-linkedin-publishing-roadmap (this umbrella)
     │       Depends: 7
     │       Deployment readiness + phased smoke test; blocks umbrella archive
     │
-    └── 8. linkedin-publication-integration (deferred)
+    └── 8. linkedin-publication-integration (deferred — follow-up change)
             Depends: 6 + integration constraints
             LinkedIn API; automatic publish per schedule when credentials/API known
+            NOT part of umbrella closure; propose after umbrella archive
 ```
 
-Slice 2 (lifecycle/idempotency) is foundational and SHOULD precede or run closely with slice 3 (validation). Slices 1–4 can partially overlap after umbrella planning approval. Slice 7 integrates prior slices. Slice 8 implements API publish only after scheduling model exists and integration constraints are documented.
+Slice 2 (lifecycle/idempotency) is foundational and SHOULD precede or run closely with slice 3 (validation). Slices 1–4 can partially overlap after umbrella planning approval. Slice 7 integrates prior slices. Slice 8 is a **separate follow-up change** after umbrella archive.
 
-### Roadmap progress (as of child slice 7 archive)
+### Roadmap progress (Flow A Core Complete — 2026-07)
 
 | # | Child change | Status | Notes |
 |---|--------------|--------|-------|
 | 1 | `editorial-canon-and-linkedin-distribution-strategy` | **completed** (archived) | Canonical spec `openspec/specs/editorial-canon/spec.md`; artifact `content-strategy/silverman-editorial-system.md`; commit `ae3eb43` |
 | 2 | `flow-a-lifecycle-and-duplicate-prevention` | **completed** (archived) | Canonical spec `openspec/specs/flow-a-lifecycle/spec.md`; worker `campaign_lifecycle.py`; commit `aa48e6c` |
-| 3 | `ready-post-editorial-validation` | **completed** (archived) | Canonical spec `openspec/specs/ready-post-editorial-validation/spec.md`; worker `src/silverman_blog_linkedin/ready_post_validation.py`; tests `tests/test_ready_post_validation.py` |
-| 4 | `worker-blog-publishing-endpoint` | **completed** (archived) | Canonical spec `openspec/specs/worker-blog-publishing-endpoint/spec.md`; endpoint `POST /publish-blog-post`; service `src/silverman_blog_linkedin/blog_publish_flow.py`; HTTP `src/silverman_blog_linkedin/main.py`; tests `tests/test_blog_publish_flow.py`; commit `c9a0cb2` feat(flow-a): add blog publishing endpoint |
-| 5 | `linkedin-derivative-package-generation` | **completed** (archived) | Canonical spec `openspec/specs/linkedin-derivative-package-generation/spec.md`; endpoint `POST /generate-linkedin-package`; service `src/silverman_blog_linkedin/linkedin_package_flow.py`; tests `tests/test_linkedin_package_generation.py` |
-| 6 | `linkedin-distribution-scheduling-model` | **completed** (archived) | Canonical spec `openspec/specs/linkedin-distribution-scheduling-model/spec.md`; endpoint `POST /schedule-linkedin-distribution`; service `src/silverman_blog_linkedin/linkedin_distribution_schedule.py`; tests `tests/test_linkedin_distribution_scheduling.py`; commit `53708eb` feat(flow-a): add linkedin distribution scheduling model |
-| 7 | `n8n-flow-a-blog-publish-orchestration` | **completed** (archived) | Canonical spec `openspec/specs/n8n-flow-a-blog-publish-orchestration/spec.md`; workflow `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`; tests `tests/test_n8n_flow_a_publish_workflow.py`; commit `962ba2f` feat(flow-a): add n8n publish orchestration workflow |
-| — | `flow-a-deployment-readiness-and-smoke-test` | **applied** (active) | Script `scripts/flow_a_readiness.py`; tests `tests/test_flow_a_readiness.py`; operational verification before umbrella archive |
-| 8 | `linkedin-publication-integration` | **deferred** | LinkedIn API publish when integration constraints documented |
+| 3 | `ready-post-editorial-validation` | **completed** (archived) | Canonical spec `openspec/specs/ready-post-editorial-validation/spec.md`; worker `ready_post_validation.py`; tests `tests/test_ready_post_validation.py` |
+| 4 | `worker-blog-publishing-endpoint` | **completed** (archived) | Canonical spec `openspec/specs/worker-blog-publishing-endpoint/spec.md`; endpoint `POST /publish-blog-post`; commit `c9a0cb2` |
+| 5 | `linkedin-derivative-package-generation` | **completed** (archived) | Canonical spec `openspec/specs/linkedin-derivative-package-generation/spec.md`; endpoint `POST /generate-linkedin-package`; commit archived |
+| 6 | `linkedin-distribution-scheduling-model` | **completed** (archived) | Canonical spec `openspec/specs/linkedin-distribution-scheduling-model/spec.md`; endpoint `POST /schedule-linkedin-distribution`; commit `53708eb` |
+| 7 | `n8n-flow-a-blog-publish-orchestration` | **completed** (archived) | Canonical spec `openspec/specs/n8n-flow-a-blog-publish-orchestration/spec.md`; workflow inactive, 26 nodes; commit `962ba2f` |
+| — | `flow-a-deployment-readiness-and-smoke-test` | **completed** (archived) | Canonical spec `openspec/specs/flow-a-deployment-readiness-and-smoke-test/spec.md`; worker smoke + evidence collector; commit `1457af0` |
+| 8 | `linkedin-publication-integration` | **deferred** (follow-up change) | LinkedIn API publish; NOT part of umbrella closure |
 
-**Flow A core implementation (worker endpoints + n8n orchestration) is complete through slice 7.** Operational verification (`flow-a-deployment-readiness-and-smoke-test`) must complete before the umbrella is ready to archive. The umbrella remains **active**. Slices 1–7 are **completed** (archived); slice 8 is **deferred**.
+**Flow A Core is complete and operationally verified.** All in-scope child changes (slices 1–7 + operational verification) are archived. The umbrella is **ready to archive**. Slice 8 remains **deferred** to a new follow-up OpenSpec change.
 
 ## Umbrella Lifecycle
 
-This umbrella is a **long-running active roadmap change**, not a one-shot planning artifact archived after stakeholder sign-off.
+This umbrella was a **long-running active roadmap change**. As of 2026-07, Flow A Core closure criteria are met.
 
 | Phase | Umbrella status |
 |-------|-----------------|
-| Planning artifacts approved (tasks 1.1–1.4) | **Active** — remains the organizing source of truth |
-| Child changes proposed/applied/archived (tasks 2–9) | **Active** — child changes MUST reference this umbrella for policy, lifecycle, and sequencing |
-| Flow A child changes complete and validated (through slice 7; slice 8 when applicable) | **Active** — core implementation complete; operational verification pending |
-| Operational verification applied (`flow-a-deployment-readiness-and-smoke-test` active, not archived) | **Active** — implementation complete; archive pending operator validation on server |
-| Operational verification archived | **Ready to archive** — or when roadmap is intentionally superseded by a replacement change |
+| Planning artifacts approved (tasks 1.1–1.4) | **Complete** |
+| Child changes 1–7 implemented and archived | **Complete** |
+| Operational verification archived (`flow-a-deployment-readiness-and-smoke-test`, commit `1457af0`) | **Complete** |
+| Ubuntu server end-to-end verification (worker smoke + evidence collector `OVERALL: PASS`) | **Complete** |
+| Slice 8 (`linkedin-publication-integration`) | **Deferred** — new follow-up change, not umbrella closure scope |
+| **Current status** | **Ready to archive** via `/opsx-archive flow-a-automatic-blog-linkedin-publishing-roadmap` |
 
 Rules:
 
-- The umbrella **remains active** while child changes are proposed, applied, and archived.
-- Each Flow A child change **MUST reference** `flow-a-automatic-blog-linkedin-publishing-roadmap` in its proposal for policy and lifecycle context.
-- Archive the umbrella **only after** Flow A child changes are completed/validated (sections 2–8 in `tasks.md`, with slice 8 deferred until integration constraints are clear), **and** operational verification child `flow-a-deployment-readiness-and-smoke-test` is completed, **or** the roadmap is intentionally superseded.
-- Do **not** archive immediately after stakeholder approval of planning artifacts.
+- The umbrella **remained active** while child changes were proposed, applied, and archived.
+- Each Flow A child change **referenced** this umbrella for policy and lifecycle context.
+- Archive the umbrella **after** Flow A Core child changes and operational verification are completed/validated (slices 1–7 + OV archived). Slice 8 is **not** required for umbrella archive.
+- Do **not** activate n8n, add cron/webhook triggers, or implement LinkedIn API publication as part of umbrella closure.
+
+## Success Criteria (Flow A Core Complete)
+
+When all in-scope child changes (slices 1–7 + operational verification) are implemented, archived, and server-validated:
+
+1. User places one valid blog post (+ PNG) in `blog-posts/ready/`.
+2. System validates against editorial canon; rejects invalid posts visibly.
+3. System publishes blog to GitHub Pages checkout idempotently (with safe reconciliation when public artifacts already exist).
+4. System confirms and records public URL.
+5. System generates LinkedIn derivative package (one or more variants) under `linkedin-posts/generated/`.
+6. System schedules variants per distribution strategy with `publish_state: pending` (not all at once).
+7. System records complete metadata without storing full markdown/draft bodies.
+8. Final campaign state reaches `distribution_scheduled`.
+9. Re-run does not duplicate blog publish or LinkedIn drafts for same variant.
+10. Errors at any step are visible in metadata and worker/n8n execution output.
+11. Flow B content cannot enter Flow A automatic path without explicit policy violation.
+12. Worker smoke and evidence collector report `OVERALL: PASS` on Ubuntu server.
+13. n8n workflow export remains `"active": false` (no cron/webhook/scheduled trigger).
+
+**Flow A Core stops here.** LinkedIn API automatic publication is **deferred** to `linkedin-publication-integration` (slice 8), a separate follow-up OpenSpec change proposed after this umbrella is archived.
 
 ## Decisions
 
@@ -402,13 +440,13 @@ Rules:
 
 **Rationale:** Guardrail from existing n8n spec; prevents accidental production runs.
 
-### D8: Umbrella remains active during child-change execution
+### D8: Umbrella remains active during child-change execution; ready to archive after Flow A Core
 
-**Decision:** Keep `flow-a-automatic-blog-linkedin-publishing-roadmap` as an active OpenSpec change while Flow A child changes are proposed, applied, and archived. Archive only after Flow A completion/validation or intentional roadmap supersession.
+**Decision:** Keep `flow-a-automatic-blog-linkedin-publishing-roadmap` active while Flow A child changes execute. Archive after Flow A Core (slices 1–7 + operational verification) is complete and server-validated. Slice 8 is deferred to a follow-up change.
 
-**Rationale:** Child changes cite the umbrella for policy, lifecycle, and dependency order. Archiving after planning sign-off would orphan in-flight slices and lose the organizing source of truth mid-implementation.
+**Rationale:** Child changes cite the umbrella for policy, lifecycle, and dependency order. As of 2026-07, Flow A Core criteria are met and the umbrella is ready to archive.
 
-**Alternatives:** Archive after stakeholder sign-off — rejected; contradicts multi-slice roadmap methodology.
+**Alternatives:** Archive after planning sign-off — rejected; contradicts multi-slice roadmap methodology. Include slice 8 in umbrella closure — rejected; LinkedIn API constraints not yet documented.
 
 ## Risks / Trade-offs
 
@@ -423,40 +461,24 @@ Rules:
 
 ## Migration Plan
 
-This umbrella is planning-only and remains active while child changes execute. Migration for Flow A rollout (future):
+Flow A Core rollout is complete. Migration notes for operators:
 
-1. Keep umbrella active; implement child changes 1–2 (canon, lifecycle/idempotency).
-3. Implement child changes 3–4 (validation, publish endpoint); may overlap with step 2.
-4. Implement child changes 5–6 (package generation, scheduling metadata).
-5. Implement child change 7 (n8n orchestration); test with manual trigger.
-6. Enable scheduled trigger only after end-to-end dry-run validation.
-7. Implement child change 8 when LinkedIn API integration constraints are documented.
-8. Archive umbrella after Flow A child changes are completed/validated or roadmap is superseded.
+1. Child changes 1–7 and operational verification are implemented, archived, and server-validated.
+2. Use `deploy/server/run-flow-a-worker-smoke.sh` as diagnostic source of truth before manual n8n runs.
+3. n8n workflow remains `"active": false`; manual trigger only until a future operational change explicitly enables scheduling.
+4. LinkedIn API integration (`linkedin-publication-integration`) is a **separate follow-up change** — propose after umbrella archive.
+5. Archive this umbrella via `/opsx-archive flow-a-automatic-blog-linkedin-publishing-roadmap`.
 
 Rollback: disable n8n workflow; worker endpoints remain backward-compatible; Flow A metadata states allow identifying in-flight campaigns.
 
-## Open Questions
+## Open Questions (deferred to slice 8 follow-up change)
 
-1. Does blog publish child change include `git commit`/`git push` or remain local-checkout-only with separate deploy step?
-2. Exact folder for Flow A auto-approved LinkedIn drafts (`approved/` vs dedicated subfolder)?
-3. LinkedIn API provider, credentials storage, and rate-limit policy for slice 8?
+1. LinkedIn API provider, credentials storage, and rate-limit policy for `linkedin-publication-integration`
+2. Exact n8n workflow extension for API publish when schedule matures
+3. Cron schedule for Flow A n8n trigger (polling `ready/` vs webhook) — remains inactive until explicitly enabled
 4. Should `POST /process-ready` semantics change for Flow A (move to processed after full lifecycle vs after blog publish only)?
-5. Cron schedule for Flow A n8n trigger (polling `ready/` vs webhook)?
 
-## Success Criteria (Completed Flow A)
+**Resolved during Flow A Core:**
 
-When all child changes through slice 7 (and 8 when applicable) are implemented:
-
-1. User places one valid blog post (+ PNG) in `blog-posts/ready/`.
-2. System validates against editorial canon; rejects invalid posts visibly.
-3. System publishes blog to GitHub Pages checkout idempotently.
-4. System confirms and records public URL.
-5. System generates LinkedIn derivative package (one or more variants).
-6. System schedules variants per distribution strategy (not all at once; `publish_state` `pending` until API slice).
-7. System records complete metadata without storing full markdown/draft bodies.
-8. Source is moved or marked processed according to the lifecycle child spec when lifecycle closes.
-9. Re-run does not duplicate blog publish or LinkedIn posts for same variant.
-10. Errors at any step are visible in metadata and n8n execution output.
-11. Flow B content cannot enter Flow A automatic path without explicit policy violation.
-
-LinkedIn API automatic publication completes the policy end-state when slice 8 is implemented; until then, success includes scheduling metadata and draft artifacts ready for deferred API publish.
+- Blog publish remains local-checkout-only with separate operator git push (no automatic git push in worker).
+- Flow A LinkedIn drafts write to `linkedin-posts/generated/` per child slice 5.
