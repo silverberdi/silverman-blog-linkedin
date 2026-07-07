@@ -69,6 +69,38 @@ Required checks:
 
 Optional generation smoke runs when `DEEPSEEK_API_KEY` is set and a `.md` file exists in `blog-posts/ready/`. It is not required for overall PASS.
 
+### 3b. Flow A deployment readiness (before Flow A n8n smoke)
+
+`smoke-worker.sh` confirms basic worker HTTP health. Before Flow A orchestration smoke, run the Flow A readiness gate so repository state and running worker OpenAPI surface are aligned.
+
+```bash
+# From repository checkout on server or Mac
+python3 scripts/flow_a_readiness.py \
+  --repo-path . \
+  --worker-base-url http://localhost:8010 \
+  --n8n-base-url http://192.168.0.194:5678 \
+  --env-file /home/silverman/silverman-blog-linkedin-worker/.env \
+  --phase all
+```
+
+**Phase 0 (required gate):** git HEAD / `origin/main`, expected commits (`79f5345`, `962ba2f`, `53708eb` by default), required Flow A files, worker `GET /health` and `GET /openapi.json` with paths `/health`, `/process-ready`, `/publish-blog-post`, `/generate-linkedin-package`, `/schedule-linkedin-distribution`, Flow A workflow export `"active": false`.
+
+**Phase 1:** non-destructive `POST /process-ready` when API key is configured (never prints the key).
+
+**Phase 2:** n8n reachability; workflow import reported as `pending_import` when import cannot be confirmed.
+
+**Phase 3–4:** manual operator steps only (manual n8n trigger; idempotent rerun verification). No cron/webhook activation. No LinkedIn API calls.
+
+If Phase 0 fails with a stale-worker message while git checks pass, rebuild/restart the worker manually:
+
+```bash
+./deploy/server/deploy-worker.sh
+```
+
+The readiness script does **not** run deploy or restart automatically.
+
+Relationship to `smoke-worker.sh`: smoke-worker is minimal post-deploy; `flow_a_readiness.py` is the Flow A pre-smoke gate with OpenAPI and git checks.
+
 ### 4. Configure n8n
 
 In the **Set Configuration** node of workflow `Silverman Blog LinkedIn Draft Generation`:

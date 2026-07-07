@@ -19,9 +19,10 @@
 | 5 | `linkedin-derivative-package-generation` | **completed** (archived) | Spec: `openspec/specs/linkedin-derivative-package-generation/spec.md`; endpoint `POST /generate-linkedin-package`; service `src/silverman_blog_linkedin/linkedin_package_flow.py`; tests `tests/test_linkedin_package_generation.py` |
 | 6 | `linkedin-distribution-scheduling-model` | **completed** (archived) | Spec: `openspec/specs/linkedin-distribution-scheduling-model/spec.md`; endpoint `POST /schedule-linkedin-distribution`; service `src/silverman_blog_linkedin/linkedin_distribution_schedule.py`; tests `tests/test_linkedin_distribution_scheduling.py`; commit `53708eb` |
 | 7 | `n8n-flow-a-blog-publish-orchestration` | **completed** (archived) | Spec: `openspec/specs/n8n-flow-a-blog-publish-orchestration/spec.md`; Workflow: `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`; tests: `tests/test_n8n_flow_a_publish_workflow.py`; commit `962ba2f` feat(flow-a): add n8n publish orchestration workflow |
+| — | `flow-a-deployment-readiness-and-smoke-test` | **applied** (active) | Script: `scripts/flow_a_readiness.py`; tests: `tests/test_flow_a_readiness.py`; docs in README and `docs/deployment/ubuntu-server-worker-deployment.md` |
 | 8 | `linkedin-publication-integration` | **deferred** | LinkedIn API publish; depends on integration constraints |
 
-**Flow A core implementation (worker endpoints + n8n orchestration) is complete through slice 7.** The umbrella remains **active**. Slices 1–7 are **completed** (archived); slice 8 is **deferred**.
+**Flow A core implementation (worker endpoints + n8n orchestration) is complete through slice 7.** Operational verification (`flow-a-deployment-readiness-and-smoke-test`) must complete before the umbrella is ready to archive. The umbrella remains **active**. Slices 1–7 are **completed** (archived); slice 8 is **deferred**.
 
 ## 2. Child Change: editorial-canon-and-linkedin-distribution-strategy
 
@@ -148,11 +149,30 @@
 
 **Depends on:** 7; API constraints clarified. Implements deferred LinkedIn API publish; not immediate on generation.
 
-## 10. Flow A Completion Verification (after child changes 2–8)
+## 10. Child Change: flow-a-deployment-readiness-and-smoke-test (operational verification)
 
-- [ ] 10.1 Place test blog post in `blog-posts/ready/` and run Flow A workflow manually
-- [ ] 10.2 Verify validation, publish, confirmed URL, package, and scheduling metadata (`publish_state` `pending` until slice 9)
-- [ ] 10.3 Re-run workflow and confirm no duplicate blog or LinkedIn artifacts
-- [ ] 10.4 Verify error visibility for intentional failure cases (missing PNG, invalid public slug)
-- [ ] 10.5 Confirm Flow B content cannot enter Flow A path
-- [ ] 10.6 Run full test suite and `openspec validate --all --strict`
+**Status:** **applied** (active; not archived). Operational verification after slice 7 and before umbrella archive. Canonical spec (on archive): `openspec/specs/flow-a-deployment-readiness-and-smoke-test/spec.md`. Entry point: `scripts/flow_a_readiness.py`. Tests: `tests/test_flow_a_readiness.py`.
+
+**Proposed with:** `/opsx-propose flow-a-deployment-readiness-and-smoke-test`
+
+**Applied with:** `/opsx-apply flow-a-deployment-readiness-and-smoke-test`
+
+**Depends on:** slice 7 (`n8n-flow-a-blog-publish-orchestration`). Blocks umbrella archive until completed and archived.
+
+- [x] 10.1 Review planning artifacts (proposal, design, spec, tasks)
+- [x] 10.2 Implement Phase 0 deployment readiness script/command
+- [x] 10.3 Implement Phases 1–2 smoke checks and document Phases 3–4 operator procedures
+- [x] 10.4 Add unit tests for readiness parsers/checks
+- [x] 10.5 Document phased smoke workflow in README or `docs/deployment/`
+- [x] 10.6 Run validation and manual Phase 0 dry-run on target environment
+
+> Archive, commit, and push are out of scope unless explicitly requested separately. Child remains **active** until `/opsx-archive`.
+
+## 11. Flow A Completion Verification (umbrella checklist; tracked by section 10 child)
+
+- [ ] 11.1 Place test blog post in `blog-posts/ready/` and run Flow A workflow manually (Phase 3; after Phase 0 passes)
+- [ ] 11.2 Verify validation, publish, confirmed URL, package, and scheduling metadata (`publish_state` `pending` until slice 8)
+- [ ] 11.3 Re-run workflow and confirm no duplicate blog or LinkedIn artifacts (Phase 4)
+- [ ] 11.4 Verify error visibility for intentional failure cases (missing PNG, invalid public slug)
+- [ ] 11.5 Confirm Flow B content cannot enter Flow A path
+- [ ] 11.6 Run full test suite and `openspec validate --all --strict`

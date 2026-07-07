@@ -306,6 +306,10 @@ flow-a-automatic-blog-linkedin-publishing-roadmap (this umbrella)
     │       Depends: 3, 4, 5, 6
     │       Extended workflow: validate → publish → package → schedule
     │
+    ├── OV. flow-a-deployment-readiness-and-smoke-test (operational verification)
+    │       Depends: 7
+    │       Deployment readiness + phased smoke test; blocks umbrella archive
+    │
     └── 8. linkedin-publication-integration (deferred)
             Depends: 6 + integration constraints
             LinkedIn API; automatic publish per schedule when credentials/API known
@@ -324,9 +328,10 @@ Slice 2 (lifecycle/idempotency) is foundational and SHOULD precede or run closel
 | 5 | `linkedin-derivative-package-generation` | **completed** (archived) | Canonical spec `openspec/specs/linkedin-derivative-package-generation/spec.md`; endpoint `POST /generate-linkedin-package`; service `src/silverman_blog_linkedin/linkedin_package_flow.py`; tests `tests/test_linkedin_package_generation.py` |
 | 6 | `linkedin-distribution-scheduling-model` | **completed** (archived) | Canonical spec `openspec/specs/linkedin-distribution-scheduling-model/spec.md`; endpoint `POST /schedule-linkedin-distribution`; service `src/silverman_blog_linkedin/linkedin_distribution_schedule.py`; tests `tests/test_linkedin_distribution_scheduling.py`; commit `53708eb` feat(flow-a): add linkedin distribution scheduling model |
 | 7 | `n8n-flow-a-blog-publish-orchestration` | **completed** (archived) | Canonical spec `openspec/specs/n8n-flow-a-blog-publish-orchestration/spec.md`; workflow `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`; tests `tests/test_n8n_flow_a_publish_workflow.py`; commit `962ba2f` feat(flow-a): add n8n publish orchestration workflow |
+| — | `flow-a-deployment-readiness-and-smoke-test` | **applied** (active) | Script `scripts/flow_a_readiness.py`; tests `tests/test_flow_a_readiness.py`; operational verification before umbrella archive |
 | 8 | `linkedin-publication-integration` | **deferred** | LinkedIn API publish when integration constraints documented |
 
-**Flow A core implementation (worker endpoints + n8n orchestration) is complete through slice 7.** The umbrella remains **active**. Slices 1–7 are **completed** (archived); slice 8 is **deferred**.
+**Flow A core implementation (worker endpoints + n8n orchestration) is complete through slice 7.** Operational verification (`flow-a-deployment-readiness-and-smoke-test`) must complete before the umbrella is ready to archive. The umbrella remains **active**. Slices 1–7 are **completed** (archived); slice 8 is **deferred**.
 
 ## Umbrella Lifecycle
 
@@ -336,13 +341,15 @@ This umbrella is a **long-running active roadmap change**, not a one-shot planni
 |-------|-----------------|
 | Planning artifacts approved (tasks 1.1–1.4) | **Active** — remains the organizing source of truth |
 | Child changes proposed/applied/archived (tasks 2–9) | **Active** — child changes MUST reference this umbrella for policy, lifecycle, and sequencing |
-| Flow A child changes complete and validated (through slice 7; slice 8 when applicable) | **Ready to archive** — or when roadmap is intentionally superseded by a replacement change |
+| Flow A child changes complete and validated (through slice 7; slice 8 when applicable) | **Active** — core implementation complete; operational verification pending |
+| Operational verification applied (`flow-a-deployment-readiness-and-smoke-test` active, not archived) | **Active** — implementation complete; archive pending operator validation on server |
+| Operational verification archived | **Ready to archive** — or when roadmap is intentionally superseded by a replacement change |
 
 Rules:
 
 - The umbrella **remains active** while child changes are proposed, applied, and archived.
 - Each Flow A child change **MUST reference** `flow-a-automatic-blog-linkedin-publishing-roadmap` in its proposal for policy and lifecycle context.
-- Archive the umbrella **only after** Flow A child changes are completed/validated (sections 2–8 in `tasks.md`, with slice 8 deferred until integration constraints are clear) **or** the roadmap is intentionally superseded.
+- Archive the umbrella **only after** Flow A child changes are completed/validated (sections 2–8 in `tasks.md`, with slice 8 deferred until integration constraints are clear), **and** operational verification child `flow-a-deployment-readiness-and-smoke-test` is completed, **or** the roadmap is intentionally superseded.
 - Do **not** archive immediately after stakeholder approval of planning artifacts.
 
 ## Decisions

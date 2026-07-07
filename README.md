@@ -109,6 +109,42 @@ curl -s http://localhost:8000/health | python3 -m json.tool
 
 For the isolated worker deployment on Ubuntu server `192.168.0.194` (host port `8010`, separate from `local-ai-stack`), see [docs/deployment/ubuntu-server-worker-deployment.md](docs/deployment/ubuntu-server-worker-deployment.md).
 
+### Flow A deployment readiness (Phase 0–4)
+
+Before running Flow A n8n smoke tests, verify deployment readiness. Repository HEAD can be current while the running worker still exposes an old OpenAPI surface.
+
+```bash
+# Local Mac (example: worker on 8000, n8n optional)
+python scripts/flow_a_readiness.py \
+  --repo-path . \
+  --worker-base-url http://localhost:8000 \
+  --phase 0
+
+# Ubuntu server after deploy (example)
+python scripts/flow_a_readiness.py \
+  --repo-path /home/silverman/silverman-blog-linkedin-worker \
+  --worker-base-url http://localhost:8010 \
+  --n8n-base-url http://192.168.0.194:5678 \
+  --env-file /home/silverman/silverman-blog-linkedin-worker/.env \
+  --phase all
+```
+
+**Phases:**
+
+| Phase | Purpose |
+|-------|---------|
+| 0 | Deployment readiness — git state, required Flow A files, worker `/health` + `/openapi.json`, workflow `active: false` |
+| 1 | Worker contract smoke — authenticated `POST /process-ready` only (no publish/package/schedule) |
+| 2 | n8n reachability + import/configuration checklist (`pending_import` when inconclusive) |
+| 3 | Manual Flow A n8n execution (manual trigger only; workflow stays inactive in export) |
+| 4 | Idempotent rerun verification (operator checklist) |
+
+Phases 1–4 are blocked until Phase 0 passes (use `--force` for debugging only). Default expected commits: `79f5345`, `962ba2f`, `53708eb` (override with repeatable `--expected-commit`).
+
+`deploy/server/smoke-worker.sh` remains a complementary minimal post-deploy check; `scripts/flow_a_readiness.py` is the Flow A pre-smoke gate. If Phase 0 reports a stale worker, rebuild/restart manually via `deploy/server/deploy-worker.sh` — the readiness script does not deploy or restart automatically.
+
+Use `--json` for machine-readable output. API keys are never printed (`api_key_configured: true/false` only).
+
 ## GET /health
 
 Unauthenticated liveness/readiness endpoint. Returns `200` with structured JSON for n8n branching. Does not mutate files, call OpenAI, or depend on n8n.
