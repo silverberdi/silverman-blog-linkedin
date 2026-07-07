@@ -79,7 +79,7 @@ The script:
 5. Builds the worker image with `BUILD_REVISION` from git HEAD (busts stale Docker cache)
 6. Runs `docker compose up -d --force-recreate` in the worker directory
 7. Prints container id, image id, and start time
-8. Runs `verify-worker-deploy.sh` to confirm `/openapi.json` exposes Flow A endpoints
+8. Runs `verify-worker-deploy.sh`, which retries `GET /health` and `GET /openapi.json` until the worker is ready after container recreate, then confirms Flow A endpoints are exposed
 
 The script never runs `docker compose down` and never touches `local-ai-stack`.
 
@@ -115,9 +115,10 @@ This checks:
 
 - Target directory contains current Flow A modules (`main.py`, `blog_publish_flow.py`, etc.)
 - Container `silverman-blog-linkedin-worker` is running on port `8010`
+- `GET /health` and `GET /openapi.json` return HTTP 200 (retries for up to ~60s after recreate; override with `VERIFY_MAX_ATTEMPTS` / `VERIFY_RETRY_INTERVAL_SECONDS`)
 - `GET /openapi.json` includes `/publish-blog-post`, `/generate-linkedin-package`, `/schedule-linkedin-distribution`
 
-`deploy-worker.sh` runs this verification automatically and fails if OpenAPI is still stale.
+`deploy-worker.sh` runs this verification automatically. It waits for worker readiness after `--force-recreate` before checking OpenAPI paths, and fails if endpoints are still missing after retries.
 
 ### 3b. Flow A deployment readiness (before Flow A n8n smoke)
 
@@ -349,7 +350,7 @@ Real `SILVERMAN_BLOG_LINKEDIN_API_KEY` and `DEEPSEEK_API_KEY` values must exist 
 | `deploy/server/silverman-worker.compose.yaml` | Isolated compose definition |
 | `deploy/server/silverman-worker.env.example` | Documented env placeholders |
 | `deploy/server/deploy-worker.sh` | Deploy script (sync, build, recreate, verify) |
-| `deploy/server/verify-worker-deploy.sh` | Post-deploy Flow A OpenAPI verification |
+| `deploy/server/verify-worker-deploy.sh` | Post-deploy worker readiness wait + Flow A OpenAPI verification |
 | `deploy/server/smoke-worker.sh` | HTTP smoke tests |
 | `deploy/server/verify-worker-api-key-rotation.sh` | Post-rotation auth verification |
 | `docker-compose.example.yml` | Local/dev compose (not for server) |

@@ -64,3 +64,4 @@
 - [x] 8.4 Update `Dockerfile` / `silverman-worker.compose.yaml` with `BUILD_REVISION` build arg and pinned local image tag
 - [x] 8.5 Strengthen `scripts/flow_a_readiness.py` stale-worker remediation text; update tests
 - [x] 8.6 Document post-deploy OpenAPI requirement in `docs/deployment/ubuntu-server-worker-deployment.md` and README
+- [x] 8.7 Refine `verify-worker-deploy.sh`: retry `/health` and `/openapi.json` after container recreate; update tests and docs

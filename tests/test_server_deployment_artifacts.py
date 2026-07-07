@@ -286,6 +286,34 @@ def test_verify_deploy_script_checks_flow_a_openapi_paths() -> None:
     assert "SILVERMAN_BLOG_LINKEDIN_API_KEY" not in content
 
 
+def test_verify_deploy_script_waits_for_worker_readiness() -> None:
+    content = VERIFY_DEPLOY_SCRIPT_PATH.read_text(encoding="utf-8")
+    assert "VERIFY_MAX_ATTEMPTS" in content
+    assert "VERIFY_RETRY_INTERVAL_SECONDS" in content
+    assert "sleep" in content
+    assert re.search(r"attempt\s+\$\{attempt\}/\$\{VERIFY_MAX_ATTEMPTS\}", content)
+    assert 'wait_for_worker_http_200 "health"' in content
+    assert "waiting for worker OpenAPI" in content
+
+
+def test_verify_deploy_script_checks_health_and_openapi() -> None:
+    content = VERIFY_DEPLOY_SCRIPT_PATH.read_text(encoding="utf-8")
+    assert "/health" in content
+    assert "/openapi.json" in content
+    assert "wait_for_worker_http_200" in content
+
+
+def test_deploy_script_invokes_verify_after_recreate(deploy_script_content: str) -> None:
+    recreate_marker = (
+        "docker compose -f silverman-worker.compose.yaml up -d --force-recreate --remove-orphans"
+    )
+    verify_marker = "Post-deploy verification"
+    recreate_idx = deploy_script_content.index(recreate_marker)
+    verify_idx = deploy_script_content.index(verify_marker)
+    assert verify_idx > recreate_idx
+    assert '"${TARGET_DIR}/verify-worker-deploy.sh"' in deploy_script_content
+
+
 def test_deployment_doc_documents_worker_api_key_rotation() -> None:
     content = DEPLOYMENT_DOC_PATH.read_text(encoding="utf-8")
     assert "## Worker API key rotation" in content

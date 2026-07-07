@@ -26,6 +26,8 @@ REQUIRED_OPENAPI_PATHS=(
 
 REQUIRED_PASSED=0
 REQUIRED_FAILED=0
+VERIFY_MAX_ATTEMPTS="${VERIFY_MAX_ATTEMPTS:-30}"
+VERIFY_RETRY_INTERVAL_SECONDS="${VERIFY_RETRY_INTERVAL_SECONDS:-2}"
 
 pass() {
   echo "PASS: $*"
@@ -33,6 +35,29 @@ pass() {
 
 fail() {
   echo "FAIL: $*" >&2
+}
+
+wait_for_worker_http_200() {
+  local label="$1"
+  local url="$2"
+  local attempt=1
+  local http_code="000"
+
+  while [[ "${attempt}" -le "${VERIFY_MAX_ATTEMPTS}" ]]; do
+    echo "waiting for worker ${label}... attempt ${attempt}/${VERIFY_MAX_ATTEMPTS}"
+    http_code="$(curl -sS -o /dev/null -w '%{http_code}' "${url}" 2>/dev/null || echo "000")"
+    if [[ "${http_code}" == "200" ]]; then
+      pass "GET ${url} returned HTTP 200"
+      return 0
+    fi
+    if [[ "${attempt}" -lt "${VERIFY_MAX_ATTEMPTS}" ]]; then
+      sleep "${VERIFY_RETRY_INTERVAL_SECONDS}"
+    fi
+    attempt=$((attempt + 1))
+  done
+
+  fail "GET ${url} did not return HTTP 200 after ${VERIFY_MAX_ATTEMPTS} attempts (last: HTTP ${http_code})"
+  return 1
 }
 
 echo "==> silverman-blog-linkedin worker deploy verification"
@@ -95,15 +120,42 @@ else
 fi
 echo
 
-echo "==> Worker OpenAPI Flow A endpoints"
+echo "==> Worker readiness (health + OpenAPI)"
+echo "    max attempts: ${VERIFY_MAX_ATTEMPTS}"
+echo "    retry interval: ${VERIFY_RETRY_INTERVAL_SECONDS}s"
+echo
+
 OPENAPI_TMP="$(mktemp)"
 trap 'rm -f "${OPENAPI_TMP}"' EXIT
 
-OPENAPI_HTTP_CODE="$(curl -sS -o "${OPENAPI_TMP}" -w '%{http_code}' \
-  "${WORKER_BASE_URL}/openapi.json" || echo "000")"
+if wait_for_worker_http_200 "health" "${WORKER_BASE_URL}/health"; then
+  REQUIRED_PASSED=$((REQUIRED_PASSED + 1))
+else
+  REQUIRED_FAILED=$((REQUIRED_FAILED + 1))
+fi
+echo
 
-if [[ "${OPENAPI_HTTP_CODE}" != "200" ]]; then
-  fail "GET ${WORKER_BASE_URL}/openapi.json returned HTTP ${OPENAPI_HTTP_CODE}"
+echo "==> Worker OpenAPI Flow A endpoints"
+OPENAPI_READY=0
+attempt=1
+OPENAPI_HTTP_CODE="000"
+
+while [[ "${attempt}" -le "${VERIFY_MAX_ATTEMPTS}" ]]; do
+  echo "waiting for worker OpenAPI... attempt ${attempt}/${VERIFY_MAX_ATTEMPTS}"
+  OPENAPI_HTTP_CODE="$(curl -sS -o "${OPENAPI_TMP}" -w '%{http_code}' \
+    "${WORKER_BASE_URL}/openapi.json" 2>/dev/null || echo "000")"
+  if [[ "${OPENAPI_HTTP_CODE}" == "200" ]]; then
+    OPENAPI_READY=1
+    break
+  fi
+  if [[ "${attempt}" -lt "${VERIFY_MAX_ATTEMPTS}" ]]; then
+    sleep "${VERIFY_RETRY_INTERVAL_SECONDS}"
+  fi
+  attempt=$((attempt + 1))
+done
+
+if [[ "${OPENAPI_READY}" -ne 1 ]]; then
+  fail "GET ${WORKER_BASE_URL}/openapi.json did not return HTTP 200 after ${VERIFY_MAX_ATTEMPTS} attempts (last: HTTP ${OPENAPI_HTTP_CODE})"
   REQUIRED_FAILED=$((REQUIRED_FAILED + 1))
 else
   pass "GET ${WORKER_BASE_URL}/openapi.json returned HTTP 200"
