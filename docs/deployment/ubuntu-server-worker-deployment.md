@@ -43,16 +43,37 @@ Edit `.env` on the server and set:
 
 **Important:** Run deploy on the Ubuntu server so files sync to `/home/silverman/silverman-blog-linkedin-worker` and Docker rebuilds the worker on port `8010`. Running `deploy-worker.sh` from a Mac without SSH only syncs to a local path and does **not** update the server worker.
 
-From a repository checkout on the server (or after syncing the repo):
+## Execution modes
+
+`deploy-worker.sh` supports two execution layouts. It detects the layout from the script location and nearby files—never by blindly walking up to `/home`.
+
+| Mode | How to run | Source files | Sync behavior |
+|------|------------|--------------|---------------|
+| **Repo layout** | From a repository checkout: `./deploy/server/deploy-worker.sh` | Repository root (`Dockerfile`, `pyproject.toml`, `README.md`, `src/`) | Rsyncs build tree and deployment artifacts into `DEPLOY_DIR` (default `/home/silverman/silverman-blog-linkedin-worker`) |
+| **Target layout** | From the synced server directory: `/home/silverman/silverman-blog-linkedin-worker/deploy-worker.sh` | The target directory itself (must already contain `Dockerfile`, `pyproject.toml`, `README.md`, `src/`) | Skips rsync; validates local files, then builds and recreates the container |
+
+Use **repo layout** after pulling or syncing a full checkout (first deploy or when deployment scripts change). Use **target layout** for routine rebuilds on the server when artifacts are already in place—this avoids the bug where `../..` from the target directory incorrectly resolved sources to `/home`.
+
+**Repo layout** (from checkout on server or Mac):
 
 ```bash
 ./deploy/server/deploy-worker.sh
 ```
 
+**Target layout** (on server after initial sync):
+
+```bash
+/home/silverman/silverman-blog-linkedin-worker/deploy-worker.sh
+# or:
+cd /home/silverman/silverman-blog-linkedin-worker
+./deploy-worker.sh
+```
+
 The script:
 
-1. Creates `/home/silverman/silverman-blog-linkedin-worker` if needed
-2. Syncs `Dockerfile`, `pyproject.toml`, `README.md`, `src/`, and deployment artifacts
+1. Detects **repo layout** vs **target layout** (see [Ubuntu server deployment](docs/deployment/ubuntu-server-worker-deployment.md#execution-modes))
+2. Creates `/home/silverman/silverman-blog-linkedin-worker` if needed (repo layout)
+3. Syncs `Dockerfile`, `pyproject.toml`, `README.md`, `src/`, and deployment artifacts (repo layout only; target layout validates files in place)
 3. Verifies Flow A source modules exist in the target directory (with sha256 digests)
 4. Exits with instructions if `.env` is missing
 5. Builds the worker image with `BUILD_REVISION` from git HEAD (busts stale Docker cache)

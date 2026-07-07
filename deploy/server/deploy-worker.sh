@@ -4,7 +4,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 TARGET_DIR="${DEPLOY_DIR:-/home/silverman/silverman-blog-linkedin-worker}"
 WORKER_BASE_URL="${WORKER_BASE_URL:-http://localhost:8010}"
 FORCE_NO_CACHE="${DEPLOY_FORCE_REBUILD:-0}"
@@ -16,8 +15,40 @@ FLOW_A_SOURCE_FILES=(
   "src/silverman_blog_linkedin/linkedin_distribution_schedule.py"
 )
 
+TARGET_LAYOUT_MARKERS=(
+  "Dockerfile"
+  "pyproject.toml"
+  "README.md"
+  "src"
+)
+
+has_target_layout_markers() {
+  local base="$1"
+  local name
+  for name in "${TARGET_LAYOUT_MARKERS[@]}"; do
+    if [[ "${name}" == "src" ]]; then
+      [[ -d "${base}/${name}" ]] || return 1
+    else
+      [[ -f "${base}/${name}" ]] || return 1
+    fi
+  done
+  return 0
+}
+
+if has_target_layout_markers "${SCRIPT_DIR}"; then
+  DEPLOY_LAYOUT="target"
+  SOURCE_ROOT="${SCRIPT_DIR}"
+  TARGET_DIR="${SCRIPT_DIR}"
+  DEPLOY_SERVER_DIR="${SCRIPT_DIR}"
+else
+  DEPLOY_LAYOUT="repo"
+  SOURCE_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+  DEPLOY_SERVER_DIR="${SCRIPT_DIR}"
+fi
+
 echo "==> silverman-blog-linkedin worker deploy"
-echo "    repository: ${REPO_ROOT}"
+echo "    layout:     ${DEPLOY_LAYOUT}"
+echo "    source:     ${SOURCE_ROOT}"
 echo "    target:     ${TARGET_DIR}"
 echo "    worker URL: ${WORKER_BASE_URL}"
 
@@ -45,42 +76,56 @@ RSYNC_EXCLUDES=(
   --exclude '.DS_Store'
 )
 
-echo "==> Syncing build and deployment artifacts..."
-
-if command -v rsync >/dev/null 2>&1; then
-  rsync -a --delete "${RSYNC_EXCLUDES[@]}" \
-    "${REPO_ROOT}/Dockerfile" \
-    "${REPO_ROOT}/pyproject.toml" \
-    "${REPO_ROOT}/README.md" \
-    "${REPO_ROOT}/src" \
-    "${TARGET_DIR}/"
-
-  rsync -a \
-    "${SCRIPT_DIR}/silverman-worker.compose.yaml" \
-    "${SCRIPT_DIR}/silverman-worker.env.example" \
-    "${SCRIPT_DIR}/deploy-worker.sh" \
-    "${SCRIPT_DIR}/smoke-worker.sh" \
-    "${SCRIPT_DIR}/verify-worker-deploy.sh" \
-    "${SCRIPT_DIR}/verify-worker-api-key-rotation.sh" \
-    "${TARGET_DIR}/"
+if [[ "${DEPLOY_LAYOUT}" == "target" ]]; then
+  echo "==> Target layout: validating local build artifacts (skip rsync)..."
+  for name in Dockerfile pyproject.toml README.md; do
+    if [[ ! -f "${TARGET_DIR}/${name}" ]]; then
+      echo "ERROR: missing ${name} in ${TARGET_DIR}" >&2
+      exit 1
+    fi
+  done
+  if [[ ! -d "${TARGET_DIR}/src" ]]; then
+    echo "ERROR: missing src/ in ${TARGET_DIR}" >&2
+    exit 1
+  fi
 else
-  echo "    rsync not found; using cp (no delete of stale files)"
-  cp "${REPO_ROOT}/Dockerfile" "${REPO_ROOT}/pyproject.toml" "${REPO_ROOT}/README.md" "${TARGET_DIR}/"
-  rm -rf "${TARGET_DIR}/src"
-  cp -R "${REPO_ROOT}/src" "${TARGET_DIR}/src"
-  cp "${SCRIPT_DIR}/silverman-worker.compose.yaml" \
-    "${SCRIPT_DIR}/silverman-worker.env.example" \
-    "${SCRIPT_DIR}/deploy-worker.sh" \
-    "${SCRIPT_DIR}/smoke-worker.sh" \
-    "${SCRIPT_DIR}/verify-worker-deploy.sh" \
-    "${SCRIPT_DIR}/verify-worker-api-key-rotation.sh" \
-    "${TARGET_DIR}/"
-fi
+  echo "==> Repo layout: syncing build and deployment artifacts..."
 
-chmod +x "${TARGET_DIR}/deploy-worker.sh" \
-  "${TARGET_DIR}/smoke-worker.sh" \
-  "${TARGET_DIR}/verify-worker-deploy.sh" \
-  "${TARGET_DIR}/verify-worker-api-key-rotation.sh"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete "${RSYNC_EXCLUDES[@]}" \
+      "${SOURCE_ROOT}/Dockerfile" \
+      "${SOURCE_ROOT}/pyproject.toml" \
+      "${SOURCE_ROOT}/README.md" \
+      "${SOURCE_ROOT}/src" \
+      "${TARGET_DIR}/"
+
+    rsync -a \
+      "${DEPLOY_SERVER_DIR}/silverman-worker.compose.yaml" \
+      "${DEPLOY_SERVER_DIR}/silverman-worker.env.example" \
+      "${DEPLOY_SERVER_DIR}/deploy-worker.sh" \
+      "${DEPLOY_SERVER_DIR}/smoke-worker.sh" \
+      "${DEPLOY_SERVER_DIR}/verify-worker-deploy.sh" \
+      "${DEPLOY_SERVER_DIR}/verify-worker-api-key-rotation.sh" \
+      "${TARGET_DIR}/"
+  else
+    echo "    rsync not found; using cp (no delete of stale files)"
+    cp "${SOURCE_ROOT}/Dockerfile" "${SOURCE_ROOT}/pyproject.toml" "${SOURCE_ROOT}/README.md" "${TARGET_DIR}/"
+    rm -rf "${TARGET_DIR}/src"
+    cp -R "${SOURCE_ROOT}/src" "${TARGET_DIR}/src"
+    cp "${DEPLOY_SERVER_DIR}/silverman-worker.compose.yaml" \
+      "${DEPLOY_SERVER_DIR}/silverman-worker.env.example" \
+      "${DEPLOY_SERVER_DIR}/deploy-worker.sh" \
+      "${DEPLOY_SERVER_DIR}/smoke-worker.sh" \
+      "${DEPLOY_SERVER_DIR}/verify-worker-deploy.sh" \
+      "${DEPLOY_SERVER_DIR}/verify-worker-api-key-rotation.sh" \
+      "${TARGET_DIR}/"
+  fi
+
+  chmod +x "${TARGET_DIR}/deploy-worker.sh" \
+    "${TARGET_DIR}/smoke-worker.sh" \
+    "${TARGET_DIR}/verify-worker-deploy.sh" \
+    "${TARGET_DIR}/verify-worker-api-key-rotation.sh"
+fi
 
 echo "==> Verifying synced Flow A source files in target directory..."
 for rel in "${FLOW_A_SOURCE_FILES[@]}"; do
@@ -129,7 +174,7 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-BUILD_REVISION="$(git -C "${REPO_ROOT}" rev-parse HEAD 2>/dev/null || date +%s)"
+BUILD_REVISION="$(git -C "${SOURCE_ROOT}" rev-parse HEAD 2>/dev/null || date +%s)"
 export BUILD_REVISION
 
 echo "==> Building worker image (BUILD_REVISION=${BUILD_REVISION:0:12})..."
@@ -179,4 +224,7 @@ fi
 echo "==> Deploy complete."
 echo "    Worker URL: ${WORKER_BASE_URL}"
 echo "    Smoke test: ${TARGET_DIR}/smoke-worker.sh"
-echo "    Flow A gate: python3 ${REPO_ROOT}/scripts/flow_a_readiness.py --worker-base-url ${WORKER_BASE_URL} --phase 0"
+READINESS_SCRIPT="${SOURCE_ROOT}/scripts/flow_a_readiness.py"
+if [[ -f "${READINESS_SCRIPT}" ]]; then
+  echo "    Flow A gate: python3 ${READINESS_SCRIPT} --worker-base-url ${WORKER_BASE_URL} --phase 0"
+fi
