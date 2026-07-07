@@ -19,6 +19,7 @@ SMOKE_SCRIPT_PATH = DEPLOY_SERVER / "smoke-worker.sh"
 VERIFY_DEPLOY_SCRIPT_PATH = DEPLOY_SERVER / "verify-worker-deploy.sh"
 IMPORT_FLOW_A_SCRIPT_PATH = DEPLOY_SERVER / "import-flow-a-n8n-workflow.sh"
 COLLECT_FLOW_A_EVIDENCE_SCRIPT_PATH = DEPLOY_SERVER / "collect-flow-a-smoke-evidence.sh"
+FLOW_A_WORKER_SMOKE_SCRIPT_PATH = DEPLOY_SERVER / "run-flow-a-worker-smoke.sh"
 VERIFY_ROTATION_SCRIPT_PATH = DEPLOY_SERVER / "verify-worker-api-key-rotation.sh"
 DEPLOYMENT_DOC_PATH = REPO_ROOT / "docs" / "deployment" / "ubuntu-server-worker-deployment.md"
 
@@ -687,3 +688,76 @@ def test_collect_flow_a_evidence_script_uses_docker_inspect_temp_file_helper(
     assert "docker inspect" in content
     assert re.search(r'docker inspect\s+"\$\{[^}]+\}"\s*>\s*"\$\{tmp\}"', content)
     assert "with open(sys.argv[1]" in content
+
+
+@pytest.fixture
+def flow_a_worker_smoke_script_content() -> str:
+    assert FLOW_A_WORKER_SMOKE_SCRIPT_PATH.is_file(), (
+        f"missing script: {FLOW_A_WORKER_SMOKE_SCRIPT_PATH}"
+    )
+    return FLOW_A_WORKER_SMOKE_SCRIPT_PATH.read_text(encoding="utf-8")
+
+
+def test_flow_a_worker_smoke_script_exists_and_is_executable() -> None:
+    assert FLOW_A_WORKER_SMOKE_SCRIPT_PATH.is_file()
+    mode = FLOW_A_WORKER_SMOKE_SCRIPT_PATH.stat().st_mode
+    assert mode & stat.S_IXUSR
+
+
+def test_flow_a_worker_smoke_script_calls_endpoints_in_order(
+    flow_a_worker_smoke_script_content: str,
+) -> None:
+    content = flow_a_worker_smoke_script_content
+    health_idx = content.index("Step 1: GET /health")
+    publish_idx = content.index("Step 2: POST /publish-blog-post")
+    package_idx = content.index("Step 3: POST /generate-linkedin-package")
+    schedule_idx = content.index("Step 4: POST /schedule-linkedin-distribution")
+    assert health_idx < publish_idx < package_idx < schedule_idx
+
+
+def test_flow_a_worker_smoke_script_reads_api_key_without_printing(
+    flow_a_worker_smoke_script_content: str,
+) -> None:
+    content = flow_a_worker_smoke_script_content
+    assert "load_env_var SILVERMAN_BLOG_LINKEDIN_API_KEY" in content
+    assert 'echo "${API_KEY}"' not in content
+    assert "printf '%s' \"${API_KEY}\"" not in content
+    for pattern in SECRET_PATTERNS:
+        assert not pattern.search(content)
+
+
+def test_flow_a_worker_smoke_script_safety_constraints(
+    flow_a_worker_smoke_script_content: str,
+) -> None:
+    content = flow_a_worker_smoke_script_content
+    lowered = content.lower()
+    assert "no n8n activation" in lowered or '"active": true' not in content
+    assert "no linkedin api" in lowered or "linkedin api" in lowered
+    assert "git push" not in lowered or "no git push" in lowered
+    assert "rm -rf" not in content
+    assert "destructive cleanup" in lowered
+
+
+def test_flow_a_worker_smoke_script_supports_flags(
+    flow_a_worker_smoke_script_content: str,
+) -> None:
+    content = flow_a_worker_smoke_script_content
+    assert "--dry-run" in content
+    assert "--worker-base-url" in content
+    assert "--relative-path" in content
+    assert "--site-url" in content
+
+
+def test_flow_a_worker_smoke_script_checks_campaign_state_and_artifacts(
+    flow_a_worker_smoke_script_content: str,
+) -> None:
+    content = flow_a_worker_smoke_script_content
+    assert "print_campaign_snapshot" in content
+    assert "distribution_scheduled" in content
+    assert "verify_public_artifacts" in content
+    assert "verify_generated_artifacts" in content
+    assert "published_post_relative_path" in content
+    assert "linkedin_package" in content
+    assert "deepseek_config_invalid" in content
+    assert "OVERALL: PASS" in content
+    assert "OVERALL: FAIL" in content

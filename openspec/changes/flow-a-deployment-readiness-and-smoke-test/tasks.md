@@ -112,3 +112,16 @@
 - [x] 13.1 Update `collect-flow-a-smoke-evidence.sh`: separate Editorial artifacts from Public blog artifacts; search published files under `PUBLIC_BLOG_HOST_MOUNT` with container fallback; published blog matches informational only for PASS
 - [x] 13.2 Update `tests/test_server_deployment_artifacts.py`: assert public blog artifact paths use `PUBLIC_BLOG_HOST_MOUNT`; assert editorial base path is not used for published blog search
 - [x] 13.3 Update README, deployment doc, design, and spec with editorial vs public blog artifact distinction
+
+## 14. Deterministic worker smoke and publish reconciliation (post-smoke validation)
+
+**Observed (2026-07):** Public repo mount PASS; campaign stuck at `validated` with public blog files on disk; n8n fails at Publish Blog Post. Root cause: worker did not reconcile metadata when public targets already existed (`blog_publish_target_exists`). n8n workflow JSON verified correct.
+
+- [x] 14.1 Diagnose n8n workflow JSON payloads and branch conditions after Process Ready / Publish / Package / Schedule — confirm field mappings; workflow remains inactive
+- [x] 14.2 Fix worker `publish_blog_post` reconciliation when public targets exist and campaign is `validated` / `blog_publish_pending` / recoverable `error`
+- [x] 14.3 Add `deploy/server/run-flow-a-worker-smoke.sh` — deterministic publish/package/schedule gate without n8n UI
+- [x] 14.4 Extend `tests/test_n8n_flow_a_publish_workflow.py` static validation (HTTP methods, payloads, branch fields)
+- [x] 14.5 Add tests in `tests/test_server_deployment_artifacts.py` for smoke script existence, safety, endpoint sequence, campaign checks
+- [x] 14.6 Add unit tests for publish reconciliation in `tests/test_blog_publish_flow.py`
+- [x] 14.7 Update README, `docs/deployment/ubuntu-server-worker-deployment.md`, design, and spec — worker smoke is diagnostic source of truth; manual n8n is orchestration validation only
+- [x] 14.8 Run `openspec validate`, targeted pytest, and full `pytest`

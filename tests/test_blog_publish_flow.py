@@ -268,6 +268,30 @@ def test_target_exists_without_matching_metadata_fails(
     assert BLOG_PUBLISH_TARGET_EXISTS in result.errors
 
 
+def test_reconcile_validated_campaign_when_public_targets_exist(
+    editorial_base: Path, public_repo: Path
+):
+    _validated_campaign(editorial_base)
+    _write_post(editorial_base)
+
+    post_path = public_repo / "_posts" / f"{PUBLICATION_DATE}-{PUBLIC_SLUG}.md"
+    image_path = public_repo / "assets/images" / f"{PUBLIC_SLUG}.png"
+    post_path.write_text("pre-existing post", encoding="utf-8")
+    image_path.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "completed"
+    assert result.state == STATE_BLOG_PUBLISHED
+    assert result.blog_publish["status"] == "reconciled"
+    assert result.source_public_url == f"{SITE_URL}/2026/07/06/{PUBLIC_SLUG}/"
+
+    campaign = read_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    assert campaign["state"] == STATE_BLOG_PUBLISHED
+    assert campaign["blog_publish"]["public_repo_path"].startswith("_posts/")
+
+
 def test_invalid_campaign_state_fails(editorial_base: Path, public_repo: Path):
     _validated_campaign(editorial_base)
     _write_post(editorial_base)

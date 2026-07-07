@@ -258,6 +258,16 @@ The public checkout must contain `_posts/` and `assets/images/`. `deploy-worker.
 
 **Evidence path correction (2026-07):** Published Jekyll files (`_posts/`, `assets/images/`) are written to the public GitHub Pages repo checkout (`/public-blog` in container; host mount e.g. `/home/silverman/silverberdi.github.io`), not the editorial workspace. `collect-flow-a-smoke-evidence.sh` separates **Editorial artifacts** (metadata, generated LinkedIn) from **Public blog artifacts** (slug-matched published files under `PUBLIC_BLOG_HOST_MOUNT`). Published blog matches are informational for diagnosis; `OVERALL: PASS` gates on campaign/generated editorial artifacts, not on published blog files.
 
+### D10: Deterministic Flow A worker smoke runner
+
+**Decision:** Add `deploy/server/run-flow-a-worker-smoke.sh` as the **diagnostic source of truth** for Flow A publish/package/schedule. Manual n8n execution validates orchestration only after worker smoke passes.
+
+**Observed smoke failure (2026-07):** After public repo mount remediation, `verify-worker-deploy.sh` and `collect-flow-a-smoke-evidence.sh` reported PASS for worker, public blog, and n8n (inactive, 26 nodes). Campaign metadata remained `validated` with `blog_publish` unset, `linkedin_package` absent, and `linkedin_distribution` absent — while public `_posts` and `assets/images` files already existed. n8n failed at **Publish Blog Post** on rerun. Root cause: worker `publish_blog_post` attempted `run_publish` when public targets already existed; `check_no_overwrite` refused, returning `blog_publish_target_exists` without reconciling metadata to `blog_published`. n8n workflow JSON payloads and branch conditions were verified correct (`item.relative_path` → `source_relative_path`; downstream nodes use `item.campaign_id` from the immediate HTTP response).
+
+**Worker fix:** When public targets exist at expected paths, idempotency key matches, and campaign is `validated`, `blog_publish_pending`, or recoverable `error`, reconcile campaign metadata to `blog_published` with `blog_publish.status: reconciled` instead of failing.
+
+**Script behavior:** Calls `GET /health`, then `POST /publish-blog-post`, `POST /generate-linkedin-package`, `POST /schedule-linkedin-distribution` in order; prints campaign metadata after each step; verifies public blog files, generated LinkedIn artifacts, and `distribution_scheduled` state; exits `OVERALL: PASS` or `OVERALL: FAIL`. No secrets, no n8n activation, no LinkedIn API, no git push, no destructive cleanup.
+
 ## Risks / Trade-offs
 
 | Risk | Mitigation |

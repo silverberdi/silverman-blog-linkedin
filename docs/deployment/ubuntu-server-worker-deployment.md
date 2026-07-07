@@ -244,6 +244,34 @@ Published blog files are informational for diagnosis (e.g. publish succeeded but
 
 The script is read-only: no secrets printed, no n8n activation, no LinkedIn API calls, no deploy/restart. Optional `--json` for machine-readable summary.
 
+### 5b. Deterministic Flow A worker smoke (before n8n)
+
+**Manual n8n execution is not the diagnostic source of truth.** Run the worker smoke script first to exercise publish → package → schedule directly against the deployed worker.
+
+```bash
+# Target layout (on Ubuntu server)
+/home/silverman/silverman-blog-linkedin-worker/run-flow-a-worker-smoke.sh
+
+# Repo layout
+./deploy/server/run-flow-a-worker-smoke.sh
+```
+
+**Defaults:** `WORKER_BASE_URL=http://localhost:8010`, `.env` at `/home/silverman/silverman-blog-linkedin-worker/.env`, ready post `blog-posts/ready/01-why-i-did-not-start-with-the-database.md`, public blog host `/home/silverman/silverberdi.github.io`, `SITE_URL=https://silverman.pro`.
+
+**Endpoint sequence:** `GET /health` → `POST /publish-blog-post` → `POST /generate-linkedin-package` → `POST /schedule-linkedin-distribution`. After each POST, the script prints campaign metadata snapshot (`state`, `source_public_url`, published paths, `linkedin_package`, `linkedin_distribution`, `errors`). Fails immediately on `status: failed` or missing required fields.
+
+**Failure isolation:**
+
+| Layer | Typical signal |
+|-------|----------------|
+| Worker deployment | `blog_publish_public_repo_not_configured`, health/OpenAPI failures |
+| Worker publish idempotency | `validated` campaign + public files exist but publish fails (`blog_publish_target_exists`) — worker reconciliation |
+| n8n orchestration | Worker smoke `PASS`, n8n fails at same HTTP node — re-import workflow JSON |
+| Provider config | `deepseek_config_invalid` during package generation |
+| Schedule mapping | Package `PASS`, schedule fails with `linkedin_schedule_*` errors |
+
+Flags: `--dry-run`, `--worker-base-url`, `--relative-path`, `--site-url`, `--editorial-root`, `--public-blog-root`. No secrets printed, no n8n activation, no LinkedIn API, no git push, no destructive cleanup.
+
 ## Updates
 
 Re-run the deploy script on the **Ubuntu server** after pulling or syncing new code:
@@ -445,5 +473,6 @@ Real `SILVERMAN_BLOG_LINKEDIN_API_KEY` and `DEEPSEEK_API_KEY` values must exist 
 | `deploy/server/verify-worker-deploy.sh` | Post-deploy worker readiness wait + Flow A OpenAPI verification |
 | `deploy/server/smoke-worker.sh` | HTTP smoke tests |
 | `deploy/server/collect-flow-a-smoke-evidence.sh` | Read-only Flow A post-smoke evidence collection |
+| `deploy/server/run-flow-a-worker-smoke.sh` | Deterministic Flow A worker smoke (publish/package/schedule without n8n) |
 | `deploy/server/verify-worker-api-key-rotation.sh` | Post-rotation auth verification |
 | `docker-compose.example.yml` | Local/dev compose (not for server) |

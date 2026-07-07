@@ -37,6 +37,7 @@ from silverman_blog_linkedin.github_pages_publish import (
     PublishPlan,
     _split_frontmatter,
     load_config,
+    public_url,
     resolve_public_slug,
     run_publish,
     validate_repo_layout,
@@ -86,6 +87,8 @@ INVALID_PUBLISH_STATES = frozenset(
 )
 
 RESUMABLE_WITHOUT_VALIDATION = frozenset({STATE_BLOG_PUBLISH_PENDING})
+
+RECONCILABLE_PUBLISH_STATES = frozenset({STATE_VALIDATED, STATE_BLOG_PUBLISH_PENDING})
 
 
 @dataclass
@@ -406,16 +409,122 @@ def _check_campaign_eligible_for_publish(
     return None
 
 
+def _expected_public_target_paths(
+    public_slug: str,
+    publication_date: date,
+) -> tuple[str, str]:
+    post_relative = f"_posts/{publication_date.isoformat()}-{public_slug}.md"
+    image_relative = f"assets/images/{public_slug}.png"
+    return post_relative, image_relative
+
+
 def _public_targets_exist(
     repo_path: Path,
     public_slug: str,
     publication_date: date,
 ) -> tuple[bool, str, str]:
-    post_relative = f"_posts/{publication_date.isoformat()}-{public_slug}.md"
-    image_relative = f"assets/images/{public_slug}.png"
-    post_exists = (repo_path / post_relative).exists()
-    image_exists = (repo_path / image_relative).exists()
+    post_relative, image_relative = _expected_public_target_paths(
+        public_slug, publication_date
+    )
+    post_exists = (repo_path / post_relative).is_file()
+    image_exists = (repo_path / image_relative).is_file()
     return post_exists or image_exists, post_relative, image_relative
+
+
+def _public_targets_match_campaign(
+    repo_path: Path,
+    *,
+    post_relative: str,
+    image_relative: str,
+) -> bool:
+    return (repo_path / post_relative).is_file() and (
+        repo_path / image_relative
+    ).is_file()
+
+
+def _reconcile_existing_publication(
+    base_path: Path,
+    preflight: PreflightContext,
+    campaign: dict[str, Any],
+    *,
+    campaign_id: str,
+    post_relative: str,
+    image_relative: str,
+    site_url: str,
+    pub_date: date,
+    warnings: list[str],
+    validation_summary: dict[str, Any],
+) -> BlogPublishResult:
+    """Align campaign metadata with public repo files already on disk."""
+    assert preflight.public_slug is not None
+    assert preflight.expected_idempotency_key is not None
+
+    reconciled_url = public_url(site_url, pub_date, preflight.public_slug)
+    state = campaign.get("state")
+
+    try:
+        if state == STATE_VALIDATED:
+            transition_state(
+                campaign,
+                STATE_BLOG_PUBLISH_PENDING,
+                reason="Blog publish reconciliation started",
+                actor=ACTOR_WORKER,
+            )
+
+        if campaign.get("state") == STATE_BLOG_PUBLISH_PENDING:
+            transition_state(
+                campaign,
+                STATE_BLOG_PUBLISHED,
+                reason="Blog publish reconciled from existing public artifacts",
+                actor=ACTOR_WORKER,
+            )
+    except Exception:
+        return _failed_result(
+            preflight,
+            errors=[BLOG_PUBLISH_INVALID_CAMPAIGN_STATE],
+            warnings=warnings,
+            validation=validation_summary,
+            campaign_id=campaign_id,
+            state=campaign.get("state"),
+        )
+
+    published_at = utc_now_iso()
+    blog_publish = {
+        "idempotency_key": preflight.expected_idempotency_key,
+        "status": "reconciled",
+        "source_public_url": reconciled_url,
+        "published_at": published_at,
+        "public_repo_path": post_relative,
+        "public_repo_image_path": image_relative,
+        "error_code": None,
+    }
+    campaign["blog_publish"] = blog_publish
+    campaign["source_public_url"] = reconciled_url
+
+    metadata_written, metadata_error_code = _persist_campaign(
+        base_path, campaign_id, campaign
+    )
+
+    result = BlogPublishResult(
+        status="completed",
+        source_relative_path=preflight.source_relative_path,
+        campaign_id=campaign_id,
+        state=STATE_BLOG_PUBLISHED,
+        source_slug=preflight.source_slug,
+        public_slug=preflight.public_slug,
+        publication_date=preflight.publication_date,
+        image_relative_path=preflight.image_relative_path,
+        source_public_url=reconciled_url,
+        errors=[] if metadata_written else [BLOG_PUBLISH_METADATA_WRITE_FAILED],
+        warnings=warnings,
+        validation=validation_summary,
+        blog_publish=blog_publish,
+        metadata_written=metadata_written,
+        metadata_error_code=metadata_error_code,
+    )
+    if not metadata_written:
+        result.status = "failed"
+    return result
 
 
 def _build_environ(
@@ -634,6 +743,27 @@ def publish_blog_post(
                 validation=validation_summary,
                 campaign_id=campaign_id,
                 state=campaign.get("state"),
+            )
+        if (
+            campaign.get("state") in RECONCILABLE_PUBLISH_STATES
+            and campaign.get("source_content_sha256") == preflight.source_content_sha256
+            and _public_targets_match_campaign(
+                config.repo_path,
+                post_relative=post_relative,
+                image_relative=image_relative,
+            )
+        ):
+            return _reconcile_existing_publication(
+                base_path,
+                preflight,
+                campaign,
+                campaign_id=campaign_id,
+                post_relative=post_relative,
+                image_relative=image_relative,
+                site_url=site_url,
+                pub_date=pub_date,
+                warnings=warnings,
+                validation_summary=validation_summary,
             )
 
     if campaign.get("state") == STATE_VALIDATED:

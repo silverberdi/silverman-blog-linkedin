@@ -263,6 +263,39 @@ The worker deployment artifacts SHALL mount and configure the public GitHub Page
 - **WHEN** Flow A publish validation passes but apply fails with `blog_publish_public_repo_not_configured`
 - **THEN** operator documentation explains the public blog repo is not mounted or configured in the worker container, not that n8n orchestration failed
 
+### Requirement: Deterministic Flow A worker smoke runner
+
+The repository SHALL provide `deploy/server/run-flow-a-worker-smoke.sh` for Ubuntu server operators to exercise Flow A worker endpoints without n8n UI interaction.
+
+#### Scenario: Worker smoke calls endpoints in order
+
+- **WHEN** an operator runs `run-flow-a-worker-smoke.sh` on the Ubuntu server
+- **THEN** it calls `GET /health`, `POST /publish-blog-post`, `POST /generate-linkedin-package`, and `POST /schedule-linkedin-distribution` in sequence against the configured worker base URL (default `http://localhost:8010`)
+- **AND** reads `SILVERMAN_BLOG_LINKEDIN_API_KEY` from the server-local `.env` without printing the key
+
+#### Scenario: Worker smoke prints campaign metadata after each step
+
+- **WHEN** each POST step completes
+- **THEN** the script prints campaign metadata fields including `state`, `source_public_url`, published post/image paths, `linkedin_package` presence, `linkedin_distribution` presence, and `errors`
+
+#### Scenario: Worker smoke isolates failure layers
+
+- **WHEN** worker smoke reports `OVERALL: PASS` but manual n8n fails at the same HTTP step
+- **THEN** operator documentation states the failure is likely n8n payload or branch mapping, not the worker endpoint contract
+- **WHEN** worker smoke fails at package generation with `deepseek_config_invalid`
+- **THEN** operator documentation states provider configuration must be fixed before n8n orchestration
+
+#### Scenario: Worker smoke safety constraints
+
+- **WHEN** `run-flow-a-worker-smoke.sh` runs
+- **THEN** it does not activate n8n, call LinkedIn API, git push, or perform destructive cleanup by default
+- **AND** it supports `--dry-run`, `--worker-base-url`, `--relative-path`, and `--site-url` flags
+
+#### Scenario: Publish reconciliation when public files already exist
+
+- **WHEN** campaign metadata is `validated` and public `_posts` / `assets/images` targets already exist for the same idempotency key
+- **THEN** `POST /publish-blog-post` reconciles metadata to `blog_published` with `status: completed` instead of failing with `blog_publish_target_exists` without updating metadata
+
 ### Requirement: Apply scope boundaries
 
 Archive, commit, and push SHALL be out of scope for the apply phase of this change unless explicitly requested in a separate operator action.

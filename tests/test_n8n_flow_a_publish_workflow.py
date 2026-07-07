@@ -296,6 +296,87 @@ def test_schedule_distribution_uses_campaign_id(workflow: dict):
     assert "item.campaign_id" in json_body
 
 
+def _http_node_by_name(workflow: dict, name: str) -> dict:
+    return next(node for node in workflow["nodes"] if node["name"] == name)
+
+
+def _if_node_by_name(workflow: dict, name: str) -> dict:
+    return next(node for node in workflow["nodes"] if node["name"] == name)
+
+
+def test_workflow_http_methods_and_urls(workflow: dict):
+    health = _http_node_by_name(workflow, "Health Check")
+    assert health["parameters"]["method"] == "GET"
+    assert "/health" in health["parameters"]["url"]
+
+    for name, path in (
+        ("Process Ready", "/process-ready"),
+        ("Publish Blog Post", "/publish-blog-post"),
+        ("Generate LinkedIn Package", "/generate-linkedin-package"),
+        ("Schedule LinkedIn Distribution", "/schedule-linkedin-distribution"),
+    ):
+        node = _http_node_by_name(workflow, name)
+        assert node["parameters"]["method"] == "POST"
+        assert path in node["parameters"]["url"]
+        assert "worker_base_url" in node["parameters"]["url"]
+
+
+def test_workflow_publish_if_branches_on_completed_not_failed(workflow: dict):
+    publish_if = _if_node_by_name(workflow, "IF Publish Completed")
+    conditions = publish_if["parameters"]["conditions"]["conditions"]
+    assert len(conditions) == 1
+    assert conditions[0]["leftValue"] == "={{ $json.status }}"
+    assert conditions[0]["rightValue"] == "completed"
+
+    for name in ("IF Package Completed", "IF Schedule Completed"):
+        if_node = _if_node_by_name(workflow, name)
+        if_conditions = if_node["parameters"]["conditions"]["conditions"]
+        assert if_conditions[0]["rightValue"] == "completed"
+
+
+def test_workflow_process_ready_if_branches_on_failed(workflow: dict):
+    process_if = _if_node_by_name(workflow, "IF Process Ready Failed")
+    conditions = process_if["parameters"]["conditions"]["conditions"]
+    assert conditions[0]["leftValue"] == "={{ $json.status }}"
+    assert conditions[0]["rightValue"] == "failed"
+
+
+def _normalize_js_expr(expr: str) -> str:
+    return re.sub(r"\s+", "", expr)
+
+
+def test_workflow_publish_body_uses_split_item_relative_path_not_stale_source(
+    workflow: dict,
+):
+    publish = _http_node_by_name(workflow, "Publish Blog Post")
+    body = publish["parameters"]["jsonBody"]
+    normalized = _normalize_js_expr(body)
+    assert "item.relative_path" in body
+    assert "source_relative_path:item.relative_path" in normalized
+    assert "valid_files" not in body
+
+
+def test_workflow_package_body_prefers_publish_response_campaign_id(workflow: dict):
+    package = _http_node_by_name(workflow, "Generate LinkedIn Package")
+    body = package["parameters"]["jsonBody"]
+    normalized = _normalize_js_expr(body)
+    assert "if(item.campaign_id)body.campaign_id=item.campaign_id" in normalized
+    assert "$('Publish Blog Post')" not in body
+
+
+def test_workflow_schedule_body_prefers_package_response_campaign_id(workflow: dict):
+    schedule = _http_node_by_name(workflow, "Schedule LinkedIn Distribution")
+    body = schedule["parameters"]["jsonBody"]
+    normalized = _normalize_js_expr(body)
+    assert "if(item.campaign_id)body.campaign_id=item.campaign_id" in normalized
+    assert "$('Generate LinkedIn Package')" not in body
+
+
+def test_workflow_has_no_schedule_or_webhook_trigger(workflow: dict):
+    node_types = {node["type"] for node in workflow["nodes"]}
+    assert node_types.isdisjoint(FORBIDDEN_TRIGGER_TYPES)
+
+
 def test_workflow_does_not_reference_wrong_campaign_id_with_source_prefix(workflow_text: str):
     assert WRONG_CAMPAIGN_ID not in workflow_text
 

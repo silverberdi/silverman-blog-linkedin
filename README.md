@@ -141,7 +141,7 @@ python scripts/flow_a_readiness.py \
 
 Phases 1–4 are blocked until Phase 0 passes (use `--force` for debugging only). Default expected commits: `79f5345`, `962ba2f`, `53708eb` (override with repeatable `--expected-commit`).
 
-`deploy/server/smoke-worker.sh` remains a complementary minimal post-deploy check; `deploy/server/verify-worker-deploy.sh` retries worker `/health` and `/openapi.json` after container recreate, then confirms Flow A OpenAPI endpoints and public blog repo mount (`/public-blog` with `_posts/` and `assets/images/`); `deploy/server/import-flow-a-n8n-workflow.sh` imports the Flow A workflow into the real n8n container (not the nginx gateway) with stable id `silvermanFlowAPublish01`; `deploy/server/collect-flow-a-smoke-evidence.sh` collects read-only post-smoke evidence on the Ubuntu server (worker OpenAPI, public blog repo readiness, editorial artifacts under the editorial workspace, public blog artifacts under the GitHub Pages repo checkout, n8n workflow inactive + 26 nodes) without fragile ad-hoc SSH heredocs; `scripts/flow_a_readiness.py` is the Flow A pre-smoke gate. Phase 0 may report `n8n_workflow_import` as **pending** when import cannot be confirmed over HTTP alone — a successful `import-flow-a-n8n-workflow.sh` run on the Ubuntu server satisfies manual import verification evidence. Run deploy on the **Ubuntu server** so port `8010` is updated — running `deploy-worker.sh` from Mac only syncs locally. Use **repo layout** (`./deploy/server/deploy-worker.sh`) from a checkout, or **target layout** (`/home/silverman/silverman-blog-linkedin-worker/deploy-worker.sh`) when rebuilding from the synced server directory. If Phase 0 reports a stale worker, rebuild on the server with `DEPLOY_FORCE_REBUILD=1 ./deploy-worker.sh` (target layout) or `DEPLOY_FORCE_REBUILD=1 ./deploy/server/deploy-worker.sh` (repo layout), then `verify-worker-deploy.sh` — the readiness script does not deploy or restart automatically.
+`deploy/server/smoke-worker.sh` remains a complementary minimal post-deploy check; `deploy/server/verify-worker-deploy.sh` retries worker `/health` and `/openapi.json` after container recreate, then confirms Flow A OpenAPI endpoints and public blog repo mount (`/public-blog` with `_posts/` and `assets/images/`); `deploy/server/import-flow-a-n8n-workflow.sh` imports the Flow A workflow into the real n8n container (not the nginx gateway) with stable id `silvermanFlowAPublish01`; **`deploy/server/run-flow-a-worker-smoke.sh` is the deterministic Flow A diagnostic gate** — it calls `GET /health`, then `POST /publish-blog-post`, `POST /generate-linkedin-package`, and `POST /schedule-linkedin-distribution` directly against the worker (no n8n UI) and prints campaign metadata after each step; use it to isolate worker vs n8n vs provider failures before any manual n8n run; `deploy/server/collect-flow-a-smoke-evidence.sh` collects read-only post-smoke evidence on the Ubuntu server (worker OpenAPI, public blog repo readiness, editorial artifacts under the editorial workspace, public blog artifacts under the GitHub Pages repo checkout, n8n workflow inactive + 26 nodes) without fragile ad-hoc SSH heredocs; `scripts/flow_a_readiness.py` is the Flow A pre-smoke gate. Phase 0 may report `n8n_workflow_import` as **pending** when import cannot be confirmed over HTTP alone — a successful `import-flow-a-n8n-workflow.sh` run on the Ubuntu server satisfies manual import verification evidence. Run deploy on the **Ubuntu server** so port `8010` is updated — running `deploy-worker.sh` from Mac only syncs locally. Use **repo layout** (`./deploy/server/deploy-worker.sh`) from a checkout, or **target layout** (`/home/silverman/silverman-blog-linkedin-worker/deploy-worker.sh`) when rebuilding from the synced server directory. If Phase 0 reports a stale worker, rebuild on the server with `DEPLOY_FORCE_REBUILD=1 ./deploy-worker.sh` (target layout) or `DEPLOY_FORCE_REBUILD=1 ./deploy/server/deploy-worker.sh` (repo layout), then `verify-worker-deploy.sh` — the readiness script does not deploy or restart automatically.
 
 **Two required host paths on the Ubuntu server:**
 
@@ -661,15 +661,40 @@ Manual Trigger
   → else: publish errors/warnings
 ```
 
-### Manual smoke test (Ubuntu server)
+### Flow A smoke (Ubuntu server)
+
+**Diagnostic source of truth:** run the deterministic worker smoke script on the Ubuntu server before manual n8n execution. Manual n8n runs are orchestration validation only — not the primary debugging loop.
+
+```bash
+# On Ubuntu server (target layout)
+/home/silverman/silverman-blog-linkedin-worker/run-flow-a-worker-smoke.sh
+
+# Repo layout
+./deploy/server/run-flow-a-worker-smoke.sh
+```
+
+The script reads `SILVERMAN_BLOG_LINKEDIN_API_KEY` from `/home/silverman/silverman-blog-linkedin-worker/.env` without printing it, defaults to `http://localhost:8010` and `blog-posts/ready/01-why-i-did-not-start-with-the-database.md`, calls publish → package → schedule in order, prints campaign metadata (`state`, `source_public_url`, `blog_publish.public_repo_path`, `linkedin_package`, `linkedin_distribution`, `errors`) after each step, verifies public blog files and generated LinkedIn artifacts, and exits with `OVERALL: PASS` or `OVERALL: FAIL`. Use `--dry-run` to print planned requests only.
+
+**Isolate failures:**
+
+| Symptom | Likely layer |
+|---------|----------------|
+| `publish-blog-post` fails with `blog_publish_public_repo_not_configured` | Worker deployment (public repo mount) |
+| `publish-blog-post` fails with `blog_publish_target_exists` while campaign stays `validated` | Worker idempotency (redeploy worker with reconciliation fix) |
+| Worker smoke `PASS` but n8n fails at the same step | n8n payload/branch mapping — re-import workflow |
+| `generate-linkedin-package` fails with `deepseek_config_invalid` | Provider config (`DEEPSEEK_API_KEY` in server `.env`) |
+| Package `PASS`, schedule fails | Schedule payload or package metadata shape |
+
+**Full operator sequence:**
 
 1. Ensure worker slices 3–6 are deployed and healthy on `192.168.0.194:8010` (or your configured host).
 2. Ensure the GitHub Pages repo checkout exists on the server (default `/home/silverman/silverberdi.github.io`) with `_posts/` and `assets/images/`, and is mounted at `/public-blog` in the worker container (`SILVERMAN_GITHUB_PAGES_REPO_PATH=/public-blog`). Run `deploy-worker.sh` on the server after cloning — it does not clone the repo automatically.
 3. Place canonical test post pair in `blog-posts/ready/` on the editorial mount (e.g. `01-why-i-did-not-start-with-the-database.md` + matching `.png`).
-4. Import via `deploy/server/import-flow-a-n8n-workflow.sh` (or n8n UI); confirm `worker_api_key: configured` and workflow remains inactive.
-5. Execute manually from the n8n editor (workflow remains inactive in export — manual run only).
-6. Collect post-smoke evidence with `deploy/server/collect-flow-a-smoke-evidence.sh` on the Ubuntu server (do **not** use ad-hoc SSH heredocs with nested `docker inspect --format` quoting). The script resolves the editorial base path from container env/mounts or `GET /health`, checks worker OpenAPI Flow A paths, verifies public blog repo readiness (`/public-blog/_posts`, `/public-blog/assets/images`), collects **editorial artifacts** (`metadata/runs/`, `metadata/campaigns/`, `linkedin-posts/generated/`) from the editorial workspace, and collects **public blog artifacts** (published `_posts` and `assets/images` matching `POST_SLUG_FRAGMENT`) from the GitHub Pages repo checkout host mount (default `/home/silverman/silverberdi.github.io`, container `/public-blog`) — not from the editorial base path. Confirms n8n workflow `silvermanFlowAPublish01` is inactive with 26 nodes. Use `BASE_PATH=...` when auto-detection fails; `POST_SLUG_FRAGMENT` defaults to `why-i-did-not-start-with-the-database`. Published blog file matches are informational; `OVERALL: PASS` requires campaign metadata or generated LinkedIn artifacts. If worker and n8n are OK but the public repo is missing, expect `OVERALL: FAIL` (not `PENDING`) with remediation — publish fails with `blog_publish_public_repo_not_configured`.
-7. Re-run the workflow and confirm idempotent `status: completed` worker responses without duplicate artifacts; re-run the evidence script — expect `OVERALL: PASS` when campaign metadata or generated LinkedIn artifacts exist, or `OVERALL: PENDING` before the first successful smoke run (only when public blog repo is ready).
+4. Run `deploy/server/run-flow-a-worker-smoke.sh` — expect `OVERALL: PASS` before n8n.
+5. Import via `deploy/server/import-flow-a-n8n-workflow.sh` (or n8n UI); confirm `worker_api_key: configured` and workflow remains inactive.
+6. Execute manually from the n8n editor (workflow remains inactive in export — manual run only).
+7. Collect post-smoke evidence with `deploy/server/collect-flow-a-smoke-evidence.sh` on the Ubuntu server (do **not** use ad-hoc SSH heredocs with nested `docker inspect --format` quoting). The script resolves the editorial base path from container env/mounts or `GET /health`, checks worker OpenAPI Flow A paths, verifies public blog repo readiness (`/public-blog/_posts`, `/public-blog/assets/images`), collects **editorial artifacts** (`metadata/runs/`, `metadata/campaigns/`, `linkedin-posts/generated/`) from the editorial workspace, and collects **public blog artifacts** (published `_posts` and `assets/images` matching `POST_SLUG_FRAGMENT`) from the GitHub Pages repo checkout host mount (default `/home/silverman/silverberdi.github.io`, container `/public-blog`) — not from the editorial base path. Confirms n8n workflow `silvermanFlowAPublish01` is inactive with 26 nodes. Use `BASE_PATH=...` when auto-detection fails; `POST_SLUG_FRAGMENT` defaults to `why-i-did-not-start-with-the-database`. Published blog file matches are informational; `OVERALL: PASS` requires campaign metadata or generated LinkedIn artifacts. If worker and n8n are OK but the public repo is missing, expect `OVERALL: FAIL` (not `PENDING`) with remediation — publish fails with `blog_publish_public_repo_not_configured`.
+8. Re-run the worker smoke script and n8n workflow to confirm idempotent `status: completed` responses without duplicate artifacts.
 
 **Not in this workflow:** LinkedIn API publication, git commit/push, source file moves, cron activation.
 
