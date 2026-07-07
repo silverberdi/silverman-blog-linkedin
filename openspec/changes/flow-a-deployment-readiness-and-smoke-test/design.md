@@ -113,6 +113,7 @@ Common failure: operator pulls latest `main` on the server editorial mount or bu
 | n8n not imported yet | n8n reachable; optional API/workflow name check inconclusive | **pending** | Run `deploy/server/import-flow-a-n8n-workflow.sh` on Ubuntu server; confirm `OVERALL: PASS` |
 | API key mismatch | Phase 1 authenticated probe returns 401 | **fail** (Phase 1) | Align n8n `worker_api_key` with server `.env` |
 | Workflow export `active: true` | JSON parse | **fail** | Reset export to `"active": false` before merge |
+| Public blog repo not mounted | publish validation passes; `blog_publish_public_repo_not_configured` on apply | **fail** | Clone/sync `silverberdi.github.io` to host; ensure `_posts/` and `assets/images/`; redeploy with public mount; `verify-worker-deploy.sh` |
 
 ## Smoke-Test Phases
 
@@ -235,6 +236,23 @@ Readiness reports failure with remediation text pointing to `deploy/server/deplo
 **Script behavior:** Read-only; no secrets printed; no n8n activation; no LinkedIn API calls; no deploy/restart. Resolves base path with explicit source reporting; checks worker `/health` and `/openapi.json` Flow A paths; lists latest `metadata/runs/`, `metadata/campaigns/`, `linkedin-posts/generated/` artifacts and published blog files matching `POST_SLUG_FRAGMENT`; exports n8n workflows and confirms `silvermanFlowAPublish01` is inactive with 26 nodes. Overall `PASS` / `PENDING` / `FAIL` semantics gate on worker health, n8n inactive state, and presence of smoke artifacts.
 
 **Slice 8 remains deferred.** Workflow must stay inactive until a future operational change.
+
+### D9: Public GitHub Pages repo mount for Flow A publish
+
+**Decision:** Extend `silverman-worker.compose.yaml` with a second volume mount for the public blog repo checkout and container env `SILVERMAN_GITHUB_PAGES_REPO_PATH=/public-blog`, plus `SILVERMAN_SITE_URL` (default `https://silverman.pro`).
+
+**Observed smoke failure (2026-07):** Flow A n8n execution reached **Publish Blog Post**; publish validation passed; campaign metadata reached `validated`; publish failed only with `blog_publish_public_repo_not_configured`. Investigation showed the worker compose mounted only the editorial workspace (`/data/silverman-blog-linkedin`) and did not set `SILVERMAN_GITHUB_PAGES_REPO_PATH` or mount the `silverberdi.github.io` checkout. The Ubuntu server had no public blog repo under `/home/silverman` at deploy time.
+
+**Two required host paths on Ubuntu server:**
+
+| Purpose | Default host path | Container path |
+|---------|-------------------|----------------|
+| Editorial workspace | `/home/silverman/compartido_mac/silverman-blog-linkedin` | `/data/silverman-blog-linkedin` |
+| Public GitHub Pages repo | `/home/silverman/silverberdi.github.io` | `/public-blog` |
+
+The public checkout must contain `_posts/` and `assets/images/`. `deploy-worker.sh` verifies the host path before `docker compose up` (fails by default; `SKIP_PUBLIC_BLOG_REPO_CHECK=1` for non-publishing deploys). The deploy script does **not** clone the repo automatically.
+
+`verify-worker-deploy.sh` and `collect-flow-a-smoke-evidence.sh` verify `/public-blog` layout inside the running container. Evidence collection reports `FAIL` (not `PENDING`) when worker and n8n are OK but the public repo is missing — publish would fail with `blog_publish_public_repo_not_configured`, which is a worker deployment issue, not an n8n failure.
 
 ## Risks / Trade-offs
 

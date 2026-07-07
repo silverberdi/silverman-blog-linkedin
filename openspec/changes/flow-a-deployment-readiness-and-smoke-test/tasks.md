@@ -85,3 +85,16 @@
 - [x] 10.5 Add tests in `tests/test_server_deployment_artifacts.py` for script existence, safety, base path detection, worker/n8n checks, slug fragment, no secrets
 - [x] 10.6 Document evidence collection in README and `docs/deployment/ubuntu-server-worker-deployment.md` (replace ad-hoc SSH heredocs)
 - [x] 10.7 Update design/spec with fragile manual evidence failure reason and Phase 3/4 verification flow; slice 8 remains deferred; workflow inactive requirement unchanged
+
+## 11. Public blog repo mount for Flow A publish (post-smoke remediation)
+
+**Observed smoke failure (2026-07):** Flow A reached **Publish Blog Post**; validation passed; campaign metadata reached `validated`; publish failed only with `blog_publish_public_repo_not_configured` because the worker container lacked `SILVERMAN_GITHUB_PAGES_REPO_PATH` and the `/public-blog` mount.
+
+- [x] 11.1 Update `deploy/server/silverman-worker.compose.yaml`: add `SILVERMAN_GITHUB_PAGES_REPO_PATH`, `SILVERMAN_SITE_URL`, and public blog repo host mount at `/public-blog`; keep editorial mount and port `8010` unchanged; no secrets
+- [x] 11.2 Update `deploy/server/silverman-worker.env.example`: document `SILVERMAN_PUBLIC_BLOG_REPO_PATH` and `SILVERMAN_SITE_URL`
+- [x] 11.3 Update `deploy/server/deploy-worker.sh`: verify public blog repo host path before `docker compose up`; remediation text; `SKIP_PUBLIC_BLOG_REPO_CHECK=1` escape hatch; no automatic clone
+- [x] 11.4 Update `deploy/server/verify-worker-deploy.sh`: verify container env `/public-blog` and `_posts` / `assets/images` inside container
+- [x] 11.5 Update `deploy/server/collect-flow-a-smoke-evidence.sh`: public blog repo readiness section; FAIL (not PENDING) when worker/n8n OK but public repo missing
+- [x] 11.6 Add/update tests in `tests/test_server_deployment_artifacts.py` for compose, env example, deploy, verify, and evidence script public repo checks
+- [x] 11.7 Update README and `docs/deployment/ubuntu-server-worker-deployment.md` with two required host paths and `blog_publish_public_repo_not_configured` remediation
+- [x] 11.8 Update design/spec with observed smoke failure and public blog repo deployment readiness; slice 8 remains deferred; workflow inactive requirement unchanged

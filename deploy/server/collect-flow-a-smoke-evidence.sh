@@ -53,6 +53,9 @@ HAS_SMOKE_ARTIFACTS=0
 BASE_PATH_RESOLVED=0
 BASE_PATH_SOURCE=""
 RESOLVED_BASE_PATH=""
+PUBLIC_BLOG_REPO_OK=0
+PUBLIC_BLOG_REPO_SOURCE=""
+PUBLIC_BLOG_HOST_MOUNT=""
 OVERALL_STATUS="FAIL"
 
 pass() {
@@ -338,6 +341,124 @@ PY
   WORKER_OK=1
 }
 
+resolve_public_blog_host_mount() {
+  local container="$1"
+  docker inspect "${container}" 2>/dev/null | python3 - <<'PY' || true
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except json.JSONDecodeError:
+    sys.exit(1)
+if not payload:
+    sys.exit(1)
+item = payload[0]
+for mount in item.get("Mounts", []):
+    if mount.get("Destination") == "/public-blog":
+        source = mount.get("Source", "").strip()
+        if source:
+            print(source)
+            sys.exit(0)
+sys.exit(1)
+PY
+}
+
+check_public_blog_repo() {
+  local container pages_repo_path host_mount has_posts has_images
+
+  section "Public blog repo readiness"
+  if ! command -v docker >/dev/null 2>&1; then
+    fail "docker not available for public blog repo checks"
+    return 1
+  fi
+
+  if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -Fxq "${WORKER_CONTAINER}"; then
+    fail "worker container ${WORKER_CONTAINER} is not running"
+    return 1
+  fi
+
+  container="${WORKER_CONTAINER}"
+  pages_repo_path="$(
+    docker inspect "${container}" 2>/dev/null | python3 - <<'PY' || true
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except json.JSONDecodeError:
+    sys.exit(1)
+if not payload:
+    sys.exit(1)
+item = payload[0]
+for env in item.get("Config", {}).get("Env", []):
+    if env.startswith("SILVERMAN_GITHUB_PAGES_REPO_PATH="):
+        value = env.split("=", 1)[1].strip()
+        if value:
+            print(value)
+            sys.exit(0)
+sys.exit(1)
+PY
+  )"
+
+  if [[ -z "${pages_repo_path}" ]]; then
+    fail "SILVERMAN_GITHUB_PAGES_REPO_PATH not set in worker container"
+    echo "Remediation:" >&2
+    echo "  - redeploy worker with silverman-worker.compose.yaml public blog mount" >&2
+    echo "  - ensure SILVERMAN_GITHUB_PAGES_REPO_PATH=/public-blog in container env" >&2
+    echo "  - without this, publish fails with blog_publish_public_repo_not_configured" >&2
+    return 1
+  fi
+
+  pass "worker container SILVERMAN_GITHUB_PAGES_REPO_PATH=${pages_repo_path}"
+  PUBLIC_BLOG_REPO_SOURCE="worker container env"
+
+  if docker exec "${container}" test -d "${pages_repo_path}" 2>/dev/null; then
+    pass "container path ${pages_repo_path} exists"
+  else
+    fail "container path ${pages_repo_path} missing (public blog repo not mounted)"
+    echo "Remediation:" >&2
+    echo "  - clone or sync silverberdi.github.io to the host path configured in compose" >&2
+    echo "  - default host path: /home/silverman/silverberdi.github.io" >&2
+    echo "  - redeploy the worker container on the Ubuntu server after syncing the checkout" >&2
+    return 1
+  fi
+
+  has_posts=0
+  has_images=0
+  if docker exec "${container}" test -d "${pages_repo_path}/_posts" 2>/dev/null; then
+    pass "container path ${pages_repo_path}/_posts exists"
+    has_posts=1
+  else
+    fail "container path ${pages_repo_path}/_posts missing"
+  fi
+
+  if docker exec "${container}" test -d "${pages_repo_path}/assets/images" 2>/dev/null; then
+    pass "container path ${pages_repo_path}/assets/images exists"
+    has_images=1
+  else
+    fail "container path ${pages_repo_path}/assets/images missing"
+  fi
+
+  host_mount="$(resolve_public_blog_host_mount "${container}" || true)"
+  if [[ -n "${host_mount}" ]]; then
+    PUBLIC_BLOG_HOST_MOUNT="${host_mount}"
+    pass "host mount for ${pages_repo_path}: ${host_mount}"
+  else
+    echo "INFO: could not resolve host mount for ${pages_repo_path}"
+  fi
+
+  if [[ "${has_posts}" -eq 1 && "${has_images}" -eq 1 ]]; then
+    PUBLIC_BLOG_REPO_OK=1
+    return 0
+  fi
+
+  echo "Remediation:" >&2
+  echo "  - ensure the GitHub Pages checkout contains _posts/ and assets/images/" >&2
+  echo "  - deploy script does not clone automatically; sync the repo manually" >&2
+  return 1
+}
+
 check_editorial_artifacts() {
   local latest_run latest_campaign latest_generated
   local posts_matches images_matches
@@ -472,6 +593,10 @@ compute_overall_status() {
     OVERALL_STATUS="FAIL"
     return
   fi
+  if [[ "${PUBLIC_BLOG_REPO_OK}" -ne 1 ]]; then
+    OVERALL_STATUS="FAIL"
+    return
+  fi
   if [[ "${HAS_SMOKE_ARTIFACTS}" -eq 1 ]]; then
     OVERALL_STATUS="PASS"
   else
@@ -490,6 +615,8 @@ print(json.dumps({
     "worker_ok": ${WORKER_OK} == 1,
     "n8n_ok": ${N8N_OK} == 1,
     "n8n_inactive": ${N8N_INACTIVE} == 1,
+    "public_blog_repo_ok": ${PUBLIC_BLOG_REPO_OK} == 1,
+    "public_blog_host_mount": "${PUBLIC_BLOG_HOST_MOUNT}",
     "has_smoke_artifacts": ${HAS_SMOKE_ARTIFACTS} == 1,
     "workflow_id": "${N8N_WORKFLOW_ID}",
     "post_slug_fragment": "${POST_SLUG_FRAGMENT}",
@@ -526,6 +653,11 @@ main() {
     WORKER_SECTION_OK=1
   fi
 
+  PUBLIC_BLOG_SECTION_OK=0
+  if check_public_blog_repo; then
+    PUBLIC_BLOG_SECTION_OK=1
+  fi
+
   check_editorial_artifacts
 
   N8N_SECTION_OK=0
@@ -538,14 +670,19 @@ main() {
   section "Overall"
   case "${OVERALL_STATUS}" in
     PASS)
-      echo "OVERALL: PASS (worker OK, n8n workflow inactive, smoke artifacts present)"
+      echo "OVERALL: PASS (worker OK, public blog repo ready, n8n workflow inactive, smoke artifacts present)"
       ;;
     PENDING)
-      echo "OVERALL: PENDING (worker OK and n8n inactive; smoke artifacts not found yet)"
+      echo "OVERALL: PENDING (worker OK, public blog repo ready, n8n inactive; smoke artifacts not found yet)"
       echo "NOTE: run Flow A manually in n8n, then re-run this script."
       ;;
     FAIL)
-      echo "OVERALL: FAIL (worker, n8n, or base path checks failed)"
+      if [[ "${WORKER_OK}" -eq 1 && "${N8N_OK}" -eq 1 && "${N8N_INACTIVE}" -eq 1 && "${PUBLIC_BLOG_REPO_OK}" -ne 1 ]]; then
+        echo "OVERALL: FAIL (worker and n8n OK but public blog repo not mounted or incomplete)"
+        echo "NOTE: publish fails with blog_publish_public_repo_not_configured until the GitHub Pages checkout is mounted at /public-blog."
+      else
+        echo "OVERALL: FAIL (worker, n8n, public blog repo, or base path checks failed)"
+      fi
       ;;
   esac
 

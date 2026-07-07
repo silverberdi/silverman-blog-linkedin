@@ -13,6 +13,9 @@ For local development on Mac, use `docker-compose.example.yml` instead.
 | Host port | `8010` → container `8000` |
 | Editorial mount (host) | `/home/silverman/compartido_mac/silverman-blog-linkedin` |
 | Editorial mount (container) | `/data/silverman-blog-linkedin` |
+| Public blog repo mount (host) | `/home/silverman/silverberdi.github.io` (override via `SILVERMAN_PUBLIC_BLOG_REPO_PATH`) |
+| Public blog repo mount (container) | `/public-blog` (`SILVERMAN_GITHUB_PAGES_REPO_PATH`) |
+| Site URL | `https://silverman.pro` (override via `SILVERMAN_SITE_URL`) |
 | n8n `worker_base_url` | `http://192.168.0.194:8010` |
 
 ## Prerequisites
@@ -21,6 +24,7 @@ For local development on Mac, use `docker-compose.example.yml` instead.
 - Repository checkout or synced artifacts on the server
 - Write access to `/home/silverman/compartido_mac/silverman-blog-linkedin` (for `metadata/runs/` and `linkedin-posts/review/`)
 - Editorial folder layout under the shared mount (see README)
+- **Flow A publish:** a local clone of the GitHub Pages repo (`silverberdi.github.io`) on the server host with `_posts/` and `assets/images/` (default `/home/silverman/silverberdi.github.io`). The deploy script does **not** clone this repo automatically.
 
 ## First-time setup
 
@@ -38,6 +42,21 @@ Edit `.env` on the server and set:
 - `SILVERMAN_BLOG_LINKEDIN_API_KEY` — must match `worker_api_key` in the n8n workflow
 - `DEEPSEEK_API_KEY` — required for `POST /generate-linkedin-draft`
 - Optional: `DEEPSEEK_MODEL`, `DEEPSEEK_TIMEOUT_SECONDS`, `DEEPSEEK_MAX_OUTPUT_TOKENS`
+- Optional (Flow A publish): `SILVERMAN_PUBLIC_BLOG_REPO_PATH` — host path to the `silverberdi.github.io` checkout (default `/home/silverman/silverberdi.github.io`); used by compose to mount `/public-blog`
+- Optional: `SILVERMAN_SITE_URL` — canonical public site URL (default `https://silverman.pro`)
+
+### 1a. Prepare public GitHub Pages repo checkout (Flow A publish)
+
+Before Flow A publish smoke, clone or sync the public blog repo on the Ubuntu server:
+
+```bash
+git clone git@github.com:silverberdi/silverberdi.github.io.git /home/silverman/silverberdi.github.io
+# Or rsync from another machine that already has the checkout
+```
+
+The checkout must contain `_posts/` and `assets/images/`. `deploy-worker.sh` verifies this before `docker compose up` and fails with remediation if missing. Set `SKIP_PUBLIC_BLOG_REPO_CHECK=1` only when deploying without Flow A publishing.
+
+The worker container receives `SILVERMAN_GITHUB_PAGES_REPO_PATH=/public-blog` from compose. Without this mount, `POST /publish-blog-post` fails with `blog_publish_public_repo_not_configured` even when n8n validation passes — that error indicates a worker deployment/configuration issue, not an n8n failure.
 
 ### 2. Deploy
 
@@ -117,6 +136,7 @@ This checks:
 - Container `silverman-blog-linkedin-worker` is running on port `8010`
 - `GET /health` and `GET /openapi.json` return HTTP 200 (retries for up to ~60s after recreate; override with `VERIFY_MAX_ATTEMPTS` / `VERIFY_RETRY_INTERVAL_SECONDS`)
 - `GET /openapi.json` includes `/publish-blog-post`, `/generate-linkedin-package`, `/schedule-linkedin-distribution`
+- Container env `SILVERMAN_GITHUB_PAGES_REPO_PATH=/public-blog` and paths `/public-blog/_posts`, `/public-blog/assets/images` exist inside the worker container
 
 `deploy-worker.sh` runs this verification automatically. It waits for worker readiness after `--force-recreate` before checking OpenAPI paths, and fails if endpoints are still missing after retries.
 
@@ -216,9 +236,9 @@ After a manual Flow A n8n execution (Phase 3), collect read-only evidence with t
 
 **Base path resolution (in order):** `BASE_PATH` override if set and directory exists; worker container env `SILVERMAN_BLOG_LINKEDIN_BASE_PATH`; Docker mount mapped to host source containing `/data/silverman-blog-linkedin`; `GET /health` `base_path`; known host candidates (`/home/silverman/compartido_mac/silverman-blog-linkedin`, etc.). The script prints how the path was resolved.
 
-**Collected evidence:** worker `GET /health` and `GET /openapi.json` (Flow A paths); latest `metadata/runs/*.json`, `metadata/campaigns/*.json`, `linkedin-posts/generated/` files; published `_posts` and `assets/images` matching the slug fragment; n8n workflow export confirming `active=false` and 26 nodes.
+**Collected evidence:** worker `GET /health` and `GET /openapi.json` (Flow A paths); public blog repo readiness (`SILVERMAN_GITHUB_PAGES_REPO_PATH`, `/public-blog/_posts`, `/public-blog/assets/images`, host mount when available); latest `metadata/runs/*.json`, `metadata/campaigns/*.json`, `linkedin-posts/generated/` files; published `_posts` and `assets/images` matching the slug fragment under the editorial base path; n8n workflow export confirming `active=false` and 26 nodes.
 
-**Overall status:** `PASS` when worker and n8n checks pass and campaign metadata or generated LinkedIn artifacts exist; `PENDING` when worker and n8n are OK but smoke artifacts are not found yet; `FAIL` when base path is unresolved, Flow A OpenAPI paths are missing, workflow is active, or n8n is missing.
+**Overall status:** `PASS` when worker, public blog repo, and n8n checks pass and campaign metadata or generated LinkedIn artifacts exist; `PENDING` when worker, public blog repo, and n8n are OK but smoke artifacts are not found yet; `FAIL` when base path is unresolved, Flow A OpenAPI paths are missing, public blog repo is not mounted or incomplete, workflow is active, or n8n is missing. If worker and n8n are OK but the public repo is missing, the script reports `FAIL` with remediation (not `PENDING`) — publish would fail with `blog_publish_public_repo_not_configured`.
 
 The script is read-only: no secrets printed, no n8n activation, no LinkedIn API calls, no deploy/restart. Optional `--json` for machine-readable summary.
 
@@ -392,6 +412,22 @@ BUILD_REVISION=$(date +%s) docker compose -f silverman-worker.compose.yaml build
 docker compose -f silverman-worker.compose.yaml up -d --force-recreate
 /home/silverman/silverman-blog-linkedin-worker/verify-worker-deploy.sh
 ```
+
+### Flow A publish fails with `blog_publish_public_repo_not_configured`
+
+Symptom: Flow A n8n execution reaches **Publish Blog Post**, validation passes, campaign metadata reaches `validated`, but publishing fails with `blog_publish_public_repo_not_configured`.
+
+This is a **worker deployment/configuration** issue, not an n8n failure. The worker container is missing `SILVERMAN_GITHUB_PAGES_REPO_PATH` or the `/public-blog` mount.
+
+Remediation:
+
+1. Clone or sync `silverberdi.github.io` to the server (default `/home/silverman/silverberdi.github.io`).
+2. Ensure `_posts/` and `assets/images/` exist in that checkout.
+3. Set `SILVERMAN_PUBLIC_BLOG_REPO_PATH` in `.env` if using a non-default host path.
+4. Redeploy on the Ubuntu server (see deploy-worker.sh in the worker deployment directory).
+5. Confirm with `verify-worker-deploy.sh` or `collect-flow-a-smoke-evidence.sh` — public blog repo section should pass.
+
+The deploy script does not clone the GitHub Pages repo automatically.
 
 ### Secrets in git
 

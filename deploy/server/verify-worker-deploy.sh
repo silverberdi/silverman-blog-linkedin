@@ -120,6 +120,87 @@ else
 fi
 echo
 
+echo "==> Public blog repo mount (Flow A publish)"
+if command -v docker >/dev/null 2>&1; then
+  if docker ps --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}"; then
+    pages_repo_path="$(
+      docker inspect "${CONTAINER_NAME}" 2>/dev/null | python3 - <<'PY' || true
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except json.JSONDecodeError:
+    sys.exit(1)
+if not payload:
+    sys.exit(1)
+item = payload[0]
+for env in item.get("Config", {}).get("Env", []):
+    if env.startswith("SILVERMAN_GITHUB_PAGES_REPO_PATH="):
+        value = env.split("=", 1)[1].strip()
+        if value:
+            print(value)
+            sys.exit(0)
+sys.exit(1)
+PY
+    )"
+
+    if [[ "${pages_repo_path}" == "/public-blog" ]]; then
+      pass "container env SILVERMAN_GITHUB_PAGES_REPO_PATH=/public-blog"
+      REQUIRED_PASSED=$((REQUIRED_PASSED + 1))
+    else
+      fail "container env SILVERMAN_GITHUB_PAGES_REPO_PATH is ${pages_repo_path:-unset}, expected /public-blog"
+      REQUIRED_FAILED=$((REQUIRED_FAILED + 1))
+    fi
+
+    for rel in "_posts" "assets/images"; do
+      if docker exec "${CONTAINER_NAME}" test -d "/public-blog/${rel}" 2>/dev/null; then
+        pass "container path /public-blog/${rel} exists"
+        REQUIRED_PASSED=$((REQUIRED_PASSED + 1))
+      else
+        fail "container path /public-blog/${rel} missing (public blog repo not mounted or incomplete checkout)"
+        REQUIRED_FAILED=$((REQUIRED_FAILED + 1))
+      fi
+    done
+
+    host_mount="$(
+      docker inspect "${CONTAINER_NAME}" 2>/dev/null | python3 - <<'PY' || true
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except json.JSONDecodeError:
+    sys.exit(1)
+if not payload:
+    sys.exit(1)
+item = payload[0]
+for mount in item.get("Mounts", []):
+    if mount.get("Destination") == "/public-blog":
+        source = mount.get("Source", "").strip()
+        if source:
+            print(source)
+            sys.exit(0)
+sys.exit(1)
+PY
+    )"
+    if [[ -n "${host_mount}" ]]; then
+      pass "host mount for /public-blog: ${host_mount}"
+      REQUIRED_PASSED=$((REQUIRED_PASSED + 1))
+    else
+      fail "no Docker mount mapped to /public-blog"
+      REQUIRED_FAILED=$((REQUIRED_FAILED + 1))
+    fi
+  else
+    fail "container ${CONTAINER_NAME} is not running; cannot verify public blog repo mount"
+    REQUIRED_FAILED=$((REQUIRED_FAILED + 1))
+  fi
+else
+  fail "docker not available; cannot verify public blog repo mount"
+  REQUIRED_FAILED=$((REQUIRED_FAILED + 1))
+fi
+echo
+
 echo "==> Worker readiness (health + OpenAPI)"
 echo "    max attempts: ${VERIFY_MAX_ATTEMPTS}"
 echo "    retry interval: ${VERIFY_RETRY_INTERVAL_SECONDS}s"

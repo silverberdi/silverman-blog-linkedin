@@ -74,6 +74,18 @@ def test_compose_editorial_volume_mount(compose_text: str) -> None:
     assert expected in compose_text
 
 
+def test_compose_public_blog_repo_environment(compose_text: str) -> None:
+    assert "SILVERMAN_GITHUB_PAGES_REPO_PATH: /public-blog" in compose_text
+    assert "SILVERMAN_SITE_URL:" in compose_text
+    assert "https://silverman.pro" in compose_text
+
+
+def test_compose_public_blog_repo_volume_mount(compose_text: str) -> None:
+    assert "SILVERMAN_PUBLIC_BLOG_REPO_PATH" in compose_text
+    assert "/public-blog" in compose_text
+    assert "silverberdi.github.io" in compose_text
+
+
 def test_compose_build_revision_arg(compose_text: str) -> None:
     assert "BUILD_REVISION" in compose_text
 
@@ -90,6 +102,14 @@ def test_env_example_documents_required_variables() -> None:
     content = ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
     for var in REQUIRED_ENV_VARS:
         assert f"{var}=" in content, f"missing {var} in env example"
+
+
+def test_env_example_documents_public_blog_repo_path() -> None:
+    content = ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
+    assert "SILVERMAN_PUBLIC_BLOG_REPO_PATH=" in content
+    assert "/home/silverman/silverberdi.github.io" in content
+    assert "SILVERMAN_SITE_URL=" in content
+    assert "https://silverman.pro" in content
 
 
 def test_env_example_uses_placeholders_only() -> None:
@@ -316,6 +336,35 @@ def test_deploy_script_invokes_verify_after_recreate(deploy_script_content: str)
     assert '"${TARGET_DIR}/verify-worker-deploy.sh"' in deploy_script_content
 
 
+def test_deploy_script_checks_public_blog_repo_path(deploy_script_content: str) -> None:
+    assert "check_public_blog_repo_path" in deploy_script_content
+    assert "SILVERMAN_PUBLIC_BLOG_REPO_PATH" in deploy_script_content
+    assert "SKIP_PUBLIC_BLOG_REPO_CHECK" in deploy_script_content
+    assert "_posts" in deploy_script_content
+    assert "assets/images" in deploy_script_content
+    assert "blog_publish_public_repo_not_configured" in deploy_script_content
+    assert "does not clone automatically" in deploy_script_content
+
+
+def test_deploy_script_public_blog_check_runs_before_compose_up(
+    deploy_script_content: str,
+) -> None:
+    check_idx = deploy_script_content.index("check_public_blog_repo_path")
+    up_idx = deploy_script_content.index(
+        "docker compose -f silverman-worker.compose.yaml up -d --force-recreate"
+    )
+    assert check_idx < up_idx
+
+
+def test_verify_deploy_script_checks_public_blog_repo_mount() -> None:
+    content = VERIFY_DEPLOY_SCRIPT_PATH.read_text(encoding="utf-8")
+    assert "SILVERMAN_GITHUB_PAGES_REPO_PATH" in content
+    assert "/public-blog" in content
+    assert "/public-blog/_posts" in content or '"/public-blog/${rel}"' in content
+    assert "assets/images" in content
+    assert "SILVERMAN_BLOG_LINKEDIN_API_KEY" not in content
+
+
 def test_deployment_doc_documents_worker_api_key_rotation() -> None:
     content = DEPLOYMENT_DOC_PATH.read_text(encoding="utf-8")
     assert "## Worker API key rotation" in content
@@ -332,6 +381,18 @@ def test_deployment_doc_documents_repo_and_target_layout_modes() -> None:
     assert "target layout" in content.lower()
     assert "./deploy/server/deploy-worker.sh" in content
     assert "/home/silverman/silverman-blog-linkedin-worker/deploy-worker.sh" in content
+
+
+def test_deployment_doc_documents_public_blog_repo_mount() -> None:
+    content = DEPLOYMENT_DOC_PATH.read_text(encoding="utf-8")
+    assert "silverberdi.github.io" in content
+    assert "SILVERMAN_PUBLIC_BLOG_REPO_PATH" in content
+    assert "SILVERMAN_GITHUB_PAGES_REPO_PATH" in content
+    assert "/public-blog" in content
+    assert "_posts" in content
+    assert "assets/images" in content
+    assert "blog_publish_public_repo_not_configured" in content
+    assert "does not clone" in content.lower()
 
 
 @pytest.fixture
@@ -555,3 +616,18 @@ def test_collect_flow_a_evidence_script_reports_overall_status_values(
     assert 'OVERALL: PASS' in content
     assert 'OVERALL: PENDING' in content
     assert 'OVERALL: FAIL' in content
+
+
+def test_collect_flow_a_evidence_script_checks_public_blog_repo_readiness(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert "check_public_blog_repo" in content
+    assert "Public blog repo readiness" in content
+    assert "SILVERMAN_GITHUB_PAGES_REPO_PATH" in content
+    assert "/public-blog" in content
+    assert "_posts" in content
+    assert "assets/images" in content
+    assert "PUBLIC_BLOG_REPO_OK" in content
+    assert "blog_publish_public_repo_not_configured" in content
+    assert "public_blog_repo_ok" in content

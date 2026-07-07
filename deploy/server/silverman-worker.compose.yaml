@@ -14,9 +14,12 @@ services:
       - .env
     environment:
       SILVERMAN_BLOG_LINKEDIN_BASE_PATH: /data/silverman-blog-linkedin
+      SILVERMAN_GITHUB_PAGES_REPO_PATH: /public-blog
+      SILVERMAN_SITE_URL: ${SILVERMAN_SITE_URL:-https://silverman.pro}
       PORT: "8000"
     volumes:
       - /home/silverman/compartido_mac/silverman-blog-linkedin:/data/silverman-blog-linkedin
+      - ${SILVERMAN_PUBLIC_BLOG_REPO_PATH:-/home/silverman/silverberdi.github.io}:/public-blog
     healthcheck:
       test:
         [

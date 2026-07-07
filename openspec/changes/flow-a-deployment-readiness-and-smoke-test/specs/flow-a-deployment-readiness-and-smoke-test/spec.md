@@ -225,12 +225,42 @@ The repository SHALL provide a repeatable server-side script at `deploy/server/c
 
 #### Scenario: Evidence script overall status
 
-- **WHEN** worker and n8n checks pass and campaign metadata or generated LinkedIn artifacts exist
+- **WHEN** worker, public blog repo, and n8n checks pass and campaign metadata or generated LinkedIn artifacts exist
 - **THEN** the script reports `OVERALL: PASS`
-- **WHEN** worker and n8n checks pass but smoke artifacts are not found yet
+- **WHEN** worker, public blog repo, and n8n checks pass but smoke artifacts are not found yet
 - **THEN** the script reports `OVERALL: PENDING`
-- **WHEN** base path is unresolved, Flow A OpenAPI paths are missing, the workflow is active, or n8n is missing
+- **WHEN** base path is unresolved, Flow A OpenAPI paths are missing, public blog repo is not mounted or incomplete, the workflow is active, or n8n is missing
 - **THEN** the script reports `OVERALL: FAIL`
+- **WHEN** worker and n8n checks pass but public blog repo is missing or incomplete
+- **THEN** the script reports `OVERALL: FAIL` with remediation (not `PENDING`) because publish would fail with `blog_publish_public_repo_not_configured`
+
+### Requirement: Public blog repo deployment readiness
+
+The worker deployment artifacts SHALL mount and configure the public GitHub Pages repository checkout required for Flow A `POST /publish-blog-post`.
+
+#### Scenario: Compose mounts public blog repo at /public-blog
+
+- **WHEN** an operator inspects `deploy/server/silverman-worker.compose.yaml`
+- **THEN** it sets `SILVERMAN_GITHUB_PAGES_REPO_PATH=/public-blog`, `SILVERMAN_SITE_URL` (default `https://silverman.pro`), and mounts `${SILVERMAN_PUBLIC_BLOG_REPO_PATH:-/home/silverman/silverberdi.github.io}:/public-blog` alongside the existing editorial mount
+
+#### Scenario: Deploy script verifies public repo checkout before compose up
+
+- **WHEN** `deploy-worker.sh` runs on the Ubuntu server before `docker compose up`
+- **THEN** it verifies the configured host path exists and contains `_posts/` and `assets/images/`
+- **AND** prints remediation to clone or sync the GitHub Pages repo manually
+- **AND** does not clone the repo automatically
+- **WHEN** `SKIP_PUBLIC_BLOG_REPO_CHECK=1` is set
+- **THEN** the deploy script skips the public repo check for non-publishing deploys
+
+#### Scenario: Post-deploy verification checks public repo inside container
+
+- **WHEN** `verify-worker-deploy.sh` runs after deploy
+- **THEN** it confirms container env `SILVERMAN_GITHUB_PAGES_REPO_PATH=/public-blog` and paths `/public-blog/_posts` and `/public-blog/assets/images` exist inside the worker container
+
+#### Scenario: blog_publish_public_repo_not_configured indicates worker config not n8n failure
+
+- **WHEN** Flow A publish validation passes but apply fails with `blog_publish_public_repo_not_configured`
+- **THEN** operator documentation explains the public blog repo is not mounted or configured in the worker container, not that n8n orchestration failed
 
 ### Requirement: Apply scope boundaries
 

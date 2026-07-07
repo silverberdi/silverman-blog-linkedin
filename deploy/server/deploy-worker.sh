@@ -177,6 +177,91 @@ fi
 BUILD_REVISION="$(git -C "${SOURCE_ROOT}" rev-parse HEAD 2>/dev/null || date +%s)"
 export BUILD_REVISION
 
+resolve_public_blog_repo_host_path() {
+  local path="${SILVERMAN_PUBLIC_BLOG_REPO_PATH:-}"
+  if [[ -z "${path}" && -f "${TARGET_DIR}/.env" ]]; then
+    path="$(
+      grep -E '^[[:space:]]*SILVERMAN_PUBLIC_BLOG_REPO_PATH=' "${TARGET_DIR}/.env" 2>/dev/null \
+        | tail -1 \
+        | cut -d= -f2- \
+        | tr -d '"' \
+        | tr -d "'" \
+        || true
+    )"
+  fi
+  echo "${path:-/home/silverman/silverberdi.github.io}"
+}
+
+check_public_blog_repo_path() {
+  local host_path
+  host_path="$(resolve_public_blog_repo_host_path)"
+
+  if [[ "${SKIP_PUBLIC_BLOG_REPO_CHECK:-0}" == "1" ]]; then
+    echo "==> Public blog repo check skipped (SKIP_PUBLIC_BLOG_REPO_CHECK=1)"
+    echo "    configured host path: ${host_path}"
+    return 0
+  fi
+
+  echo "==> Verifying public GitHub Pages repo checkout for Flow A publish..."
+  echo "    host path: ${host_path}"
+  echo "    container path: /public-blog (SILVERMAN_GITHUB_PAGES_REPO_PATH)"
+
+  if [[ ! -d "${host_path}" ]]; then
+    cat >&2 <<EOF
+
+ERROR: Public blog repo checkout not found at ${host_path}
+
+Flow A publish requires a local clone of the GitHub Pages repository
+(silverberdi.github.io) mounted at /public-blog inside the worker container.
+
+Remediation (manual — deploy does not clone automatically):
+  1. Clone or sync the GitHub Pages repo on the Ubuntu server:
+       git clone git@github.com:silverberdi/silverberdi.github.io.git ${host_path}
+     Or rsync from another machine that already has the checkout.
+  2. Ensure the checkout contains:
+       ${host_path}/_posts/
+       ${host_path}/assets/images/
+  3. Set SILVERMAN_PUBLIC_BLOG_REPO_PATH in ${TARGET_DIR}/.env if using a non-default path.
+  4. Re-run this deploy script.
+
+To deploy without Flow A publishing (non-publishing smoke only), set:
+  SKIP_PUBLIC_BLOG_REPO_CHECK=1
+
+Without a valid public repo mount, POST /publish-blog-post fails with:
+  blog_publish_public_repo_not_configured
+
+EOF
+    exit 1
+  fi
+
+  local missing=()
+  if [[ ! -d "${host_path}/_posts" ]]; then
+    missing+=("_posts/")
+  fi
+  if [[ ! -d "${host_path}/assets/images" ]]; then
+    missing+=("assets/images/")
+  fi
+
+  if [[ "${#missing[@]}" -gt 0 ]]; then
+    cat >&2 <<EOF
+
+ERROR: Public blog repo at ${host_path} is missing required layout:
+  ${missing[*]}
+
+Remediation:
+  - Ensure ${host_path} is a complete silverberdi.github.io checkout
+  - Required directories: _posts/ and assets/images/
+  - Or set SKIP_PUBLIC_BLOG_REPO_CHECK=1 only for non-publishing deploys
+
+EOF
+    exit 1
+  fi
+
+  echo "    public blog repo layout OK (_posts/, assets/images/)"
+}
+
+check_public_blog_repo_path
+
 echo "==> Building worker image (BUILD_REVISION=${BUILD_REVISION:0:12})..."
 cd "${TARGET_DIR}"
 if [[ "${FORCE_NO_CACHE}" == "1" ]]; then
