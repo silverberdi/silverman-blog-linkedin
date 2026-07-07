@@ -17,11 +17,11 @@
 | 3 | `ready-post-editorial-validation` | **completed** (archived) | Spec: `openspec/specs/ready-post-editorial-validation/spec.md`; worker: `src/silverman_blog_linkedin/ready_post_validation.py`; tests: `tests/test_ready_post_validation.py` |
 | 4 | `worker-blog-publishing-endpoint` | **completed** (archived) | Spec: `openspec/specs/worker-blog-publishing-endpoint/spec.md`; endpoint `POST /publish-blog-post`; service `src/silverman_blog_linkedin/blog_publish_flow.py`; HTTP `src/silverman_blog_linkedin/main.py`; tests `tests/test_blog_publish_flow.py`; commit `c9a0cb2` feat(flow-a): add blog publishing endpoint |
 | 5 | `linkedin-derivative-package-generation` | **completed** (archived) | Spec: `openspec/specs/linkedin-derivative-package-generation/spec.md`; endpoint `POST /generate-linkedin-package`; service `src/silverman_blog_linkedin/linkedin_package_flow.py`; tests `tests/test_linkedin_package_generation.py` |
-| 6 | `linkedin-distribution-scheduling-model` | **pending** | — |
+| 6 | `linkedin-distribution-scheduling-model` | **completed** (archived) | Spec: `openspec/specs/linkedin-distribution-scheduling-model/spec.md`; endpoint `POST /schedule-linkedin-distribution`; service `src/silverman_blog_linkedin/linkedin_distribution_schedule.py`; tests `tests/test_linkedin_distribution_scheduling.py` |
 | 7 | `n8n-flow-a-blog-publish-orchestration` | **pending** | — |
 | 8 | `linkedin-publication-integration` | **deferred** | LinkedIn API publish; depends on integration constraints |
 
-The umbrella remains **active**. Slices 1–5 are **completed** (archived); slices 6–7 remain pending; slice 8 is deferred.
+The umbrella remains **active**. Slices 1–6 are **completed** (archived); slice 7 remains pending; slice 8 is deferred.
 
 ## 2. Child Change: editorial-canon-and-linkedin-distribution-strategy
 
@@ -101,17 +101,19 @@ The umbrella remains **active**. Slices 1–5 are **completed** (archived); slic
 
 ## 7. Child Change: linkedin-distribution-scheduling-model
 
-**Status:** **pending**
+**Status:** **completed** (archived). Canonical spec: `openspec/specs/linkedin-distribution-scheduling-model/spec.md`. Endpoint `POST /schedule-linkedin-distribution`; service `src/silverman_blog_linkedin/linkedin_distribution_schedule.py`; tests `tests/test_linkedin_distribution_scheduling.py`.
 
-**Propose with:** `/opsx-propose linkedin-distribution-scheduling-model`
+**Applied with:** `/opsx-apply linkedin-distribution-scheduling-model`
 
-- [ ] 7.1 Implement scheduling logic applying editorial distribution strategy
-- [ ] 7.2 Persist per-variant `schedule_at` and `publish_state` (`pending` until API slice)
-- [ ] 7.3 Enforce cadence spacing and non-redundancy rules (variants not simultaneous)
-- [ ] 7.4 Expose `POST /schedule-linkedin-package` (or equivalent)
-- [ ] 7.5 Add tests for cadence and redundancy prevention
+**Archived with:** `/opsx-archive linkedin-distribution-scheduling-model`
 
-**Depends on:** 2, 3, 6
+- [x] 7.1 Implement scheduling logic applying editorial distribution strategy (`flow_a_staggered` default)
+- [x] 7.2 Persist per-variant `scheduled_at_utc` and `publish_state` (`pending` until API slice)
+- [x] 7.3 Enforce cadence spacing and anti-simultaneous rules (variants staggered, ≥3 calendar days)
+- [x] 7.4 Expose `POST /schedule-linkedin-distribution`
+- [x] 7.5 Add tests for cadence, idempotency, and eligibility in `tests/test_linkedin_distribution_scheduling.py`
+
+**Depends on:** 2, 3, 5 (linkedin-derivative-package-generation)
 
 ## 8. Child Change: n8n-flow-a-blog-publish-orchestration
 

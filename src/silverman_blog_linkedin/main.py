@@ -27,6 +27,9 @@ from silverman_blog_linkedin.file_reader import (
     read_blog_post_file,
 )
 from silverman_blog_linkedin.github_pages_publish import DEFAULT_SITE_URL, ENV_REPO_PATH
+from silverman_blog_linkedin.linkedin_distribution_schedule import (
+    schedule_linkedin_distribution,
+)
 from silverman_blog_linkedin.linkedin_package_flow import generate_linkedin_package
 from silverman_blog_linkedin.linkedin_prompt import build_chat_messages
 from silverman_blog_linkedin.paths import validate_folders
@@ -208,6 +211,76 @@ class GenerateLinkedInPackageRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_exactly_one_identifier(self) -> GenerateLinkedInPackageRequest:
+        has_campaign = self.campaign_id is not None
+        has_source = self.source_relative_path is not None
+        if has_campaign == has_source:
+            raise ValueError(
+                "provide exactly one of campaign_id or source_relative_path"
+            )
+        return self
+
+
+class ScheduleLinkedInDistributionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str | None = None
+    source_relative_path: str | None = None
+    strategy: str | None = None
+    start_at_utc: str | None = None
+    timezone: str | None = None
+
+    @field_validator("source_relative_path")
+    @classmethod
+    def validate_source_relative_path(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = normalize_relative_path(value)
+        if not normalized:
+            raise ValueError("source_relative_path must not be empty")
+        return normalized
+
+    @field_validator("campaign_id")
+    @classmethod
+    def validate_campaign_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("campaign_id must not be empty")
+        return stripped
+
+    @field_validator("strategy")
+    @classmethod
+    def validate_strategy(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("strategy must not be empty or whitespace-only")
+        return stripped
+
+    @field_validator("start_at_utc")
+    @classmethod
+    def validate_start_at_utc(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("start_at_utc must not be empty or whitespace-only")
+        return stripped
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("timezone must not be empty or whitespace-only")
+        return stripped
+
+    @model_validator(mode="after")
+    def validate_exactly_one_identifier(self) -> ScheduleLinkedInDistributionRequest:
         has_campaign = self.campaign_id is not None
         has_source = self.source_relative_path is not None
         if has_campaign == has_source:
@@ -1208,6 +1281,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             result.status,
             result.campaign_id,
             result.state,
+        )
+        return result.to_dict()
+
+    @app.post("/schedule-linkedin-distribution")
+    def schedule_linkedin_distribution_endpoint(
+        body: ScheduleLinkedInDistributionRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = schedule_linkedin_distribution(
+            settings.base_path,
+            campaign_id=body.campaign_id,
+            source_relative_path=body.source_relative_path,
+            strategy=body.strategy,
+            start_at_utc=body.start_at_utc,
+            timezone=body.timezone,
+        )
+        logger.info(
+            "schedule-linkedin-distribution status=%s campaign_id=%s state=%s strategy=%s",
+            result.status,
+            result.campaign_id,
+            result.state,
+            result.strategy,
         )
         return result.to_dict()
 
