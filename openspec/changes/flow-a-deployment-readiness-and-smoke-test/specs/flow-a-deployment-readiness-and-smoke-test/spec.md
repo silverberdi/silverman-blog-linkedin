@@ -133,6 +133,11 @@ The readiness and smoke capability MUST NOT print secrets, perform destructive o
 - **WHEN** any phase of the readiness or smoke command runs
 - **THEN** it does not call LinkedIn publication APIs or implement slice 8 behavior
 
+#### Scenario: Stale worker after deploy
+
+- **WHEN** Phase 0 detects OpenAPI missing Flow A paths while repository checks pass
+- **THEN** remediation references `deploy/server/deploy-worker.sh` and `deploy/server/verify-worker-deploy.sh`, notes that deploy must run on the Ubuntu server and recreate the container on port `8010`, and does not execute deploy automatically
+
 #### Scenario: No automatic deploy or restart
 
 - **WHEN** Phase 0 detects a stale worker

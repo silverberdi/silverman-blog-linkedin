@@ -30,6 +30,18 @@ The Ubuntu server runs the worker in an isolated Docker Compose project (`deploy
 
 Common failure: operator pulls latest `main` on the server editorial mount or build context but **does not rebuild/restart** the worker container. `git rev-parse HEAD` passes while `/openapi.json` still reflects a pre–Flow A image.
 
+**Observed deployment failure (2026-07):** `deploy-worker.sh` ran from Mac targeting `/home/silverman/silverman-blog-linkedin-worker`; `GET /health` on `192.168.0.194:8010` returned HTTP 200 but `/openapi.json` still lacked Flow A paths. Root causes:
+
+1. **Wrong host** — deploy syncs to `TARGET_DIR` on the machine where the script runs; Mac deploy does not update the Ubuntu server worker unless run over SSH on the server.
+2. **Stale Docker image** — the worker runs `pip install .` at image build time; `docker compose up -d --build` may reuse cached layers or skip container recreation.
+3. **No post-deploy OpenAPI verification** — `smoke-worker.sh` only checks `/health` and `/process-ready`, so a stale image can pass smoke while Flow A endpoints are absent.
+
+**Remediation applied in this change:**
+
+- `deploy-worker.sh` warns when target is a server path on a non-Linux host; verifies synced Flow A source files; builds with `BUILD_REVISION`; uses `--force-recreate`; prints container/image identity; runs `verify-worker-deploy.sh`.
+- `verify-worker-deploy.sh` confirms target source files, container on port `8010`, and required OpenAPI paths.
+- `DEPLOY_FORCE_REBUILD=1` triggers `docker compose build --no-cache`.
+
 ### Stakeholders and Constraints
 
 - **Operator**: Needs one command to answer “Is the environment safe to run Flow A smoke?”
@@ -93,8 +105,9 @@ Common failure: operator pulls latest `main` on the server editorial mount or bu
 
 | Failure | Detection | Report severity | Remediation hint |
 |---------|-----------|-----------------|------------------|
-| Repo current, worker stale | HEAD has commits; OpenAPI missing Flow A paths | **fail** | Rebuild/restart worker (`deploy-worker.sh`) |
-| Worker running old installed package | health OK; openapi paths incomplete | **fail** | Redeploy from current checkout |
+| Repo current, worker stale | HEAD has commits; OpenAPI missing Flow A paths | **fail** | Rebuild/recreate on server (`deploy-worker.sh`, `verify-worker-deploy.sh`; `DEPLOY_FORCE_REBUILD=1` if needed) |
+| Deploy ran on wrong host | Mac deploy; server worker unchanged | **fail** | Run deploy on Ubuntu server; verify `TARGET_DIR` |
+| Worker running old installed package | health OK; openapi paths incomplete | **fail** | `docker compose build --no-cache` + `--force-recreate` |
 | Wrong port / base URL | connection refused or 404 on `/health` | **fail** | Check `WORKER_BASE_URL` / `8010` |
 | Wrong environment/base path | health OK but editorial paths wrong in health payload | **warn/fail** | Verify `SILVERMAN_BLOG_LINKEDIN_BASE_PATH` mount |
 | n8n not imported yet | n8n reachable; optional API/workflow name check inconclusive | **pending** | Import workflow JSON manually; not a code defect |
@@ -186,7 +199,13 @@ Secrets: API key presence reported as `configured: true/false` only.
 
 ### D5: No automatic deploy/restart
 
-Readiness reports failure with remediation text pointing to `deploy/server/deploy-worker.sh`; does not invoke it.
+Readiness reports failure with remediation text pointing to `deploy/server/deploy-worker.sh` and `deploy/server/verify-worker-deploy.sh`; does not invoke them.
+
+### D6: Post-deploy verification companion
+
+**Decision:** Add `deploy/server/verify-worker-deploy.sh` and integrate it into `deploy-worker.sh` so operators can confirm Flow A OpenAPI surface without ad-hoc curl inspection.
+
+**Rationale:** `smoke-worker.sh` predates Flow A and does not inspect OpenAPI. Stale images can pass health/process-ready while missing `/publish-blog-post` and related paths.
 
 ## Risks / Trade-offs
 

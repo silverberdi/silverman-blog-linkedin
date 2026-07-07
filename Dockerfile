@@ -1,5 +1,8 @@
 FROM python:3.11-slim
 
+ARG BUILD_REVISION=unknown
+ENV BUILD_REVISION=${BUILD_REVISION}
+
 WORKDIR /app
 
 COPY pyproject.toml README.md ./

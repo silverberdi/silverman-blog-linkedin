@@ -55,3 +55,12 @@
 - [x] 7.3 Do **not** archive the umbrella `flow-a-automatic-blog-linkedin-publishing-roadmap`
 - [x] 7.4 Do **not** commit or push as part of `/opsx-apply` for this change
 - [x] 7.5 Do **not** add automatic deploy/restart behavior (future operational change if needed)
+
+## 8. Deployment verification (post-apply refinement)
+
+- [x] 8.1 Diagnose stale-worker failure mode: deploy on wrong host, Docker cache, missing OpenAPI verification
+- [x] 8.2 Improve `deploy/server/deploy-worker.sh`: sync verification, `BUILD_REVISION`, `--force-recreate`, container identity output, integrated verification
+- [x] 8.3 Add `deploy/server/verify-worker-deploy.sh`: target Flow A source files, container on `8010`, OpenAPI path checks
+- [x] 8.4 Update `Dockerfile` / `silverman-worker.compose.yaml` with `BUILD_REVISION` build arg and pinned local image tag
+- [x] 8.5 Strengthen `scripts/flow_a_readiness.py` stale-worker remediation text; update tests
+- [x] 8.6 Document post-deploy OpenAPI requirement in `docs/deployment/ubuntu-server-worker-deployment.md` and README

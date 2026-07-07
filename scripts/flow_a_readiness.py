@@ -37,9 +37,14 @@ WORKFLOW_EXPORT_REL = "n8n/workflows/silverman-blog-linkedin-flow-a-publish.json
 
 STALE_WORKER_MESSAGE = (
     "Repository checks passed but the running worker OpenAPI surface is missing "
-    "required Flow A endpoints. The checkout may be current while the worker has "
-    "not been redeployed or restarted. Remediation: rebuild/restart manually via "
-    "deploy/server/deploy-worker.sh (not executed by this script)."
+    "required Flow A endpoints. Deploy completed but running worker still stale; "
+    "verify deploy script rebuilds/recreates the worker container and that port 8010 "
+    "points to the updated worker. The checkout may be current while the worker image "
+    "was not rebuilt or the deploy ran against the wrong host/target directory. "
+    "Remediation: run deploy/server/deploy-worker.sh on the Ubuntu server, then "
+    "deploy/server/verify-worker-deploy.sh; if still stale use "
+    "DEPLOY_FORCE_REBUILD=1 or docker compose build --no-cache && up --force-recreate "
+    "(not executed by this script)."
 )
 
 WORKER_CONTAINER_IDENTITY_UNKNOWN_MESSAGE = (

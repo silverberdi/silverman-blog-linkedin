@@ -212,6 +212,8 @@ def test_stale_worker_remediation_appears_once_after_openapi_fail() -> None:
     assert report.deduped_remediation().count(far.STALE_WORKER_MESSAGE) == 1
     assert human.count(far.STALE_WORKER_MESSAGE) == 1
     assert payload["remediation"].count(far.STALE_WORKER_MESSAGE) == 1
+    assert "Deploy completed but running worker still stale" in far.STALE_WORKER_MESSAGE
+    assert "verify-worker-deploy.sh" in far.STALE_WORKER_MESSAGE
 
 
 def test_health_unhealthy_fails() -> None:

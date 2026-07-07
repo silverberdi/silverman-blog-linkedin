@@ -41,6 +41,8 @@ Edit `.env` on the server and set:
 
 ### 2. Deploy
 
+**Important:** Run deploy on the Ubuntu server so files sync to `/home/silverman/silverman-blog-linkedin-worker` and Docker rebuilds the worker on port `8010`. Running `deploy-worker.sh` from a Mac without SSH only syncs to a local path and does **not** update the server worker.
+
 From a repository checkout on the server (or after syncing the repo):
 
 ```bash
@@ -51,10 +53,21 @@ The script:
 
 1. Creates `/home/silverman/silverman-blog-linkedin-worker` if needed
 2. Syncs `Dockerfile`, `pyproject.toml`, `README.md`, `src/`, and deployment artifacts
-3. Exits with instructions if `.env` is missing
-4. Runs `docker compose -f silverman-worker.compose.yaml up -d --build` **only** in the worker directory
+3. Verifies Flow A source modules exist in the target directory (with sha256 digests)
+4. Exits with instructions if `.env` is missing
+5. Builds the worker image with `BUILD_REVISION` from git HEAD (busts stale Docker cache)
+6. Runs `docker compose up -d --force-recreate` in the worker directory
+7. Prints container id, image id, and start time
+8. Runs `verify-worker-deploy.sh` to confirm `/openapi.json` exposes Flow A endpoints
 
 The script never runs `docker compose down` and never touches `local-ai-stack`.
+
+If deploy completes but verification fails (health OK, OpenAPI still missing Flow A paths), force a no-cache rebuild on the server:
+
+```bash
+cd /home/silverman/silverman-blog-linkedin-worker
+DEPLOY_FORCE_REBUILD=1 ./deploy-worker.sh
+```
 
 ### 3. Smoke test
 
@@ -68,6 +81,22 @@ Required checks:
 - `POST http://localhost:8010/process-ready` — Bearer auth, HTTP 200
 
 Optional generation smoke runs when `DEEPSEEK_API_KEY` is set and a `.md` file exists in `blog-posts/ready/`. It is not required for overall PASS.
+
+### 3a. Post-deploy Flow A verification (required before n8n smoke)
+
+`smoke-worker.sh` does not inspect OpenAPI. After every deploy, confirm the running worker exposes Flow A endpoints:
+
+```bash
+/home/silverman/silverman-blog-linkedin-worker/verify-worker-deploy.sh
+```
+
+This checks:
+
+- Target directory contains current Flow A modules (`main.py`, `blog_publish_flow.py`, etc.)
+- Container `silverman-blog-linkedin-worker` is running on port `8010`
+- `GET /openapi.json` includes `/publish-blog-post`, `/generate-linkedin-package`, `/schedule-linkedin-distribution`
+
+`deploy-worker.sh` runs this verification automatically and fails if OpenAPI is still stale.
 
 ### 3b. Flow A deployment readiness (before Flow A n8n smoke)
 
@@ -91,13 +120,16 @@ python3 scripts/flow_a_readiness.py \
 
 **Phase 3–4:** manual operator steps only (manual n8n trigger; idempotent rerun verification). No cron/webhook activation. No LinkedIn API calls.
 
-If Phase 0 fails with a stale-worker message while git checks pass, rebuild/restart the worker manually:
+If Phase 0 fails with a stale-worker message while git checks pass, rebuild/restart the worker on the **Ubuntu server** (not only from Mac):
 
 ```bash
 ./deploy/server/deploy-worker.sh
+# or on server:
+DEPLOY_FORCE_REBUILD=1 /home/silverman/silverman-blog-linkedin-worker/deploy-worker.sh
+/home/silverman/silverman-blog-linkedin-worker/verify-worker-deploy.sh
 ```
 
-The readiness script does **not** run deploy or restart automatically.
+Confirm `/openapi.json` exposes Flow A endpoints before n8n smoke. The readiness script does **not** run deploy or restart automatically.
 
 Relationship to `smoke-worker.sh`: smoke-worker is minimal post-deploy; `flow_a_readiness.py` is the Flow A pre-smoke gate with OpenAPI and git checks.
 
@@ -116,14 +148,15 @@ Run the workflow manually and verify a draft appears under `linkedin-posts/revie
 
 ## Updates
 
-Re-run the deploy script after pulling or syncing new code:
+Re-run the deploy script on the **Ubuntu server** after pulling or syncing new code:
 
 ```bash
 ./deploy/server/deploy-worker.sh
 /home/silverman/silverman-blog-linkedin-worker/smoke-worker.sh
+/home/silverman/silverman-blog-linkedin-worker/verify-worker-deploy.sh
 ```
 
-The deploy uses `--build` to refresh the image.
+The deploy builds with `BUILD_REVISION`, recreates the container (`--force-recreate`), and verifies OpenAPI Flow A paths. Use `DEPLOY_FORCE_REBUILD=1` for a `--no-cache` image rebuild when the worker remains stale.
 
 ## Worker API key rotation
 
@@ -255,14 +288,33 @@ Confirm the container user can write to `metadata/runs/` and `linkedin-posts/rev
 2. Confirm `worker_base_url` is `http://192.168.0.194:8010` (not `localhost` from n8n's perspective if that differs)
 3. Check host firewall rules for port `8010`
 
-### Stale container image
+### Stale container image / Flow A OpenAPI missing after deploy
 
-Force a rebuild:
+Symptom: `GET /health` returns HTTP 200 but `GET /openapi.json` is missing `/publish-blog-post`, `/generate-linkedin-package`, or `/schedule-linkedin-distribution`.
+
+Common causes:
+
+1. **Deploy ran on Mac, not the server** — `deploy-worker.sh` syncs to `TARGET_DIR` on the machine where it runs. Run it on the Ubuntu server (SSH) or ensure `DEPLOY_DIR` points at the server deployment directory.
+2. **Docker reused a cached image** — the worker runs code installed at image build time (`pip install .`), not from a live source mount. Force rebuild:
 
 ```bash
 cd /home/silverman/silverman-blog-linkedin-worker
-docker compose -f silverman-worker.compose.yaml build --no-cache
-docker compose -f silverman-worker.compose.yaml up -d
+DEPLOY_FORCE_REBUILD=1 ./deploy-worker.sh
+```
+
+3. **Old container still bound to port 8010** — deploy now uses `--force-recreate`; verify with:
+
+```bash
+/home/silverman/silverman-blog-linkedin-worker/verify-worker-deploy.sh
+```
+
+Manual no-cache rebuild:
+
+```bash
+cd /home/silverman/silverman-blog-linkedin-worker
+BUILD_REVISION=$(date +%s) docker compose -f silverman-worker.compose.yaml build --no-cache
+docker compose -f silverman-worker.compose.yaml up -d --force-recreate
+/home/silverman/silverman-blog-linkedin-worker/verify-worker-deploy.sh
 ```
 
 ### Secrets in git
@@ -275,7 +327,8 @@ Real `SILVERMAN_BLOG_LINKEDIN_API_KEY` and `DEEPSEEK_API_KEY` values must exist 
 |------|---------|
 | `deploy/server/silverman-worker.compose.yaml` | Isolated compose definition |
 | `deploy/server/silverman-worker.env.example` | Documented env placeholders |
-| `deploy/server/deploy-worker.sh` | Deploy script |
+| `deploy/server/deploy-worker.sh` | Deploy script (sync, build, recreate, verify) |
+| `deploy/server/verify-worker-deploy.sh` | Post-deploy Flow A OpenAPI verification |
 | `deploy/server/smoke-worker.sh` | HTTP smoke tests |
 | `deploy/server/verify-worker-api-key-rotation.sh` | Post-rotation auth verification |
 | `docker-compose.example.yml` | Local/dev compose (not for server) |

@@ -15,6 +15,7 @@ COMPOSE_PATH = DEPLOY_SERVER / "silverman-worker.compose.yaml"
 ENV_EXAMPLE_PATH = DEPLOY_SERVER / "silverman-worker.env.example"
 DEPLOY_SCRIPT_PATH = DEPLOY_SERVER / "deploy-worker.sh"
 SMOKE_SCRIPT_PATH = DEPLOY_SERVER / "smoke-worker.sh"
+VERIFY_DEPLOY_SCRIPT_PATH = DEPLOY_SERVER / "verify-worker-deploy.sh"
 VERIFY_ROTATION_SCRIPT_PATH = DEPLOY_SERVER / "verify-worker-api-key-rotation.sh"
 DEPLOYMENT_DOC_PATH = REPO_ROOT / "docs" / "deployment" / "ubuntu-server-worker-deployment.md"
 
@@ -70,6 +71,10 @@ def test_compose_editorial_volume_mount(compose_text: str) -> None:
     assert expected in compose_text
 
 
+def test_compose_build_revision_arg(compose_text: str) -> None:
+    assert "BUILD_REVISION" in compose_text
+
+
 def test_compose_does_not_reference_local_ai_stack(compose_text: str) -> None:
     assert "local-ai-stack" not in compose_text
 
@@ -105,7 +110,8 @@ def test_deploy_and_smoke_scripts_are_executable() -> None:
 
 def test_deploy_script_safe_compose_usage() -> None:
     content = DEPLOY_SCRIPT_PATH.read_text(encoding="utf-8")
-    assert "docker compose -f silverman-worker.compose.yaml up -d --build" in content
+    assert "docker compose -f silverman-worker.compose.yaml build" in content
+    assert "docker compose -f silverman-worker.compose.yaml up -d --force-recreate" in content
     assert "docker compose down" not in content
     for line in content.splitlines():
         stripped = line.strip()
@@ -151,6 +157,28 @@ def test_verify_rotation_script_has_no_obvious_secret_literals() -> None:
 def test_deploy_script_syncs_verify_rotation_script() -> None:
     content = DEPLOY_SCRIPT_PATH.read_text(encoding="utf-8")
     assert "verify-worker-api-key-rotation.sh" in content
+    assert "verify-worker-deploy.sh" in content
+
+
+def test_verify_deploy_script_exists() -> None:
+    assert VERIFY_DEPLOY_SCRIPT_PATH.is_file()
+
+
+def test_verify_deploy_script_is_executable() -> None:
+    mode = VERIFY_DEPLOY_SCRIPT_PATH.stat().st_mode
+    assert mode & stat.S_IXUSR, "verify-worker-deploy.sh is not executable (owner)"
+
+
+def test_verify_deploy_script_checks_flow_a_openapi_paths() -> None:
+    content = VERIFY_DEPLOY_SCRIPT_PATH.read_text(encoding="utf-8")
+    for path in (
+        "/publish-blog-post",
+        "/generate-linkedin-package",
+        "/schedule-linkedin-distribution",
+    ):
+        assert path in content
+    assert "blog_publish_flow.py" in content
+    assert "SILVERMAN_BLOG_LINKEDIN_API_KEY" not in content
 
 
 def test_deployment_doc_documents_worker_api_key_rotation() -> None:
@@ -158,4 +186,5 @@ def test_deployment_doc_documents_worker_api_key_rotation() -> None:
     assert "## Worker API key rotation" in content
     assert "OLD_SILVERMAN_BLOG_LINKEDIN_API_KEY" in content
     assert "verify-worker-api-key-rotation.sh" in content
+    assert "verify-worker-deploy.sh" in content
     assert "Silverman Blog LinkedIn Draft Generation" in content
