@@ -267,6 +267,7 @@ The script is read-only: no secrets printed, no n8n activation, no LinkedIn API 
 | Worker deployment | `blog_publish_public_repo_not_configured`, health/OpenAPI failures |
 | Worker publish idempotency | `validated` campaign + public files exist but publish fails (`blog_publish_target_exists`) — worker reconciliation |
 | Worker error-state recovery | Campaign `error` from prior failed publish + public files match source — worker reconciles to `blog_published` when safe |
+| Reconciliation ordering | `blog_publish_target_exists` with `source_public_url: null` while campaign has URL — check `blog_publish.reconciliation_skip_reason`; redeploy worker with ordering fix |
 | n8n orchestration | Worker smoke `PASS`, n8n fails at same HTTP node — re-import workflow JSON |
 | Provider config | `deepseek_config_invalid` during package generation |
 | Schedule mapping | Package `PASS`, schedule fails with `linkedin_schedule_*` errors |

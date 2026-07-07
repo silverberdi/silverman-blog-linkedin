@@ -306,7 +306,20 @@ The repository SHALL provide `deploy/server/run-flow-a-worker-smoke.sh` for Ubun
 #### Scenario: Publish reconciliation rejects unsafe error recovery
 
 - **WHEN** campaign metadata is `error` but source path, content hash, idempotency key, or public file content do not match the current request
-- **THEN** `POST /publish-blog-post` returns `status: failed` without broad state bypass
+- **THEN** `POST /publish-blog-post` returns `status: failed` with stable error `blog_publish_target_exists`
+- **AND** `blog_publish.reconciliation_skip_reason` explains why reconciliation was skipped (for example `blog_publish_reconciliation_skipped_public_content_mismatch`)
+- **AND** `source_public_url` is preserved or computed when slug, date, and site URL are known
+
+#### Scenario: Publish reconciliation runs before overwrite guard
+
+- **WHEN** campaign metadata is `validated`, `blog_publish_pending`, or recoverable `error` and both public post and image targets exist at expected paths with safe idempotency alignment
+- **THEN** `POST /publish-blog-post` attempts safe reconciliation before returning `blog_publish_target_exists` or calling `run_publish` overwrite protection
+- **AND** when `run_publish` refuses overwrite, the worker retries safe reconciliation before failing
+
+#### Scenario: Worker smoke prints reconciliation diagnostics on publish failure
+
+- **WHEN** `run-flow-a-worker-smoke.sh` publish step returns `status: failed` with `blog_publish.reconciliation_skip_reason`
+- **THEN** the script prints the skip reason without secrets
 
 #### Scenario: Evidence collector PASS requires distribution evidence
 

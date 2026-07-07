@@ -137,3 +137,15 @@
 - [x] 15.5 Update `tests/test_server_deployment_artifacts.py` for evidence and smoke PASS gating
 - [x] 15.6 Update design, spec, README, and deployment docs with second root cause
 - [x] 15.7 Run `openspec validate`, targeted pytest, and full `pytest`
+
+## 16. Publish reconciliation ordering and diagnostics (post-smoke validation)
+
+**Observed smoke failure (2026-07, commit `8b656b8`):** `verify-worker-deploy.sh` and public repo mount PASS; public `_posts` and `assets/images` exist on disk. `run-flow-a-worker-smoke.sh` still fails at `POST /publish-blog-post` with `blog_publish_target_exists`, `source_public_url: null` in the worker response, while campaign metadata already has `source_public_url` and `errors: ["blog_publish_target_exists"]` with `blog_publish.public_repo_path` unset. Root cause: safe reconciliation could be skipped when the initial public-target probe did not match disk state (e.g. campaign identity not merged into preflight on resume), allowing `run_publish` overwrite protection to return `blog_publish_target_exists` without attempting recovery or explaining why reconciliation was skipped.
+
+- [x] 16.1 Fix `publish_blog_post` reconciliation ordering — attempt safe reconciliation before any `blog_publish_target_exists` return for `validated` / `blog_publish_pending` / `error`; retry reconciliation when `run_publish` refuses overwrite
+- [x] 16.2 Enrich preflight from campaign metadata when resuming without validation; preserve/compute `source_public_url` on failed and skipped-reconciliation responses
+- [x] 16.3 Add stable `blog_publish.reconciliation_skip_reason` diagnostics when reconciliation is skipped
+- [x] 16.4 Add regression tests in `tests/test_blog_publish_flow.py` for exact error-state server scenario, ordering, skip reasons, and non-null `source_public_url`
+- [x] 16.5 Update `run-flow-a-worker-smoke.sh` to print reconciliation skip diagnostics on publish failure
+- [x] 16.6 Update design, spec, README, and deployment docs with third root cause; Flow A not complete until worker smoke reaches `distribution_scheduled`
+- [x] 16.7 Run `openspec validate`, targeted pytest, and full `pytest`

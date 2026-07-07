@@ -18,6 +18,8 @@ from silverman_blog_linkedin.blog_publish_flow import (
     BLOG_PUBLISH_PUBLIC_REPO_NOT_CONFIGURED,
     BLOG_PUBLISH_TARGET_EXISTS,
     BLOG_PUBLISH_VALIDATION_FAILED,
+    RECONCILIATION_SKIPPED_PUBLIC_CONTENT_MISMATCH,
+    RECONCILIATION_SKIPPED_SOURCE_MISMATCH,
     RECONCILED_FROM_ERROR_WARNING,
     publish_blog_post,
 )
@@ -389,23 +391,136 @@ def test_error_reconcile_fails_on_content_hash_mismatch(
     assert BLOG_PUBLISH_CONTENT_HASH_CHANGED in result.errors
 
 
-def test_error_reconcile_fails_on_wrong_source_path(
+def test_reconcile_error_campaign_exact_server_state(
     editorial_base: Path, public_repo: Path
 ):
-    _error_campaign(
-        editorial_base,
-        source_relative_path="blog-posts/ready/other-post.md",
+    """Regression: error + target_exists + source_public_url + public files, no paths."""
+    campaign = _validated_campaign(editorial_base)
+    campaign["source_public_url"] = f"{SITE_URL}/2026/07/06/{PUBLIC_SLUG}/"
+    transition_state(
+        campaign,
+        STATE_ERROR,
+        reason="Prior publish attempt failed",
+        actor=ACTOR_WORKER,
+        error_code=BLOG_PUBLISH_TARGET_EXISTS,
     )
+    campaign["errors"] = [BLOG_PUBLISH_TARGET_EXISTS]
+    campaign["blog_publish"] = {
+        "status": "failed",
+        "error_code": BLOG_PUBLISH_TARGET_EXISTS,
+    }
+    write_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID, campaign)
     _write_post(editorial_base)
     _write_matching_public_artifacts(editorial_base, public_repo)
 
     result = _publish(editorial_base, public_repo)
 
-    assert result.status == "failed"
-    assert BLOG_PUBLISH_INVALID_CAMPAIGN_STATE in result.errors
+    assert result.status == "completed"
+    assert result.state == STATE_BLOG_PUBLISHED
+    assert result.source_public_url == f"{SITE_URL}/2026/07/06/{PUBLIC_SLUG}/"
+    assert result.blog_publish["status"] == "reconciled"
+    assert result.blog_publish["public_repo_path"].startswith("_posts/")
+    assert result.blog_publish["public_repo_image_path"].startswith("assets/images/")
+    assert BLOG_PUBLISH_TARGET_EXISTS not in result.errors
+
+    campaign_after = read_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign_after is not None
+    assert campaign_after["state"] == STATE_BLOG_PUBLISHED
+    assert campaign_after["source_public_url"] == f"{SITE_URL}/2026/07/06/{PUBLIC_SLUG}/"
+    assert BLOG_PUBLISH_TARGET_EXISTS not in campaign_after.get("errors", [])
 
 
-def test_error_reconcile_fails_on_mismatched_public_content(
+def test_reconcile_attempted_before_target_exists_guard(
+    editorial_base: Path, public_repo: Path
+):
+    """Reconciliation runs before run_publish when pending and public files exist."""
+    campaign = _validated_campaign(editorial_base)
+    transition_state(
+        campaign,
+        STATE_BLOG_PUBLISH_PENDING,
+        reason="Blog publish started",
+        actor=ACTOR_WORKER,
+    )
+    campaign["blog_publish"] = {
+        "status": "pending",
+        "idempotency_key": build_blog_publish_idempotency_key(
+            source_slug=SOURCE_SLUG,
+            public_slug=PUBLIC_SLUG,
+            publication_date=PUBLICATION_DATE,
+            source_content_sha256=campaign["source_content_sha256"],
+        ),
+    }
+    write_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID, campaign)
+    _write_post(editorial_base)
+    _write_matching_public_artifacts(editorial_base, public_repo)
+
+    with patch(
+        "silverman_blog_linkedin.blog_publish_flow.run_publish",
+    ) as mock_run_publish:
+        result = _publish(editorial_base, public_repo)
+
+    mock_run_publish.assert_not_called()
+    assert result.status == "completed"
+    assert result.state == STATE_BLOG_PUBLISHED
+    assert result.blog_publish["status"] == "reconciled"
+
+
+def test_run_publish_overwrite_retries_reconciliation(
+    editorial_base: Path, public_repo: Path
+):
+    """When run_publish refuses overwrite, reconciliation is retried before failing."""
+    campaign = _validated_campaign(editorial_base)
+    transition_state(
+        campaign,
+        STATE_BLOG_PUBLISH_PENDING,
+        reason="Blog publish started",
+        actor=ACTOR_WORKER,
+    )
+    campaign["blog_publish"] = {
+        "status": "pending",
+        "idempotency_key": build_blog_publish_idempotency_key(
+            source_slug=SOURCE_SLUG,
+            public_slug=PUBLIC_SLUG,
+            publication_date=PUBLICATION_DATE,
+            source_content_sha256=campaign["source_content_sha256"],
+        ),
+    }
+    write_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID, campaign)
+    _write_post(editorial_base)
+    _write_matching_public_artifacts(editorial_base, public_repo)
+
+    call_count = {"n": 0}
+    original_attempt = None
+
+    def reconcile_side_effect(*args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return None
+        return original_attempt(*args, **kwargs)
+
+    import silverman_blog_linkedin.blog_publish_flow as bpf
+
+    original_attempt = bpf._attempt_blog_publish_reconciliation
+    with patch.object(
+        bpf,
+        "_attempt_blog_publish_reconciliation",
+        side_effect=reconcile_side_effect,
+    ), patch(
+        "silverman_blog_linkedin.blog_publish_flow.run_publish",
+    ) as mock_run_publish:
+        from silverman_blog_linkedin.github_pages_publish import PublishError
+
+        mock_run_publish.side_effect = PublishError(
+            "refusing to overwrite existing target(s): stale"
+        )
+        result = _publish(editorial_base, public_repo)
+
+    assert call_count["n"] == 2
+    assert result.status == "completed"
+    assert result.blog_publish["status"] == "reconciled"
+
+
+def test_unsafe_mismatch_returns_target_exists_with_skip_reason(
     editorial_base: Path, public_repo: Path
 ):
     _error_campaign(editorial_base)
@@ -420,6 +535,57 @@ def test_error_reconcile_fails_on_mismatched_public_content(
 
     assert result.status == "failed"
     assert BLOG_PUBLISH_TARGET_EXISTS in result.errors
+    assert (
+        result.blog_publish.get("reconciliation_skip_reason")
+        == RECONCILIATION_SKIPPED_PUBLIC_CONTENT_MISMATCH
+    )
+    assert result.source_public_url == f"{SITE_URL}/2026/07/06/{PUBLIC_SLUG}/"
+
+
+def test_target_exists_failure_includes_source_public_url(
+    editorial_base: Path, public_repo: Path
+):
+    _error_campaign(
+        editorial_base,
+        source_relative_path="blog-posts/ready/other-post.md",
+    )
+    _write_post(editorial_base)
+    _write_matching_public_artifacts(editorial_base, public_repo)
+
+    campaign = read_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    campaign["source_public_url"] = f"{SITE_URL}/2026/07/06/{PUBLIC_SLUG}/"
+    write_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID, campaign)
+
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "failed"
+    assert BLOG_PUBLISH_TARGET_EXISTS in result.errors
+    assert result.source_public_url == f"{SITE_URL}/2026/07/06/{PUBLIC_SLUG}/"
+    assert (
+        result.blog_publish.get("reconciliation_skip_reason")
+        == RECONCILIATION_SKIPPED_SOURCE_MISMATCH
+    )
+
+
+def test_error_reconcile_fails_on_wrong_source_path(
+    editorial_base: Path, public_repo: Path
+):
+    _error_campaign(
+        editorial_base,
+        source_relative_path="blog-posts/ready/other-post.md",
+    )
+    _write_post(editorial_base)
+    _write_matching_public_artifacts(editorial_base, public_repo)
+
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "failed"
+    assert BLOG_PUBLISH_TARGET_EXISTS in result.errors
+    assert (
+        result.blog_publish.get("reconciliation_skip_reason")
+        == RECONCILIATION_SKIPPED_SOURCE_MISMATCH
+    )
 
 
 def test_invalid_campaign_state_fails(editorial_base: Path, public_repo: Path):

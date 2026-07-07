@@ -242,6 +242,24 @@ check_step_response() {
     if [[ -n "${state}" ]]; then
       echo "response state: ${state}"
     fi
+    python3 - "${RESPONSE_TMP}" <<'PY' || true
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as fh:
+    data = json.load(fh)
+
+errors = data.get("errors") or []
+if errors:
+    print(f"response errors: {errors}")
+source_public_url = data.get("source_public_url")
+if source_public_url:
+    print(f"response source_public_url: {source_public_url}")
+blog_publish = data.get("blog_publish") or {}
+skip_reason = blog_publish.get("reconciliation_skip_reason")
+if skip_reason:
+    print(f"reconciliation_skip_reason: {skip_reason}")
+PY
     pretty_json_file "${RESPONSE_TMP}"
     return 1
   fi
