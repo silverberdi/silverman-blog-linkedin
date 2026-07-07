@@ -43,6 +43,7 @@ EXPECTED_NODE_NAMES = {
     "Health Check",
     "Process Ready",
     "Process File",
+    "Compute Source Public URL",
     "Generate LinkedIn Draft",
     "IF Health Ready",
     "IF Process Ready Failed",
@@ -59,6 +60,7 @@ REQUIRED_NODE_TYPES = {
     "n8n-nodes-base.set",
     "n8n-nodes-base.splitOut",
     "n8n-nodes-base.noOp",
+    "n8n-nodes-base.code",
 }
 
 WORKER_ENDPOINT_FRAGMENTS = (
@@ -79,6 +81,72 @@ STALE_WORKER_URLS = (
     "http://localhost:8000",
     "http://192.168.0.195:8000",
 )
+
+CANONICAL_READY_RELATIVE_PATH = (
+    "blog-posts/ready/01-why-i-did-not-start-with-the-database.md"
+)
+CANONICAL_READY_MARKDOWN = """---
+title: Why I did not start with the database
+date: 2026-07-06 00:00:00 -0500
+---
+
+# Why I did not start with the database
+
+Body copy for the smoke fixture.
+"""
+CANONICAL_SOURCE_PUBLIC_URL = (
+    "https://silverman.pro/2026/07/06/why-i-did-not-start-with-the-database/"
+)
+
+
+def _mirror_compute_source_public_url(
+    *,
+    relative_path: str,
+    markdown_content: str,
+    site_base_url: str = "https://silverman.pro",
+) -> dict[str, str]:
+    """Mirror Compute Source Public URL jsCode for fixture-level validation."""
+    site_base = site_base_url.rstrip("/")
+    relative_path = (relative_path or "").strip()
+    if not relative_path:
+        return {
+            "source_public_url": "",
+            "source_public_url_error": "missing_relative_path",
+        }
+
+    basename = relative_path.split("/")[-1]
+    slug = re.sub(r"\.md$", "", basename, flags=re.I)
+    slug_match = re.match(r"^(\d+)-(.+)$", slug)
+    if slug_match:
+        slug = slug_match.group(2)
+
+    date_error = "missing_frontmatter_date"
+    year = month = day = None
+    fm_match = re.match(r"^---\s*\n([\s\S]*?)\n---", markdown_content or "")
+    if fm_match:
+        date_match = re.search(r"^date:\s*(.+)$", fm_match.group(1), flags=re.M)
+        if date_match:
+            date_portion = re.match(
+                r"^(\d{4})-(\d{2})-(\d{2})",
+                date_match.group(1).strip(),
+            )
+            if date_portion:
+                year, month, day = date_portion.groups()
+                date_error = None
+
+    if date_error:
+        return {"source_public_url": "", "source_public_url_error": date_error}
+
+    if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug):
+        return {
+            "source_public_url": "",
+            "source_public_url_error": "invalid_public_slug",
+        }
+
+    return {
+        "source_public_url": f"{site_base}/{year}/{month}/{day}/{slug}/",
+        "source_public_url_error": "",
+    }
 
 
 @pytest.fixture(scope="module")
@@ -185,10 +253,65 @@ def test_workflow_set_configuration_has_optional_public_context(workflow: dict):
         item["name"]: item["value"]
         for item in config_node["parameters"]["assignments"]["assignments"]
     }
-    assert "source_public_url" in assignments
+    assert "source_public_url" not in assignments
+    assert "site_base_url" in assignments
+    assert assignments["site_base_url"] == "https://silverman.pro"
     assert "topic_theme" in assignments
-    assert assignments["source_public_url"] == ""
     assert assignments["topic_theme"] == ""
+
+
+def _compute_source_public_url_node(workflow: dict) -> dict:
+    return next(
+        node for node in workflow["nodes"] if node["name"] == "Compute Source Public URL"
+    )
+
+
+def test_compute_source_public_url_node_exists_and_is_code(workflow: dict):
+    node = _compute_source_public_url_node(workflow)
+    assert node["type"] == "n8n-nodes-base.code"
+    assert node["parameters"].get("mode") == "runOnceForEachItem"
+
+
+def test_compute_source_public_url_js_code_has_derivation_logic(workflow: dict):
+    code = _compute_source_public_url_node(workflow)["parameters"]["jsCode"]
+    assert "source_public_url_error" in code
+    assert "site_base_url" in code
+    assert "$json" in code
+    assert "$input.first()" not in code
+    assert re.search(r"\^\\d\+\)-", code) or "slugMatch" in code
+    assert "date" in code
+    assert "YYYY" in code or "datePortion" in code or "dateMatch" in code
+    assert "missing_relative_path" in code
+    assert "missing_frontmatter_date" in code
+    assert "invalid_public_slug" in code
+    assert re.search(r"a-z0-9", code)
+    assert "return{json:" in code.replace(" ", "")
+    assert "return[{json:" not in code.replace(" ", "")
+
+
+def test_compute_source_public_url_supports_real_frontmatter_date_format():
+    result = _mirror_compute_source_public_url(
+        relative_path=CANONICAL_READY_RELATIVE_PATH,
+        markdown_content=CANONICAL_READY_MARKDOWN,
+    )
+    assert result["source_public_url_error"] == ""
+    assert result["source_public_url"] == CANONICAL_SOURCE_PUBLIC_URL
+
+
+def test_compute_source_public_url_fixture_matches_workflow_js_code(workflow: dict):
+    code = _compute_source_public_url_node(workflow)["parameters"]["jsCode"]
+    assert "2026-07-06" in CANONICAL_READY_MARKDOWN
+    assert re.search(r"\^date:\\s\*\(\.\+\)\$", code) or "dateMatch" in code
+    assert "datePortion" in code
+    result = _mirror_compute_source_public_url(
+        relative_path=CANONICAL_READY_RELATIVE_PATH,
+        markdown_content=CANONICAL_READY_MARKDOWN,
+    )
+    assert result["source_public_url"] == CANONICAL_SOURCE_PUBLIC_URL
+
+
+def test_workflow_is_inactive(workflow: dict):
+    assert workflow.get("active") is False
 
 
 def _generate_linkedin_draft_node(workflow: dict) -> dict:
@@ -203,6 +326,11 @@ def test_generate_linkedin_draft_json_body_maps_optional_fields_conditionally(
     json_body = _generate_linkedin_draft_node(workflow)["parameters"]["jsonBody"]
     assert "source_public_url" in json_body
     assert "topic_theme" in json_body
+    assert "const item = $json" in json_body
+    assert "item.source_public_url" in json_body
+    assert "config.source_public_url" not in json_body
+    assert "$('Compute Source Public URL').item" not in json_body
+    assert "$('Process File').item" not in json_body
     assert ".trim()" in json_body
     assert "if (url)" in json_body
     assert "if (theme)" in json_body
@@ -216,6 +344,17 @@ def test_generate_linkedin_draft_json_body_maps_optional_fields_conditionally(
     ):
         assert field in json_body
 
+
+def test_generate_linkedin_draft_reads_source_public_url_from_current_item(
+    workflow: dict,
+):
+    json_body = _generate_linkedin_draft_node(workflow)["parameters"]["jsonBody"]
+    compact = json_body.replace(" ", "")
+    assert "constitem=$json" in compact or "const item = $json" in json_body
+    assert "item.source_public_url" in json_body
+    assert "item.relative_path" in json_body
+    assert "item.markdown_content" in json_body
+    assert "item.content_sha256" in json_body
 
 def test_generate_linkedin_draft_does_not_send_empty_optional_literals(workflow: dict):
     json_body = _generate_linkedin_draft_node(workflow)["parameters"]["jsonBody"]

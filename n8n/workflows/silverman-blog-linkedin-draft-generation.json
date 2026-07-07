@@ -50,8 +50,8 @@
             },
             {
               "id": "c8f3a2b1-4d5e-6f70-8192-a3b4c5d6e7f8",
-              "name": "source_public_url",
-              "value": "",
+              "name": "site_base_url",
+              "value": "https://silverman.pro",
               "type": "string"
             },
             {
@@ -72,7 +72,7 @@
         220,
         300
       ],
-      "notes": "Edit worker_base_url, worker_api_key, editorial hints, and optional source_public_url (after publish) before running."
+      "notes": "Edit worker_base_url, worker_api_key, site_base_url, editorial hints, and optional topic_theme before running. source_public_url is derived per post from frontmatter date and filename slug."
     },
     {
       "parameters": {
@@ -476,6 +476,21 @@
     },
     {
       "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const config = $('Set Configuration').first().json;\nconst pf = $json;\nconst item = { ...pf };\n\nconst siteBaseUrl = (config.site_base_url || 'https://silverman.pro').replace(/\\/$/, '');\nconst relativePath = (pf.relative_path || '').trim();\n\nif (!relativePath) {\n  return { json: { ...item, source_public_url: '', source_public_url_error: 'missing_relative_path' } };\n}\n\nconst basename = relativePath.split('/').pop() || '';\nlet slug = basename.replace(/\\.md$/i, '');\nconst slugMatch = slug.match(/^(\\d+)-(.+)$/);\nif (slugMatch) {\n  slug = slugMatch[2];\n}\n\nlet year;\nlet month;\nlet day;\nlet dateError = 'missing_frontmatter_date';\nconst content = pf.markdown_content || '';\nconst fmMatch = content.match(/^---\\s*\\n([\\s\\S]*?)\\n---/);\nif (fmMatch) {\n  const dateMatch = fmMatch[1].match(/^date:\\s*(.+)$/m);\n  if (dateMatch) {\n    const datePortion = dateMatch[1].trim().match(/^(\\d{4})-(\\d{2})-(\\d{2})/);\n    if (datePortion) {\n      year = datePortion[1];\n      month = datePortion[2];\n      day = datePortion[3];\n      dateError = null;\n    }\n  }\n}\n\nif (dateError) {\n  return { json: { ...item, source_public_url: '', source_public_url_error: dateError } };\n}\n\nconst slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;\nif (!slugPattern.test(slug)) {\n  return { json: { ...item, source_public_url: '', source_public_url_error: 'invalid_public_slug' } };\n}\n\nconst sourcePublicUrl = `${siteBaseUrl}/${year}/${month}/${day}/${slug}/`;\nreturn { json: { ...item, source_public_url: sourcePublicUrl, source_public_url_error: '' } };"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Compute Source Public URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2090,
+        300
+      ],
+      "notes": "Derives source_public_url per item from site_base_url, frontmatter date, and filename slug."
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "={{ $('Set Configuration').first().json.worker_base_url }}/generate-linkedin-draft",
         "sendHeaders": true,
@@ -493,7 +508,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ (() => { const config = $('Set Configuration').first().json; const pf = $('Process File').item.json; const body = { source_relative_path: pf.relative_path, markdown_content: pf.markdown_content, source_content_sha256: pf.content_sha256, tone: config.tone, audience: config.audience, variant: config.variant }; const url = (config.source_public_url || '').trim(); const theme = (config.topic_theme || '').trim(); if (url) body.source_public_url = url; if (theme) body.topic_theme = theme; return JSON.stringify(body); })() }}",
+        "jsonBody": "={{ (() => { const config = $('Set Configuration').first().json; const item = $json; const body = { source_relative_path: item.relative_path, markdown_content: item.markdown_content, source_content_sha256: item.content_sha256, tone: config.tone, audience: config.audience, variant: config.variant }; const url = (item.source_public_url || '').trim(); const theme = (config.topic_theme || '').trim(); if (url) body.source_public_url = url; if (theme) body.topic_theme = theme; return JSON.stringify(body); })() }}",
         "options": {}
       },
       "id": "72d9a597-8641-404b-8a71-bdc2ce893964",
@@ -785,7 +800,7 @@
       "main": [
         [
           {
-            "node": "Generate LinkedIn Draft",
+            "node": "Compute Source Public URL",
             "type": "main",
             "index": 0
           }
@@ -793,6 +808,17 @@
         [
           {
             "node": "Set Process File Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Source Public URL": {
+      "main": [
+        [
+          {
+            "node": "Generate LinkedIn Draft",
             "type": "main",
             "index": 0
           }
