@@ -161,3 +161,14 @@
 - [x] 17.5 Update `run-flow-a-worker-smoke.sh` to print reconciliation hash diagnostics on publish failure
 - [x] 17.6 Update design, spec, README, and deployment docs with fourth root cause
 - [x] 17.7 Run `openspec validate`, targeted pytest, and full `pytest`
+
+## 18. Public image adoption reconciliation (post-smoke validation)
+
+**Observed smoke failure (2026-07):** Public post was already published to the real GitHub Pages repo; the operator manually corrected the public image afterward. Campaign metadata remained `error` with `blog_publish_target_exists` and `blog_publish.reconciliation_skip_reason: blog_publish_reconciliation_skipped_public_image_mismatch` while public post hash matched canonical publish output and public image existed at the expected path but differed from `blog-posts/ready/...png`. Root cause: reconciliation treated ready-image drift as unsafe and refused recovery; copying the ready image over the public asset would destroy the official published image.
+
+- [x] 18.1 Update `publish_blog_post` reconciliation to adopt existing public image when canonical post matches, public image exists at expected path, and ready image differs — never overwrite public image
+- [x] 18.2 Add regression tests for image adoption, post mismatch rejection, missing image rejection, and campaign beyond blog publish
+- [x] 18.3 Update `run-flow-a-worker-smoke.sh` to print adoption metadata on publish success
+- [x] 18.4 Update evidence collector to show `public_image_adopted` in campaign summary when present
+- [x] 18.5 Update design, spec, README, and deployment docs with fifth root cause
+- [x] 18.6 Run `openspec validate`, targeted pytest, and full `pytest`

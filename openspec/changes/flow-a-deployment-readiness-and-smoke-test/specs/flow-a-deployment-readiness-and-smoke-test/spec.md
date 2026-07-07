@@ -312,9 +312,28 @@ The repository SHALL provide `deploy/server/run-flow-a-worker-smoke.sh` for Ubun
 
 - **WHEN** campaign metadata is `error` but source path, content hash, idempotency key, or public file content do not match the current request
 - **THEN** `POST /publish-blog-post` returns `status: failed` with stable error `blog_publish_target_exists`
-- **AND** `blog_publish.reconciliation_skip_reason` explains why reconciliation was skipped (for example `blog_publish_reconciliation_skipped_public_content_mismatch` or `blog_publish_reconciliation_skipped_public_image_mismatch`)
+- **AND** `blog_publish.reconciliation_skip_reason` explains why reconciliation was skipped (for example `blog_publish_reconciliation_skipped_public_content_mismatch` or `blog_publish_reconciliation_skipped_missing_public_image`)
 - **AND** `blog_publish` includes safe expected/actual post (and optionally image) SHA-256 diagnostics and relative paths without full Markdown content
 - **AND** `source_public_url` is preserved or computed when slug, date, and site URL are known
+
+#### Scenario: Publish reconciliation adopts existing public image when post is canonical
+
+- **WHEN** campaign metadata is recoverable (`error`, `validated`, or `blog_publish_pending`), Flow A, source path/hash/idempotency align, public post exists at the expected path and matches canonical publish output, public image exists at the expected path, and public image bytes differ from the ready-folder PNG
+- **THEN** `POST /publish-blog-post` reconciles metadata to `blog_published` with `blog_publish.status: reconciled` and `status: completed`
+- **AND** the worker does not overwrite the public image file
+- **AND** `blog_publish` records `public_image_adopted: true`, `public_image_source: existing_public_asset`, `ready_image_sha256`, `published_image_sha256`, and `reconciliation_note: public_image_differs_from_ready_image_adopted`
+- **AND** stale publish-related errors are cleared; unrelated errors are preserved
+
+#### Scenario: Publish reconciliation rejects image adoption when post mismatches or image missing
+
+- **WHEN** public post content does not match canonical publish output, or the public image is missing at the expected path, or campaign state is beyond blog publish
+- **THEN** `POST /publish-blog-post` does not adopt the public image and returns `status: failed` with appropriate error or skip reason
+- **AND** no public image overwrite occurs
+
+#### Scenario: Worker smoke prints public image adoption on publish success
+
+- **WHEN** `run-flow-a-worker-smoke.sh` publish step returns `status: completed` with `blog_publish.public_image_adopted: true`
+- **THEN** the script prints `public_image_adopted`, `public_image_source`, `ready_image_sha256`, and `published_image_sha256` without secrets
 
 #### Scenario: Publish reconciliation runs before overwrite guard
 
@@ -339,6 +358,7 @@ The repository SHALL provide `deploy/server/run-flow-a-worker-smoke.sh` for Ubun
 
 - **WHEN** latest campaign metadata is found
 - **THEN** the script prints campaign state, blog publish metadata presence, linkedin package presence, and linkedin distribution presence
+- **AND** when `blog_publish.public_image_adopted` is true, the script reports public image adoption in the campaign summary
 
 ### Requirement: Apply scope boundaries
 

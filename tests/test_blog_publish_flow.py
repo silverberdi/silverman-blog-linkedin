@@ -19,7 +19,6 @@ from silverman_blog_linkedin.blog_publish_flow import (
     BLOG_PUBLISH_TARGET_EXISTS,
     BLOG_PUBLISH_VALIDATION_FAILED,
     RECONCILIATION_SKIPPED_PUBLIC_CONTENT_MISMATCH,
-    RECONCILIATION_SKIPPED_PUBLIC_IMAGE_MISMATCH,
     RECONCILIATION_SKIPPED_SOURCE_MISMATCH,
     RECONCILED_FROM_ERROR_WARNING,
     publish_blog_post,
@@ -626,15 +625,85 @@ def test_reconcile_error_campaign_with_run_publish_canonical_output(
     assert BLOG_PUBLISH_TARGET_EXISTS not in result.errors
 
 
-def test_image_mismatch_returns_skip_reason_and_hashes(
+def test_reconcile_adopts_existing_public_image_when_post_canonical(
+    editorial_base: Path, public_repo: Path
+):
+    """Regression: error + target_exists + canonical post + differing official public image."""
+    campaign = _validated_campaign(editorial_base)
+    campaign["source_public_url"] = f"{SITE_URL}/2026/07/06/{PUBLIC_SLUG}/"
+    transition_state(
+        campaign,
+        STATE_ERROR,
+        reason="Prior publish attempt failed",
+        actor=ACTOR_WORKER,
+        error_code=BLOG_PUBLISH_TARGET_EXISTS,
+    )
+    campaign["errors"] = [BLOG_PUBLISH_TARGET_EXISTS]
+    campaign["blog_publish"] = {
+        "status": "failed",
+        "error_code": BLOG_PUBLISH_TARGET_EXISTS,
+    }
+    write_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID, campaign)
+    _write_post(editorial_base)
+
+    official_image = b"\x89PNG\r\n\x1a\nofficial-corrected-image"
+    post_path, image_path = _write_matching_public_artifacts(
+        editorial_base,
+        public_repo,
+        image_bytes=official_image,
+    )
+    ready_image = (editorial_base / IMAGE_RELATIVE).read_bytes()
+    assert ready_image != official_image
+
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "completed"
+    assert result.state == STATE_BLOG_PUBLISHED
+    assert result.blog_publish["status"] == "reconciled"
+    assert result.blog_publish.get("public_repo_image_path") == (
+        f"assets/images/{PUBLIC_SLUG}.png"
+    )
+    assert result.blog_publish.get("public_image_adopted") is True
+    assert result.blog_publish.get("public_image_source") == "existing_public_asset"
+    assert result.blog_publish.get("ready_image_sha256")
+    assert result.blog_publish.get("published_image_sha256")
+    assert (
+        result.blog_publish["ready_image_sha256"]
+        != result.blog_publish["published_image_sha256"]
+    )
+    assert (
+        result.blog_publish.get("reconciliation_note")
+        == "public_image_differs_from_ready_image_adopted"
+    )
+    assert BLOG_PUBLISH_TARGET_EXISTS not in result.errors
+    assert image_path.read_bytes() == official_image
+    assert post_path.read_text(encoding="utf-8") == render_expected_public_post(
+        editorial_base / SOURCE_RELATIVE,
+        PUBLIC_SLUG,
+        date.fromisoformat(PUBLICATION_DATE),
+    )
+
+    campaign_after = read_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign_after is not None
+    assert campaign_after["state"] == STATE_BLOG_PUBLISHED
+    assert campaign_after.get("published_post_relative_path", "").startswith("_posts/")
+    assert campaign_after.get("published_image_relative_path", "").startswith(
+        "assets/images/"
+    )
+    assert BLOG_PUBLISH_TARGET_EXISTS not in campaign_after.get("errors", [])
+
+
+def test_public_post_mismatch_does_not_adopt_image(
     editorial_base: Path, public_repo: Path
 ):
     _error_campaign(editorial_base)
     _write_post(editorial_base)
-    _write_matching_public_artifacts(editorial_base, public_repo)
 
+    post_path = public_repo / "_posts" / f"{PUBLICATION_DATE}-{PUBLIC_SLUG}.md"
     image_path = public_repo / "assets/images" / f"{PUBLIC_SLUG}.png"
-    image_path.write_bytes(b"\x89PNG\r\n\x1a\nstale-image")
+    post_path.write_text("stale public content", encoding="utf-8")
+    official_image = b"\x89PNG\r\n\x1a\nofficial-corrected-image"
+    image_path.write_bytes(official_image)
 
     result = _publish(editorial_base, public_repo)
 
@@ -642,14 +711,80 @@ def test_image_mismatch_returns_skip_reason_and_hashes(
     assert BLOG_PUBLISH_TARGET_EXISTS in result.errors
     assert (
         result.blog_publish.get("reconciliation_skip_reason")
-        == RECONCILIATION_SKIPPED_PUBLIC_IMAGE_MISMATCH
+        == RECONCILIATION_SKIPPED_PUBLIC_CONTENT_MISMATCH
     )
-    assert result.blog_publish.get("reconciliation_expected_image_sha256")
-    assert result.blog_publish.get("reconciliation_actual_image_sha256")
+    assert result.blog_publish.get("public_image_adopted") is None
+    assert image_path.read_bytes() == official_image
+
+
+def test_missing_public_image_does_not_adopt(
+    editorial_base: Path, public_repo: Path
+):
+    _error_campaign(editorial_base)
+    _write_post(editorial_base)
+
+    post_path = public_repo / "_posts" / f"{PUBLICATION_DATE}-{PUBLIC_SLUG}.md"
+    post_path.write_text(
+        render_expected_public_post(
+            editorial_base / SOURCE_RELATIVE,
+            PUBLIC_SLUG,
+            date.fromisoformat(PUBLICATION_DATE),
+        ),
+        encoding="utf-8",
+    )
+
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "failed"
+    assert BLOG_PUBLISH_TARGET_EXISTS in result.errors
     assert (
-        result.blog_publish["reconciliation_expected_image_sha256"]
-        != result.blog_publish["reconciliation_actual_image_sha256"]
+        result.blog_publish.get("reconciliation_skip_reason")
+        == "blog_publish_reconciliation_skipped_missing_public_image"
     )
+    assert result.blog_publish.get("public_image_adopted") is None
+
+
+def test_campaign_beyond_blog_publish_does_not_adopt_image(
+    editorial_base: Path, public_repo: Path
+):
+    _validated_campaign(editorial_base)
+    _write_post(editorial_base)
+
+    official_image = b"\x89PNG\r\n\x1a\nofficial-corrected-image"
+    image_path = _write_matching_public_artifacts(
+        editorial_base,
+        public_repo,
+        image_bytes=official_image,
+    )[1]
+
+    campaign = read_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    transition_state(
+        campaign,
+        STATE_BLOG_PUBLISH_PENDING,
+        reason="Blog publish started",
+        actor=ACTOR_WORKER,
+    )
+    transition_state(
+        campaign,
+        STATE_BLOG_PUBLISHED,
+        reason="Blog published",
+        actor=ACTOR_WORKER,
+    )
+    transition_state(
+        campaign,
+        STATE_DERIVATIVES_PENDING,
+        reason="Derivatives started",
+        actor=ACTOR_WORKER,
+    )
+    write_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID, campaign)
+
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "failed"
+    assert BLOG_PUBLISH_INVALID_CAMPAIGN_STATE in result.errors
+    assert result.blog_publish.get("public_image_adopted") is None
+    assert image_path.read_bytes() == official_image
 
 
 def test_target_exists_failure_includes_source_public_url(

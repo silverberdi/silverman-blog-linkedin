@@ -634,18 +634,18 @@ def _reconciliation_skip_reason(
     post_relative: str,
     image_relative: str,
     pub_date: date,
-) -> tuple[str | None, dict[str, Any]]:
+) -> tuple[str | None, dict[str, Any], PublicTargetComparison | None]:
     if campaign.get("state") not in RECONCILABLE_PUBLISH_STATES:
-        return RECONCILIATION_SKIPPED_STATE_NOT_ALLOWED, {}
+        return RECONCILIATION_SKIPPED_STATE_NOT_ALLOWED, {}, None
 
     if campaign.get("flow") != FLOW_A:
-        return RECONCILIATION_SKIPPED_STATE_NOT_ALLOWED, {}
+        return RECONCILIATION_SKIPPED_STATE_NOT_ALLOWED, {}, None
 
     if campaign.get("source_relative_path") != preflight.source_relative_path:
-        return RECONCILIATION_SKIPPED_SOURCE_MISMATCH, {}
+        return RECONCILIATION_SKIPPED_SOURCE_MISMATCH, {}, None
 
     if campaign.get("source_content_sha256") != preflight.source_content_sha256:
-        return RECONCILIATION_SKIPPED_HASH_MISMATCH, {}
+        return RECONCILIATION_SKIPPED_HASH_MISMATCH, {}, None
 
     post_exists, image_exists = _public_target_existence(
         repo_path,
@@ -653,11 +653,11 @@ def _reconciliation_skip_reason(
         image_relative=image_relative,
     )
     if not post_exists and not image_exists:
-        return None, {}
+        return None, {}, None
     if not post_exists:
-        return RECONCILIATION_SKIPPED_MISSING_PUBLIC_POST, {}
+        return RECONCILIATION_SKIPPED_MISSING_PUBLIC_POST, {}, None
     if not image_exists:
-        return RECONCILIATION_SKIPPED_MISSING_PUBLIC_IMAGE, {}
+        return RECONCILIATION_SKIPPED_MISSING_PUBLIC_IMAGE, {}, None
 
     blog_publish = campaign.get("blog_publish") or {}
     stored_key = blog_publish.get("idempotency_key")
@@ -665,7 +665,7 @@ def _reconciliation_skip_reason(
         stored_key is not None
         and stored_key != preflight.expected_idempotency_key
     ):
-        return RECONCILIATION_SKIPPED_IDEMPOTENCY_MISMATCH, {}
+        return RECONCILIATION_SKIPPED_IDEMPOTENCY_MISMATCH, {}, None
 
     comparison = _compare_public_targets(
         base_path,
@@ -676,15 +676,14 @@ def _reconciliation_skip_reason(
         pub_date=pub_date,
     )
     if comparison is None:
-        return RECONCILIATION_SKIPPED_PUBLIC_CONTENT_MISMATCH, {}
+        return RECONCILIATION_SKIPPED_PUBLIC_CONTENT_MISMATCH, {}, None
 
     diagnostics = comparison.diagnostics()
     if not comparison.post_matches:
-        return RECONCILIATION_SKIPPED_PUBLIC_CONTENT_MISMATCH, diagnostics
-    if not comparison.image_matches:
-        return RECONCILIATION_SKIPPED_PUBLIC_IMAGE_MISMATCH, diagnostics
-
-    return None, {}
+        return RECONCILIATION_SKIPPED_PUBLIC_CONTENT_MISMATCH, diagnostics, comparison
+    # Canonical post matches — reconcile; adopt existing public image when it
+    # differs from the ready image (never overwrite the public asset).
+    return None, diagnostics, comparison
 
 
 def _target_exists_failure(
@@ -741,7 +740,7 @@ def _attempt_blog_publish_reconciliation(
     if not post_exists and not image_exists:
         return None
 
-    skip_reason, reconciliation_diagnostics = _reconciliation_skip_reason(
+    skip_reason, reconciliation_diagnostics, comparison = _reconciliation_skip_reason(
         base_path,
         campaign,
         preflight,
@@ -763,6 +762,7 @@ def _attempt_blog_publish_reconciliation(
             warnings=warnings,
             validation_summary=validation_summary,
             reconciled_from_error=campaign.get("state") == STATE_ERROR,
+            comparison=comparison,
         )
 
     if post_exists or image_exists:
@@ -793,6 +793,7 @@ def _reconcile_existing_publication(
     warnings: list[str],
     validation_summary: dict[str, Any],
     reconciled_from_error: bool = False,
+    comparison: PublicTargetComparison | None = None,
 ) -> BlogPublishResult:
     """Align campaign metadata with public repo files already on disk."""
     assert preflight.public_slug is not None
@@ -853,9 +854,23 @@ def _reconcile_existing_publication(
     }
     if reconciled_from_error:
         blog_publish["reconciled_from_error_state"] = True
+    if (
+        comparison is not None
+        and comparison.post_matches
+        and not comparison.image_matches
+    ):
+        blog_publish["public_image_adopted"] = True
+        blog_publish["public_image_source"] = "existing_public_asset"
+        blog_publish["ready_image_sha256"] = comparison.expected_image_sha256
+        blog_publish["published_image_sha256"] = comparison.actual_image_sha256
+        blog_publish["reconciliation_note"] = (
+            "public_image_differs_from_ready_image_adopted"
+        )
 
     campaign["blog_publish"] = blog_publish
     campaign["source_public_url"] = reconciled_url
+    campaign["published_post_relative_path"] = post_relative
+    campaign["published_image_relative_path"] = image_relative
 
     result_warnings = list(warnings)
     if reconciled_from_error:

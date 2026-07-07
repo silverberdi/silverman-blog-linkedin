@@ -588,6 +588,9 @@ has_distribution = distribution is not None
 
 print(f"campaign state: {state or '(unset)'}")
 print(f"has blog publish metadata: {'yes' if has_blog_publish else 'no'}")
+if blog_publish.get("public_image_adopted") is True:
+    print("public image adopted: yes")
+    print(f"public image source: {blog_publish.get('public_image_source') or '(unset)'}")
 print(f"has linkedin package: {'yes' if has_package else 'no'}")
 print(f"has linkedin distribution: {'yes' if has_distribution else 'no'}")
 

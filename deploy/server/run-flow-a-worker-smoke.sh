@@ -287,6 +287,26 @@ PY
   if [[ -n "${state}" ]]; then
     echo "response state: ${state}"
   fi
+  if [[ "${step_name}" == "publish-blog-post" && "${status}" != "failed" ]]; then
+    python3 - "${RESPONSE_TMP}" <<'PY' || true
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as fh:
+    data = json.load(fh)
+
+blog_publish = data.get("blog_publish") or {}
+for key in (
+    "public_image_adopted",
+    "public_image_source",
+    "ready_image_sha256",
+    "published_image_sha256",
+):
+    value = blog_publish.get(key)
+    if value is not None and value != "":
+        print(f"{key}: {value}")
+PY
+  fi
   pretty_json_file "${RESPONSE_TMP}"
   return 0
 }
