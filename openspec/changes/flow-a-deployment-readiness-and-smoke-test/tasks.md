@@ -104,3 +104,11 @@
 **Observed (2026-07):** Public repo synced and container paths `_posts` / `assets/images` passed, but env `SILVERMAN_GITHUB_PAGES_REPO_PATH` and host mount checks failed because `docker inspect | python3 - <<'PY'` feeds the heredoc to stdin instead of inspect JSON.
 
 - [x] 12.1 Fix `verify-worker-deploy.sh` and `collect-flow-a-smoke-evidence.sh` to use `docker_inspect_json_tmp` temp-file helper; update tests; note in design
+
+## 13. Public blog artifact evidence path correction (post-smoke validation)
+
+**Observed (2026-07):** `verify-worker-deploy.sh` passed public repo mount checks, but `collect-flow-a-smoke-evidence.sh` searched published `_posts` and `assets/images` under the editorial base path instead of the public GitHub Pages repo checkout.
+
+- [x] 13.1 Update `collect-flow-a-smoke-evidence.sh`: separate Editorial artifacts from Public blog artifacts; search published files under `PUBLIC_BLOG_HOST_MOUNT` with container fallback; published blog matches informational only for PASS
+- [x] 13.2 Update `tests/test_server_deployment_artifacts.py`: assert public blog artifact paths use `PUBLIC_BLOG_HOST_MOUNT`; assert editorial base path is not used for published blog search
+- [x] 13.3 Update README, deployment doc, design, and spec with editorial vs public blog artifact distinction

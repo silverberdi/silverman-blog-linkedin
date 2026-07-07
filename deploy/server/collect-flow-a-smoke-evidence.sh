@@ -68,6 +68,7 @@ RESOLVED_BASE_PATH=""
 PUBLIC_BLOG_REPO_OK=0
 PUBLIC_BLOG_REPO_SOURCE=""
 PUBLIC_BLOG_HOST_MOUNT=""
+PUBLIC_BLOG_CONTAINER_PATH=""
 OVERALL_STATUS="FAIL"
 
 pass() {
@@ -240,6 +241,16 @@ find_matching_files() {
     return 0
   fi
   find "${dir}" -type f -name "*${fragment}*" 2>/dev/null | sort || true
+}
+
+find_matching_files_in_container() {
+  local container="$1"
+  local dir="$2"
+  local fragment="$3"
+  if ! docker exec "${container}" test -d "${dir}" 2>/dev/null; then
+    return 0
+  fi
+  docker exec "${container}" find "${dir}" -type f -name "*${fragment}*" 2>/dev/null | sort || true
 }
 
 resolve_base_path() {
@@ -435,6 +446,7 @@ PY
 
   pass "worker container SILVERMAN_GITHUB_PAGES_REPO_PATH=${pages_repo_path}"
   PUBLIC_BLOG_REPO_SOURCE="worker container env"
+  PUBLIC_BLOG_CONTAINER_PATH="${pages_repo_path}"
 
   if docker exec "${container}" test -d "${pages_repo_path}" 2>/dev/null; then
     pass "container path ${pages_repo_path} exists"
@@ -484,12 +496,10 @@ PY
 
 check_editorial_artifacts() {
   local latest_run latest_campaign latest_generated
-  local posts_matches images_matches
 
   section "Editorial artifacts"
   echo "base path: ${RESOLVED_BASE_PATH}"
   echo "resolved via: ${BASE_PATH_SOURCE}"
-  echo "slug fragment: ${POST_SLUG_FRAGMENT}"
 
   latest_run="$(latest_file_in_dir "${RESOLVED_BASE_PATH}/metadata/runs" '*.json' || true)"
   if [[ -n "${latest_run}" ]]; then
@@ -513,27 +523,54 @@ check_editorial_artifacts() {
   else
     echo "INFO: no files under linkedin-posts/generated yet"
   fi
+}
 
-  posts_matches="$(find_matching_files "${RESOLVED_BASE_PATH}/_posts" "${POST_SLUG_FRAGMENT}")"
+check_public_blog_artifacts() {
+  local posts_matches images_matches posts_dir images_dir search_source
+
+  section "Public blog artifacts"
+  echo "slug fragment: ${POST_SLUG_FRAGMENT}"
+  echo "note: informational only; PASS does not require published blog files when campaign/generated artifacts exist"
+
+  if [[ -n "${PUBLIC_BLOG_HOST_MOUNT}" ]]; then
+    posts_dir="${PUBLIC_BLOG_HOST_MOUNT}/_posts"
+    images_dir="${PUBLIC_BLOG_HOST_MOUNT}/assets/images"
+    search_source="host mount ${PUBLIC_BLOG_HOST_MOUNT}"
+    pass "searching published artifacts via ${search_source}"
+
+    posts_matches="$(find_matching_files "${posts_dir}" "${POST_SLUG_FRAGMENT}")"
+    images_matches="$(find_matching_files "${images_dir}" "${POST_SLUG_FRAGMENT}")"
+  elif [[ "${PUBLIC_BLOG_REPO_OK}" -eq 1 && -n "${PUBLIC_BLOG_CONTAINER_PATH}" ]]; then
+    posts_dir="${PUBLIC_BLOG_CONTAINER_PATH}/_posts"
+    images_dir="${PUBLIC_BLOG_CONTAINER_PATH}/assets/images"
+    search_source="container path ${PUBLIC_BLOG_CONTAINER_PATH} (host mount unavailable)"
+    pass "searching published artifacts via ${search_source}"
+
+    posts_matches="$(find_matching_files_in_container "${WORKER_CONTAINER}" "${posts_dir}" "${POST_SLUG_FRAGMENT}")"
+    images_matches="$(find_matching_files_in_container "${WORKER_CONTAINER}" "${images_dir}" "${POST_SLUG_FRAGMENT}")"
+  else
+    echo "INFO: public blog host mount unavailable and public repo not ready; skipping published artifact search"
+    return 0
+  fi
+
   if [[ -n "${posts_matches}" ]]; then
-    pass "published blog posts matching slug fragment:"
+    pass "_posts matches for slug fragment:"
     while IFS= read -r line; do
       [[ -z "${line}" ]] && continue
       echo "       ${line}"
     done <<< "${posts_matches}"
   else
-    echo "INFO: no published _posts files matching *${POST_SLUG_FRAGMENT}*"
+    echo "INFO: no _posts files matching *${POST_SLUG_FRAGMENT}* under ${search_source}"
   fi
 
-  images_matches="$(find_matching_files "${RESOLVED_BASE_PATH}/assets/images" "${POST_SLUG_FRAGMENT}")"
   if [[ -n "${images_matches}" ]]; then
-    pass "published images matching slug fragment:"
+    pass "assets/images matches for slug fragment:"
     while IFS= read -r line; do
       [[ -z "${line}" ]] && continue
       echo "       ${line}"
     done <<< "${images_matches}"
   else
-    echo "INFO: no assets/images files matching *${POST_SLUG_FRAGMENT}*"
+    echo "INFO: no assets/images files matching *${POST_SLUG_FRAGMENT}* under ${search_source}"
   fi
 }
 
@@ -682,6 +719,8 @@ main() {
   fi
 
   check_editorial_artifacts
+
+  check_public_blog_artifacts
 
   N8N_SECTION_OK=0
   if check_n8n_workflow; then

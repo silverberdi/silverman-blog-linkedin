@@ -602,6 +602,26 @@ def test_collect_flow_a_evidence_script_supports_slug_fragment(
     assert "assets/images" in content
 
 
+def test_collect_flow_a_evidence_script_checks_public_blog_artifacts_via_host_mount(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert "check_public_blog_artifacts" in content
+    assert "Public blog artifacts" in content
+    assert "PUBLIC_BLOG_HOST_MOUNT" in content
+    assert '"${PUBLIC_BLOG_HOST_MOUNT}/_posts"' in content
+    assert '"${PUBLIC_BLOG_HOST_MOUNT}/assets/images"' in content
+    assert "find_matching_files_in_container" in content
+
+
+def test_collect_flow_a_evidence_script_does_not_search_editorial_base_for_published_blog(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert '"${RESOLVED_BASE_PATH}/_posts"' not in content
+    assert '"${RESOLVED_BASE_PATH}/assets/images"' not in content
+
+
 def test_collect_flow_a_evidence_script_collects_metadata_and_generated_artifacts(
     collect_flow_a_evidence_script_content: str,
 ) -> None:

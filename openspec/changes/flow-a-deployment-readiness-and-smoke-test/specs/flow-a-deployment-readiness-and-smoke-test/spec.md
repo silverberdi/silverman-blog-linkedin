@@ -215,7 +215,8 @@ The repository SHALL provide a repeatable server-side script at `deploy/server/c
 
 - **WHEN** the evidence script runs successfully against a deployed environment
 - **THEN** it verifies worker `GET /health` and `GET /openapi.json` include Flow A paths `/publish-blog-post`, `/generate-linkedin-package`, and `/schedule-linkedin-distribution`
-- **AND** reports latest metadata and generated LinkedIn artifacts under the resolved base path
+- **AND** reports latest metadata and generated LinkedIn artifacts under the resolved editorial base path
+- **AND** reports published `_posts` and `assets/images` matches for the slug fragment under the public GitHub Pages repo host mount (or inside the container at `/public-blog` when the host mount cannot be resolved), not under the editorial base path
 - **AND** exports n8n workflows from the real n8n container and confirms workflow id or name match with `active: false` and 26 nodes
 
 #### Scenario: Evidence script safety constraints
