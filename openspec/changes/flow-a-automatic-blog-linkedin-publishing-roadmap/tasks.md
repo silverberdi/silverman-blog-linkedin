@@ -18,10 +18,10 @@
 | 4 | `worker-blog-publishing-endpoint` | **completed** (archived) | Spec: `openspec/specs/worker-blog-publishing-endpoint/spec.md`; endpoint `POST /publish-blog-post`; service `src/silverman_blog_linkedin/blog_publish_flow.py`; HTTP `src/silverman_blog_linkedin/main.py`; tests `tests/test_blog_publish_flow.py`; commit `c9a0cb2` feat(flow-a): add blog publishing endpoint |
 | 5 | `linkedin-derivative-package-generation` | **completed** (archived) | Spec: `openspec/specs/linkedin-derivative-package-generation/spec.md`; endpoint `POST /generate-linkedin-package`; service `src/silverman_blog_linkedin/linkedin_package_flow.py`; tests `tests/test_linkedin_package_generation.py` |
 | 6 | `linkedin-distribution-scheduling-model` | **completed** (archived) | Spec: `openspec/specs/linkedin-distribution-scheduling-model/spec.md`; endpoint `POST /schedule-linkedin-distribution`; service `src/silverman_blog_linkedin/linkedin_distribution_schedule.py`; tests `tests/test_linkedin_distribution_scheduling.py`; commit `53708eb` |
-| 7 | `n8n-flow-a-blog-publish-orchestration` | **completed** (archived) | Spec: `openspec/specs/n8n-flow-a-blog-publish-orchestration/spec.md`; Workflow: `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`; tests: `tests/test_n8n_flow_a_publish_workflow.py` |
+| 7 | `n8n-flow-a-blog-publish-orchestration` | **completed** (archived) | Spec: `openspec/specs/n8n-flow-a-blog-publish-orchestration/spec.md`; Workflow: `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`; tests: `tests/test_n8n_flow_a_publish_workflow.py`; commit `962ba2f` feat(flow-a): add n8n publish orchestration workflow |
 | 8 | `linkedin-publication-integration` | **deferred** | LinkedIn API publish; depends on integration constraints |
 
-The umbrella remains **active**. Slices 1–7 are **completed** (archived); slice 8 is **deferred**.
+**Flow A core implementation (worker endpoints + n8n orchestration) is complete through slice 7.** The umbrella remains **active**. Slices 1–7 are **completed** (archived); slice 8 is **deferred**.
 
 ## 2. Child Change: editorial-canon-and-linkedin-distribution-strategy
 
@@ -117,7 +117,7 @@ The umbrella remains **active**. Slices 1–7 are **completed** (archived); slic
 
 ## 8. Child Change: n8n-flow-a-blog-publish-orchestration
 
-**Status:** **completed** (archived). Canonical spec: `openspec/specs/n8n-flow-a-blog-publish-orchestration/spec.md`. Workflow: `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`; tests: `tests/test_n8n_flow_a_publish_workflow.py`.
+**Status:** **completed** (archived). Canonical spec: `openspec/specs/n8n-flow-a-blog-publish-orchestration/spec.md`. Workflow: `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`; tests: `tests/test_n8n_flow_a_publish_workflow.py`. Commit: `962ba2f` feat(flow-a): add n8n publish orchestration workflow.
 
 **Proposed with:** `/opsx-propose n8n-flow-a-blog-publish-orchestration`
 
