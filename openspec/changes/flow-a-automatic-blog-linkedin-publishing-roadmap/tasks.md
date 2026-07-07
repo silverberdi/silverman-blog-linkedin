@@ -6,9 +6,26 @@
 - [x] 1.4 Run `openspec validate flow-a-automatic-blog-linkedin-publishing-roadmap --strict` and fix any issues
 - [ ] 1.5 Keep umbrella active while child changes are implemented; archive only after Flow A child changes are completed/validated or the roadmap is superseded (separate `/opsx-archive` when ready — not part of implementation)
 
-> **Note:** Sections 2–9 are **future child OpenSpec changes**, not tasks for this umbrella. Do not implement them under `/opsx-apply` for this change. Each slice gets its own change via `/opsx-propose`.
+> **Note:** Sections 2–9 are **child OpenSpec changes** tracked by this umbrella. Do not implement them under `/opsx-apply` for this change. Each slice gets its own change via `/opsx-propose`.
+
+## Roadmap Progress
+
+| # | Child change | Status | Canonical outputs |
+|---|--------------|--------|-------------------|
+| 1 | `editorial-canon-and-linkedin-distribution-strategy` | **completed** (archived) | Spec: `openspec/specs/editorial-canon/spec.md`; artifact: `content-strategy/silverman-editorial-system.md`; commit `ae3eb43` |
+| 2 | `flow-a-lifecycle-and-duplicate-prevention` | **completed** (archived) | Spec: `openspec/specs/flow-a-lifecycle/spec.md`; worker: `src/silverman_blog_linkedin/campaign_lifecycle.py`; commit `aa48e6c` |
+| 3 | `ready-post-editorial-validation` | **completed** (archived) | Spec: `openspec/specs/ready-post-editorial-validation/spec.md`; worker: `src/silverman_blog_linkedin/ready_post_validation.py`; tests: `tests/test_ready_post_validation.py` |
+| 4 | `worker-blog-publishing-endpoint` | **pending** | — |
+| 5 | `linkedin-derivative-package-generation` | **pending** | — |
+| 6 | `linkedin-distribution-scheduling-model` | **pending** | — |
+| 7 | `n8n-flow-a-blog-publish-orchestration` | **pending** | — |
+| 8 | `linkedin-publication-integration` | **deferred** | LinkedIn API publish; depends on integration constraints |
+
+The umbrella remains **active**. Slice 3 is **completed** (archived); slices 4–7 remain pending.
 
 ## 2. Child Change: editorial-canon-and-linkedin-distribution-strategy
+
+**Status:** **completed** (archived). Canonical spec: `openspec/specs/editorial-canon/spec.md`. Canonical artifact: `content-strategy/silverman-editorial-system.md`. Commit: `ae3eb43` docs(editorial): add Silverman editorial canon.
 
 **Propose with:** `/opsx-propose editorial-canon-and-linkedin-distribution-strategy`
 
@@ -23,6 +40,8 @@
 
 ## 3. Child Change: flow-a-lifecycle-and-duplicate-prevention
 
+**Status:** **completed** (archived). Canonical spec: `openspec/specs/flow-a-lifecycle/spec.md`. Worker module: `src/silverman_blog_linkedin/campaign_lifecycle.py`. Commit: `aa48e6c` feat(flow-a): add lifecycle metadata foundation.
+
 **Propose with:** `/opsx-propose flow-a-lifecycle-and-duplicate-prevention`
 
 - [ ] 3.1 Define `metadata/campaigns/<campaign-id>.json` schema
@@ -36,18 +55,22 @@
 
 ## 4. Child Change: ready-post-editorial-validation
 
+**Status:** **completed** (archived). Canonical spec: `openspec/specs/ready-post-editorial-validation/spec.md`. Worker module: `src/silverman_blog_linkedin/ready_post_validation.py`. Tests: `tests/test_ready_post_validation.py`.
+
 **Propose with:** `/opsx-propose ready-post-editorial-validation`
 
-- [ ] 4.1 Implement `POST /validate-ready-post` (or equivalent) on worker
-- [ ] 4.2 Validate `source_slug` and derived `public_slug` per umbrella slug rules
-- [ ] 4.3 Apply editorial rules from `silverman-editorial-system.md` (blocking vs warnings for anti-AI on user input)
-- [ ] 4.4 Return structured JSON (`status`, `errors[]`, `warnings[]`, `campaign_id`)
-- [ ] 4.5 On failure: move to `blog-posts/error/` or mark error per lifecycle child spec
-- [ ] 4.6 Add unit and integration tests for validation scenarios (including canonical slug example)
+- [x] 4.1 Implement `validate_ready_post()` library entry point (HTTP endpoint deferred to slice 7 orchestration)
+- [x] 4.2 Validate `source_slug` and derived `public_slug` per umbrella slug rules
+- [x] 4.3 Apply editorial rules from `silverman-editorial-system.md` (blocking vs warnings for anti-AI on user input)
+- [x] 4.4 Return structured `ReadyPostValidationResult` (`ok`, `errors[]`, `warnings[]`, `campaign_id`, metadata fields)
+- [x] 4.5 On failure: mark metadata-only error state via lifecycle metadata; physical file moves remain deferred to a later orchestration/operations slice
+- [x] 4.6 Add unit and integration tests for validation scenarios (including canonical slug example)
 
 **Depends on:** 2, 3 (may develop closely with lifecycle in parallel)
 
 ## 5. Child Change: worker-blog-publishing-endpoint
+
+**Status:** **pending**
 
 **Propose with:** `/opsx-propose worker-blog-publishing-endpoint`
 
@@ -60,6 +83,8 @@
 **Depends on:** umbrella (slug/URL rules); 2, 3 recommended
 
 ## 6. Child Change: linkedin-derivative-package-generation
+
+**Status:** **pending**
 
 **Propose with:** `/opsx-propose linkedin-derivative-package-generation`
 
@@ -74,6 +99,8 @@
 
 ## 7. Child Change: linkedin-distribution-scheduling-model
 
+**Status:** **pending**
+
 **Propose with:** `/opsx-propose linkedin-distribution-scheduling-model`
 
 - [ ] 7.1 Implement scheduling logic applying editorial distribution strategy
@@ -85,6 +112,8 @@
 **Depends on:** 2, 3, 6
 
 ## 8. Child Change: n8n-flow-a-blog-publish-orchestration
+
+**Status:** **pending**
 
 **Propose with:** `/opsx-propose n8n-flow-a-blog-publish-orchestration`
 
@@ -98,6 +127,8 @@
 **Depends on:** 4, 5, 6, 7
 
 ## 9. Child Change: linkedin-publication-integration (deferred)
+
+**Status:** **deferred** — LinkedIn API publish; depends on credentials, API surface, and rate-limit constraints.
 
 **Propose with:** `/opsx-propose linkedin-publication-integration` when integration constraints are documented
 
