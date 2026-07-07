@@ -98,3 +98,9 @@
 - [x] 11.6 Add/update tests in `tests/test_server_deployment_artifacts.py` for compose, env example, deploy, verify, and evidence script public repo checks
 - [x] 11.7 Update README and `docs/deployment/ubuntu-server-worker-deployment.md` with two required host paths and `blog_publish_public_repo_not_configured` remediation
 - [x] 11.8 Update design/spec with observed smoke failure and public blog repo deployment readiness; slice 8 remains deferred; workflow inactive requirement unchanged
+
+## 12. docker inspect stdin bug fix (post public-mount deploy)
+
+**Observed (2026-07):** Public repo synced and container paths `_posts` / `assets/images` passed, but env `SILVERMAN_GITHUB_PAGES_REPO_PATH` and host mount checks failed because `docker inspect | python3 - <<'PY'` feeds the heredoc to stdin instead of inspect JSON.
+
+- [x] 12.1 Fix `verify-worker-deploy.sh` and `collect-flow-a-smoke-evidence.sh` to use `docker_inspect_json_tmp` temp-file helper; update tests; note in design

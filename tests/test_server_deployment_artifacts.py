@@ -365,6 +365,22 @@ def test_verify_deploy_script_checks_public_blog_repo_mount() -> None:
     assert "SILVERMAN_BLOG_LINKEDIN_API_KEY" not in content
 
 
+def test_verify_deploy_script_does_not_pipe_docker_inspect_to_python_stdin() -> None:
+    content = VERIFY_DEPLOY_SCRIPT_PATH.read_text(encoding="utf-8")
+    assert not re.search(r"docker inspect.*\|\s*python3\s+-", content), (
+        "verify-worker-deploy.sh must not pipe docker inspect JSON into python3 stdin "
+        "(heredoc replaces stdin)"
+    )
+
+
+def test_verify_deploy_script_uses_docker_inspect_temp_file_helper() -> None:
+    content = VERIFY_DEPLOY_SCRIPT_PATH.read_text(encoding="utf-8")
+    assert "docker_inspect_json_tmp" in content
+    assert "docker inspect" in content
+    assert re.search(r'docker inspect\s+"\$\{[^}]+\}"\s*>\s*"\$\{tmp\}"', content)
+    assert "with open(sys.argv[1]" in content
+
+
 def test_deployment_doc_documents_worker_api_key_rotation() -> None:
     content = DEPLOYMENT_DOC_PATH.read_text(encoding="utf-8")
     assert "## Worker API key rotation" in content
@@ -631,3 +647,23 @@ def test_collect_flow_a_evidence_script_checks_public_blog_repo_readiness(
     assert "PUBLIC_BLOG_REPO_OK" in content
     assert "blog_publish_public_repo_not_configured" in content
     assert "public_blog_repo_ok" in content
+
+
+def test_collect_flow_a_evidence_script_does_not_pipe_docker_inspect_to_python_stdin(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert not re.search(r"docker inspect.*\|\s*python3\s+-", content), (
+        "collect-flow-a-smoke-evidence.sh must not pipe docker inspect JSON into "
+        "python3 stdin (heredoc replaces stdin)"
+    )
+
+
+def test_collect_flow_a_evidence_script_uses_docker_inspect_temp_file_helper(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert "docker_inspect_json_tmp" in content
+    assert "docker inspect" in content
+    assert re.search(r'docker inspect\s+"\$\{[^}]+\}"\s*>\s*"\$\{tmp\}"', content)
+    assert "with open(sys.argv[1]" in content

@@ -37,6 +37,18 @@ fail() {
   echo "FAIL: $*" >&2
 }
 
+# Write docker inspect JSON to a temp file; print path on success.
+docker_inspect_json_tmp() {
+  local container="$1"
+  local tmp
+  tmp="$(mktemp)"
+  if ! docker inspect "${container}" > "${tmp}" 2>/dev/null; then
+    rm -f "${tmp}"
+    return 1
+  fi
+  echo "${tmp}"
+}
+
 wait_for_worker_http_200() {
   local label="$1"
   local url="$2"
@@ -123,15 +135,16 @@ echo
 echo "==> Public blog repo mount (Flow A publish)"
 if command -v docker >/dev/null 2>&1; then
   if docker ps --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}"; then
-    pages_repo_path="$(
-      docker inspect "${CONTAINER_NAME}" 2>/dev/null | python3 - <<'PY' || true
+    pages_repo_path=""
+    inspect_tmp=""
+    if inspect_tmp="$(docker_inspect_json_tmp "${CONTAINER_NAME}" 2>/dev/null)"; then
+      pages_repo_path="$(
+        python3 - "${inspect_tmp}" <<'PY' || true
 import json
 import sys
 
-try:
-    payload = json.load(sys.stdin)
-except json.JSONDecodeError:
-    sys.exit(1)
+with open(sys.argv[1], encoding="utf-8") as fh:
+    payload = json.load(fh)
 if not payload:
     sys.exit(1)
 item = payload[0]
@@ -143,7 +156,9 @@ for env in item.get("Config", {}).get("Env", []):
             sys.exit(0)
 sys.exit(1)
 PY
-    )"
+      )"
+      rm -f "${inspect_tmp}"
+    fi
 
     if [[ "${pages_repo_path}" == "/public-blog" ]]; then
       pass "container env SILVERMAN_GITHUB_PAGES_REPO_PATH=/public-blog"
@@ -163,15 +178,16 @@ PY
       fi
     done
 
-    host_mount="$(
-      docker inspect "${CONTAINER_NAME}" 2>/dev/null | python3 - <<'PY' || true
+    host_mount=""
+    inspect_tmp=""
+    if inspect_tmp="$(docker_inspect_json_tmp "${CONTAINER_NAME}" 2>/dev/null)"; then
+      host_mount="$(
+        python3 - "${inspect_tmp}" <<'PY' || true
 import json
 import sys
 
-try:
-    payload = json.load(sys.stdin)
-except json.JSONDecodeError:
-    sys.exit(1)
+with open(sys.argv[1], encoding="utf-8") as fh:
+    payload = json.load(fh)
 if not payload:
     sys.exit(1)
 item = payload[0]
@@ -183,7 +199,9 @@ for mount in item.get("Mounts", []):
             sys.exit(0)
 sys.exit(1)
 PY
-    )"
+      )"
+      rm -f "${inspect_tmp}"
+    fi
     if [[ -n "${host_mount}" ]]; then
       pass "host mount for /public-blog: ${host_mount}"
       REQUIRED_PASSED=$((REQUIRED_PASSED + 1))

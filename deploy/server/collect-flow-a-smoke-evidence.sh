@@ -46,6 +46,18 @@ cleanup_temp_files() {
   rm -f "${HEALTH_TMP}" "${OPENAPI_TMP}" "${N8N_EXPORT_TMP}"
 }
 
+# Write docker inspect JSON to a temp file; print path on success.
+docker_inspect_json_tmp() {
+  local container="$1"
+  local tmp
+  tmp="$(mktemp)"
+  if ! docker inspect "${container}" > "${tmp}" 2>/dev/null; then
+    rm -f "${tmp}"
+    return 1
+  fi
+  echo "${tmp}"
+}
+
 WORKER_OK=0
 N8N_OK=0
 N8N_INACTIVE=0
@@ -117,15 +129,14 @@ find_n8n_container() {
 
 resolve_base_path_from_container_env() {
   local container="$1"
-  docker inspect "${container}" 2>/dev/null | python3 - "${container}" <<'PY' || true
+  local inspect_tmp
+  inspect_tmp="$(docker_inspect_json_tmp "${container}" 2>/dev/null)" || return 0
+  python3 - "${inspect_tmp}" <<'PY' || true
 import json
 import sys
 
-container = sys.argv[1]
-try:
-    payload = json.load(sys.stdin)
-except json.JSONDecodeError:
-    sys.exit(1)
+with open(sys.argv[1], encoding="utf-8") as fh:
+    payload = json.load(fh)
 if not payload:
     sys.exit(1)
 item = payload[0]
@@ -137,18 +148,21 @@ for env in item.get("Config", {}).get("Env", []):
             sys.exit(0)
 sys.exit(1)
 PY
+  local rc=$?
+  rm -f "${inspect_tmp}"
+  return $rc
 }
 
 resolve_base_path_from_container_mounts() {
   local container="$1"
-  docker inspect "${container}" 2>/dev/null | python3 - <<'PY' || true
+  local inspect_tmp
+  inspect_tmp="$(docker_inspect_json_tmp "${container}" 2>/dev/null)" || return 0
+  python3 - "${inspect_tmp}" <<'PY' || true
 import json
 import sys
 
-try:
-    payload = json.load(sys.stdin)
-except json.JSONDecodeError:
-    sys.exit(1)
+with open(sys.argv[1], encoding="utf-8") as fh:
+    payload = json.load(fh)
 if not payload:
     sys.exit(1)
 item = payload[0]
@@ -161,6 +175,9 @@ for mount in item.get("Mounts", []):
             sys.exit(0)
 sys.exit(1)
 PY
+  local rc=$?
+  rm -f "${inspect_tmp}"
+  return $rc
 }
 
 resolve_base_path_from_health() {
@@ -343,14 +360,14 @@ PY
 
 resolve_public_blog_host_mount() {
   local container="$1"
-  docker inspect "${container}" 2>/dev/null | python3 - <<'PY' || true
+  local inspect_tmp
+  inspect_tmp="$(docker_inspect_json_tmp "${container}" 2>/dev/null)" || return 0
+  python3 - "${inspect_tmp}" <<'PY' || true
 import json
 import sys
 
-try:
-    payload = json.load(sys.stdin)
-except json.JSONDecodeError:
-    sys.exit(1)
+with open(sys.argv[1], encoding="utf-8") as fh:
+    payload = json.load(fh)
 if not payload:
     sys.exit(1)
 item = payload[0]
@@ -362,6 +379,9 @@ for mount in item.get("Mounts", []):
             sys.exit(0)
 sys.exit(1)
 PY
+  local rc=$?
+  rm -f "${inspect_tmp}"
+  return $rc
 }
 
 check_public_blog_repo() {
@@ -379,15 +399,16 @@ check_public_blog_repo() {
   fi
 
   container="${WORKER_CONTAINER}"
-  pages_repo_path="$(
-    docker inspect "${container}" 2>/dev/null | python3 - <<'PY' || true
+  pages_repo_path=""
+  inspect_tmp=""
+  if inspect_tmp="$(docker_inspect_json_tmp "${container}" 2>/dev/null)"; then
+    pages_repo_path="$(
+      python3 - "${inspect_tmp}" <<'PY' || true
 import json
 import sys
 
-try:
-    payload = json.load(sys.stdin)
-except json.JSONDecodeError:
-    sys.exit(1)
+with open(sys.argv[1], encoding="utf-8") as fh:
+    payload = json.load(fh)
 if not payload:
     sys.exit(1)
 item = payload[0]
@@ -399,7 +420,9 @@ for env in item.get("Config", {}).get("Env", []):
             sys.exit(0)
 sys.exit(1)
 PY
-  )"
+    )"
+    rm -f "${inspect_tmp}"
+  fi
 
   if [[ -z "${pages_repo_path}" ]]; then
     fail "SILVERMAN_GITHUB_PAGES_REPO_PATH not set in worker container"

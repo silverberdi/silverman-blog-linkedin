@@ -254,6 +254,8 @@ The public checkout must contain `_posts/` and `assets/images/`. `deploy-worker.
 
 `verify-worker-deploy.sh` and `collect-flow-a-smoke-evidence.sh` verify `/public-blog` layout inside the running container. Evidence collection reports `FAIL` (not `PENDING`) when worker and n8n are OK but the public repo is missing — publish would fail with `blog_publish_public_repo_not_configured`, which is a worker deployment issue, not an n8n failure.
 
+**Post-mount deployment fix (2026-07):** After syncing `silverberdi.github.io` to `/home/silverman/silverberdi.github.io` and redeploying, `verify-worker-deploy.sh` and `collect-flow-a-smoke-evidence.sh` still reported missing public-blog env/mount checks. Root cause: `docker inspect … | python3 - <<'PY'` pipes JSON to Python while the heredoc supplies script on stdin, so `json.load(sys.stdin)` never sees inspect output. Both scripts now use `docker_inspect_json_tmp` (write inspect JSON to a temp file, pass path to Python, clean up).
+
 ## Risks / Trade-offs
 
 | Risk | Mitigation |
