@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 from silverman_blog_linkedin import SERVICE_NAME, __version__
 from silverman_blog_linkedin.auth import require_api_key
+from silverman_blog_linkedin.blog_publish_flow import publish_blog_post
 from silverman_blog_linkedin.config import Settings, load_settings
 from silverman_blog_linkedin.deepseek_client import generate_linkedin_draft_content
 from silverman_blog_linkedin.deepseek_config import load_deepseek_settings
@@ -25,6 +26,7 @@ from silverman_blog_linkedin.file_reader import (
     normalize_relative_path,
     read_blog_post_file,
 )
+from silverman_blog_linkedin.github_pages_publish import DEFAULT_SITE_URL, ENV_REPO_PATH
 from silverman_blog_linkedin.linkedin_prompt import build_chat_messages
 from silverman_blog_linkedin.paths import validate_folders
 from silverman_blog_linkedin.ready_scan import ScanResult, scan_ready_folder
@@ -146,6 +148,47 @@ class GenerateLinkedinDraftRequest(BaseModel):
         stripped = value.strip()
         if not stripped:
             raise ValueError("topic_theme must not be empty or whitespace-only")
+        return stripped
+
+
+class PublishBlogPostRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_relative_path: str
+    site_url: str | None = None
+    public_slug: str | None = None
+
+    @field_validator("source_relative_path")
+    @classmethod
+    def validate_source_relative_path(cls, value: str) -> str:
+        normalized = normalize_relative_path(value)
+        if not normalized:
+            raise ValueError("source_relative_path must not be empty")
+        return normalized
+
+    @field_validator("site_url")
+    @classmethod
+    def validate_site_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip().rstrip("/")
+        if not stripped:
+            raise ValueError("site_url must not be empty or whitespace-only")
+        parsed = urlparse(stripped)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("site_url must use http or https scheme")
+        if not parsed.netloc:
+            raise ValueError("site_url must have a valid host")
+        return stripped
+
+    @field_validator("public_slug")
+    @classmethod
+    def validate_public_slug(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("public_slug must not be empty or whitespace-only")
         return stripped
 
 
@@ -1079,6 +1122,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             generated_draft_content=generated_text if status == "completed" else None,
             **_generate_linkedin_draft_public_fields(body),
         )
+
+    @app.post("/publish-blog-post")
+    def publish_blog_post_endpoint(
+        body: PublishBlogPostRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        site_url = body.site_url or DEFAULT_SITE_URL
+        github_pages_repo_path = os.environ.get(ENV_REPO_PATH, "").strip() or None
+        result = publish_blog_post(
+            settings.base_path,
+            body.source_relative_path,
+            site_url=site_url,
+            public_slug_override=body.public_slug,
+            github_pages_repo_path=github_pages_repo_path,
+            environ=os.environ,
+        )
+        logger.info(
+            "publish-blog-post status=%s campaign_id=%s state=%s source_relative_path=%s",
+            result.status,
+            result.campaign_id,
+            result.state,
+            result.source_relative_path,
+        )
+        return result.to_dict()
 
     return app
 

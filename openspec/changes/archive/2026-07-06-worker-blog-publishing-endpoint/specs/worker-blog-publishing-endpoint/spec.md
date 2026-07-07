@@ -1,0 +1,297 @@
+## ADDED Requirements
+
+### Requirement: Umbrella and dependency references
+
+This child change SHALL implement Flow A worker blog publishing under active umbrella change `flow-a-automatic-blog-linkedin-publishing-roadmap` (child slice 4).
+
+Blog publish behavior MUST align with Flow A policy in canonical spec `editorial-canon` and artifact `content-strategy/silverman-editorial-system.md`.
+
+Ready-post validation MUST use canonical spec `ready-post-editorial-validation` and worker module `ready_post_validation.py` via `validate_ready_post()` before any publish side effect.
+
+Campaign metadata and state transitions MUST use canonical spec `flow-a-lifecycle` and worker module `campaign_lifecycle.py`.
+
+File preparation and public URL derivation MUST use canonical spec `github-pages-blog-publishing` and worker module `github_pages_publish.py` without duplicating publish logic.
+
+Flow B campaigns MUST NOT enter this publish path.
+
+#### Scenario: Child change cites umbrella and completed siblings
+
+- **WHEN** this capability is documented or implemented
+- **THEN** it references umbrella `flow-a-automatic-blog-linkedin-publishing-roadmap`, validation child `ready-post-editorial-validation`, lifecycle child `flow-a-lifecycle-and-duplicate-prevention`, and publishing bridge `github-pages-blog-publishing`
+
+#### Scenario: Flow B blocked
+
+- **WHEN** `publish_blog_post` is invoked for a campaign with `flow` `flow_b`
+- **THEN** the operation fails with error code `blog_publish_flow_b_not_allowed` and does not write public repo files
+
+### Requirement: Blog publish service entry point
+
+The worker SHALL expose a publish service entry point (for example `publish_blog_post(base_path, source_relative_path, ...)`) that orchestrates validation, campaign lifecycle transitions, and GitHub Pages bridge application for one ready blog post.
+
+The entry point MUST return a structured `BlogPublishResult` (or equivalent dataclass) serializable to JSON for HTTP and n8n consumers.
+
+The entry point MUST NOT move editorial source files between `ready`, `processed`, or `error` folders.
+
+The entry point MUST NOT run `git commit` or `git push` in the public GitHub Pages repository.
+
+#### Scenario: Publish by relative path
+
+- **WHEN** `publish_blog_post` is called with `source_relative_path` `blog-posts/ready/01-why-i-did-not-start-with-the-database.md` and a valid editorial base path
+- **THEN** the function validates the post, may write `_posts/` and `assets/images/` targets in the configured public repo checkout, updates campaign metadata, and returns a structured result without relocating the source Markdown file
+
+#### Scenario: No LinkedIn derivatives
+
+- **WHEN** this child change is applied
+- **THEN** no LinkedIn draft files are generated and no `derivatives_*` campaign state transitions occur
+
+### Requirement: Publish flow sequence
+
+The publish flow MUST perform safe preflight path/source inspection sufficient to derive `source_slug`, `public_slug`, `publication_date` (when possible), `source_content_sha256`, `campaign_id`, and the expected blog idempotency key before any publish side effect.
+
+If campaign metadata exists and `state` is `blog_published`, and `flow` is `flow_a`, and stored `source_content_sha256` matches the current source hash, and stored `blog_publish.idempotency_key` matches the expected key, and stored `source_public_url` exists, the publish flow MUST return `status: completed` with `blog_publish.status` `already_published` without calling `validate_ready_post()` and without writing public repo files.
+
+For all other non-published campaigns, the publish flow MUST call `validate_ready_post()` before transitioning to `blog_publish_pending` or writing public repo files.
+
+If validation returns `ok: false`, the publish flow MUST return `status: failed` with error code `blog_publish_validation_failed` and MUST include validation errors in the response.
+
+If validation succeeds and campaign state is `validated` with matching content hash, the publish flow MUST transition `validated` → `blog_publish_pending`, invoke the GitHub Pages bridge apply, then transition `blog_publish_pending` → `blog_published`.
+
+#### Scenario: Idempotent already-published short-circuit before validation
+
+- **WHEN** publish is requested for a campaign already `blog_published` with `flow` `flow_a`, matching idempotency key, matching content hash, and stored `source_public_url`
+- **THEN** response `status` is `completed`, `blog_publish.status` is `already_published`, `validate_ready_post()` is not called, and no public repo files are written
+
+#### Scenario: Validation failure prevents publish
+
+- **WHEN** `validate_ready_post` returns `ok: false` for a ready post
+- **THEN** `publish_blog_post` returns `status: failed`, includes `blog_publish_validation_failed` in `errors[]`, embeds a `validation` summary, does not transition to `blog_publish_pending`, and does not write public repo files
+
+#### Scenario: Validation success allows publish attempt
+
+- **WHEN** `validate_ready_post` returns `ok: true` and campaign is in state `validated` with matching content hash
+- **THEN** the publish flow transitions to `blog_publish_pending` and attempts GitHub Pages bridge apply
+
+### Requirement: Campaign state transitions for blog publish
+
+For Flow A blog publish, the worker MUST support these transitions:
+
+- `validated` → `blog_publish_pending` → `blog_published` on success
+
+A raw `ready` post MAY be submitted to `POST /publish-blog-post`. The publish flow MUST run `validate_ready_post()` first; if validation succeeds, campaign state becomes `validated` and publish may proceed. Publishing MUST be rejected only if, after validation, the campaign is not eligible for `validated` → `blog_publish_pending`.
+
+The worker MUST reject publish attempts when campaign state is:
+
+- `validation_failed`
+- `error`
+- a state beyond `blog_published` that would regress lifecycle: `derivatives_pending`, `derivatives_generated`, `distribution_scheduled`, `distribution_complete`, `flow_a_complete`
+
+State `blog_published` is NOT invalid when it satisfies the idempotent `already_published` checks in the publish flow sequence requirement.
+
+State `ready` MUST be handled by validation, not rejected upfront.
+
+Invalid state attempts MUST fail with error code `blog_publish_invalid_campaign_state`.
+
+#### Scenario: Happy-path state progression
+
+- **WHEN** a validated campaign publishes successfully
+- **THEN** campaign `state` progresses `validated` → `blog_publish_pending` → `blog_published` with `state_history` entries for each transition
+
+#### Scenario: Ready post validated then published
+
+- **WHEN** campaign `state` is `ready` and `publish_blog_post` is invoked for a valid ready post
+- **THEN** `validate_ready_post()` runs first, campaign transitions to `validated` on validation success, and publish proceeds to `blog_publish_pending` without upfront `blog_publish_invalid_campaign_state` rejection
+
+#### Scenario: Validation failed state rejected
+
+- **WHEN** campaign `state` is `validation_failed`
+- **THEN** the operation fails with `blog_publish_invalid_campaign_state`
+
+#### Scenario: Error state rejected
+
+- **WHEN** campaign `state` is `error`
+- **THEN** the operation fails with `blog_publish_invalid_campaign_state`
+
+#### Scenario: Regressive state rejected
+
+- **WHEN** campaign `state` is `derivatives_pending`, `derivatives_generated`, `distribution_scheduled`, `distribution_complete`, or `flow_a_complete`
+- **THEN** the operation fails with `blog_publish_invalid_campaign_state` without regressing `state`
+
+### Requirement: Content hash guard
+
+If stored campaign `source_content_sha256` differs from the current source file digest at publish time, the publish flow MUST fail with error code `blog_publish_content_hash_changed` and MUST NOT overwrite public repo files or campaign publish metadata.
+
+#### Scenario: Changed content after validation
+
+- **WHEN** campaign is `validated` but source file bytes differ from stored `source_content_sha256`
+- **THEN** publish fails with `blog_publish_content_hash_changed`
+
+### Requirement: Blog publish idempotency
+
+Blog publish MUST use the idempotency key from `build_blog_publish_idempotency_key()` in `campaign_lifecycle.py`.
+
+If campaign `state` is `blog_published`, `flow` is `flow_a`, stored `blog_publish.idempotency_key` matches the computed key, `source_content_sha256` matches, and stored `source_public_url` exists, the publish flow MUST return `status: completed` with `blog_publish.status` `already_published` without calling `validate_ready_post()` and without overwriting existing public repo files.
+
+If public repo targets already exist but campaign metadata does not prove the same idempotency key, the publish flow MUST fail with `blog_publish_target_exists` and MUST NOT overwrite.
+
+#### Scenario: Idempotent re-run after published
+
+- **WHEN** publish is requested again for a campaign already `blog_published` with `flow` `flow_a`, matching idempotency key, matching content hash, and stored `source_public_url`
+- **THEN** response `status` is `completed`, `blog_publish.status` is `already_published`, `validate_ready_post()` is not called, and no duplicate files are written
+
+#### Scenario: Target exists without matching metadata
+
+- **WHEN** `_posts/` or `assets/images/` targets exist but campaign metadata does not prove the same blog idempotency key
+- **THEN** publish fails with `blog_publish_target_exists` without overwriting files
+
+#### Scenario: Content change produces different idempotency key
+
+- **WHEN** `source_content_sha256` changes
+- **THEN** the computed blog publish idempotency key differs from any prior `blog_publish.idempotency_key` on the campaign
+
+### Requirement: GitHub Pages bridge integration
+
+The publish flow MUST invoke the existing `github_pages_publish.py` bridge (for example `run_publish` with `apply=True`) to write prepared Markdown and PNG into the configured public repo checkout.
+
+During implementation (`/opsx-apply`), the worker MUST inspect `src/silverman_blog_linkedin/github_pages_publish.py` and use the actual existing function signatures (`build_plan`, `apply_plan`, `run_publish`). The worker MUST NOT invent bridge APIs. If the existing bridge surface is CLI-oriented or awkward for service use, the worker MAY add a thin internal wrapper around those functions without duplicating publish logic.
+
+The publish flow MUST NOT duplicate frontmatter normalization, slug derivation, or target path logic outside the bridge.
+
+The publish flow MUST NOT invoke git operations.
+
+Public repo path MUST come from configuration (`SILVERMAN_GITHUB_PAGES_REPO_PATH`). When missing or layout-invalid, publish MUST fail with `blog_publish_public_repo_not_configured`.
+
+#### Scenario: Files written via bridge
+
+- **WHEN** publish succeeds for a valid ready post pair
+- **THEN** `_posts/YYYY-MM-DD-<public-slug>.md` and `assets/images/<public-slug>.png` exist in the configured public repo checkout with content prepared by the bridge
+
+#### Scenario: Public repo not configured
+
+- **WHEN** `SILVERMAN_GITHUB_PAGES_REPO_PATH` is unset or the checkout lacks required layout
+- **THEN** publish fails with `blog_publish_public_repo_not_configured` before apply
+
+#### Scenario: Bridge apply failure
+
+- **WHEN** the bridge raises an error during apply (for example missing PNG)
+- **THEN** publish returns `status: failed` with `blog_publish_failed` and records failure in `blog_publish.error_code` when metadata is written
+
+### Requirement: Campaign metadata blog_publish updates
+
+On publish attempt, the worker MUST update campaign `blog_publish` with:
+
+- `idempotency_key`
+- `status`: one of `pending`, `published`, `already_published`, or `failed`
+- `source_public_url` when known
+- `published_at` when publish completes
+- `public_repo_path` or safe relative published paths when available
+- `error_code` when failed
+
+Campaign metadata MUST NOT store full Markdown content, generated draft bodies, or secrets.
+
+#### Scenario: Successful publish metadata
+
+- **WHEN** blog publish completes successfully
+- **THEN** `blog_publish.status` is `published`, `source_public_url` is set, `published_at` is a UTC ISO8601 timestamp, and `source_public_url` is also set at campaign top level
+
+#### Scenario: Failed publish metadata
+
+- **WHEN** blog publish fails after `blog_publish_pending` transition
+- **THEN** `blog_publish.status` is `failed` and `blog_publish.error_code` records the stable failure code
+
+#### Scenario: Metadata excludes body content
+
+- **WHEN** campaign metadata is written after publish
+- **THEN** the persisted JSON does not include `markdown_content` or `generated_draft_content`
+
+### Requirement: HTTP endpoint POST /publish-blog-post
+
+The worker SHALL expose `POST /publish-blog-post` protected by the same API-key authentication as other mutating worker endpoints.
+
+Request body MUST accept:
+
+- `source_relative_path` (required)
+- `site_url` (optional; default `https://silverman.pro`)
+- `public_slug` (optional; only when bridge safely supports override)
+
+Response body MUST include at minimum:
+
+- `status`: `completed` or `failed`
+- `campaign_id`, `state`, `source_slug`, `public_slug`, `publication_date`
+- `source_relative_path`, `image_relative_path`
+- `source_public_url`
+- `errors`, `warnings`
+- `validation` (summary object)
+- `blog_publish` (object)
+- `metadata_written`, `metadata_error_code`
+
+#### Scenario: Authenticated publish request
+
+- **WHEN** a client sends `POST /publish-blog-post` with valid API key and `source_relative_path`
+- **THEN** the worker returns HTTP 200 with the structured publish result JSON
+
+#### Scenario: Missing API key rejected
+
+- **WHEN** a client sends `POST /publish-blog-post` without valid API key
+- **THEN** the worker rejects the request with the same unauthorized behavior as other protected endpoints
+
+#### Scenario: Source public URL in response
+
+- **WHEN** publish completes successfully
+- **THEN** response includes `source_public_url` matching the bridge-computed public URL for the post
+
+### Requirement: Configuration
+
+Editorial base path MUST come from existing worker configuration (`SILVERMAN_BLOG_LINKEDIN_BASE_PATH`).
+
+Public GitHub Pages repository checkout path MUST come from `SILVERMAN_GITHUB_PAGES_REPO_PATH`.
+
+Site URL MUST default to `https://silverman.pro` when not provided in the request.
+
+#### Scenario: Default site URL
+
+- **WHEN** `site_url` is omitted from the HTTP request
+- **THEN** public URL calculation uses `https://silverman.pro`
+
+### Requirement: Stable blog publish error codes
+
+The publish flow MUST use stable machine-readable error codes including at minimum:
+
+- `blog_publish_validation_failed`
+- `blog_publish_invalid_campaign_state`
+- `blog_publish_content_hash_changed`
+- `blog_publish_target_exists`
+- `blog_publish_failed`
+- `blog_publish_metadata_write_failed`
+- `blog_publish_public_repo_not_configured`
+- `blog_publish_source_not_ready`
+- `blog_publish_flow_b_not_allowed`
+
+#### Scenario: Invalid campaign state error code
+
+- **WHEN** publish is attempted from a disallowed campaign state
+- **THEN** `errors[]` includes `blog_publish_invalid_campaign_state`
+
+#### Scenario: Metadata write failure
+
+- **WHEN** campaign metadata cannot be written after a publish attempt
+- **THEN** response includes `metadata_written: false` and `metadata_error_code` describing the failure
+
+### Requirement: Non-goals enforcement
+
+This child change MUST NOT modify n8n workflow JSON.
+
+This child change MUST NOT generate LinkedIn derivative packages or schedule LinkedIn distribution.
+
+This child change MUST NOT physically move source files between editorial folders.
+
+This child change MUST NOT commit or push the public GitHub Pages repository.
+
+#### Scenario: No n8n workflow changes
+
+- **WHEN** this child change is applied
+- **THEN** no files under n8n workflow export paths are modified
+
+#### Scenario: No source file relocation
+
+- **WHEN** publish succeeds
+- **THEN** the source Markdown file remains at its original path under `blog-posts/ready/`

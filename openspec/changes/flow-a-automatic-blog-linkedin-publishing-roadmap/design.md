@@ -11,6 +11,7 @@ The Silverman Blog LinkedIn automation system runs as an HTTP worker on an Ubunt
 | `POST /process-file` | Implemented — reads one ready Markdown post |
 | `POST /generate-linkedin-draft` | Implemented — generates one LinkedIn draft variant |
 | GitHub Pages publishing bridge | Implemented as CLI/domain capability (dry-run default, `--apply` required) |
+| `POST /publish-blog-post` | Implemented — Flow A blog publish with validation, lifecycle, and GitHub Pages bridge |
 | n8n draft-generation workflow | Implemented — manual trigger, health → process-ready → process-file → compute URL → generate draft |
 | Public blog URL in LinkedIn drafts | Implemented — `source_public_url` derived per post |
 
@@ -312,20 +313,20 @@ flow-a-automatic-blog-linkedin-publishing-roadmap (this umbrella)
 
 Slice 2 (lifecycle/idempotency) is foundational and SHOULD precede or run closely with slice 3 (validation). Slices 1–4 can partially overlap after umbrella planning approval. Slice 7 integrates prior slices. Slice 8 implements API publish only after scheduling model exists and integration constraints are documented.
 
-### Roadmap progress (as of child slice 3 archive)
+### Roadmap progress (as of child slice 4 archive)
 
 | # | Child change | Status | Notes |
 |---|--------------|--------|-------|
 | 1 | `editorial-canon-and-linkedin-distribution-strategy` | **completed** | Archived; canonical spec `openspec/specs/editorial-canon/spec.md`; artifact `content-strategy/silverman-editorial-system.md`; commit `ae3eb43` |
 | 2 | `flow-a-lifecycle-and-duplicate-prevention` | **completed** | Archived; canonical spec `openspec/specs/flow-a-lifecycle/spec.md`; worker `campaign_lifecycle.py`; commit `aa48e6c` |
 | 3 | `ready-post-editorial-validation` | **completed** | Archived; canonical spec `openspec/specs/ready-post-editorial-validation/spec.md`; worker `src/silverman_blog_linkedin/ready_post_validation.py`; tests `tests/test_ready_post_validation.py` |
-| 4 | `worker-blog-publishing-endpoint` | **pending** | — |
+| 4 | `worker-blog-publishing-endpoint` | **completed** | Archived; canonical spec `openspec/specs/worker-blog-publishing-endpoint/spec.md`; endpoint `POST /publish-blog-post`; service `src/silverman_blog_linkedin/blog_publish_flow.py`; HTTP `src/silverman_blog_linkedin/main.py`; tests `tests/test_blog_publish_flow.py`; commit pending until git commit |
 | 5 | `linkedin-derivative-package-generation` | **pending** | — |
 | 6 | `linkedin-distribution-scheduling-model` | **pending** | — |
 | 7 | `n8n-flow-a-blog-publish-orchestration` | **pending** | — |
 | 8 | `linkedin-publication-integration` | **deferred** | LinkedIn API publish when integration constraints documented |
 
-The umbrella remains **active**. Slice 3 is archived; slices 4–7 remain pending.
+The umbrella remains **active**. Slices 1–4 are completed (archived); slices 5–7 remain pending; slice 8 is deferred.
 
 ## Umbrella Lifecycle
 
