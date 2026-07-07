@@ -655,6 +655,47 @@ def test_collect_flow_a_evidence_script_reports_overall_status_values(
     assert 'OVERALL: FAIL' in content
 
 
+def test_collect_flow_a_evidence_script_pass_requires_distribution_evidence(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert "FLOW_A_COMPLETE" in content
+    assert "distribution_scheduled" in content
+    assert "HAS_LINKEDIN_DISTRIBUTION" in content
+    assert "read_campaign_evidence" in content
+    assert 'if [[ "${FLOW_A_COMPLETE}" -eq 1 ]]; then' in content
+    assert 'OVERALL: PASS (worker OK, public blog repo ready, n8n inactive, Flow A reached distribution_scheduled' in content
+
+
+def test_collect_flow_a_evidence_script_campaign_error_is_fail(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert 'if [[ "${CAMPAIGN_STATE}" == "error" ]]; then' in content
+    assert "campaign state is error" in content
+
+
+def test_collect_flow_a_evidence_script_public_blog_artifacts_informational_only(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert "public blog files do not affect OVERALL PASS" in content
+    assert "check_public_blog_artifacts" in content
+    assert "FLOW_A_COMPLETE" in content
+
+
+def test_collect_flow_a_evidence_script_plain_campaign_metadata_not_pass(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert "if [[ \"${FLOW_A_COMPLETE}\" -eq 1 ]]; then" in content
+    assert "HAS_SMOKE_ARTIFACTS=1" in content
+    assert 'pass "latest campaign metadata:' in content
+    assert "campaign state:" in content
+    assert "has linkedin package:" in content
+    assert "not counting toward PASS" in content
+
+
 def test_collect_flow_a_evidence_script_checks_public_blog_repo_readiness(
     collect_flow_a_evidence_script_content: str,
 ) -> None:
@@ -756,8 +797,12 @@ def test_flow_a_worker_smoke_script_checks_campaign_state_and_artifacts(
     assert "distribution_scheduled" in content
     assert "verify_public_artifacts" in content
     assert "verify_generated_artifacts" in content
+    assert "verify_campaign_distribution_complete" in content
+    assert "linkedin_distribution metadata is missing" in content
     assert "published_post_relative_path" in content
     assert "linkedin_package" in content
     assert "deepseek_config_invalid" in content
+    assert "Campaign metadata after publish failure" in content
     assert "OVERALL: PASS" in content
     assert "OVERALL: FAIL" in content
+    assert "final campaign state must be distribution_scheduled with linkedin_distribution" in content

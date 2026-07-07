@@ -229,8 +229,9 @@ check_step_response() {
     return 1
   fi
 
-  local status
+  local status state
   status="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("status",""))' "${RESPONSE_TMP}")"
+  state="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("state",""))' "${RESPONSE_TMP}")"
   if [[ -z "${status}" ]]; then
     fail "${step_name}: missing status field"
     pretty_json_file "${RESPONSE_TMP}"
@@ -238,16 +239,25 @@ check_step_response() {
   fi
   if [[ "${status}" == "failed" ]]; then
     fail "${step_name}: worker returned status=failed"
+    if [[ -n "${state}" ]]; then
+      echo "response state: ${state}"
+    fi
     pretty_json_file "${RESPONSE_TMP}"
     return 1
   fi
   if [[ -n "${expected_status}" && "${status}" != "${expected_status}" ]]; then
     fail "${step_name}: expected status=${expected_status}, got status=${status}"
+    if [[ -n "${state}" ]]; then
+      echo "response state: ${state}"
+    fi
     pretty_json_file "${RESPONSE_TMP}"
     return 1
   fi
 
   pass "${step_name}: HTTP 200 status=${status}"
+  if [[ -n "${state}" ]]; then
+    echo "response state: ${state}"
+  fi
   pretty_json_file "${RESPONSE_TMP}"
   return 0
 }
@@ -320,7 +330,7 @@ verify_generated_artifacts() {
   return 1
 }
 
-verify_campaign_state_at_least_scheduled() {
+verify_campaign_distribution_complete() {
   local campaign_id="$1"
   local metadata_path="${EDITORIAL_ROOT}/metadata/campaigns/${campaign_id}.json"
   python3 - "${metadata_path}" <<'PY'
@@ -332,15 +342,20 @@ with open(path, encoding="utf-8") as fh:
     data = json.load(fh)
 
 state = data.get("state")
-allowed = {
+distribution = data.get("linkedin_distribution")
+allowed_states = {
     "distribution_scheduled",
     "distribution_complete",
     "flow_a_complete",
 }
-if state not in allowed:
+
+if state not in allowed_states:
     print(f"campaign state {state!r} did not reach distribution_scheduled")
     sys.exit(1)
-print(f"campaign state reached {state}")
+if distribution is None:
+    print("linkedin_distribution metadata is missing")
+    sys.exit(1)
+print(f"campaign state reached {state} with linkedin_distribution present")
 PY
 }
 
@@ -399,6 +414,13 @@ section "Step 2: POST /publish-blog-post"
 PUBLISH_BODY="$(python3 -c 'import json,sys; print(json.dumps({"source_relative_path": sys.argv[1], "site_url": sys.argv[2]}))' "${RELATIVE_PATH}" "${SITE_URL}")"
 PUBLISH_HTTP="$(call_worker POST /publish-blog-post "${PUBLISH_BODY}")"
 if ! check_step_response "publish-blog-post" "${PUBLISH_HTTP}" "completed"; then
+  if python3 -m json.tool "${RESPONSE_TMP}" >/dev/null 2>&1; then
+    CAMPAIGN_ID="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("campaign_id") or "")' "${RESPONSE_TMP}")"
+    if [[ -n "${CAMPAIGN_ID}" ]]; then
+      section "Campaign metadata after publish failure"
+      print_campaign_snapshot "${CAMPAIGN_ID}"
+    fi
+  fi
   echo
   echo "OVERALL: FAIL"
   exit 1
@@ -440,17 +462,17 @@ print_campaign_snapshot "${CAMPAIGN_ID}"
 section "Artifact verification"
 verify_public_artifacts || true
 verify_generated_artifacts || true
-if ! verify_campaign_state_at_least_scheduled "${CAMPAIGN_ID}"; then
-  fail "campaign did not reach distribution_scheduled"
+if ! verify_campaign_distribution_complete "${CAMPAIGN_ID}"; then
+  fail "campaign did not reach distribution_scheduled with linkedin_distribution metadata"
 else
-  pass "campaign reached distribution_scheduled or later"
+  pass "campaign reached distribution_scheduled with linkedin_distribution metadata"
 fi
 
 echo
 if [[ "${REQUIRED_FAILED}" -eq 0 ]]; then
   OVERALL_STATUS="PASS"
 fi
-echo "OVERALL: ${OVERALL_STATUS}"
+echo "OVERALL: ${OVERALL_STATUS} (final campaign state must be distribution_scheduled with linkedin_distribution)"
 if [[ "${OVERALL_STATUS}" == "FAIL" ]]; then
   exit 1
 fi

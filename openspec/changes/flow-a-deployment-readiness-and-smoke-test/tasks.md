@@ -125,3 +125,15 @@
 - [x] 14.6 Add unit tests for publish reconciliation in `tests/test_blog_publish_flow.py`
 - [x] 14.7 Update README, `docs/deployment/ubuntu-server-worker-deployment.md`, design, and spec — worker smoke is diagnostic source of truth; manual n8n is orchestration validation only
 - [x] 14.8 Run `openspec validate`, targeted pytest, and full `pytest`
+
+## 15. Error-state publish reconciliation and evidence PASS semantics (post-smoke validation)
+
+**Observed smoke failure (2026-07, commit `07ce499`):** `verify-worker-deploy.sh` and public blog mount PASS; public `_posts` and `assets/images` exist on disk. `run-flow-a-worker-smoke.sh` fails at `POST /publish-blog-post` with `blog_publish_invalid_campaign_state` because prior failed publish attempts left campaign metadata in `error`. `collect-flow-a-smoke-evidence.sh` incorrectly reported `OVERALL: PASS` when campaign metadata existed without `linkedin_package`, `linkedin_distribution`, or `distribution_scheduled`.
+
+- [x] 15.1 Extend `publish_blog_post` reconciliation to safely recover from `error` when public artifacts match source/idempotency/hash
+- [x] 15.2 Add unit tests for error-state reconciliation safety (match, hash mismatch, wrong path, stale error clearing)
+- [x] 15.3 Fix `collect-flow-a-smoke-evidence.sh` PASS semantics — require `distribution_scheduled` or `linkedin_distribution`; `error` → FAIL; public blog informational only
+- [x] 15.4 Update `run-flow-a-worker-smoke.sh` — campaign snapshot on publish failure; PASS only with `distribution_scheduled` + `linkedin_distribution`
+- [x] 15.5 Update `tests/test_server_deployment_artifacts.py` for evidence and smoke PASS gating
+- [x] 15.6 Update design, spec, README, and deployment docs with second root cause
+- [x] 15.7 Run `openspec validate`, targeted pytest, and full `pytest`

@@ -62,6 +62,11 @@ WORKER_OK=0
 N8N_OK=0
 N8N_INACTIVE=0
 HAS_SMOKE_ARTIFACTS=0
+CAMPAIGN_STATE=""
+HAS_BLOG_PUBLISH=0
+HAS_LINKEDIN_PACKAGE=0
+HAS_LINKEDIN_DISTRIBUTION=0
+FLOW_A_COMPLETE=0
 BASE_PATH_RESOLVED=0
 BASE_PATH_SOURCE=""
 RESOLVED_BASE_PATH=""
@@ -511,17 +516,99 @@ check_editorial_artifacts() {
   latest_campaign="$(latest_file_in_dir "${RESOLVED_BASE_PATH}/metadata/campaigns" '*.json' || true)"
   if [[ -n "${latest_campaign}" ]]; then
     pass "latest campaign metadata: ${latest_campaign}"
-    HAS_SMOKE_ARTIFACTS=1
+    read_campaign_evidence "${latest_campaign}"
   else
     echo "INFO: no metadata/campaigns/*.json found yet"
+    echo "campaign state: (none)"
+    echo "has blog publish metadata: no"
+    echo "has linkedin package: no"
+    echo "has linkedin distribution: no"
   fi
 
   latest_generated="$(latest_file_recursive "${RESOLVED_BASE_PATH}/linkedin-posts/generated" '*' || true)"
   if [[ -n "${latest_generated}" ]]; then
-    pass "latest generated LinkedIn artifact: ${latest_generated}"
-    HAS_SMOKE_ARTIFACTS=1
+    if [[ "${CAMPAIGN_STATE}" == "derivatives_generated" \
+      || "${CAMPAIGN_STATE}" == "distribution_scheduled" \
+      || "${CAMPAIGN_STATE}" == "distribution_complete" \
+      || "${CAMPAIGN_STATE}" == "flow_a_complete" ]]; then
+      pass "latest generated LinkedIn artifact: ${latest_generated}"
+      HAS_SMOKE_ARTIFACTS=1
+    else
+      echo "INFO: generated LinkedIn artifact present but campaign state is ${CAMPAIGN_STATE:-unknown}; not counting toward PASS"
+      echo "       ${latest_generated}"
+    fi
   else
     echo "INFO: no files under linkedin-posts/generated yet"
+  fi
+}
+
+read_campaign_evidence() {
+  local campaign_path="$1"
+  while IFS= read -r line; do
+    case "${line}" in
+      CAMPAIGN_STATE=*)
+        CAMPAIGN_STATE="${line#CAMPAIGN_STATE=}"
+        ;;
+      HAS_BLOG_PUBLISH=*)
+        HAS_BLOG_PUBLISH="${line#HAS_BLOG_PUBLISH=}"
+        ;;
+      HAS_LINKEDIN_PACKAGE=*)
+        HAS_LINKEDIN_PACKAGE="${line#HAS_LINKEDIN_PACKAGE=}"
+        ;;
+      HAS_LINKEDIN_DISTRIBUTION=*)
+        HAS_LINKEDIN_DISTRIBUTION="${line#HAS_LINKEDIN_DISTRIBUTION=}"
+        ;;
+      FLOW_A_COMPLETE=*)
+        FLOW_A_COMPLETE="${line#FLOW_A_COMPLETE=}"
+        ;;
+      *)
+        echo "${line}"
+        ;;
+    esac
+  done < <(python3 - "${campaign_path}" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as fh:
+    data = json.load(fh)
+
+state = data.get("state") or ""
+blog_publish = data.get("blog_publish") or {}
+package = data.get("linkedin_package")
+distribution = data.get("linkedin_distribution")
+
+has_blog_publish = bool(
+    blog_publish.get("status")
+    or blog_publish.get("public_repo_path")
+    or data.get("source_public_url")
+)
+has_package = package is not None
+has_distribution = distribution is not None
+
+print(f"campaign state: {state or '(unset)'}")
+print(f"has blog publish metadata: {'yes' if has_blog_publish else 'no'}")
+print(f"has linkedin package: {'yes' if has_package else 'no'}")
+print(f"has linkedin distribution: {'yes' if has_distribution else 'no'}")
+
+print(f"CAMPAIGN_STATE={state}")
+print(f"HAS_BLOG_PUBLISH={1 if has_blog_publish else 0}")
+print(f"HAS_LINKEDIN_PACKAGE={1 if has_package else 0}")
+print(f"HAS_LINKEDIN_DISTRIBUTION={1 if has_distribution else 0}")
+
+flow_complete = 0
+if state in {
+    "distribution_scheduled",
+    "distribution_complete",
+    "flow_a_complete",
+} or has_distribution:
+    flow_complete = 1
+print(f"FLOW_A_COMPLETE={flow_complete}")
+PY
+  )
+
+  if [[ "${FLOW_A_COMPLETE}" -eq 1 ]]; then
+    HAS_SMOKE_ARTIFACTS=1
   fi
 }
 
@@ -530,7 +617,7 @@ check_public_blog_artifacts() {
 
   section "Public blog artifacts"
   echo "slug fragment: ${POST_SLUG_FRAGMENT}"
-  echo "note: informational only; PASS does not require published blog files when campaign/generated artifacts exist"
+  echo "note: informational only; public blog files do not affect OVERALL PASS"
 
   if [[ -n "${PUBLIC_BLOG_HOST_MOUNT}" ]]; then
     posts_dir="${PUBLIC_BLOG_HOST_MOUNT}/_posts"
@@ -657,11 +744,19 @@ compute_overall_status() {
     OVERALL_STATUS="FAIL"
     return
   fi
-  if [[ "${HAS_SMOKE_ARTIFACTS}" -eq 1 ]]; then
-    OVERALL_STATUS="PASS"
-  else
-    OVERALL_STATUS="PENDING"
+  if [[ "${CAMPAIGN_STATE}" == "error" ]]; then
+    OVERALL_STATUS="FAIL"
+    return
   fi
+  if [[ "${FLOW_A_COMPLETE}" -eq 1 ]]; then
+    OVERALL_STATUS="PASS"
+    return
+  fi
+  if [[ -n "${CAMPAIGN_STATE}" ]]; then
+    OVERALL_STATUS="PENDING"
+    return
+  fi
+  OVERALL_STATUS="PENDING"
 }
 
 emit_json_report() {
@@ -677,6 +772,11 @@ print(json.dumps({
     "n8n_inactive": ${N8N_INACTIVE} == 1,
     "public_blog_repo_ok": ${PUBLIC_BLOG_REPO_OK} == 1,
     "public_blog_host_mount": "${PUBLIC_BLOG_HOST_MOUNT}",
+    "campaign_state": "${CAMPAIGN_STATE}",
+    "has_blog_publish": ${HAS_BLOG_PUBLISH} == 1,
+    "has_linkedin_package": ${HAS_LINKEDIN_PACKAGE} == 1,
+    "has_linkedin_distribution": ${HAS_LINKEDIN_DISTRIBUTION} == 1,
+    "flow_a_complete": ${FLOW_A_COMPLETE} == 1,
     "has_smoke_artifacts": ${HAS_SMOKE_ARTIFACTS} == 1,
     "workflow_id": "${N8N_WORKFLOW_ID}",
     "post_slug_fragment": "${POST_SLUG_FRAGMENT}",
@@ -732,18 +832,20 @@ main() {
   section "Overall"
   case "${OVERALL_STATUS}" in
     PASS)
-      echo "OVERALL: PASS (worker OK, public blog repo ready, n8n workflow inactive, smoke artifacts present)"
+      echo "OVERALL: PASS (worker OK, public blog repo ready, n8n inactive, Flow A reached distribution_scheduled or linkedin_distribution exists)"
       ;;
     PENDING)
-      echo "OVERALL: PENDING (worker OK, public blog repo ready, n8n inactive; smoke artifacts not found yet)"
-      echo "NOTE: run Flow A manually in n8n, then re-run this script."
+      echo "OVERALL: PENDING (worker OK, public blog repo ready, n8n inactive; campaign has not reached distribution_scheduled)"
+      echo "NOTE: run deterministic worker smoke or Flow A in n8n, then re-run this script."
       ;;
     FAIL)
-      if [[ "${WORKER_OK}" -eq 1 && "${N8N_OK}" -eq 1 && "${N8N_INACTIVE}" -eq 1 && "${PUBLIC_BLOG_REPO_OK}" -ne 1 ]]; then
+      if [[ "${CAMPAIGN_STATE}" == "error" ]]; then
+        echo "OVERALL: FAIL (campaign state is error; worker smoke or publish reconciliation required)"
+      elif [[ "${WORKER_OK}" -eq 1 && "${N8N_OK}" -eq 1 && "${N8N_INACTIVE}" -eq 1 && "${PUBLIC_BLOG_REPO_OK}" -ne 1 ]]; then
         echo "OVERALL: FAIL (worker and n8n OK but public blog repo not mounted or incomplete)"
         echo "NOTE: publish fails with blog_publish_public_repo_not_configured until the GitHub Pages checkout is mounted at /public-blog."
       else
-        echo "OVERALL: FAIL (worker, n8n, public blog repo, or base path checks failed)"
+        echo "OVERALL: FAIL (worker, n8n, public blog repo, base path, or campaign state checks failed)"
       fi
       ;;
   esac

@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from datetime import date
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -16,6 +18,7 @@ from silverman_blog_linkedin.blog_publish_flow import (
     BLOG_PUBLISH_PUBLIC_REPO_NOT_CONFIGURED,
     BLOG_PUBLISH_TARGET_EXISTS,
     BLOG_PUBLISH_VALIDATION_FAILED,
+    RECONCILED_FROM_ERROR_WARNING,
     publish_blog_post,
 )
 from silverman_blog_linkedin.campaign_lifecycle import (
@@ -26,6 +29,7 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     STATE_BLOG_PUBLISH_PENDING,
     STATE_BLOG_PUBLISHED,
     STATE_DERIVATIVES_PENDING,
+    STATE_ERROR,
     STATE_READY,
     STATE_VALIDATED,
     STATE_VALIDATION_FAILED,
@@ -35,6 +39,10 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     read_campaign_metadata,
     transition_state,
     write_campaign_metadata,
+)
+from silverman_blog_linkedin.github_pages_publish import (
+    prepare_frontmatter,
+    render_markdown,
 )
 from silverman_blog_linkedin.main import create_app
 from silverman_blog_linkedin.ready_post_validation import CONTENT_CONTAINS_TODO
@@ -149,6 +157,56 @@ def _validated_campaign(editorial_base: Path) -> dict:
     )
     write_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID, campaign)
     return campaign
+
+
+def _error_campaign(
+    editorial_base: Path,
+    *,
+    error_code: str = BLOG_PUBLISH_INVALID_CAMPAIGN_STATE,
+    extra_errors: list[str] | None = None,
+    source_relative_path: str = SOURCE_RELATIVE,
+) -> dict:
+    campaign = _validated_campaign(editorial_base)
+    if source_relative_path != SOURCE_RELATIVE:
+        campaign["source_relative_path"] = source_relative_path
+        write_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID, campaign)
+    transition_state(
+        campaign,
+        STATE_ERROR,
+        reason="Prior publish attempt failed",
+        actor=ACTOR_WORKER,
+        error_code=error_code,
+    )
+    if extra_errors:
+        campaign.setdefault("errors", []).extend(extra_errors)
+        write_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID, campaign)
+    return campaign
+
+
+def _write_matching_public_artifacts(
+    editorial_base: Path,
+    public_repo: Path,
+    *,
+    post_body: str | None = None,
+    image_bytes: bytes | None = None,
+) -> tuple[Path, Path]:
+    md_path = editorial_base / SOURCE_RELATIVE
+    png_path = editorial_base / IMAGE_RELATIVE
+    if post_body is None:
+        frontmatter, body = prepare_frontmatter(
+            md_path,
+            PUBLIC_SLUG,
+            date.fromisoformat(PUBLICATION_DATE),
+        )
+        post_body = render_markdown(frontmatter, body)
+    if image_bytes is None:
+        image_bytes = png_path.read_bytes()
+
+    post_path = public_repo / "_posts" / f"{PUBLICATION_DATE}-{PUBLIC_SLUG}.md"
+    image_path = public_repo / "assets/images" / f"{PUBLIC_SLUG}.png"
+    post_path.write_text(post_body, encoding="utf-8")
+    image_path.write_bytes(image_bytes)
+    return post_path, image_path
 
 
 @pytest.fixture
@@ -273,11 +331,7 @@ def test_reconcile_validated_campaign_when_public_targets_exist(
 ):
     _validated_campaign(editorial_base)
     _write_post(editorial_base)
-
-    post_path = public_repo / "_posts" / f"{PUBLICATION_DATE}-{PUBLIC_SLUG}.md"
-    image_path = public_repo / "assets/images" / f"{PUBLIC_SLUG}.png"
-    post_path.write_text("pre-existing post", encoding="utf-8")
-    image_path.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+    _write_matching_public_artifacts(editorial_base, public_repo)
 
     result = _publish(editorial_base, public_repo)
 
@@ -290,6 +344,82 @@ def test_reconcile_validated_campaign_when_public_targets_exist(
     assert campaign is not None
     assert campaign["state"] == STATE_BLOG_PUBLISHED
     assert campaign["blog_publish"]["public_repo_path"].startswith("_posts/")
+
+
+def test_reconcile_error_campaign_when_public_targets_match(
+    editorial_base: Path, public_repo: Path
+):
+    _error_campaign(
+        editorial_base,
+        error_code=BLOG_PUBLISH_INVALID_CAMPAIGN_STATE,
+        extra_errors=[BLOG_PUBLISH_TARGET_EXISTS, "package_generation_failed"],
+    )
+    _write_post(editorial_base)
+    _write_matching_public_artifacts(editorial_base, public_repo)
+
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "completed"
+    assert result.state == STATE_BLOG_PUBLISHED
+    assert result.blog_publish["status"] == "reconciled"
+    assert result.blog_publish.get("reconciled_from_error_state") is True
+    assert RECONCILED_FROM_ERROR_WARNING in result.warnings
+
+    campaign = read_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    assert campaign["state"] == STATE_BLOG_PUBLISHED
+    assert campaign["source_public_url"] == f"{SITE_URL}/2026/07/06/{PUBLIC_SLUG}/"
+    assert campaign["blog_publish"]["public_repo_path"].startswith("_posts/")
+    assert campaign["blog_publish"]["public_repo_image_path"].startswith("assets/images/")
+    assert BLOG_PUBLISH_INVALID_CAMPAIGN_STATE not in campaign.get("errors", [])
+    assert BLOG_PUBLISH_TARGET_EXISTS not in campaign.get("errors", [])
+    assert "package_generation_failed" in campaign.get("errors", [])
+
+
+def test_error_reconcile_fails_on_content_hash_mismatch(
+    editorial_base: Path, public_repo: Path
+):
+    _error_campaign(editorial_base)
+    _write_post(editorial_base, body=_canonical_body(extra="\nChanged after campaign.\n"))
+    _write_matching_public_artifacts(editorial_base, public_repo)
+
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "failed"
+    assert BLOG_PUBLISH_CONTENT_HASH_CHANGED in result.errors
+
+
+def test_error_reconcile_fails_on_wrong_source_path(
+    editorial_base: Path, public_repo: Path
+):
+    _error_campaign(
+        editorial_base,
+        source_relative_path="blog-posts/ready/other-post.md",
+    )
+    _write_post(editorial_base)
+    _write_matching_public_artifacts(editorial_base, public_repo)
+
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "failed"
+    assert BLOG_PUBLISH_INVALID_CAMPAIGN_STATE in result.errors
+
+
+def test_error_reconcile_fails_on_mismatched_public_content(
+    editorial_base: Path, public_repo: Path
+):
+    _error_campaign(editorial_base)
+    _write_post(editorial_base)
+
+    post_path = public_repo / "_posts" / f"{PUBLICATION_DATE}-{PUBLIC_SLUG}.md"
+    image_path = public_repo / "assets/images" / f"{PUBLIC_SLUG}.png"
+    post_path.write_text("stale public content", encoding="utf-8")
+    image_path.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "failed"
+    assert BLOG_PUBLISH_TARGET_EXISTS in result.errors
 
 
 def test_invalid_campaign_state_fails(editorial_base: Path, public_repo: Path):

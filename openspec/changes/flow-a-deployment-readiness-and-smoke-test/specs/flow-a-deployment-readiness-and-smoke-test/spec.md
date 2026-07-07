@@ -293,8 +293,33 @@ The repository SHALL provide `deploy/server/run-flow-a-worker-smoke.sh` for Ubun
 
 #### Scenario: Publish reconciliation when public files already exist
 
-- **WHEN** campaign metadata is `validated` and public `_posts` / `assets/images` targets already exist for the same idempotency key
+- **WHEN** campaign metadata is `validated` and public `_posts` / `assets/images` targets already exist for the same idempotency key and matching source content
 - **THEN** `POST /publish-blog-post` reconciles metadata to `blog_published` with `status: completed` instead of failing with `blog_publish_target_exists` without updating metadata
+
+#### Scenario: Publish reconciliation from polluted error state
+
+- **WHEN** campaign metadata is `error` from a prior failed publish attempt, public targets exist at expected paths, source relative path and content hash match, idempotency key matches (or is unset), and public file content matches the current ready post/image
+- **THEN** `POST /publish-blog-post` reconciles metadata to `blog_published` with `blog_publish.status: reconciled` and `status: completed`
+- **AND** stale publish-related errors (`blog_publish_target_exists`, `blog_publish_public_repo_not_configured`, `blog_publish_invalid_campaign_state`) are cleared
+- **AND** unrelated campaign errors are preserved
+
+#### Scenario: Publish reconciliation rejects unsafe error recovery
+
+- **WHEN** campaign metadata is `error` but source path, content hash, idempotency key, or public file content do not match the current request
+- **THEN** `POST /publish-blog-post` returns `status: failed` without broad state bypass
+
+#### Scenario: Evidence collector PASS requires distribution evidence
+
+- **WHEN** `collect-flow-a-smoke-evidence.sh` runs and worker, public blog repo, and n8n checks pass
+- **THEN** `OVERALL: PASS` only when latest campaign evidence shows `distribution_scheduled` (or later) or `linkedin_distribution` exists
+- **AND** plain campaign metadata existence, public blog artifacts alone, or generated LinkedIn files without distribution state do not produce `OVERALL: PASS`
+- **AND** campaign state `error` produces `OVERALL: FAIL`
+- **AND** intermediate states (`validated`, `blog_published` without package/distribution) produce `OVERALL: PENDING`
+
+#### Scenario: Evidence collector reports campaign state summary
+
+- **WHEN** latest campaign metadata is found
+- **THEN** the script prints campaign state, blog publish metadata presence, linkedin package presence, and linkedin distribution presence
 
 ### Requirement: Apply scope boundaries
 

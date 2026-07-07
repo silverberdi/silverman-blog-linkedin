@@ -238,9 +238,9 @@ After a manual Flow A n8n execution (Phase 3), collect read-only evidence with t
 
 **Collected evidence:** worker `GET /health` and `GET /openapi.json` (Flow A paths); public blog repo readiness (`SILVERMAN_GITHUB_PAGES_REPO_PATH`, `/public-blog/_posts`, `/public-blog/assets/images`, host mount when available); **editorial artifacts** under the resolved editorial base path (`metadata/runs/*.json`, `metadata/campaigns/*.json`, `linkedin-posts/generated/`); **public blog artifacts** — published `_posts` and `assets/images` matching the slug fragment under the public GitHub Pages repo host mount (`${PUBLIC_BLOG_HOST_MOUNT}`, default `/home/silverman/silverberdi.github.io`) or inside the container at `/public-blog` when the host mount cannot be resolved; n8n workflow export confirming `active=false` and 26 nodes.
 
-Published blog files are informational for diagnosis (e.g. publish succeeded but LinkedIn generation failed later). `OVERALL: PASS` requires campaign metadata or generated LinkedIn artifacts, not published `_posts`/`assets/images` matches.
+Published blog files are informational for diagnosis (e.g. publish succeeded but LinkedIn generation failed later). They do not affect `OVERALL: PASS`.
 
-**Overall status:** `PASS` when worker, public blog repo, and n8n checks pass and campaign metadata or generated LinkedIn artifacts exist; `PENDING` when worker, public blog repo, and n8n are OK but smoke artifacts are not found yet; `FAIL` when base path is unresolved, Flow A OpenAPI paths are missing, public blog repo is not mounted or incomplete, workflow is active, or n8n is missing. If worker and n8n are OK but the public repo is missing, the script reports `FAIL` with remediation (not `PENDING`) — publish would fail with `blog_publish_public_repo_not_configured`.
+**Overall status:** `PASS` when worker, public blog repo, and n8n checks pass and latest campaign evidence shows `distribution_scheduled` (or later) or `linkedin_distribution` exists; `PENDING` when worker, public blog repo, and n8n are OK but the campaign has not reached distribution (e.g. `validated`, `blog_published`, `derivatives_generated` without package/distribution); `FAIL` when base path is unresolved, Flow A OpenAPI paths are missing, public blog repo is not mounted or incomplete, workflow is active, n8n is missing, or campaign state is `error`. Plain campaign metadata existence alone does not produce `PASS`. Generated LinkedIn files count toward evidence only when campaign state is at least `derivatives_generated` or `distribution_scheduled`. If worker and n8n are OK but the public repo is missing, the script reports `FAIL` with remediation (not `PENDING`) — publish would fail with `blog_publish_public_repo_not_configured`.
 
 The script is read-only: no secrets printed, no n8n activation, no LinkedIn API calls, no deploy/restart. Optional `--json` for machine-readable summary.
 
@@ -258,7 +258,7 @@ The script is read-only: no secrets printed, no n8n activation, no LinkedIn API 
 
 **Defaults:** `WORKER_BASE_URL=http://localhost:8010`, `.env` at `/home/silverman/silverman-blog-linkedin-worker/.env`, ready post `blog-posts/ready/01-why-i-did-not-start-with-the-database.md`, public blog host `/home/silverman/silverberdi.github.io`, `SITE_URL=https://silverman.pro`.
 
-**Endpoint sequence:** `GET /health` → `POST /publish-blog-post` → `POST /generate-linkedin-package` → `POST /schedule-linkedin-distribution`. After each POST, the script prints campaign metadata snapshot (`state`, `source_public_url`, published paths, `linkedin_package`, `linkedin_distribution`, `errors`). Fails immediately on `status: failed` or missing required fields.
+**Endpoint sequence:** `GET /health` → `POST /publish-blog-post` → `POST /generate-linkedin-package` → `POST /schedule-linkedin-distribution`. After each POST, the script prints campaign metadata snapshot (`state`, `source_public_url`, published paths, `linkedin_package`, `linkedin_distribution`, `errors`); on publish failure it prints the snapshot when `campaign_id` is available. Exits `OVERALL: PASS` only when final campaign state is `distribution_scheduled` with `linkedin_distribution` metadata present.
 
 **Failure isolation:**
 
@@ -266,6 +266,7 @@ The script is read-only: no secrets printed, no n8n activation, no LinkedIn API 
 |-------|----------------|
 | Worker deployment | `blog_publish_public_repo_not_configured`, health/OpenAPI failures |
 | Worker publish idempotency | `validated` campaign + public files exist but publish fails (`blog_publish_target_exists`) — worker reconciliation |
+| Worker error-state recovery | Campaign `error` from prior failed publish + public files match source — worker reconciles to `blog_published` when safe |
 | n8n orchestration | Worker smoke `PASS`, n8n fails at same HTTP node — re-import workflow JSON |
 | Provider config | `deepseek_config_invalid` during package generation |
 | Schedule mapping | Package `PASS`, schedule fails with `linkedin_schedule_*` errors |
