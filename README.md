@@ -555,3 +555,4 @@ See [docs/workflows/blog-publishing-bridge.md](docs/workflows/blog-publishing-br
 - Architecture and phasing: `docs/context/`
 - ADRs: `docs/decisions/`
 - OpenSpec changes: `openspec/changes/`
+- Editorial canon (blog rules, LinkedIn package, distribution): `content-strategy/silverman-editorial-system.md`
