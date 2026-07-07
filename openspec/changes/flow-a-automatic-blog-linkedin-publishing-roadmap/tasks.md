@@ -17,11 +17,11 @@
 | 3 | `ready-post-editorial-validation` | **completed** (archived) | Spec: `openspec/specs/ready-post-editorial-validation/spec.md`; worker: `src/silverman_blog_linkedin/ready_post_validation.py`; tests: `tests/test_ready_post_validation.py` |
 | 4 | `worker-blog-publishing-endpoint` | **completed** (archived) | Spec: `openspec/specs/worker-blog-publishing-endpoint/spec.md`; endpoint `POST /publish-blog-post`; service `src/silverman_blog_linkedin/blog_publish_flow.py`; HTTP `src/silverman_blog_linkedin/main.py`; tests `tests/test_blog_publish_flow.py`; commit `c9a0cb2` feat(flow-a): add blog publishing endpoint |
 | 5 | `linkedin-derivative-package-generation` | **completed** (archived) | Spec: `openspec/specs/linkedin-derivative-package-generation/spec.md`; endpoint `POST /generate-linkedin-package`; service `src/silverman_blog_linkedin/linkedin_package_flow.py`; tests `tests/test_linkedin_package_generation.py` |
-| 6 | `linkedin-distribution-scheduling-model` | **completed** (archived) | Spec: `openspec/specs/linkedin-distribution-scheduling-model/spec.md`; endpoint `POST /schedule-linkedin-distribution`; service `src/silverman_blog_linkedin/linkedin_distribution_schedule.py`; tests `tests/test_linkedin_distribution_scheduling.py` |
-| 7 | `n8n-flow-a-blog-publish-orchestration` | **pending** | — |
+| 6 | `linkedin-distribution-scheduling-model` | **completed** (archived) | Spec: `openspec/specs/linkedin-distribution-scheduling-model/spec.md`; endpoint `POST /schedule-linkedin-distribution`; service `src/silverman_blog_linkedin/linkedin_distribution_schedule.py`; tests `tests/test_linkedin_distribution_scheduling.py`; commit `53708eb` |
+| 7 | `n8n-flow-a-blog-publish-orchestration` | **completed** (archived) | Spec: `openspec/specs/n8n-flow-a-blog-publish-orchestration/spec.md`; Workflow: `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`; tests: `tests/test_n8n_flow_a_publish_workflow.py` |
 | 8 | `linkedin-publication-integration` | **deferred** | LinkedIn API publish; depends on integration constraints |
 
-The umbrella remains **active**. Slices 1–6 are **completed** (archived); slice 7 remains pending; slice 8 is deferred.
+The umbrella remains **active**. Slices 1–7 are **completed** (archived); slice 8 is **deferred**.
 
 ## 2. Child Change: editorial-canon-and-linkedin-distribution-strategy
 
@@ -117,15 +117,19 @@ The umbrella remains **active**. Slices 1–6 are **completed** (archived); slic
 
 ## 8. Child Change: n8n-flow-a-blog-publish-orchestration
 
-**Status:** **pending**
+**Status:** **completed** (archived). Canonical spec: `openspec/specs/n8n-flow-a-blog-publish-orchestration/spec.md`. Workflow: `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`; tests: `tests/test_n8n_flow_a_publish_workflow.py`.
 
-**Propose with:** `/opsx-propose n8n-flow-a-blog-publish-orchestration`
+**Proposed with:** `/opsx-propose n8n-flow-a-blog-publish-orchestration`
 
-- [ ] 8.1 Extend or add n8n workflow JSON for Flow A full pipeline
-- [ ] 8.2 Chain: health → validate → publish → confirm URL → generate package → schedule
-- [ ] 8.3 HTTP-only; no Execute Command, filesystem, or direct LLM nodes
-- [ ] 8.4 Keep `"active": false` in export
-- [ ] 8.5 Update README and lightweight workflow validation tests
+**Applied with:** `/opsx-apply n8n-flow-a-blog-publish-orchestration`
+
+**Archived with:** `/opsx-archive n8n-flow-a-blog-publish-orchestration`
+
+- [x] 8.1 Extend or add n8n workflow JSON for Flow A full pipeline
+- [x] 8.2 Chain: health → validate → publish → confirm URL → generate package → schedule
+- [x] 8.3 HTTP-only; no Execute Command, filesystem, or direct LLM nodes
+- [x] 8.4 Keep `"active": false` in export
+- [x] 8.5 Update README and lightweight workflow validation tests
 - [ ] 8.6 Manual trigger end-to-end test on Ubuntu server
 
 **Depends on:** 4, 5, 6, 7

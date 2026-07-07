@@ -1,0 +1,1073 @@
+{
+  "name": "Silverman Blog LinkedIn Flow A Publish",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a1f8e2fd-b6a8-478c-b5ce-44a1494d993f",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "571ade30-270b-4c2f-ad84-d86b0bc739d4",
+              "name": "worker_base_url",
+              "value": "http://192.168.0.194:8010",
+              "type": "string"
+            },
+            {
+              "id": "dc109a51-b095-44f8-a31f-36a254ac3d0c",
+              "name": "worker_api_key",
+              "value": "CHANGE_ME_WORKER_API_KEY",
+              "type": "string"
+            },
+            {
+              "id": "b50b1b3f-8bef-402c-b111-35a5a21ef036",
+              "name": "site_url",
+              "value": "https://silverman.pro",
+              "type": "string"
+            },
+            {
+              "id": "d9e4b3c2-5e6f-7081-9203-b4c5d6e7f809",
+              "name": "topic_theme",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "e0f5c4d3-6f70-8192-a3b4c5d6e7f9",
+              "name": "schedule_strategy",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "f1a6d5e4-7081-9203-b4c5d6e7f80a",
+              "name": "start_at_utc",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "02b7e6f5-8192-a3b4-c5d6e7f80b1c",
+              "name": "timezone",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2f2e016a-1fec-4ea7-9e82-46571496929f",
+      "name": "Set Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ],
+      "notes": "Edit worker_base_url, worker_api_key, site_url, topic_theme, schedule_strategy, start_at_utc, and timezone before running. Campaign IDs use public slugs (numeric source prefixes are stripped by the worker)."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Set Configuration').first().json.worker_base_url }}/health",
+        "options": {}
+      },
+      "id": "2018295a-6fb4-43c6-9adc-1c32f437df68",
+      "name": "Health Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "notes": "GET /health — no authentication required."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a41d025f-f65d-456a-86f3-35f465db30ff",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "healthy"
+            },
+            {
+              "id": "d7ef5203-6d08-4acb-a5e6-69488770265c",
+              "leftValue": "={{ $json.folders_ready }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "26b635d3-73af-4aac-9a41-92cf2576a390",
+      "name": "IF Health Ready",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "42c5c352-8db8-4f69-95a9-96ff0102ad15",
+              "name": "outcome",
+              "value": "health_not_ready",
+              "type": "string"
+            },
+            {
+              "id": "ed576145-3644-4af9-b865-7c88a1e91e8e",
+              "name": "status",
+              "value": "={{ $json.status }}",
+              "type": "string"
+            },
+            {
+              "id": "534a28cd-cfd8-4b06-b93d-c3dbdb36b3f0",
+              "name": "folders_ready",
+              "value": "={{ $json.folders_ready }}",
+              "type": "boolean"
+            },
+            {
+              "id": "02fd5d87-ec83-4823-8452-9227afb79b09",
+              "name": "errors",
+              "value": "={{ ['worker_not_healthy'] }}",
+              "type": "array"
+            },
+            {
+              "id": "13fe6e98-fd94-5934-9563-a338bfc80c1a",
+              "name": "warnings",
+              "value": "={{ $json.warnings || [] }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "87c42fdf-3d7c-454c-b7ca-3eafdd28fb81",
+      "name": "Set Health Not Ready",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        520
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "50a619be-3fdd-4c47-9c31-d24689d8a838",
+      "name": "Stop Health Not Ready",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set Configuration').first().json.worker_base_url }}/process-ready",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Set Configuration').first().json.worker_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {}
+      },
+      "id": "7525d076-5e83-436a-a90a-b51c8b065438",
+      "name": "Process Ready",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "notes": "POST /process-ready — scans blog-posts/ready/."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bab97d06-a7f0-4c60-91c6-7c5884b73f27",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "failed"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "58015f95-77c5-45ec-b47b-1e53e9d8d111",
+      "name": "IF Process Ready Failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f28f5518-8589-411f-b250-fc7f6803c73f",
+              "name": "outcome",
+              "value": "process_ready_failed",
+              "type": "string"
+            },
+            {
+              "id": "af68b211-d77b-4088-82f9-ba3b6ce16c44",
+              "name": "errors",
+              "value": "={{ $json.errors }}",
+              "type": "array"
+            },
+            {
+              "id": "c01d8e72-2181-5c99-ce74-b44d7df91e2b",
+              "name": "warnings",
+              "value": "={{ $json.warnings || [] }}",
+              "type": "array"
+            },
+            {
+              "id": "b90cbd60-1070-4b33-bed2-42a6290dda97",
+              "name": "metadata_path",
+              "value": "={{ $json.metadata_path }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9aef17ac-c58c-4fa5-985f-9cefbaf98ed4",
+      "name": "Set Process Ready Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1320,
+        520
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "f50a64e2-2a49-448a-8076-17caec01c79e",
+      "name": "Stop Process Ready Error",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f578ffac-296a-4592-bde7-88339c76480a",
+              "leftValue": "={{ $json.valid_count }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dfbc5692-9357-40f7-9a23-c05bc176371c",
+      "name": "IF Has Valid Candidates",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "2e03eb97-005c-4ae9-a196-052886bdb712",
+      "name": "Stop No Candidates",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        120
+      ],
+      "notes": "Clean stop when valid_count is 0."
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "valid_files",
+        "include": "noOtherFields"
+      },
+      "id": "cd5ac6b9-da41-4189-9e62-165e4a31f965",
+      "name": "Split Out Valid Files",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        300
+      ],
+      "notes": "One item per valid_files entry from process-ready."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set Configuration').first().json.worker_base_url }}/publish-blog-post",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Set Configuration').first().json.worker_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const config = $('Set Configuration').first().json; const item = $json; const body = { source_relative_path: item.relative_path }; const siteUrl = (config.site_url || '').trim(); if (siteUrl) body.site_url = siteUrl; return JSON.stringify(body); })() }}",
+        "options": {}
+      },
+      "id": "1aab35f5-3c6c-4e4e-90af-459a1084eeb4",
+      "name": "Publish Blog Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        300
+      ],
+      "notes": "POST /publish-blog-post — validates and publishes one ready post. Idempotent completed (already_published) is success."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "30cfcbcc-2b96-5d96-c8c9-b6d6c34f5e8f",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "completed"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f3b0b500-95cc-411f-9669-da201f308e71",
+      "name": "IF Publish Completed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "80849c5c-6ac8-4872-a084-f60a9639fe02",
+              "name": "outcome",
+              "value": "publish_failed",
+              "type": "string"
+            },
+            {
+              "id": "9e6a4489-e04f-476c-a536-38dda380b8aa",
+              "name": "source_relative_path",
+              "value": "={{ $json.source_relative_path }}",
+              "type": "string"
+            },
+            {
+              "id": "b287f0f8-63d3-4137-9547-45a5d2d431bf",
+              "name": "errors",
+              "value": "={{ $json.errors }}",
+              "type": "array"
+            },
+            {
+              "id": "d12e9f83-3292-6daa-df85-c55e8e002f3c",
+              "name": "warnings",
+              "value": "={{ $json.warnings || [] }}",
+              "type": "array"
+            },
+            {
+              "id": "73bc76ed-751a-4902-8f4a-a27c0af62bb5",
+              "name": "metadata_path",
+              "value": "={{ $json.metadata_path }}",
+              "type": "string"
+            },
+            {
+              "id": "84cd87fe-862b-5a03-9f5b-b38d1b073cc6",
+              "name": "campaign_id",
+              "value": "={{ $json.campaign_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "eb558473-7014-4856-b771-ad77ef2f04a7",
+      "name": "Set Publish Failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2200,
+        520
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "fb50a64e-2a49-448a-8076-17caec01c80f",
+      "name": "Stop Publish Failed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2420,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set Configuration').first().json.worker_base_url }}/generate-linkedin-package",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Set Configuration').first().json.worker_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const config = $('Set Configuration').first().json; const item = $json; const body = {}; if (item.campaign_id) body.campaign_id = item.campaign_id; else if (item.source_relative_path) body.source_relative_path = item.source_relative_path; const theme = (config.topic_theme || '').trim(); const siteUrl = (config.site_url || '').trim(); if (theme) body.topic_theme = theme; if (siteUrl) body.site_url = siteUrl; return JSON.stringify(body); })() }}",
+        "options": {}
+      },
+      "id": "82d9a597-8641-404b-8a71-bdc2ce893965",
+      "name": "Generate LinkedIn Package",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        300
+      ],
+      "notes": "POST /generate-linkedin-package — multi-variant package generation inside the worker."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "edc632cd-631a-41e4-80c0-15f499ada9d6",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "completed"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a57f6a8f-c5f1-4701-b2f2-6c597a278f2f",
+      "name": "IF Package Completed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d1438d1e-4175-4f70-be7c-a0e6cad17a3e",
+              "name": "outcome",
+              "value": "package_failed",
+              "type": "string"
+            },
+            {
+              "id": "ce18f4f5-3e95-4cc0-bbf6-c40e2b1ea60b",
+              "name": "campaign_id",
+              "value": "={{ $json.campaign_id }}",
+              "type": "string"
+            },
+            {
+              "id": "db41d63b-65ab-44f7-9a6b-f6c9232ffa7e",
+              "name": "errors",
+              "value": "={{ $json.errors }}",
+              "type": "array"
+            },
+            {
+              "id": "e23f0a94-43ac-7ddb-e096-d67f9d01304d",
+              "name": "warnings",
+              "value": "={{ $json.warnings || [] }}",
+              "type": "array"
+            },
+            {
+              "id": "872c21ed-6c2c-464e-a147-460f46f2d31f",
+              "name": "metadata_path",
+              "value": "={{ $json.metadata_path }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3216ce72-90a5-453e-909d-e1269ebcebdb",
+      "name": "Set Package Failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2640,
+        520
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "0c50a64e-3a49-448a-8076-17caec01c810",
+      "name": "Stop Package Failed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2860,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set Configuration').first().json.worker_base_url }}/schedule-linkedin-distribution",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Set Configuration').first().json.worker_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const config = $('Set Configuration').first().json; const item = $json; const body = {}; if (item.campaign_id) body.campaign_id = item.campaign_id; else if (item.source_relative_path) body.source_relative_path = item.source_relative_path; const strategy = (config.schedule_strategy || '').trim(); const startAt = (config.start_at_utc || '').trim(); const tz = (config.timezone || '').trim(); if (strategy) body.strategy = strategy; if (startAt) body.start_at_utc = startAt; if (tz) body.timezone = tz; return JSON.stringify(body); })() }}",
+        "options": {}
+      },
+      "id": "92e9a697-9641-404b-8a71-bdc2ce893966",
+      "name": "Schedule LinkedIn Distribution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        300
+      ],
+      "notes": "POST /schedule-linkedin-distribution — schedules variants with publish_state pending. No LinkedIn API call."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fdc632cd-631a-41e4-80c0-15f499ada9d7",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "completed"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b57f6a8f-c5f1-4701-b2f2-6c597a278f30",
+      "name": "IF Schedule Completed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1438d1e-4175-4f70-be7c-a0e6cad17a3f",
+              "name": "outcome",
+              "value": "schedule_failed",
+              "type": "string"
+            },
+            {
+              "id": "de18f4f5-3e95-4cc0-bbf6-c40e2b1ea60c",
+              "name": "campaign_id",
+              "value": "={{ $json.campaign_id }}",
+              "type": "string"
+            },
+            {
+              "id": "eb41d63b-65ab-44f7-9a6b-f6c9232ffa7f",
+              "name": "errors",
+              "value": "={{ $json.errors }}",
+              "type": "array"
+            },
+            {
+              "id": "f34a1b05-54bd-8eec-f007-e78a0e124a5e",
+              "name": "warnings",
+              "value": "={{ $json.warnings || [] }}",
+              "type": "array"
+            },
+            {
+              "id": "982c21ed-6c2c-464e-a147-460f46f2d320",
+              "name": "metadata_path",
+              "value": "={{ $json.metadata_path }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4216ce72-90a5-453e-909d-e1269ebcecdc",
+      "name": "Set Schedule Failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3080,
+        520
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "1d50a64e-4b49-448a-8076-17caec01c820",
+      "name": "Stop Schedule Failed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3300,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4dea5eb3-f90a-4b30-902d-47ba1d7e6d52",
+              "name": "outcome",
+              "value": "flow_a_completed",
+              "type": "string"
+            },
+            {
+              "id": "aea54217-7058-4809-a81a-d0f5f032ba30",
+              "name": "campaign_id",
+              "value": "={{ $json.campaign_id }}",
+              "type": "string"
+            },
+            {
+              "id": "e1850008-dac1-4916-be2e-9f423d6e8902",
+              "name": "source_public_url",
+              "value": "={{ $json.source_public_url }}",
+              "type": "string"
+            },
+            {
+              "id": "7fe99f08-016e-41eb-af3a-d1290eba9199",
+              "name": "variant_schedules",
+              "value": "={{ $json.variant_schedules }}",
+              "type": "array"
+            },
+            {
+              "id": "8ff0a119-127f-52fc-b04b-e23a1fcb02aa",
+              "name": "warnings",
+              "value": "={{ $json.warnings || [] }}",
+              "type": "array"
+            },
+            {
+              "id": "9aa1b22a-238a-63ad-c05c-f34b2adc13bb",
+              "name": "source_relative_path",
+              "value": "={{ $json.source_relative_path }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8327f7fe-8317-4d62-9e5d-dcb4d9a602f4",
+      "name": "Set Flow A Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3080,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Configuration": {
+      "main": [
+        [
+          {
+            "node": "Health Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Health Check": {
+      "main": [
+        [
+          {
+            "node": "IF Health Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Health Ready": {
+      "main": [
+        [
+          {
+            "node": "Process Ready",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Health Not Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Health Not Ready": {
+      "main": [
+        [
+          {
+            "node": "Stop Health Not Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Ready": {
+      "main": [
+        [
+          {
+            "node": "IF Process Ready Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Process Ready Failed": {
+      "main": [
+        [
+          {
+            "node": "Set Process Ready Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF Has Valid Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Process Ready Error": {
+      "main": [
+        [
+          {
+            "node": "Stop Process Ready Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Has Valid Candidates": {
+      "main": [
+        [
+          {
+            "node": "Split Out Valid Files",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop No Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out Valid Files": {
+      "main": [
+        [
+          {
+            "node": "Publish Blog Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish Blog Post": {
+      "main": [
+        [
+          {
+            "node": "IF Publish Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Publish Completed": {
+      "main": [
+        [
+          {
+            "node": "Generate LinkedIn Package",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Publish Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Publish Failed": {
+      "main": [
+        [
+          {
+            "node": "Stop Publish Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate LinkedIn Package": {
+      "main": [
+        [
+          {
+            "node": "IF Package Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Package Completed": {
+      "main": [
+        [
+          {
+            "node": "Schedule LinkedIn Distribution",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Package Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Package Failed": {
+      "main": [
+        [
+          {
+            "node": "Stop Package Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule LinkedIn Distribution": {
+      "main": [
+        [
+          {
+            "node": "IF Schedule Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Schedule Completed": {
+      "main": [
+        [
+          {
+            "node": "Set Flow A Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Schedule Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Schedule Failed": {
+      "main": [
+        [
+          {
+            "node": "Stop Schedule Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c1865cba-805a-4d52-9e44-996da54d4f77",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

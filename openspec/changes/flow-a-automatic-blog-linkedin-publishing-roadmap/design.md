@@ -313,7 +313,7 @@ flow-a-automatic-blog-linkedin-publishing-roadmap (this umbrella)
 
 Slice 2 (lifecycle/idempotency) is foundational and SHOULD precede or run closely with slice 3 (validation). Slices 1–4 can partially overlap after umbrella planning approval. Slice 7 integrates prior slices. Slice 8 implements API publish only after scheduling model exists and integration constraints are documented.
 
-### Roadmap progress (as of child slice 6 archive)
+### Roadmap progress (as of child slice 7 archive)
 
 | # | Child change | Status | Notes |
 |---|--------------|--------|-------|
@@ -322,11 +322,11 @@ Slice 2 (lifecycle/idempotency) is foundational and SHOULD precede or run closel
 | 3 | `ready-post-editorial-validation` | **completed** (archived) | Canonical spec `openspec/specs/ready-post-editorial-validation/spec.md`; worker `src/silverman_blog_linkedin/ready_post_validation.py`; tests `tests/test_ready_post_validation.py` |
 | 4 | `worker-blog-publishing-endpoint` | **completed** (archived) | Canonical spec `openspec/specs/worker-blog-publishing-endpoint/spec.md`; endpoint `POST /publish-blog-post`; service `src/silverman_blog_linkedin/blog_publish_flow.py`; HTTP `src/silverman_blog_linkedin/main.py`; tests `tests/test_blog_publish_flow.py`; commit `c9a0cb2` feat(flow-a): add blog publishing endpoint |
 | 5 | `linkedin-derivative-package-generation` | **completed** (archived) | Canonical spec `openspec/specs/linkedin-derivative-package-generation/spec.md`; endpoint `POST /generate-linkedin-package`; service `src/silverman_blog_linkedin/linkedin_package_flow.py`; tests `tests/test_linkedin_package_generation.py` |
-| 6 | `linkedin-distribution-scheduling-model` | **completed** (archived) | Canonical spec `openspec/specs/linkedin-distribution-scheduling-model/spec.md`; endpoint `POST /schedule-linkedin-distribution`; service `src/silverman_blog_linkedin/linkedin_distribution_schedule.py`; tests `tests/test_linkedin_distribution_scheduling.py` |
-| 7 | `n8n-flow-a-blog-publish-orchestration` | **pending** | — |
+| 6 | `linkedin-distribution-scheduling-model` | **completed** (archived) | Canonical spec `openspec/specs/linkedin-distribution-scheduling-model/spec.md`; endpoint `POST /schedule-linkedin-distribution`; service `src/silverman_blog_linkedin/linkedin_distribution_schedule.py`; tests `tests/test_linkedin_distribution_scheduling.py`; commit `53708eb` feat(flow-a): add linkedin distribution scheduling model |
+| 7 | `n8n-flow-a-blog-publish-orchestration` | **completed** (archived) | Canonical spec `openspec/specs/n8n-flow-a-blog-publish-orchestration/spec.md`; workflow `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`; tests `tests/test_n8n_flow_a_publish_workflow.py` |
 | 8 | `linkedin-publication-integration` | **deferred** | LinkedIn API publish when integration constraints documented |
 
-The umbrella remains **active**. Slices 1–6 are **completed** (archived); slice 7 remains **pending**; slice 8 is **deferred**.
+The umbrella remains **active**. Slices 1–7 are **completed** (archived); slice 8 is **deferred**.
 
 ## Umbrella Lifecycle
 

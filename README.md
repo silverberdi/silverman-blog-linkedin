@@ -544,6 +544,77 @@ Manual Trigger
 
 For per-endpoint HTTP Request examples, see sections above (`GET /health`, `POST /process-ready`, `POST /process-file`, `POST /generate-linkedin-draft`).
 
+## n8n workflow: Flow A automatic publish orchestration
+
+Importable workflow JSON: `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`
+
+This workflow orchestrates **Flow A** end-to-end over HTTP only: scan ready posts, publish via `POST /publish-blog-post`, generate the multi-variant LinkedIn package via `POST /generate-linkedin-package`, and schedule distribution via `POST /schedule-linkedin-distribution`. It does **not** call the LinkedIn API, perform git operations, or move source blog files out of `blog-posts/ready/`.
+
+**Distinction from draft-generation workflow:** `silverman-blog-linkedin-draft-generation.json` is Flow B–adjacent review orchestration (`process-file` → single `generate-linkedin-draft` → `linkedin-posts/review/`). The Flow A workflow chains publish → package → schedule for automatic distribution metadata (`publish_state` `pending` until a future LinkedIn API slice).
+
+The exported JSON keeps `"active": false` and uses **Manual Trigger** only — no cron, webhook, or schedule trigger in this change.
+
+### Import
+
+1. In n8n, open **Workflows** → **Import from File**.
+2. Select `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`.
+3. Open the imported workflow **Silverman Blog LinkedIn Flow A Publish**.
+
+### Configure before first run
+
+Edit the **Set Configuration** node (first node after Manual Trigger):
+
+| Field | Placeholder | Purpose |
+|-------|-------------|---------|
+| `worker_base_url` | `http://192.168.0.194:8010` | Worker root URL (no trailing slash). Override for local Docker, e.g. `http://localhost:8000`. |
+| `worker_api_key` | `CHANGE_ME_WORKER_API_KEY` | Must match `SILVERMAN_BLOG_LINKEDIN_API_KEY` on the worker. **Replace after import — never commit a real key.** |
+| `site_url` | `https://silverman.pro` | Passed to publish/package when non-empty. |
+| `topic_theme` | _(empty)_ | Optional package generation hint. |
+| `schedule_strategy` | _(empty)_ | Optional; omit from schedule request when empty (worker default `flow_a_staggered`). |
+| `start_at_utc` | _(empty)_ | Optional deterministic schedule anchor for smoke tests (ISO-8601 UTC). |
+| `timezone` | _(empty)_ | Optional informational timezone hint for scheduling. |
+
+Authenticated HTTP Request nodes use `Authorization: Bearer {{ $('Set Configuration').first().json.worker_api_key }}` via expressions — not hardcoded tokens.
+
+**Campaign IDs** use the **public slug** (numeric source ordering prefixes are stripped by the worker). Example: `blog-posts/ready/01-why-i-did-not-start-with-the-database.md` with publication date `2026-07-06` → `flow-a-2026-07-06-why-i-did-not-start-with-the-database` (not `flow-a-2026-07-06-01-why-i-did-not-start-with-the-database`).
+
+### Node flow
+
+```
+Manual Trigger
+  → Set Configuration
+  → Health Check (GET /health)
+  → IF Health Ready
+  → Process Ready (POST /process-ready)
+  → IF Process Ready Failed → error output → stop
+  → IF Has Valid Candidates (valid_count > 0)
+      → else: clean stop (no candidates)
+  → Split Out Valid Files
+  → Publish Blog Post (POST /publish-blog-post)
+  → IF Publish Completed (status completed — includes idempotent already_published)
+      → Generate LinkedIn Package (POST /generate-linkedin-package)
+      → IF Package Completed
+          → Schedule LinkedIn Distribution (POST /schedule-linkedin-distribution)
+          → IF Schedule Completed
+              → success: campaign_id, source_public_url, variant_schedules[]
+          → else: schedule errors/warnings
+      → else: package errors/warnings
+  → else: publish errors/warnings
+```
+
+### Manual smoke test (Ubuntu server)
+
+1. Ensure worker slices 3–6 are deployed and healthy on `192.168.0.194:8010` (or your configured host).
+2. Place canonical test post pair in `blog-posts/ready/` on the editorial mount (e.g. `01-why-i-did-not-start-with-the-database.md` + matching `.png`).
+3. Import `silverman-blog-linkedin-flow-a-publish.json`; set `worker_api_key` in **Set Configuration**.
+4. Execute manually from the n8n editor (workflow remains inactive in export — manual run only).
+5. Verify campaign metadata under `metadata/campaigns/` progresses toward `distribution_scheduled`; artifacts under `linkedin-posts/generated/<campaign_id>/`; `variant_schedules[]` with `publish_state` `pending`.
+6. Re-run the workflow and confirm idempotent `status: completed` worker responses without duplicate artifacts.
+
+**Not in this workflow:** LinkedIn API publication, git commit/push, source file moves, cron activation.
+
+For worker endpoint contracts, see Flow A worker specs under `openspec/specs/` (`worker-blog-publishing-endpoint`, `linkedin-derivative-package-generation`, `linkedin-distribution-scheduling-model`).
+
 ## Blog publishing bridge (GitHub Pages)
 
 Operator CLI to prepare one ready editorial post pair (`<source-slug>.md` + `<source-slug>.png`) for the public Jekyll site at [silverman.pro](https://silverman.pro). Source slugs may include numeric ordering prefixes (`01-`, `02-`); the helper derives a public slug for URLs and published filenames. Dry-run by default; writes require `--apply`. No HTTP endpoint, no automatic git push.
