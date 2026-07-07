@@ -110,7 +110,7 @@ Common failure: operator pulls latest `main` on the server editorial mount or bu
 | Worker running old installed package | health OK; openapi paths incomplete | **fail** | `docker compose build --no-cache` + `--force-recreate` |
 | Wrong port / base URL | connection refused or 404 on `/health` | **fail** | Check `WORKER_BASE_URL` / `8010` |
 | Wrong environment/base path | health OK but editorial paths wrong in health payload | **warn/fail** | Verify `SILVERMAN_BLOG_LINKEDIN_BASE_PATH` mount |
-| n8n not imported yet | n8n reachable; optional API/workflow name check inconclusive | **pending** | Import workflow JSON manually; not a code defect |
+| n8n not imported yet | n8n reachable; optional API/workflow name check inconclusive | **pending** | Run `deploy/server/import-flow-a-n8n-workflow.sh` on Ubuntu server; confirm `OVERALL: PASS` |
 | API key mismatch | Phase 1 authenticated probe returns 401 | **fail** (Phase 1) | Align n8n `worker_api_key` with server `.env` |
 | Workflow export `active: true` | JSON parse | **fail** | Reset export to `"active": false` before merge |
 
@@ -207,11 +207,30 @@ Readiness reports failure with remediation text pointing to `deploy/server/deplo
 
 **Rationale:** `smoke-worker.sh` predates Flow A and does not inspect OpenAPI. Stale images can pass health/process-ready while missing `/publish-blog-post` and related paths.
 
+### D7: Repeatable n8n Flow A import script
+
+**Decision:** Add `deploy/server/import-flow-a-n8n-workflow.sh` for Ubuntu server operators. The script selects the **real n8n application container** by Docker image (`docker.n8n.io/n8nio/n8n` or `n8nio/n8n`), not the **nginx gateway** container (`local-ai-stack-n8n-gateway-1`).
+
+**Observed Ubuntu validation (2026-07):**
+
+| Item | Value |
+|------|-------|
+| Real n8n container | `local-ai-stack-n8n-1` (image `docker.n8n.io/n8nio/n8n:2.21.7`) |
+| Gateway (do not use for CLI) | `local-ai-stack-n8n-gateway-1` (nginx) |
+| Failed import cause | Workflow JSON missing/null top-level `id` → Postgres `workflow_entity.id` NOT NULL violation |
+| Successful stable id | `silvermanFlowAPublish01` |
+| Imported workflow | name `Silverman Blog LinkedIn Flow A Publish`, `active: false`, 26 nodes |
+| Worker config | `worker_base_url` `http://192.168.0.194:8010`; `worker_api_key` from server `.env` (never printed) |
+
+**Import preparation:** Set stable `id`, `name`, `active: false`; update **Set Configuration** `worker_base_url` and `worker_api_key`; remove null `createdAt`, `updatedAt`, `versionId` if present. Import via `docker exec <n8n-container> n8n import:workflow`; verify with `export:workflow` (matching id/name, `active: false`, 26 nodes). Do **not** activate workflow or add cron/webhook triggers.
+
+**Readiness interaction:** Phase 0 `n8n_workflow_import` may remain **pending** when HTTP reachability alone cannot confirm import (no n8n API credentials required). A successful `import-flow-a-n8n-workflow.sh` run with `OVERALL: PASS` satisfies manual import verification evidence.
+
 ## Risks / Trade-offs
 
 | Risk | Mitigation |
 |------|------------|
-| n8n import status hard to detect without API token | Report `pending_import` with checklist; optional future n8n API probe |
+| n8n import status hard to detect without API token | Report `pending_import` with checklist; successful `import-flow-a-n8n-workflow.sh` satisfies manual evidence |
 | Phase 3–4 remain operator-heavy | Document clearly; automate only safe read-only checks |
 | False pass if worker URL points to dev machine | Require explicit `--worker-base-url`; document server default |
 | Commit pins become stale | Configurable `--expected-commit`; default tied to umbrella baseline |

@@ -141,7 +141,7 @@ python scripts/flow_a_readiness.py \
 
 Phases 1–4 are blocked until Phase 0 passes (use `--force` for debugging only). Default expected commits: `79f5345`, `962ba2f`, `53708eb` (override with repeatable `--expected-commit`).
 
-`deploy/server/smoke-worker.sh` remains a complementary minimal post-deploy check; `deploy/server/verify-worker-deploy.sh` retries worker `/health` and `/openapi.json` after container recreate, then confirms Flow A OpenAPI endpoints; `scripts/flow_a_readiness.py` is the Flow A pre-smoke gate. Run deploy on the **Ubuntu server** so port `8010` is updated — running `deploy-worker.sh` from Mac only syncs locally. Use **repo layout** (`./deploy/server/deploy-worker.sh`) from a checkout, or **target layout** (`/home/silverman/silverman-blog-linkedin-worker/deploy-worker.sh`) when rebuilding from the synced server directory. If Phase 0 reports a stale worker, rebuild on the server with `DEPLOY_FORCE_REBUILD=1 ./deploy-worker.sh` (target layout) or `DEPLOY_FORCE_REBUILD=1 ./deploy/server/deploy-worker.sh` (repo layout), then `verify-worker-deploy.sh` — the readiness script does not deploy or restart automatically.
+`deploy/server/smoke-worker.sh` remains a complementary minimal post-deploy check; `deploy/server/verify-worker-deploy.sh` retries worker `/health` and `/openapi.json` after container recreate, then confirms Flow A OpenAPI endpoints; `deploy/server/import-flow-a-n8n-workflow.sh` imports the Flow A workflow into the real n8n container (not the nginx gateway) with stable id `silvermanFlowAPublish01`; `scripts/flow_a_readiness.py` is the Flow A pre-smoke gate. Phase 0 may report `n8n_workflow_import` as **pending** when import cannot be confirmed over HTTP alone — a successful `import-flow-a-n8n-workflow.sh` run on the Ubuntu server satisfies manual import verification evidence. Run deploy on the **Ubuntu server** so port `8010` is updated — running `deploy-worker.sh` from Mac only syncs locally. Use **repo layout** (`./deploy/server/deploy-worker.sh`) from a checkout, or **target layout** (`/home/silverman/silverman-blog-linkedin-worker/deploy-worker.sh`) when rebuilding from the synced server directory. If Phase 0 reports a stale worker, rebuild on the server with `DEPLOY_FORCE_REBUILD=1 ./deploy-worker.sh` (target layout) or `DEPLOY_FORCE_REBUILD=1 ./deploy/server/deploy-worker.sh` (repo layout), then `verify-worker-deploy.sh` — the readiness script does not deploy or restart automatically.
 
 Use `--json` for machine-readable output. API keys are never printed (`api_key_configured: true/false` only).
 
@@ -590,11 +590,25 @@ This workflow orchestrates **Flow A** end-to-end over HTTP only: scan ready post
 
 The exported JSON keeps `"active": false` and uses **Manual Trigger** only — no cron, webhook, or schedule trigger in this change.
 
-### Import
+### Import (Ubuntu server — recommended)
+
+On the Ubuntu server, use `deploy/server/import-flow-a-n8n-workflow.sh` to import into the **real n8n container** (image `docker.n8n.io/n8nio/n8n` or `n8nio/n8n`), not the nginx gateway (`local-ai-stack-n8n-gateway-1`). The script sets stable workflow id `silvermanFlowAPublish01` (required by n8n/Postgres import), configures `worker_base_url` and `worker_api_key` from the server `.env`, and leaves the workflow **inactive**. See [ubuntu-server-worker-deployment.md](docs/deployment/ubuntu-server-worker-deployment.md#import-flow-a-n8n-workflow).
+
+```bash
+mkdir -p /home/silverman/n8n-imports
+cp n8n/workflows/silverman-blog-linkedin-flow-a-publish.json \
+   /home/silverman/n8n-imports/silverman-blog-linkedin-flow-a-publish.source.json
+./deploy/server/import-flow-a-n8n-workflow.sh
+```
+
+Confirm `OVERALL: PASS`, 26 nodes, and `active=false`. The workflow must remain inactive until a future operational change explicitly enables scheduling.
+
+### Import (n8n UI — alternative)
 
 1. In n8n, open **Workflows** → **Import from File**.
 2. Select `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`.
 3. Open the imported workflow **Silverman Blog LinkedIn Flow A Publish**.
+4. Set stable workflow id `silvermanFlowAPublish01` if the UI import fails with a Postgres `id` constraint error.
 
 ### Configure before first run
 
@@ -642,7 +656,7 @@ Manual Trigger
 
 1. Ensure worker slices 3–6 are deployed and healthy on `192.168.0.194:8010` (or your configured host).
 2. Place canonical test post pair in `blog-posts/ready/` on the editorial mount (e.g. `01-why-i-did-not-start-with-the-database.md` + matching `.png`).
-3. Import `silverman-blog-linkedin-flow-a-publish.json`; set `worker_api_key` in **Set Configuration**.
+3. Import via `deploy/server/import-flow-a-n8n-workflow.sh` (or n8n UI); confirm `worker_api_key: configured` and workflow remains inactive.
 4. Execute manually from the n8n editor (workflow remains inactive in export — manual run only).
 5. Verify campaign metadata under `metadata/campaigns/` progresses toward `distribution_scheduled`; artifacts under `linkedin-posts/generated/<campaign_id>/`; `variant_schedules[]` with `publish_state` `pending`.
 6. Re-run the workflow and confirm idempotent `status: completed` worker responses without duplicate artifacts.

@@ -88,7 +88,31 @@ The readiness command SHALL check n8n reachability when configured and SHALL dis
 #### Scenario: n8n reachable but workflow not imported
 
 - **WHEN** n8n is reachable but the Flow A workflow cannot be confirmed as imported (no API credentials or inconclusive probe)
-- **THEN** the report status is `pending_import` (or equivalent pending status), not a code failure, with manual import checklist guidance
+- **THEN** the report status is `pending_import` (or equivalent pending status), not a code failure, with manual import checklist guidance referencing `deploy/server/import-flow-a-n8n-workflow.sh`
+
+#### Scenario: Manual import script satisfies pending evidence
+
+- **WHEN** an operator runs `deploy/server/import-flow-a-n8n-workflow.sh` on the Ubuntu server and the script reports `OVERALL: PASS` with workflow id `silvermanFlowAPublish01`, `active: false`, and 26 nodes
+- **THEN** manual import verification evidence is satisfied even if Phase 0 `n8n_workflow_import` remains pending from HTTP-only probes
+
+### Requirement: Repeatable n8n Flow A import on Ubuntu server
+
+The repository SHALL provide `deploy/server/import-flow-a-n8n-workflow.sh` that imports the Flow A workflow into the real n8n container (not the nginx gateway), prepares a stable workflow id for Postgres import, configures worker URL and API key without printing secrets, and verifies the imported workflow remains inactive.
+
+#### Scenario: Select n8n container by image
+
+- **WHEN** the import script runs on a host with `local-ai-stack` n8n and nginx gateway containers
+- **THEN** it selects a running container whose image matches `n8nio/n8n` or `docker.n8n.io/n8nio/n8n` and does not use the nginx gateway container for `n8n import:workflow`
+
+#### Scenario: Stable workflow id required
+
+- **WHEN** the source workflow JSON lacks a top-level `id` or has null import-breaking metadata fields
+- **THEN** the script prepares import JSON with stable id `silvermanFlowAPublish01`, removes null `createdAt`, `updatedAt`, and `versionId` when present, and sets `active: false`
+
+#### Scenario: Import verification without activation
+
+- **WHEN** import completes successfully
+- **THEN** the script verifies via `export:workflow` that the workflow exists by id or name, has 26 nodes, and `active` is false, without activating the workflow or adding cron/webhook triggers
 
 ### Requirement: Smoke-test phase gating
 

@@ -17,6 +17,7 @@ ENV_EXAMPLE_PATH = DEPLOY_SERVER / "silverman-worker.env.example"
 DEPLOY_SCRIPT_PATH = DEPLOY_SERVER / "deploy-worker.sh"
 SMOKE_SCRIPT_PATH = DEPLOY_SERVER / "smoke-worker.sh"
 VERIFY_DEPLOY_SCRIPT_PATH = DEPLOY_SERVER / "verify-worker-deploy.sh"
+IMPORT_FLOW_A_SCRIPT_PATH = DEPLOY_SERVER / "import-flow-a-n8n-workflow.sh"
 VERIFY_ROTATION_SCRIPT_PATH = DEPLOY_SERVER / "verify-worker-api-key-rotation.sh"
 DEPLOYMENT_DOC_PATH = REPO_ROOT / "docs" / "deployment" / "ubuntu-server-worker-deployment.md"
 
@@ -330,3 +331,111 @@ def test_deployment_doc_documents_repo_and_target_layout_modes() -> None:
     assert "target layout" in content.lower()
     assert "./deploy/server/deploy-worker.sh" in content
     assert "/home/silverman/silverman-blog-linkedin-worker/deploy-worker.sh" in content
+
+
+@pytest.fixture
+def import_flow_a_script_content() -> str:
+    assert IMPORT_FLOW_A_SCRIPT_PATH.is_file(), (
+        f"missing import script: {IMPORT_FLOW_A_SCRIPT_PATH}"
+    )
+    return IMPORT_FLOW_A_SCRIPT_PATH.read_text(encoding="utf-8")
+
+
+def test_import_flow_a_script_exists() -> None:
+    assert IMPORT_FLOW_A_SCRIPT_PATH.is_file()
+
+
+def test_import_flow_a_script_is_executable() -> None:
+    mode = IMPORT_FLOW_A_SCRIPT_PATH.stat().st_mode
+    assert mode & stat.S_IXUSR, "import-flow-a-n8n-workflow.sh is not executable (owner)"
+
+
+def test_import_flow_a_script_finds_n8n_container_by_image_not_gateway(
+    import_flow_a_script_content: str,
+) -> None:
+    content = import_flow_a_script_content
+    assert "n8nio/n8n" in content
+    assert "docker.n8n.io/n8nio/n8n" in content
+    assert "n8n-gateway" in content
+    assert "is_gateway_container" in content
+    assert "find_n8n_container" in content
+    assert "docker ps --format" in content
+    assert "local-ai-stack-n8n-gateway" not in content
+
+
+def test_import_flow_a_script_sets_stable_workflow_id(
+    import_flow_a_script_content: str,
+) -> None:
+    assert 'WORKFLOW_ID="silvermanFlowAPublish01"' in import_flow_a_script_content
+    assert "workflow_id" in import_flow_a_script_content
+
+
+def test_import_flow_a_script_forces_active_false(import_flow_a_script_content: str) -> None:
+    assert 'workflow["active"] = False' in import_flow_a_script_content
+    assert "workflow inactive" in import_flow_a_script_content
+    assert "was not activated" in import_flow_a_script_content
+
+
+def test_import_flow_a_script_updates_worker_base_url(
+    import_flow_a_script_content: str,
+) -> None:
+    assert "WORKER_BASE_URL" in import_flow_a_script_content
+    assert "worker_base_url" in import_flow_a_script_content
+    assert "http://192.168.0.194:8010" in import_flow_a_script_content
+
+
+def test_import_flow_a_script_injects_worker_api_key_without_printing_secret(
+    import_flow_a_script_content: str,
+) -> None:
+    content = import_flow_a_script_content
+    assert "SILVERMAN_BLOG_LINKEDIN_API_KEY" in content
+    assert "worker_api_key" in content
+    assert "worker_api_key: configured" in content
+    assert "read_worker_api_key" in content
+    for pattern in SECRET_PATTERNS:
+        assert not pattern.search(content), (
+            f"import-flow-a-n8n-workflow.sh may contain a real secret: {pattern}"
+        )
+    assert "echo \"${WORKER_API_KEY}\"" not in content
+    assert "echo ${WORKER_API_KEY}" not in content
+
+
+def test_import_flow_a_script_removes_null_import_breaking_fields(
+    import_flow_a_script_content: str,
+) -> None:
+    content = import_flow_a_script_content
+    for field in ("createdAt", "updatedAt", "versionId"):
+        assert field in content
+    assert "workflow[field] is None" in content
+
+
+def test_import_flow_a_script_verifies_imported_workflow_inactive(
+    import_flow_a_script_content: str,
+) -> None:
+    content = import_flow_a_script_content
+    assert "export:workflow" in content
+    assert "import:workflow" in content
+    assert "verify_exported_workflow" in content
+    assert 'match.get("active") is not False' in content
+    assert "EXPECTED_NODE_COUNT=26" in content
+
+
+def test_import_flow_a_script_does_not_activate_or_call_linkedin_api(
+    import_flow_a_script_content: str,
+) -> None:
+    content = import_flow_a_script_content
+    lowered = content.lower()
+    assert "active: true" not in lowered
+    assert '"active": true' not in lowered
+    assert "activate" not in lowered or "was not activated" in content
+    assert "linkedin api" not in lowered or "call linkedin api" in lowered
+    assert "cron" not in lowered or "no cron/webhook" in content
+    assert "webhook" not in lowered or "no cron/webhook" in content
+
+
+def test_deployment_doc_documents_flow_a_n8n_import() -> None:
+    content = DEPLOYMENT_DOC_PATH.read_text(encoding="utf-8")
+    assert "import-flow-a-n8n-workflow.sh" in content
+    assert "silvermanFlowAPublish01" in content
+    assert "n8n-gateway" in content or "nginx gateway" in content.lower()
+    assert "workflow must remain inactive" in content.lower() or "remains inactive" in content.lower()

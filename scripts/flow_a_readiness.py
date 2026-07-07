@@ -84,11 +84,17 @@ PHASE4_MANUAL_STEPS = [
 ]
 
 N8N_IMPORT_CHECKLIST = [
-    "Import n8n/workflows/silverman-blog-linkedin-flow-a-publish.json into n8n.",
-    "Set worker_base_url to the deployed worker (e.g. http://192.168.0.194:8010).",
-    "Set worker_api_key to match SILVERMAN_BLOG_LINKEDIN_API_KEY on the server.",
+    "Copy n8n/workflows/silverman-blog-linkedin-flow-a-publish.json to the server import path (default: /home/silverman/n8n-imports/silverman-blog-linkedin-flow-a-publish.source.json).",
+    "Run deploy/server/import-flow-a-n8n-workflow.sh on the Ubuntu server (sets stable workflow id, worker_base_url, worker_api_key; leaves workflow inactive).",
+    "Confirm import script reports OVERALL: PASS with 26 nodes and active=false.",
     "Leave workflow inactive in n8n until a future operational change enables scheduling.",
 ]
+
+N8N_IMPORT_PENDING_MESSAGE = (
+    "n8n workflow import status inconclusive from HTTP probe alone; "
+    "run deploy/server/import-flow-a-n8n-workflow.sh on the Ubuntu server "
+    "and confirm OVERALL: PASS to satisfy manual import verification evidence"
+)
 
 
 class CheckStatus(str, Enum):
@@ -499,7 +505,7 @@ def run_phase0(
                     "n8n_workflow_import",
                     0,
                     CheckStatus.PENDING,
-                    "n8n workflow import status inconclusive; pending manual import verification",
+                    N8N_IMPORT_PENDING_MESSAGE,
                 )
             )
             for item in N8N_IMPORT_CHECKLIST:

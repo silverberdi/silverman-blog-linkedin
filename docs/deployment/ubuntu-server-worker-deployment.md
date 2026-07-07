@@ -138,7 +138,7 @@ python3 scripts/flow_a_readiness.py \
 
 **Phase 1:** non-destructive `POST /process-ready` when API key is configured (never prints the key).
 
-**Phase 2:** n8n reachability; workflow import reported as `pending_import` when import cannot be confirmed.
+**Phase 2:** n8n reachability; workflow import reported as `pending_import` when import cannot be confirmed over HTTP alone. A successful `deploy/server/import-flow-a-n8n-workflow.sh` run on the Ubuntu server satisfies manual import verification evidence.
 
 **Phase 3–4:** manual operator steps only (manual n8n trigger; idempotent rerun verification). No cron/webhook activation. No LinkedIn API calls.
 
@@ -155,7 +155,7 @@ Confirm `/openapi.json` exposes Flow A endpoints before n8n smoke. The readiness
 
 Relationship to `smoke-worker.sh`: smoke-worker is minimal post-deploy; `flow_a_readiness.py` is the Flow A pre-smoke gate with OpenAPI and git checks.
 
-### 4. Configure n8n
+### 4. Configure n8n (draft generation workflow)
 
 In the **Set Configuration** node of workflow `Silverman Blog LinkedIn Draft Generation`:
 
@@ -167,6 +167,38 @@ In the **Set Configuration** node of workflow `Silverman Blog LinkedIn Draft Gen
 Do not modify n8n gateway or `local-ai-stack` compose.
 
 Run the workflow manually and verify a draft appears under `linkedin-posts/review/` while the source post remains in `blog-posts/ready/`.
+
+### 5. Import Flow A n8n workflow
+
+The `local-ai-stack` deployment exposes n8n through an **nginx gateway** container (for example `local-ai-stack-n8n-gateway-1`). The gateway is **not** the n8n application — do not run `n8n import:workflow` against it. Select the real n8n container by image (`docker.n8n.io/n8nio/n8n` or `n8nio/n8n`), for example `local-ai-stack-n8n-1`.
+
+**Why a stable workflow id:** n8n imports into Postgres via `workflow_entity.id`. Exports without a top-level `id` (or with null `createdAt` / `updatedAt` / `versionId`) can fail with `null value in column "id"`. The import script sets stable id `silvermanFlowAPublish01` before import.
+
+1. Copy the workflow export to the server import path:
+
+   ```bash
+   mkdir -p /home/silverman/n8n-imports
+   cp /path/to/repo/n8n/workflows/silverman-blog-linkedin-flow-a-publish.json \
+      /home/silverman/n8n-imports/silverman-blog-linkedin-flow-a-publish.source.json
+   ```
+
+2. Run the import script on the Ubuntu server:
+
+   ```bash
+   /home/silverman/silverman-blog-linkedin-worker/import-flow-a-n8n-workflow.sh
+   # or from repo checkout:
+   ./deploy/server/import-flow-a-n8n-workflow.sh
+   ```
+
+   Defaults: source `/home/silverman/n8n-imports/silverman-blog-linkedin-flow-a-publish.source.json`, prepared output alongside with `.prepared.json` suffix, worker env `/home/silverman/silverman-blog-linkedin-worker/.env`, `worker_base_url` `http://192.168.0.194:8010`, workflow name **Silverman Blog LinkedIn Flow A Publish**, id `silvermanFlowAPublish01`.
+
+3. Confirm safe output only (`worker_api_key: configured` — never the key) and `OVERALL: PASS` with 26 nodes and `active=false`.
+
+The script reads `SILVERMAN_BLOG_LINKEDIN_API_KEY` from the worker `.env`, updates **Set Configuration** `worker_base_url` and `worker_api_key`, imports via `docker exec <n8n-container> n8n import:workflow`, and verifies with `export:workflow`. It does **not** activate the workflow, add cron/webhook triggers, call the LinkedIn API, or modify the worker or nginx gateway.
+
+**Workflow must remain inactive** until a future operational change explicitly enables scheduling. Manual smoke uses the n8n editor Manual Trigger only.
+
+Phase 0 `n8n_workflow_import` may remain **pending** when the readiness script cannot verify import over HTTP alone; a successful import script run satisfies manual import verification evidence.
 
 ## Updates
 

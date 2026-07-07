@@ -65,3 +65,13 @@
 - [x] 8.5 Strengthen `scripts/flow_a_readiness.py` stale-worker remediation text; update tests
 - [x] 8.6 Document post-deploy OpenAPI requirement in `docs/deployment/ubuntu-server-worker-deployment.md` and README
 - [x] 8.7 Refine `verify-worker-deploy.sh`: retry `/health` and `/openapi.json` after container recreate; update tests and docs
+
+## 9. n8n Flow A import formalization (Ubuntu validation)
+
+- [x] 9.1 Add `deploy/server/import-flow-a-n8n-workflow.sh` — locate real n8n container by image (`n8nio/n8n`), exclude nginx gateway
+- [x] 9.2 Prepare workflow JSON with stable id `silvermanFlowAPublish01`, `active=false`, `worker_base_url`, `worker_api_key`; remove null `createdAt`/`updatedAt`/`versionId`
+- [x] 9.3 Import via `docker exec … n8n import:workflow`; verify with `export:workflow` (26 nodes, inactive); never print API key
+- [x] 9.4 Update `scripts/flow_a_readiness.py` pending-import wording to reference import script as manual verification evidence
+- [x] 9.5 Add tests in `tests/test_server_deployment_artifacts.py` for import script behavior and safety constraints
+- [x] 9.6 Document import procedure in README and `docs/deployment/ubuntu-server-worker-deployment.md`
+- [x] 9.7 Update design/spec with gateway vs n8n container, stable workflow id requirement, and pending readiness semantics
