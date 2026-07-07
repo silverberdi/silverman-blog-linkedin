@@ -149,3 +149,15 @@
 - [x] 16.5 Update `run-flow-a-worker-smoke.sh` to print reconciliation skip diagnostics on publish failure
 - [x] 16.6 Update design, spec, README, and deployment docs with third root cause; Flow A not complete until worker smoke reaches `distribution_scheduled`
 - [x] 16.7 Run `openspec validate`, targeted pytest, and full `pytest`
+
+## 17. Reconciliation canonical publish output comparison (post-smoke validation)
+
+**Observed smoke failure (2026-07, commit `b8b7a7a`):** `verify-worker-deploy.sh` and public repo mount PASS; public `_posts` and `assets/images` exist; `POST /publish-blog-post` fails with `blog_publish_target_exists` and `blog_publish.reconciliation_skip_reason: blog_publish_reconciliation_skipped_public_content_mismatch` while `source_public_url` is present. Root cause: reconciliation content check did not share a single canonical render path with `apply_plan` / `run_publish`, and mismatch diagnostics were insufficient to distinguish post vs image drift.
+
+- [x] 17.1 Extract `render_expected_public_post` in `github_pages_publish.py` and use in `apply_plan` and reconciliation comparison
+- [x] 17.2 Compare public post bytes against canonical publish output (not raw ready markdown); separate image mismatch skip reason
+- [x] 17.3 Add safe reconciliation diagnostic hashes/paths under `blog_publish` on content or image mismatch
+- [x] 17.4 Add regression tests in `tests/test_blog_publish_flow.py` (canonical `run_publish` output reconciles; raw-ready mismatch fails with hashes; image mismatch fails safely)
+- [x] 17.5 Update `run-flow-a-worker-smoke.sh` to print reconciliation hash diagnostics on publish failure
+- [x] 17.6 Update design, spec, README, and deployment docs with fourth root cause
+- [x] 17.7 Run `openspec validate`, targeted pytest, and full `pytest`

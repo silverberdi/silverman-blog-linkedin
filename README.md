@@ -683,6 +683,7 @@ The script reads `SILVERMAN_BLOG_LINKEDIN_API_KEY` from `/home/silverman/silverm
 | `publish-blog-post` fails with `blog_publish_target_exists` while campaign stays `validated` | Worker idempotency (redeploy worker with reconciliation fix) |
 | `publish-blog-post` fails with `blog_publish_invalid_campaign_state` while public files exist and campaign is `error` | Worker error-state reconciliation (prior failed publish polluted metadata) |
 | `publish-blog-post` fails with `blog_publish_target_exists`, `source_public_url: null`, and `reconciliation_skip_reason` in response | Worker reconciliation ordering/diagnostics (redeploy worker; inspect skip reason) |
+| `publish-blog-post` fails with `blog_publish_target_exists` and `reconciliation_skip_reason: blog_publish_reconciliation_skipped_public_content_mismatch` while public files exist | Worker canonical publish-output reconciliation (inspect expected/actual SHA-256 in `blog_publish`; redeploy worker) |
 | Worker smoke `PASS` but n8n fails at the same step | n8n payload/branch mapping — re-import workflow |
 | `generate-linkedin-package` fails with `deepseek_config_invalid` | Provider config (`DEEPSEEK_API_KEY` in server `.env`) |
 | Package `PASS`, schedule fails | Schedule payload or package metadata shape |

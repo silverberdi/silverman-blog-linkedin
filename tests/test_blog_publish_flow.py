@@ -19,6 +19,7 @@ from silverman_blog_linkedin.blog_publish_flow import (
     BLOG_PUBLISH_TARGET_EXISTS,
     BLOG_PUBLISH_VALIDATION_FAILED,
     RECONCILIATION_SKIPPED_PUBLIC_CONTENT_MISMATCH,
+    RECONCILIATION_SKIPPED_PUBLIC_IMAGE_MISMATCH,
     RECONCILIATION_SKIPPED_SOURCE_MISMATCH,
     RECONCILED_FROM_ERROR_WARNING,
     publish_blog_post,
@@ -43,8 +44,8 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     write_campaign_metadata,
 )
 from silverman_blog_linkedin.github_pages_publish import (
-    prepare_frontmatter,
-    render_markdown,
+    render_expected_public_post,
+    run_publish,
 )
 from silverman_blog_linkedin.main import create_app
 from silverman_blog_linkedin.ready_post_validation import CONTENT_CONTAINS_TODO
@@ -195,12 +196,11 @@ def _write_matching_public_artifacts(
     md_path = editorial_base / SOURCE_RELATIVE
     png_path = editorial_base / IMAGE_RELATIVE
     if post_body is None:
-        frontmatter, body = prepare_frontmatter(
+        post_body = render_expected_public_post(
             md_path,
             PUBLIC_SLUG,
             date.fromisoformat(PUBLICATION_DATE),
         )
-        post_body = render_markdown(frontmatter, body)
     if image_bytes is None:
         image_bytes = png_path.read_bytes()
 
@@ -540,6 +540,116 @@ def test_unsafe_mismatch_returns_target_exists_with_skip_reason(
         == RECONCILIATION_SKIPPED_PUBLIC_CONTENT_MISMATCH
     )
     assert result.source_public_url == f"{SITE_URL}/2026/07/06/{PUBLIC_SLUG}/"
+    assert result.blog_publish.get("reconciliation_expected_post_relative_path")
+    assert result.blog_publish.get("reconciliation_actual_post_relative_path")
+    assert result.blog_publish.get("reconciliation_expected_post_sha256")
+    assert result.blog_publish.get("reconciliation_actual_post_sha256")
+    assert (
+        result.blog_publish["reconciliation_expected_post_sha256"]
+        != result.blog_publish["reconciliation_actual_post_sha256"]
+    )
+
+
+def test_reconcile_error_campaign_with_run_publish_canonical_output(
+    editorial_base: Path, public_repo: Path
+):
+    """Public post from run_publish must reconcile even when raw ready markdown differs."""
+    subtitle_frontmatter = (
+        "---\n"
+        f"title: {TITLE}\n"
+        "status: draft\n"
+        "subtitle: A senior practitioner's take on starting with the domain.\n"
+        "audience: architects\n"
+        "type: blog-post\n"
+        "language: en\n"
+        f"date: {PUBLICATION_DATE}\n"
+        "categories:\n"
+        "  - architecture\n"
+        "tags:\n"
+        "  - databases\n"
+        "---\n"
+    )
+    body = _canonical_body()
+    md_path = _write_post(editorial_base, frontmatter=subtitle_frontmatter, body=body)
+    content = md_path.read_text(encoding="utf-8")
+
+    campaign = build_initial_campaign_metadata(
+        flow=FLOW_A,
+        source_slug=SOURCE_SLUG,
+        public_slug=PUBLIC_SLUG,
+        source_relative_path=SOURCE_RELATIVE,
+        image_relative_path=IMAGE_RELATIVE,
+        source_content=content,
+        publication_date=PUBLICATION_DATE,
+    )
+    transition_state(
+        campaign,
+        STATE_VALIDATED,
+        reason="Editorial validation passed",
+        actor=ACTOR_WORKER,
+    )
+    campaign["source_public_url"] = f"{SITE_URL}/2026/07/06/{PUBLIC_SLUG}/"
+    transition_state(
+        campaign,
+        STATE_ERROR,
+        reason="Prior publish attempt failed",
+        actor=ACTOR_WORKER,
+        error_code=BLOG_PUBLISH_TARGET_EXISTS,
+    )
+    campaign["errors"] = [BLOG_PUBLISH_TARGET_EXISTS]
+    campaign["blog_publish"] = {
+        "status": "failed",
+        "error_code": BLOG_PUBLISH_TARGET_EXISTS,
+    }
+    write_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID, campaign)
+
+    env = _publish_env(editorial_base, public_repo)
+    run_publish(
+        SOURCE_SLUG,
+        publication_date=date.fromisoformat(PUBLICATION_DATE),
+        apply=True,
+        environ=env,
+        json_output=False,
+    )
+
+    raw_ready = (editorial_base / SOURCE_RELATIVE).read_text(encoding="utf-8")
+    public_post = (
+        public_repo / "_posts" / f"{PUBLICATION_DATE}-{PUBLIC_SLUG}.md"
+    ).read_text(encoding="utf-8")
+    assert raw_ready != public_post
+
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "completed"
+    assert result.state == STATE_BLOG_PUBLISHED
+    assert result.blog_publish["status"] == "reconciled"
+    assert BLOG_PUBLISH_TARGET_EXISTS not in result.errors
+
+
+def test_image_mismatch_returns_skip_reason_and_hashes(
+    editorial_base: Path, public_repo: Path
+):
+    _error_campaign(editorial_base)
+    _write_post(editorial_base)
+    _write_matching_public_artifacts(editorial_base, public_repo)
+
+    image_path = public_repo / "assets/images" / f"{PUBLIC_SLUG}.png"
+    image_path.write_bytes(b"\x89PNG\r\n\x1a\nstale-image")
+
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "failed"
+    assert BLOG_PUBLISH_TARGET_EXISTS in result.errors
+    assert (
+        result.blog_publish.get("reconciliation_skip_reason")
+        == RECONCILIATION_SKIPPED_PUBLIC_IMAGE_MISMATCH
+    )
+    assert result.blog_publish.get("reconciliation_expected_image_sha256")
+    assert result.blog_publish.get("reconciliation_actual_image_sha256")
+    assert (
+        result.blog_publish["reconciliation_expected_image_sha256"]
+        != result.blog_publish["reconciliation_actual_image_sha256"]
+    )
 
 
 def test_target_exists_failure_includes_source_public_url(

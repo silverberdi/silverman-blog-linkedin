@@ -259,6 +259,17 @@ blog_publish = data.get("blog_publish") or {}
 skip_reason = blog_publish.get("reconciliation_skip_reason")
 if skip_reason:
     print(f"reconciliation_skip_reason: {skip_reason}")
+for key in (
+    "reconciliation_expected_post_relative_path",
+    "reconciliation_actual_post_relative_path",
+    "reconciliation_expected_post_sha256",
+    "reconciliation_actual_post_sha256",
+    "reconciliation_expected_image_sha256",
+    "reconciliation_actual_image_sha256",
+):
+    value = blog_publish.get(key)
+    if value:
+        print(f"{key}: {value}")
 PY
     pretty_json_file "${RESPONSE_TMP}"
     return 1

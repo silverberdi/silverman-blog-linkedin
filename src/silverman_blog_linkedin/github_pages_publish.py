@@ -283,6 +283,14 @@ def render_markdown(frontmatter: dict[str, Any], body: str) -> str:
     return f"---\n{yaml_block}\n---\n"
 
 
+def render_expected_public_post(
+    source_md: Path, public_slug: str, publication_date: date
+) -> str:
+    """Return the canonical Jekyll post body that publish would write."""
+    frontmatter, body = prepare_frontmatter(source_md, public_slug, publication_date)
+    return render_markdown(frontmatter, body)
+
+
 def check_no_overwrite(post_target: Path, image_target: Path) -> None:
     conflicts: list[str] = []
     if post_target.exists():
@@ -326,10 +334,9 @@ def build_plan(
 
 
 def apply_plan(plan: PublishPlan) -> None:
-    frontmatter, body = prepare_frontmatter(
+    markdown = render_expected_public_post(
         plan.source_md, plan.public_slug, plan.publication_date
     )
-    markdown = render_markdown(frontmatter, body)
 
     plan.image_target.parent.mkdir(parents=True, exist_ok=True)
     plan.post_target.parent.mkdir(parents=True, exist_ok=True)

@@ -38,9 +38,8 @@ from silverman_blog_linkedin.github_pages_publish import (
     PublishPlan,
     _split_frontmatter,
     load_config,
-    prepare_frontmatter,
     public_url,
-    render_markdown,
+    render_expected_public_post,
     resolve_public_slug,
     run_publish,
     validate_repo_layout,
@@ -125,9 +124,45 @@ RECONCILIATION_SKIPPED_MISSING_PUBLIC_IMAGE = (
 RECONCILIATION_SKIPPED_PUBLIC_CONTENT_MISMATCH = (
     "blog_publish_reconciliation_skipped_public_content_mismatch"
 )
+RECONCILIATION_SKIPPED_PUBLIC_IMAGE_MISMATCH = (
+    "blog_publish_reconciliation_skipped_public_image_mismatch"
+)
 RECONCILIATION_SKIPPED_IDEMPOTENCY_MISMATCH = (
     "blog_publish_reconciliation_skipped_idempotency_mismatch"
 )
+
+
+@dataclass(frozen=True)
+class PublicTargetComparison:
+    expected_post_relative: str
+    actual_post_relative: str
+    expected_image_relative: str
+    actual_image_relative: str
+    post_matches: bool
+    image_matches: bool
+    expected_post_sha256: str | None = None
+    actual_post_sha256: str | None = None
+    expected_image_sha256: str | None = None
+    actual_image_sha256: str | None = None
+
+    @property
+    def matches(self) -> bool:
+        return self.post_matches and self.image_matches
+
+    def diagnostics(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "reconciliation_expected_post_relative_path": self.expected_post_relative,
+            "reconciliation_actual_post_relative_path": self.actual_post_relative,
+        }
+        if self.expected_post_sha256 is not None:
+            payload["reconciliation_expected_post_sha256"] = self.expected_post_sha256
+        if self.actual_post_sha256 is not None:
+            payload["reconciliation_actual_post_sha256"] = self.actual_post_sha256
+        if self.expected_image_sha256 is not None:
+            payload["reconciliation_expected_image_sha256"] = self.expected_image_sha256
+        if self.actual_image_sha256 is not None:
+            payload["reconciliation_actual_image_sha256"] = self.actual_image_sha256
+        return payload
 
 
 @dataclass
@@ -481,7 +516,7 @@ def _clear_stale_publish_errors(campaign: dict[str, Any]) -> None:
     ]
 
 
-def _public_targets_match_source(
+def _compare_public_targets(
     base_path: Path,
     repo_path: Path,
     preflight: PreflightContext,
@@ -489,7 +524,8 @@ def _public_targets_match_source(
     post_relative: str,
     image_relative: str,
     pub_date: date,
-) -> bool:
+) -> PublicTargetComparison | None:
+    """Compare public artifacts against canonical publish output for the ready source."""
     assert preflight.source_slug is not None
     assert preflight.public_slug is not None
 
@@ -499,23 +535,32 @@ def _public_targets_match_source(
     public_image = (repo_path / image_relative).resolve()
 
     if not source_md.is_file() or not source_png.is_file():
-        return False
+        return None
     if not public_post.is_file() or not public_image.is_file():
-        return False
+        return None
 
     try:
-        frontmatter, body = prepare_frontmatter(
+        expected_post = render_expected_public_post(
             source_md, preflight.public_slug, pub_date
         )
-        expected_post = render_markdown(frontmatter, body)
-        if public_post.read_text(encoding="utf-8") != expected_post:
-            return False
-        if public_image.read_bytes() != source_png.read_bytes():
-            return False
+        actual_post = public_post.read_text(encoding="utf-8")
+        expected_image = source_png.read_bytes()
+        actual_image = public_image.read_bytes()
     except (OSError, PublishError):
-        return False
+        return None
 
-    return True
+    return PublicTargetComparison(
+        expected_post_relative=post_relative,
+        actual_post_relative=post_relative,
+        expected_image_relative=image_relative,
+        actual_image_relative=image_relative,
+        post_matches=actual_post == expected_post,
+        image_matches=actual_image == expected_image,
+        expected_post_sha256=compute_source_content_sha256(expected_post),
+        actual_post_sha256=compute_source_content_sha256(actual_post),
+        expected_image_sha256=compute_source_content_sha256(expected_image),
+        actual_image_sha256=compute_source_content_sha256(actual_image),
+    )
 
 
 def _enrich_preflight_from_campaign(
@@ -589,18 +634,18 @@ def _reconciliation_skip_reason(
     post_relative: str,
     image_relative: str,
     pub_date: date,
-) -> str | None:
+) -> tuple[str | None, dict[str, Any]]:
     if campaign.get("state") not in RECONCILABLE_PUBLISH_STATES:
-        return RECONCILIATION_SKIPPED_STATE_NOT_ALLOWED
+        return RECONCILIATION_SKIPPED_STATE_NOT_ALLOWED, {}
 
     if campaign.get("flow") != FLOW_A:
-        return RECONCILIATION_SKIPPED_STATE_NOT_ALLOWED
+        return RECONCILIATION_SKIPPED_STATE_NOT_ALLOWED, {}
 
     if campaign.get("source_relative_path") != preflight.source_relative_path:
-        return RECONCILIATION_SKIPPED_SOURCE_MISMATCH
+        return RECONCILIATION_SKIPPED_SOURCE_MISMATCH, {}
 
     if campaign.get("source_content_sha256") != preflight.source_content_sha256:
-        return RECONCILIATION_SKIPPED_HASH_MISMATCH
+        return RECONCILIATION_SKIPPED_HASH_MISMATCH, {}
 
     post_exists, image_exists = _public_target_existence(
         repo_path,
@@ -608,11 +653,11 @@ def _reconciliation_skip_reason(
         image_relative=image_relative,
     )
     if not post_exists and not image_exists:
-        return None
+        return None, {}
     if not post_exists:
-        return RECONCILIATION_SKIPPED_MISSING_PUBLIC_POST
+        return RECONCILIATION_SKIPPED_MISSING_PUBLIC_POST, {}
     if not image_exists:
-        return RECONCILIATION_SKIPPED_MISSING_PUBLIC_IMAGE
+        return RECONCILIATION_SKIPPED_MISSING_PUBLIC_IMAGE, {}
 
     blog_publish = campaign.get("blog_publish") or {}
     stored_key = blog_publish.get("idempotency_key")
@@ -620,19 +665,26 @@ def _reconciliation_skip_reason(
         stored_key is not None
         and stored_key != preflight.expected_idempotency_key
     ):
-        return RECONCILIATION_SKIPPED_IDEMPOTENCY_MISMATCH
+        return RECONCILIATION_SKIPPED_IDEMPOTENCY_MISMATCH, {}
 
-    if not _public_targets_match_source(
+    comparison = _compare_public_targets(
         base_path,
         repo_path,
         preflight,
         post_relative=post_relative,
         image_relative=image_relative,
         pub_date=pub_date,
-    ):
-        return RECONCILIATION_SKIPPED_PUBLIC_CONTENT_MISMATCH
+    )
+    if comparison is None:
+        return RECONCILIATION_SKIPPED_PUBLIC_CONTENT_MISMATCH, {}
 
-    return None
+    diagnostics = comparison.diagnostics()
+    if not comparison.post_matches:
+        return RECONCILIATION_SKIPPED_PUBLIC_CONTENT_MISMATCH, diagnostics
+    if not comparison.image_matches:
+        return RECONCILIATION_SKIPPED_PUBLIC_IMAGE_MISMATCH, diagnostics
+
+    return None, {}
 
 
 def _target_exists_failure(
@@ -642,12 +694,15 @@ def _target_exists_failure(
     campaign_id: str,
     site_url: str,
     skip_reason: str | None,
+    reconciliation_diagnostics: dict[str, Any] | None = None,
     warnings: list[str],
     validation_summary: dict[str, Any],
 ) -> BlogPublishResult:
     blog_publish = dict(campaign.get("blog_publish") or {})
     if skip_reason:
         blog_publish["reconciliation_skip_reason"] = skip_reason
+    if reconciliation_diagnostics:
+        blog_publish.update(reconciliation_diagnostics)
     return _failed_result(
         preflight,
         errors=[BLOG_PUBLISH_TARGET_EXISTS],
@@ -686,7 +741,7 @@ def _attempt_blog_publish_reconciliation(
     if not post_exists and not image_exists:
         return None
 
-    skip_reason = _reconciliation_skip_reason(
+    skip_reason, reconciliation_diagnostics = _reconciliation_skip_reason(
         base_path,
         campaign,
         preflight,
@@ -717,6 +772,7 @@ def _attempt_blog_publish_reconciliation(
             campaign_id=campaign_id,
             site_url=site_url,
             skip_reason=skip_reason,
+            reconciliation_diagnostics=reconciliation_diagnostics,
             warnings=warnings,
             validation_summary=validation_summary,
         )

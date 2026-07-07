@@ -303,11 +303,17 @@ The repository SHALL provide `deploy/server/run-flow-a-worker-smoke.sh` for Ubun
 - **AND** stale publish-related errors (`blog_publish_target_exists`, `blog_publish_public_repo_not_configured`, `blog_publish_invalid_campaign_state`) are cleared
 - **AND** unrelated campaign errors are preserved
 
+#### Scenario: Publish reconciliation accepts canonical transformed public post
+
+- **WHEN** campaign metadata is `error` with stale `blog_publish_target_exists`, public post exists at the expected path, and public post content equals the canonical output from `render_expected_public_post` (the same transform `run_publish` / `apply_plan` uses)
+- **THEN** `POST /publish-blog-post` reconciles metadata to `blog_published` even when raw ready Markdown frontmatter differs from the public Jekyll post (for example `subtitle` promoted to `description`, `status` removed, Jekyll `date` suffix applied)
+
 #### Scenario: Publish reconciliation rejects unsafe error recovery
 
 - **WHEN** campaign metadata is `error` but source path, content hash, idempotency key, or public file content do not match the current request
 - **THEN** `POST /publish-blog-post` returns `status: failed` with stable error `blog_publish_target_exists`
-- **AND** `blog_publish.reconciliation_skip_reason` explains why reconciliation was skipped (for example `blog_publish_reconciliation_skipped_public_content_mismatch`)
+- **AND** `blog_publish.reconciliation_skip_reason` explains why reconciliation was skipped (for example `blog_publish_reconciliation_skipped_public_content_mismatch` or `blog_publish_reconciliation_skipped_public_image_mismatch`)
+- **AND** `blog_publish` includes safe expected/actual post (and optionally image) SHA-256 diagnostics and relative paths without full Markdown content
 - **AND** `source_public_url` is preserved or computed when slug, date, and site URL are known
 
 #### Scenario: Publish reconciliation runs before overwrite guard
@@ -319,7 +325,7 @@ The repository SHALL provide `deploy/server/run-flow-a-worker-smoke.sh` for Ubun
 #### Scenario: Worker smoke prints reconciliation diagnostics on publish failure
 
 - **WHEN** `run-flow-a-worker-smoke.sh` publish step returns `status: failed` with `blog_publish.reconciliation_skip_reason`
-- **THEN** the script prints the skip reason without secrets
+- **THEN** the script prints the skip reason and any reconciliation SHA-256 diagnostic fields without secrets
 
 #### Scenario: Evidence collector PASS requires distribution evidence
 
