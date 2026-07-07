@@ -106,6 +106,8 @@ else
       "${DEPLOY_SERVER_DIR}/smoke-worker.sh" \
       "${DEPLOY_SERVER_DIR}/verify-worker-deploy.sh" \
       "${DEPLOY_SERVER_DIR}/verify-worker-api-key-rotation.sh" \
+      "${DEPLOY_SERVER_DIR}/run-linkedin-publication-smoke.sh" \
+      "${DEPLOY_SERVER_DIR}/collect-flow-a-smoke-evidence.sh" \
       "${TARGET_DIR}/"
   else
     echo "    rsync not found; using cp (no delete of stale files)"
@@ -118,13 +120,17 @@ else
       "${DEPLOY_SERVER_DIR}/smoke-worker.sh" \
       "${DEPLOY_SERVER_DIR}/verify-worker-deploy.sh" \
       "${DEPLOY_SERVER_DIR}/verify-worker-api-key-rotation.sh" \
+      "${DEPLOY_SERVER_DIR}/run-linkedin-publication-smoke.sh" \
+      "${DEPLOY_SERVER_DIR}/collect-flow-a-smoke-evidence.sh" \
       "${TARGET_DIR}/"
   fi
 
   chmod +x "${TARGET_DIR}/deploy-worker.sh" \
     "${TARGET_DIR}/smoke-worker.sh" \
     "${TARGET_DIR}/verify-worker-deploy.sh" \
-    "${TARGET_DIR}/verify-worker-api-key-rotation.sh"
+    "${TARGET_DIR}/verify-worker-api-key-rotation.sh" \
+    "${TARGET_DIR}/run-linkedin-publication-smoke.sh" \
+    "${TARGET_DIR}/collect-flow-a-smoke-evidence.sh"
 fi
 
 echo "==> Verifying synced Flow A source files in target directory..."

@@ -30,6 +30,11 @@ from silverman_blog_linkedin.github_pages_publish import DEFAULT_SITE_URL, ENV_R
 from silverman_blog_linkedin.linkedin_distribution_schedule import (
     schedule_linkedin_distribution,
 )
+from silverman_blog_linkedin.linkedin_publication_flow import (
+    cancel_linkedin_publication,
+    publish_linkedin_due_variants,
+    queue_linkedin_publication,
+)
 from silverman_blog_linkedin.linkedin_package_flow import generate_linkedin_package
 from silverman_blog_linkedin.linkedin_prompt import build_chat_messages
 from silverman_blog_linkedin.paths import validate_folders
@@ -288,6 +293,104 @@ class ScheduleLinkedInDistributionRequest(BaseModel):
                 "provide exactly one of campaign_id or source_relative_path"
             )
         return self
+
+
+class QueueLinkedInPublicationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str
+    variant: str
+    dry_run: bool = True
+    safety_delay_minutes: int | None = None
+    publish_after_utc: str | None = None
+
+    @field_validator("campaign_id")
+    @classmethod
+    def validate_campaign_id(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("campaign_id must not be empty")
+        return stripped
+
+    @field_validator("variant")
+    @classmethod
+    def validate_variant(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("variant must not be empty")
+        return stripped
+
+    @field_validator("publish_after_utc")
+    @classmethod
+    def validate_publish_after_utc(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("publish_after_utc must not be empty or whitespace-only")
+        return stripped
+
+    @field_validator("safety_delay_minutes")
+    @classmethod
+    def validate_safety_delay_minutes(cls, value: int | None) -> int | None:
+        if value is None:
+            return None
+        if value < 0:
+            raise ValueError("safety_delay_minutes must be >= 0")
+        return value
+
+
+class PublishLinkedInDueVariantsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str | None = None
+    variant: str | None = None
+    dry_run: bool = True
+    publish_now: bool = False
+
+    @field_validator("campaign_id")
+    @classmethod
+    def validate_campaign_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("campaign_id must not be empty")
+        return stripped
+
+    @field_validator("variant")
+    @classmethod
+    def validate_variant(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("variant must not be empty")
+        return stripped
+
+
+class CancelLinkedInPublicationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str
+    variant: str
+    dry_run: bool = True
+
+    @field_validator("campaign_id")
+    @classmethod
+    def validate_campaign_id(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("campaign_id must not be empty")
+        return stripped
+
+    @field_validator("variant")
+    @classmethod
+    def validate_variant(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("variant must not be empty")
+        return stripped
 
 
 class PublishBlogPostRequest(BaseModel):
@@ -1303,6 +1406,71 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             result.campaign_id,
             result.state,
             result.strategy,
+        )
+        return result.to_dict()
+
+    @app.post("/queue-linkedin-publication")
+    def queue_linkedin_publication_endpoint(
+        body: QueueLinkedInPublicationRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = queue_linkedin_publication(
+            settings.base_path,
+            campaign_id=body.campaign_id,
+            variant=body.variant,
+            dry_run=body.dry_run,
+            safety_delay_minutes=body.safety_delay_minutes,
+            publish_after_utc=body.publish_after_utc,
+            environ=os.environ,
+        )
+        logger.info(
+            "queue-linkedin-publication status=%s campaign_id=%s variant=%s dry_run=%s",
+            result.status,
+            result.campaign_id,
+            result.variant,
+            result.dry_run,
+        )
+        return result.to_dict()
+
+    @app.post("/publish-linkedin-due-variants")
+    def publish_linkedin_due_variants_endpoint(
+        body: PublishLinkedInDueVariantsRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = publish_linkedin_due_variants(
+            settings.base_path,
+            campaign_id=body.campaign_id,
+            variant=body.variant,
+            dry_run=body.dry_run,
+            publish_now=body.publish_now,
+            environ=os.environ,
+        )
+        logger.info(
+            "publish-linkedin-due-variants status=%s dry_run=%s publish_now=%s results=%s",
+            result.status,
+            result.dry_run,
+            result.publish_now,
+            len(result.results),
+        )
+        return result.to_dict()
+
+    @app.post("/cancel-linkedin-publication")
+    def cancel_linkedin_publication_endpoint(
+        body: CancelLinkedInPublicationRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = cancel_linkedin_publication(
+            settings.base_path,
+            campaign_id=body.campaign_id,
+            variant=body.variant,
+            dry_run=body.dry_run,
+        )
+        logger.info(
+            "cancel-linkedin-publication status=%s campaign_id=%s variant=%s dry_run=%s",
+            result.status,
+            result.campaign_id,
+            result.variant,
+            result.dry_run,
         )
         return result.to_dict()
 

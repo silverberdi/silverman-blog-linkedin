@@ -20,6 +20,7 @@ VERIFY_DEPLOY_SCRIPT_PATH = DEPLOY_SERVER / "verify-worker-deploy.sh"
 IMPORT_FLOW_A_SCRIPT_PATH = DEPLOY_SERVER / "import-flow-a-n8n-workflow.sh"
 COLLECT_FLOW_A_EVIDENCE_SCRIPT_PATH = DEPLOY_SERVER / "collect-flow-a-smoke-evidence.sh"
 FLOW_A_WORKER_SMOKE_SCRIPT_PATH = DEPLOY_SERVER / "run-flow-a-worker-smoke.sh"
+LINKEDIN_PUBLICATION_SMOKE_SCRIPT_PATH = DEPLOY_SERVER / "run-linkedin-publication-smoke.sh"
 VERIFY_ROTATION_SCRIPT_PATH = DEPLOY_SERVER / "verify-worker-api-key-rotation.sh"
 DEPLOYMENT_DOC_PATH = REPO_ROOT / "docs" / "deployment" / "ubuntu-server-worker-deployment.md"
 
@@ -288,6 +289,18 @@ def test_deploy_script_syncs_verify_rotation_script() -> None:
     assert "verify-worker-deploy.sh" in content
 
 
+def test_deploy_script_syncs_linkedin_publication_smoke_scripts() -> None:
+    content = DEPLOY_SCRIPT_PATH.read_text(encoding="utf-8")
+    for script in (
+        "run-linkedin-publication-smoke.sh",
+        "collect-flow-a-smoke-evidence.sh",
+    ):
+        assert script in content
+    assert '"${TARGET_DIR}/run-linkedin-publication-smoke.sh"' in content
+    assert '"${TARGET_DIR}/collect-flow-a-smoke-evidence.sh"' in content
+    assert "chmod +x" in content
+
+
 def test_verify_deploy_script_exists() -> None:
     assert VERIFY_DEPLOY_SCRIPT_PATH.is_file()
 
@@ -303,10 +316,14 @@ def test_verify_deploy_script_checks_flow_a_openapi_paths() -> None:
         "/publish-blog-post",
         "/generate-linkedin-package",
         "/schedule-linkedin-distribution",
+        "/queue-linkedin-publication",
+        "/publish-linkedin-due-variants",
+        "/cancel-linkedin-publication",
     ):
         assert path in content
     assert "blog_publish_flow.py" in content
     assert "SILVERMAN_BLOG_LINKEDIN_API_KEY" not in content
+    assert "SILVERMAN_LINKEDIN_ACCESS_TOKEN" not in content
 
 
 def test_verify_deploy_script_waits_for_worker_readiness() -> None:
@@ -806,3 +823,23 @@ def test_flow_a_worker_smoke_script_checks_campaign_state_and_artifacts(
     assert "OVERALL: PASS" in content
     assert "OVERALL: FAIL" in content
     assert "final campaign state must be distribution_scheduled with linkedin_distribution" in content
+
+
+def test_linkedin_publication_smoke_script_exists_and_is_executable() -> None:
+    assert LINKEDIN_PUBLICATION_SMOKE_SCRIPT_PATH.is_file()
+    mode = LINKEDIN_PUBLICATION_SMOKE_SCRIPT_PATH.stat().st_mode
+    assert mode & stat.S_IXUSR
+
+
+def test_linkedin_publication_smoke_script_defaults_to_dry_run(
+) -> None:
+    content = LINKEDIN_PUBLICATION_SMOKE_SCRIPT_PATH.read_text(encoding="utf-8")
+    assert "/queue-linkedin-publication" in content
+    assert "/publish-linkedin-due-variants" in content
+    assert "/cancel-linkedin-publication" in content
+    assert "dry-run" in content.lower() or "dry_run" in content
+    assert "SILVERMAN_LINKEDIN_ACCESS_TOKEN" not in content
+    for pattern in SECRET_PATTERNS:
+        assert not pattern.search(content), (
+            f"run-linkedin-publication-smoke.sh may contain a real secret: {pattern}"
+        )

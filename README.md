@@ -31,6 +31,18 @@ The worker **fails fast at startup** if `SILVERMAN_BLOG_LINKEDIN_API_KEY` is mis
 
 The worker starts without `DEEPSEEK_API_KEY`. Other endpoints work normally. Invalid optional DeepSeek settings do not block startup; they cause `POST /generate-linkedin-draft` to return `deepseek_config_invalid`. The DeepSeek API key is never included in HTTP responses, run metadata, or info-level logs.
 
+### LinkedIn publication (optional — required only for real `POST /publish-linkedin-due-variants`)
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `SILVERMAN_LINKEDIN_ACCESS_TOKEN` | Real publish | — | OAuth access token (external; never logged or returned) |
+| `SILVERMAN_LINKEDIN_MEMBER_URN` | **Yes v1** | — | Author URN, e.g. `urn:li:person:{id}` (no auto-resolve) |
+| `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` | Real publish | `false` | Must be `true` for real LinkedIn API calls |
+| `SILVERMAN_LINKEDIN_DEFAULT_SAFETY_DELAY_MINUTES` | No | `120` | Minutes after queue before variant is due for publish |
+| `SILVERMAN_LINKEDIN_API_VERSION` | No | `202504` | LinkedIn REST API version header (YYYYMM) |
+
+Queue and cancel endpoints do not call LinkedIn. All three publication endpoints default to `dry_run: true`. See [docs/deployment/linkedin-publication-prerequisites.md](docs/deployment/linkedin-publication-prerequisites.md).
+
 ### Local vs container base path
 
 - **Local development (Mac):** default `./data/silverman-blog-linkedin` relative to the working directory.
@@ -704,6 +716,28 @@ The script reads `SILVERMAN_BLOG_LINKEDIN_API_KEY` from `/home/silverman/silverm
 **Not in this workflow:** LinkedIn API publication, git commit/push, source file moves, cron activation.
 
 For worker endpoint contracts, see Flow A worker specs under `openspec/specs/` (`worker-blog-publishing-endpoint`, `linkedin-derivative-package-generation`, `linkedin-distribution-scheduling-model`).
+
+## LinkedIn publication (follow-up to Flow A Core)
+
+Flow A Core completes at `distribution_scheduled` with per-variant `publish_state: pending`. The worker exposes three authenticated endpoints (all default `dry_run: true`):
+
+| Endpoint | Purpose | LinkedIn API |
+|----------|---------|--------------|
+| `POST /queue-linkedin-publication` | Authorize variant; `pending` → `queued`; set `publish_after_utc` | Never |
+| `POST /publish-linkedin-due-variants` | Publish due `queued` variants (or `publish_now: true`) | When real-enabled |
+| `POST /cancel-linkedin-publication` | `queued` → `cancelled` before publish | Never |
+
+**Smoke (Ubuntu server):**
+
+```bash
+./deploy/server/run-linkedin-publication-smoke.sh
+```
+
+Defaults to dry-run (safe without LinkedIn credentials). Real queue: `--real`. Real publish: `--real-publish` with `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=true` and token/URN in `.env`. Never prints secrets. Reports variant `publish_state` before and after each step.
+
+**Immediate mode (future):** set `SILVERMAN_LINKEDIN_DEFAULT_SAFETY_DELAY_MINUTES=0` or pass `publish_now: true` on publish-due. Operator review UI is out of scope v1; use cancel before `publish_after_utc`.
+
+See [docs/deployment/linkedin-publication-prerequisites.md](docs/deployment/linkedin-publication-prerequisites.md) for Developer App setup, `w_member_social`, and the two-step queue → publish workflow.
 
 ## Blog publishing bridge (GitHub Pages)
 

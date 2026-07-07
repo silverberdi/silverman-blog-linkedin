@@ -594,6 +594,30 @@ if blog_publish.get("public_image_adopted") is True:
 print(f"has linkedin package: {'yes' if has_package else 'no'}")
 print(f"has linkedin distribution: {'yes' if has_distribution else 'no'}")
 
+variants = data.get("variants") or []
+state_counts = {
+    "pending": 0,
+    "queued": 0,
+    "published": 0,
+    "failed": 0,
+    "cancelled": 0,
+}
+for entry in variants:
+    if not isinstance(entry, dict):
+        continue
+    publish_state = entry.get("publish_state")
+    if publish_state in state_counts:
+        state_counts[publish_state] += 1
+if variants:
+    print(
+        "linkedin publication states: "
+        f"pending={state_counts['pending']} "
+        f"queued={state_counts['queued']} "
+        f"published={state_counts['published']} "
+        f"failed={state_counts['failed']} "
+        f"cancelled={state_counts['cancelled']}"
+    )
+
 print(f"CAMPAIGN_STATE={state}")
 print(f"HAS_BLOG_PUBLISH={1 if has_blog_publish else 0}")
 print(f"HAS_LINKEDIN_PACKAGE={1 if has_package else 0}")

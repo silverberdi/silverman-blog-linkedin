@@ -22,6 +22,9 @@ REQUIRED_OPENAPI_PATHS=(
   "/publish-blog-post"
   "/generate-linkedin-package"
   "/schedule-linkedin-distribution"
+  "/queue-linkedin-publication"
+  "/publish-linkedin-due-variants"
+  "/cancel-linkedin-publication"
 )
 
 REQUIRED_PASSED=0
@@ -234,7 +237,7 @@ else
 fi
 echo
 
-echo "==> Worker OpenAPI Flow A endpoints"
+echo "==> Worker OpenAPI required endpoints"
 OPENAPI_READY=0
 attempt=1
 OPENAPI_HTTP_CODE="000"
@@ -276,7 +279,7 @@ PY
   )"
 
   if [[ -n "${MISSING_PATHS}" ]]; then
-    fail "OpenAPI missing required Flow A paths: ${MISSING_PATHS//,/, }"
+    fail "OpenAPI missing required paths: ${MISSING_PATHS//,/, }"
     echo "HINT: deploy may have synced source but the running container still serves an old image." >&2
     echo "HINT: on the Ubuntu server run:" >&2
     echo "  cd ${DEPLOY_DIR}" >&2
@@ -286,7 +289,7 @@ PY
     echo "HINT: ensure deploy-worker.sh runs on the server target ${DEPLOY_DIR}, not only from Mac." >&2
     REQUIRED_FAILED=$((REQUIRED_FAILED + 1))
   else
-    pass "OpenAPI exposes required Flow A paths (${#REQUIRED_OPENAPI_PATHS[@]}/${#REQUIRED_OPENAPI_PATHS[@]})"
+    pass "OpenAPI exposes required paths (${#REQUIRED_OPENAPI_PATHS[@]}/${#REQUIRED_OPENAPI_PATHS[@]})"
     REQUIRED_PASSED=$((REQUIRED_PASSED + 1))
   fi
 fi
