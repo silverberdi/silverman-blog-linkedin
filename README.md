@@ -39,7 +39,7 @@ The worker starts without `DEEPSEEK_API_KEY`. Other endpoints work normally. Inv
 | `SILVERMAN_LINKEDIN_MEMBER_URN` | **Yes v1** | — | Author URN, e.g. `urn:li:person:{id}` (no auto-resolve) |
 | `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` | Real publish | `false` | Must be `true` for real LinkedIn API calls |
 | `SILVERMAN_LINKEDIN_DEFAULT_SAFETY_DELAY_MINUTES` | No | `120` | Minutes after queue before variant is due for publish |
-| `SILVERMAN_LINKEDIN_API_VERSION` | No | `202504` | LinkedIn REST API version header (YYYYMM) |
+| `SILVERMAN_LINKEDIN_API_VERSION` | No | `202606` | LinkedIn REST API version header (YYYYMM) |
 
 Queue and cancel endpoints do not call LinkedIn. All three publication endpoints default to `dry_run: true`. See [docs/deployment/linkedin-publication-prerequisites.md](docs/deployment/linkedin-publication-prerequisites.md).
 

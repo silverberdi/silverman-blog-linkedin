@@ -90,7 +90,7 @@ When refresh fails or no refresh token exists, publish-due returns stable codes 
 | `SILVERMAN_LINKEDIN_TOKEN_REFRESH_SKEW_SECONDS` | No | Refresh before expiry; default `300` |
 | `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` | Real publish | Must be `true` for real LinkedIn API calls |
 | `SILVERMAN_LINKEDIN_DEFAULT_SAFETY_DELAY_MINUTES` | No | Default `120` — minutes after queue before variant is due |
-| `SILVERMAN_LINKEDIN_API_VERSION` | No | LinkedIn REST API version header (YYYYMM), default `202504` |
+| `SILVERMAN_LINKEDIN_API_VERSION` | No | LinkedIn REST API version header (YYYYMM), default `202606` |
 | `SILVERMAN_LINKEDIN_ACCESS_TOKEN` | Fallback only | Manual Postman token when store empty |
 | `SILVERMAN_LINKEDIN_MEMBER_URN` | Fallback only | Manual override when store empty |
 
@@ -126,6 +126,12 @@ Required headers (verified against LinkedIn Posts API documentation):
 - `Content-Type: application/json`
 - `X-Restli-Protocol-Version: 2.0.0`
 - `Linkedin-Version: {YYYYMM}`
+
+### API version header (HTTP 426)
+
+The worker sends `Linkedin-Version` from `SILVERMAN_LINKEDIN_API_VERSION` (default **`202606`**).
+
+If LinkedIn returns **HTTP 426**, the configured version is no longer supported. Set `SILVERMAN_LINKEDIN_API_VERSION` to a current supported **YYYYMM** value per [LinkedIn API versioning](https://learn.microsoft.com/en-us/linkedin/marketing/versioning), redeploy, and retry publish-due.
 
 ## Minimizing public exposure
 

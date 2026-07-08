@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-DEFAULT_API_VERSION = "202504"
+DEFAULT_API_VERSION = "202606"
 DEFAULT_SAFETY_DELAY_MINUTES = 120
 
 ENV_ACCESS_TOKEN = "SILVERMAN_LINKEDIN_ACCESS_TOKEN"
