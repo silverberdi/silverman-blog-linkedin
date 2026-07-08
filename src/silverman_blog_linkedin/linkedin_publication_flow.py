@@ -27,6 +27,7 @@ from silverman_blog_linkedin.linkedin_config import (
     LinkedInPublicationSettings,
     load_linkedin_publication_settings,
 )
+from silverman_blog_linkedin.linkedin_token_provider import resolve_linkedin_access_token
 from silverman_blog_linkedin.run_metadata import utc_now_iso
 
 PUBLISH_STATE_PENDING = "pending"
@@ -57,6 +58,9 @@ LINKEDIN_PUBLISH_API_ERROR = "linkedin_publish_api_error"
 LINKEDIN_PUBLISH_CONTENT_INVALID = "linkedin_publish_content_invalid"
 LINKEDIN_PUBLISH_METADATA_WRITE_FAILED = "linkedin_publish_metadata_write_failed"
 LINKEDIN_PUBLISH_CANCEL_NOT_ALLOWED = "linkedin_publish_cancel_not_allowed"
+LINKEDIN_OAUTH_TOKEN_MISSING = "linkedin_oauth_token_missing"
+LINKEDIN_OAUTH_REFRESH_FAILED = "linkedin_oauth_refresh_failed"
+LINKEDIN_OAUTH_REAUTHORIZATION_REQUIRED = "linkedin_oauth_reauthorization_required"
 
 QUEUE_ELIGIBLE_PUBLISH_STATES = frozenset({PUBLISH_STATE_PENDING, PUBLISH_STATE_FAILED})
 
@@ -213,10 +217,6 @@ def _validate_real_publish_config(
 ) -> list[str]:
     if not settings.publication_enabled:
         return [LINKEDIN_PUBLISH_NOT_ENABLED]
-    if not settings.has_access_token:
-        return [LINKEDIN_PUBLISH_TOKEN_MISSING]
-    if not settings.has_member_urn:
-        return [LINKEDIN_PUBLISH_MEMBER_URN_MISSING]
     return []
 
 
@@ -388,6 +388,7 @@ def _publish_single_variant(
     dry_run: bool,
     publish_now: bool,
     settings: LinkedInPublicationSettings,
+    environ: dict[str, str] | None,
     http_client: HttpClientProtocol | None,
     now: datetime,
 ) -> LinkedInPublicationVariantResult:
@@ -490,9 +491,28 @@ def _publish_single_variant(
             errors=config_errors,
         )
 
+    token_result = resolve_linkedin_access_token(environ, http_client=http_client, now=now)
+    if token_result.status == "action_required":
+        return LinkedInPublicationVariantResult(
+            campaign_id=campaign_id,
+            variant=variant,
+            publish_state=PUBLISH_STATE_QUEUED,
+            publish_after_utc=publish_after,
+            status="failed",
+            errors=[token_result.error_code or LINKEDIN_OAUTH_TOKEN_MISSING],
+        )
+
+    publish_settings = LinkedInPublicationSettings(
+        access_token=token_result.access_token or "",
+        member_urn=token_result.member_urn or "",
+        publication_enabled=settings.publication_enabled,
+        default_safety_delay_minutes=settings.default_safety_delay_minutes,
+        api_version=settings.api_version,
+    )
+
     commentary = build_commentary(variant_text=artifact_text, blog_url=blog_url)
     api_result = create_member_text_post(
-        settings,
+        publish_settings,
         commentary=commentary,
         client=http_client,
     )
@@ -665,6 +685,7 @@ def publish_linkedin_due_variants(
             dry_run=dry_run,
             publish_now=publish_now,
             settings=settings,
+            environ=environ,
             http_client=http_client,
             now=current,
         )

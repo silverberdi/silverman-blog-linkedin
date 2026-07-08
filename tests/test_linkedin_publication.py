@@ -35,6 +35,8 @@ from silverman_blog_linkedin.linkedin_package_flow import (
     build_package_idempotency_key,
 )
 from silverman_blog_linkedin.linkedin_publication_flow import (
+    LINKEDIN_OAUTH_REAUTHORIZATION_REQUIRED,
+    LINKEDIN_OAUTH_TOKEN_MISSING,
     LINKEDIN_PUBLISH_ARTIFACT_HASH_CHANGED,
     LINKEDIN_PUBLISH_ARTIFACT_MISSING,
     LINKEDIN_PUBLISH_CANCEL_NOT_ALLOWED,
@@ -483,6 +485,96 @@ def test_config_errors_do_not_mark_variant_failed(
 
     assert result.status == "failed"
     assert expected_error in result.errors
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    entry = next(v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+
+
+def test_oauth_action_required_does_not_call_linkedin_or_mark_failed(
+    scheduled_base: Path, tmp_path: Path
+):
+    _queue_variant(scheduled_base, publish_after_utc="2026-07-07T09:00:00Z")
+
+    token_store = tmp_path / "secrets" / "linkedin-oauth-tokens.json"
+    env = _real_publish_env(
+        SILVERMAN_LINKEDIN_TOKEN_STORE_PATH=str(token_store),
+        SILVERMAN_LINKEDIN_ACCESS_TOKEN="",
+        SILVERMAN_LINKEDIN_MEMBER_URN="",
+        SILVERMAN_LINKEDIN_CLIENT_ID="test-client",
+        SILVERMAN_LINKEDIN_CLIENT_SECRET="test-secret",
+        SILVERMAN_LINKEDIN_REDIRECT_URI="https://api.silverman.pro/linkedin/oauth/callback",
+    )
+
+    mock_client = MagicMock()
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        environ=env,
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.status == "failed"
+    assert LINKEDIN_OAUTH_TOKEN_MISSING in result.errors
+    mock_client.post.assert_not_called()
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    entry = next(v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+
+
+def test_oauth_reauthorization_required_preserves_queued_state(
+    scheduled_base: Path, tmp_path: Path
+):
+    _queue_variant(scheduled_base, publish_after_utc="2026-07-07T09:00:00Z")
+
+    token_store = tmp_path / "secrets" / "linkedin-oauth-tokens.json"
+    token_store.parent.mkdir(parents=True, exist_ok=True)
+    from silverman_blog_linkedin.linkedin_token_store import (
+        LinkedInTokenRecord,
+        save_token_record,
+    )
+
+    save_token_record(
+        token_store,
+        LinkedInTokenRecord(
+            access_token="expired-token",
+            refresh_token=None,
+            scope="openid profile w_member_social",
+            token_type="Bearer",
+            created_at="2026-07-07T08:00:00Z",
+            expires_at="2026-07-07T08:30:00Z",
+            refresh_expires_at=None,
+            member_urn=MEMBER_URN,
+        ),
+    )
+
+    env = _real_publish_env(
+        SILVERMAN_LINKEDIN_TOKEN_STORE_PATH=str(token_store),
+        SILVERMAN_LINKEDIN_ACCESS_TOKEN="",
+        SILVERMAN_LINKEDIN_MEMBER_URN="",
+        SILVERMAN_LINKEDIN_CLIENT_ID="test-client",
+        SILVERMAN_LINKEDIN_CLIENT_SECRET="test-secret",
+        SILVERMAN_LINKEDIN_REDIRECT_URI="https://api.silverman.pro/linkedin/oauth/callback",
+    )
+
+    mock_client = MagicMock()
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        environ=env,
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.status == "failed"
+    assert LINKEDIN_OAUTH_REAUTHORIZATION_REQUIRED in result.errors
+    mock_client.post.assert_not_called()
     campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
     assert campaign is not None
     entry = next(v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT)

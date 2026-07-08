@@ -2,30 +2,99 @@
 
 Flow A Core stops at `distribution_scheduled` with per-variant `publish_state: pending`. This document covers the **follow-up** LinkedIn publication slice: queue → safety delay → publish-due. It is separate from Flow A Core PASS semantics.
 
-## Developer App and OAuth token
+Public site prerequisites for LinkedIn app configuration:
+
+- [Privacy policy](https://silverman.pro/privacy-policy/)
+- [Terms of use](https://silverman.pro/terms/)
+
+## LinkedIn Developer App and OAuth
 
 1. Create a LinkedIn Developer App at [LinkedIn Developer Portal](https://www.linkedin.com/developers/).
-2. Add the **Share on LinkedIn** product to obtain the `w_member_social` scope.
-3. Obtain an OAuth 2.0 access token externally (manual token flow in v1 — no OAuth UI in the worker).
-4. Required scope for personal-profile text posts: **`w_member_social`**.
+2. Add products:
+   - **Share on LinkedIn** — scope `w_member_social`
+   - **Sign In with LinkedIn using OpenID Connect** — scopes `openid`, `profile`
+3. Register redirect URL: `https://api.silverman.pro/linkedin/oauth/callback`
+4. Configure worker OAuth environment variables (see below).
 
-The worker does **not** refresh tokens or run OAuth callbacks in v1.
+Required scopes (space-delimited): **`openid profile w_member_social`**
+
+Member URN is resolved from OIDC (`sub` → `urn:li:person:{sub}`) during OAuth callback and stored in the token file.
+
+### Cloudflare Tunnel prerequisite
+
+Expose the worker API at `https://api.silverman.pro` via Cloudflare Tunnel mapping to `localhost:8010` on the Ubuntu server.
+
+- Only the OAuth callback route must be publicly reachable for LinkedIn redirects.
+- Prefer API-key protection for non-callback routes (`/linkedin/oauth/authorize`, `/linkedin/oauth/status`, publication endpoints).
+- **If a Cloudflare tunnel connector token is exposed** (logs, chat, commit), rotate it immediately in the Cloudflare Zero Trust dashboard.
+
+### Token store and permissions
+
+- Path: `SILVERMAN_LINKEDIN_TOKEN_STORE_PATH` (production default `/secrets/linkedin-oauth-tokens.json` in container)
+- Store **outside** the editorial workspace mount (`/data/silverman-blog-linkedin`) and **outside** the git workspace
+- Worker writes atomically and sets file mode **`chmod 600`** where supported
+- OAuth state file: `linkedin-oauth-state.json` alongside the token store parent directory (`/secrets/`)
+
+Create the secrets directory on the Ubuntu server host (mounted into the container at `/secrets`):
+
+```bash
+mkdir -p /home/silverman/silverman-blog-linkedin-worker/secrets
+chmod 700 /home/silverman/silverman-blog-linkedin-worker/secrets
+```
+
+`deploy/server/deploy-worker.sh` creates this directory automatically on deploy. Set in `.env`:
+
+```
+SILVERMAN_LINKEDIN_TOKEN_STORE_PATH=/secrets/linkedin-oauth-tokens.json
+```
+
+## Initial authorization flow
+
+1. Ensure OAuth env vars and token store path are configured; keep `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=false` until verified.
+2. Start the worker and confirm Cloudflare Tunnel routes `api.silverman.pro` → `localhost:8010`.
+3. Request authorization URL (API key required):
+   - `GET /linkedin/oauth/authorize` → `{ "authorization_url": "..." }`
+   - Or locally: `python scripts/linkedin_oauth_authorize_url.py`
+   - Optional redirect: `GET /linkedin/oauth/authorize?redirect=true`
+4. Open the URL in a browser; sign in as Silverio and consent.
+5. LinkedIn redirects to `GET /linkedin/oauth/callback` — success page shows member URN (no token values).
+6. Verify status (API key required): `GET /linkedin/oauth/status` — confirms token present, expiry metadata, scopes, member URN.
+
+## Automatic refresh before publication
+
+When `POST /publish-linkedin-due-variants` runs with `dry_run: false`, the worker resolves credentials through the token provider:
+
+- Valid access token (outside refresh skew) → used directly
+- Near expiry or expired with refresh token → refresh grant, store updated
+- Missing store / expired without refresh → `action_required` (variant stays `queued`, no LinkedIn API call)
+
+Refresh skew default: `SILVERMAN_LINKEDIN_TOKEN_REFRESH_SKEW_SECONDS=300` (5 minutes before expiry).
+
+## Reauthorization
+
+When refresh fails or no refresh token exists, publish-due returns stable codes such as `linkedin_oauth_reauthorization_required`. Repeat the initial authorization flow. Queued variants are **not** marked `failed` for OAuth action-required states.
+
+## Manual Postman / env token (fallback only)
+
+`SILVERMAN_LINKEDIN_ACCESS_TOKEN` and `SILVERMAN_LINKEDIN_MEMBER_URN` remain as **manual fallback** only when the token store is empty or unconfigured. They are **not** used after refresh failure, expired refresh token, or reauthorization-required states. Use OAuth authorization above for production.
 
 ## Required environment variables
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `SILVERMAN_LINKEDIN_ACCESS_TOKEN` | Real publish | OAuth access token (never logged or returned in HTTP responses) |
-| `SILVERMAN_LINKEDIN_MEMBER_URN` | **Yes v1** | Author URN, e.g. `urn:li:person:{id}` — no `/v2/userinfo` auto-resolve |
+| `SILVERMAN_LINKEDIN_CLIENT_ID` | OAuth | LinkedIn app client id |
+| `SILVERMAN_LINKEDIN_CLIENT_SECRET` | OAuth | Server-side only; never in HTTP responses or logs |
+| `SILVERMAN_LINKEDIN_REDIRECT_URI` | OAuth | `https://api.silverman.pro/linkedin/oauth/callback` |
+| `SILVERMAN_LINKEDIN_TOKEN_STORE_PATH` | OAuth | Container path `/secrets/linkedin-oauth-tokens.json` (host: `.../secrets/`, chmod 700 dir, 600 file) |
+| `SILVERMAN_LINKEDIN_OAUTH_STATE_TTL_SECONDS` | No | OAuth state TTL; default `600` |
+| `SILVERMAN_LINKEDIN_TOKEN_REFRESH_SKEW_SECONDS` | No | Refresh before expiry; default `300` |
 | `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` | Real publish | Must be `true` for real LinkedIn API calls |
 | `SILVERMAN_LINKEDIN_DEFAULT_SAFETY_DELAY_MINUTES` | No | Default `120` — minutes after queue before variant is due |
 | `SILVERMAN_LINKEDIN_API_VERSION` | No | LinkedIn REST API version header (YYYYMM), default `202504` |
+| `SILVERMAN_LINKEDIN_ACCESS_TOKEN` | Fallback only | Manual Postman token when store empty |
+| `SILVERMAN_LINKEDIN_MEMBER_URN` | Fallback only | Manual override when store empty |
 
-Copy values into the server `.env` from `deploy/server/silverman-worker.env.example`. Never commit real tokens.
-
-## Member URN
-
-v1 requires an explicit `SILVERMAN_LINKEDIN_MEMBER_URN`. The worker does not call `/v2/userinfo` to resolve it. Obtain the person id from your OAuth/userinfo flow outside the worker and format as `urn:li:person:{id}`.
+Copy values into the server `.env` from `deploy/server/silverman-worker.env.example`. Never commit real tokens or client secrets.
 
 ## Two-step operator workflow
 
@@ -36,7 +105,7 @@ Scheduling is **worker-side only**. LinkedIn receives a post only when the worke
 3. **Cancel (optional)** — `POST /cancel-linkedin-publication` with `dry_run: false` moves `queued` → `cancelled` before publish. Cannot cancel `published` variants.
 4. **Publish due** — `POST /publish-linkedin-due-variants` with `dry_run: false` publishes `queued` variants where `publish_after_utc <= now`, or use `publish_now: true` to bypass the delay.
 
-All three endpoints default to `dry_run: true`.
+All three endpoints default to `dry_run: true`. Dry-run publish-due does **not** refresh tokens or call LinkedIn OAuth endpoints.
 
 ## Safety delay and immediate mode
 
@@ -57,6 +126,12 @@ Required headers (verified against LinkedIn Posts API documentation):
 - `Content-Type: application/json`
 - `X-Restli-Protocol-Version: 2.0.0`
 - `Linkedin-Version: {YYYYMM}`
+
+## Minimizing public exposure
+
+- Expose `https://api.silverman.pro/linkedin/oauth/callback` publicly for LinkedIn redirects.
+- Keep `/linkedin/oauth/authorize` and `/linkedin/oauth/status` behind API key or operator-local access where possible.
+- Do not expose unnecessary worker routes through the tunnel.
 
 ## Campaign state
 

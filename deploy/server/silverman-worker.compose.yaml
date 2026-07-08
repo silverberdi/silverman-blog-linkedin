@@ -20,6 +20,7 @@ services:
     volumes:
       - /home/silverman/compartido_mac/silverman-blog-linkedin:/data/silverman-blog-linkedin
       - ${SILVERMAN_PUBLIC_BLOG_REPO_PATH:-/home/silverman/silverberdi.github.io}:/public-blog
+      - /home/silverman/silverman-blog-linkedin-worker/secrets:/secrets
     healthcheck:
       test:
         [

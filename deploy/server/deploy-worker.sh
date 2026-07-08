@@ -268,6 +268,12 @@ EOF
 
 check_public_blog_repo_path
 
+LINKEDIN_SECRETS_DIR="/home/silverman/silverman-blog-linkedin-worker/secrets"
+echo "==> Ensuring LinkedIn OAuth secrets directory..."
+echo "    host path: ${LINKEDIN_SECRETS_DIR}"
+mkdir -p "${LINKEDIN_SECRETS_DIR}"
+chmod 700 "${LINKEDIN_SECRETS_DIR}"
+
 echo "==> Building worker image (BUILD_REVISION=${BUILD_REVISION:0:12})..."
 cd "${TARGET_DIR}"
 if [[ "${FORCE_NO_CACHE}" == "1" ]]; then

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import logging
 import os
 from urllib.parse import urlparse
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Query
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from silverman_blog_linkedin import SERVICE_NAME, __version__
@@ -29,6 +31,11 @@ from silverman_blog_linkedin.file_reader import (
 from silverman_blog_linkedin.github_pages_publish import DEFAULT_SITE_URL, ENV_REPO_PATH
 from silverman_blog_linkedin.linkedin_distribution_schedule import (
     schedule_linkedin_distribution,
+)
+from silverman_blog_linkedin.linkedin_oauth_flow import (
+    build_authorize_result,
+    build_oauth_status,
+    handle_oauth_callback,
 )
 from silverman_blog_linkedin.linkedin_publication_flow import (
     cancel_linkedin_publication,
@@ -1472,6 +1479,53 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             result.variant,
             result.dry_run,
         )
+        return result.to_dict()
+
+    @app.get("/linkedin/oauth/authorize", response_model=None)
+    def linkedin_oauth_authorize(
+        redirect: bool = Query(default=False),
+        _auth: None = Depends(require_api_key),
+    ):
+        result = build_authorize_result(os.environ)
+        if result.status != "completed" or not result.authorization_url:
+            return {
+                "status": result.status,
+                "errors": result.errors,
+            }
+        if redirect:
+            return RedirectResponse(url=result.authorization_url, status_code=302)
+        return {"authorization_url": result.authorization_url}
+
+    @app.get("/linkedin/oauth/callback")
+    def linkedin_oauth_callback(
+        code: str | None = None,
+        state: str | None = None,
+        error: str | None = None,
+        error_description: str | None = None,
+    ) -> HTMLResponse:
+        result = handle_oauth_callback(
+            code=code,
+            state=state,
+            error=error,
+            error_description=error_description,
+            environ=os.environ,
+        )
+        title = "LinkedIn OAuth"
+        safe_message = html.escape(result.message, quote=True)
+        if result.status == "completed":
+            body = f"<h1>Authorization successful</h1><p>{safe_message}</p>"
+        else:
+            body = f"<h1>Authorization failed</h1><p>{safe_message}</p>"
+        safe_title = html.escape(title, quote=True)
+        html_doc = (
+            f"<!DOCTYPE html><html><head><title>{safe_title}</title></head>"
+            f"<body>{body}</body></html>"
+        )
+        return HTMLResponse(content=html_doc, status_code=result.http_status)
+
+    @app.get("/linkedin/oauth/status")
+    def linkedin_oauth_status(_auth: None = Depends(require_api_key)) -> dict:
+        result = build_oauth_status(os.environ)
         return result.to_dict()
 
     @app.post("/publish-blog-post")
