@@ -20,13 +20,14 @@ TARGET_LAYOUT_MARKERS=(
   "pyproject.toml"
   "README.md"
   "src"
+  "prompts"
 )
 
 has_target_layout_markers() {
   local base="$1"
   local name
   for name in "${TARGET_LAYOUT_MARKERS[@]}"; do
-    if [[ "${name}" == "src" ]]; then
+    if [[ "${name}" == "src" || "${name}" == "prompts" ]]; then
       [[ -d "${base}/${name}" ]] || return 1
     else
       [[ -f "${base}/${name}" ]] || return 1
@@ -84,10 +85,12 @@ if [[ "${DEPLOY_LAYOUT}" == "target" ]]; then
       exit 1
     fi
   done
-  if [[ ! -d "${TARGET_DIR}/src" ]]; then
-    echo "ERROR: missing src/ in ${TARGET_DIR}" >&2
-    exit 1
-  fi
+  for name in src prompts; do
+    if [[ ! -d "${TARGET_DIR}/${name}" ]]; then
+      echo "ERROR: missing ${name}/ in ${TARGET_DIR}" >&2
+      exit 1
+    fi
+  done
 else
   echo "==> Repo layout: syncing build and deployment artifacts..."
 
@@ -97,6 +100,7 @@ else
       "${SOURCE_ROOT}/pyproject.toml" \
       "${SOURCE_ROOT}/README.md" \
       "${SOURCE_ROOT}/src" \
+      "${SOURCE_ROOT}/prompts" \
       "${TARGET_DIR}/"
 
     rsync -a \
@@ -112,8 +116,9 @@ else
   else
     echo "    rsync not found; using cp (no delete of stale files)"
     cp "${SOURCE_ROOT}/Dockerfile" "${SOURCE_ROOT}/pyproject.toml" "${SOURCE_ROOT}/README.md" "${TARGET_DIR}/"
-    rm -rf "${TARGET_DIR}/src"
+    rm -rf "${TARGET_DIR}/src" "${TARGET_DIR}/prompts"
     cp -R "${SOURCE_ROOT}/src" "${TARGET_DIR}/src"
+    cp -R "${SOURCE_ROOT}/prompts" "${TARGET_DIR}/prompts"
     cp "${DEPLOY_SERVER_DIR}/silverman-worker.compose.yaml" \
       "${DEPLOY_SERVER_DIR}/silverman-worker.env.example" \
       "${DEPLOY_SERVER_DIR}/deploy-worker.sh" \
