@@ -112,9 +112,15 @@ The worker MUST also supply a negative prompt (or workflow-equivalent) excluding
 
 ### Requirement: ComfyUI client abstraction
 
-The worker SHALL call ComfyUI over HTTP using a configurable base URL and workflow definition.
+The worker SHALL call ComfyUI using a configurable base URL, optional API path prefix, and workflow definition. ComfyUI may be local/LAN or hosted (for example Comfy Cloud at `https://cloud.comfy.org`).
 
 ComfyUI integration MUST be behind an injectable client interface (protocol or abstract base) so tests can substitute fakes without a live ComfyUI server.
+
+The client MUST build endpoint URLs as `{base_url}{api_prefix}/prompt`, `{base_url}{api_prefix}/history/{prompt_id}`, and `{base_url}{api_prefix}/view`. When `api_prefix` is empty, behavior MUST match local ComfyUI defaults.
+
+When `SILVERMAN_COMFYUI_API_KEY` is configured, the client MUST send `{SILVERMAN_COMFYUI_AUTH_HEADER_NAME}: Bearer <api-key>` on ComfyUI requests. When `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD` is also configured, the client MUST include the API key in the `/prompt` request `extra_data` under that field name (for Comfy Cloud Partner Nodes).
+
+The API key MUST NOT appear in HTTP responses, campaign metadata, run metadata, exceptions exposed by the worker, or test assertion output.
 
 The client MUST load workflow JSON from a configurable path defaulting to a repository workflow template.
 
@@ -133,6 +139,16 @@ ComfyUI errors MUST map to stable worker error codes without exposing secrets or
 
 - **WHEN** ComfyUI does not complete within `SILVERMAN_COMFYUI_TIMEOUT_SECONDS`
 - **THEN** the client raises or returns a failure with error code `blog_image_generation_timeout`
+
+#### Scenario: Hosted API prefix applied
+
+- **WHEN** `SILVERMAN_COMFYUI_API_PREFIX` is `/api` and base URL is `https://cloud.comfy.org`
+- **THEN** the client calls `https://cloud.comfy.org/api/prompt`, `/api/history/{id}`, and `/api/view`
+
+#### Scenario: API key sent via auth header and extra_data
+
+- **WHEN** `SILVERMAN_COMFYUI_API_KEY` and `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD` are configured
+- **THEN** the client sends the Bearer auth header and includes the key in `/prompt` `extra_data` without exposing it in worker results or metadata
 
 #### Scenario: Tests use fake client
 
@@ -209,7 +225,11 @@ Blog image generation MUST be configurable via environment variables including a
 | Variable | Purpose |
 |----------|---------|
 | `SILVERMAN_COMFYUI_IMAGE_ENABLED` | Master enable flag |
-| `SILVERMAN_COMFYUI_BASE_URL` | ComfyUI server base URL |
+| `SILVERMAN_COMFYUI_BASE_URL` | ComfyUI server base URL (local/LAN or hosted) |
+| `SILVERMAN_COMFYUI_API_PREFIX` | Optional API path prefix (hosted example `/api`) |
+| `SILVERMAN_COMFYUI_API_KEY` | ComfyUI/Comfy Cloud API key (never logged or returned) |
+| `SILVERMAN_COMFYUI_AUTH_HEADER_NAME` | HTTP header for Bearer API key (default `Authorization`) |
+| `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD` | `extra_data` field for API key on `/prompt` when set |
 | `SILVERMAN_COMFYUI_WORKFLOW_PATH` | Filesystem path to workflow JSON |
 | `SILVERMAN_COMFYUI_TIMEOUT_SECONDS` | Generation timeout |
 | `SILVERMAN_COMFYUI_IMAGE_WIDTH` | Output width (default 1200) |

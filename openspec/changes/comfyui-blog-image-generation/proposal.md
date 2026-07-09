@@ -1,6 +1,6 @@
 ## Why
 
-Flow A blog publishing today requires every ready post to ship with a companion PNG and a canonical `image` front matter path before `validate_ready_post()` can pass. Authors sometimes deliver Markdown without an image, which blocks publish even when the post is otherwise editorially ready. The public blog at [silverman.pro](https://silverman.pro) uses the same `image` value for post hero, home/list cards, tag cards, and sidebar thumbnails at 4:3 (`aspect-ratio: 1.3333333333`, `object-fit: cover`), so missing images degrade the site and stop automation. ComfyUI on the operator's stack can generate professional 1200×900 editorial images locally; the worker should orchestrate that step over HTTP (ADR-0001) before validation and publish, with safe defaults (disabled unless explicitly enabled) and dry-run support.
+Flow A blog publishing today requires every ready post to ship with a companion PNG and a canonical `image` front matter path before `validate_ready_post()` can pass. Authors sometimes deliver Markdown without an image, which blocks publish even when the post is otherwise editorially ready. The public blog at [silverman.pro](https://silverman.pro) uses the same `image` value for post hero, home/list cards, tag cards, and sidebar thumbnails at 4:3 (`aspect-ratio: 1.3333333333`, `object-fit: cover`), so missing images degrade the site and stop automation. ComfyUI (local/LAN or Comfy Cloud/hosted) can generate professional 1200×900 editorial images; the worker should orchestrate that step through the configured ComfyUI-compatible REST API (ADR-0001) before validation and publish, with safe defaults (disabled unless explicitly enabled) and dry-run support.
 
 ## Goals
 
@@ -43,7 +43,7 @@ No n8n JSON changes, no public repo git operations, no LinkedIn API changes, and
 
 ### New Capabilities
 
-- `comfyui-blog-image-generation`: Worker-side ComfyUI blog image generation — canonical missing-image detection (missing/empty `image`, or canonical `image` with missing companion PNG; never overwrite non-canonical `image` paths), editorial visual prompt assembly, configurable ComfyUI HTTP client, 1200×900 PNG output suitable for 4:3 `object-fit: cover`, front matter and companion PNG updates under editorial workspace, generation metadata, dry-run mode, disabled-by-default configuration, injectable client for tests, and stable error codes.
+- `comfyui-blog-image-generation`: Worker-side ComfyUI blog image generation — canonical missing-image detection (missing/empty `image`, or canonical `image` with missing companion PNG; never overwrite non-canonical `image` paths), editorial visual prompt assembly, configurable ComfyUI-compatible REST API client, 1200×900 PNG output suitable for 4:3 `object-fit: cover`, front matter and companion PNG updates under editorial workspace, generation metadata, dry-run mode, disabled-by-default configuration, injectable client for tests, and stable error codes.
 
 ### Modified Capabilities
 
@@ -59,4 +59,4 @@ No n8n JSON changes, no public repo git operations, no LinkedIn API changes, and
 - **Public blog**: [silverman.pro](https://silverman.pro) / `silverberdi.github.io` — **not modified directly**; generated assets land in editorial workspace and flow through existing publish bridge.
 - **Configuration**: New env vars under worker settings (ComfyUI URL, enable flag, workflow path, timeout, width/height, dry-run). Defaults safe/disabled.
 - **Tests**: New `tests/test_blog_image_generation.py`; extensions to `tests/test_blog_publish_flow.py` with fake ComfyUI client.
-- **Operations**: Operator must run ComfyUI separately when enabling generation in non-test environments; worker calls it over HTTP only.
+- **Operations**: Operator must provide ComfyUI (local/LAN or Comfy Cloud/hosted) when enabling generation in non-test environments; worker calls it through the configured ComfyUI-compatible REST API.

@@ -8,6 +8,13 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from silverman_blog_linkedin.blog_image_generation import (
+    BLOG_IMAGE_GENERATION_FAILED,
+    ensure_blog_image,
+    recompute_source_hash_after_generation,
+)
+from silverman_blog_linkedin.comfyui_config import load_comfyui_settings
+from silverman_blog_linkedin.comfyui_client import ComfyUIClientProtocol
 from silverman_blog_linkedin.campaign_lifecycle import (
     ACTOR_WORKER,
     FLOW_A,
@@ -180,6 +187,7 @@ class BlogPublishResult:
     warnings: list[str] = field(default_factory=list)
     validation: dict[str, Any] = field(default_factory=dict)
     blog_publish: dict[str, Any] = field(default_factory=dict)
+    blog_image_generation: dict[str, Any] = field(default_factory=dict)
     metadata_written: bool = False
     metadata_error_code: str | None = None
 
@@ -385,6 +393,7 @@ def _failed_result(
     warnings: list[str] | None = None,
     validation: dict[str, Any] | None = None,
     blog_publish: dict[str, Any] | None = None,
+    blog_image_generation: dict[str, Any] | None = None,
     campaign_id: str | None = None,
     state: str | None = None,
     source_public_url: str | None = None,
@@ -405,6 +414,7 @@ def _failed_result(
         warnings=warnings or [],
         validation=validation or {},
         blog_publish=blog_publish or {},
+        blog_image_generation=blog_image_generation or {},
         metadata_written=metadata_written,
         metadata_error_code=metadata_error_code,
     )
@@ -935,6 +945,7 @@ def publish_blog_post(
     public_slug_override: str | None = None,
     github_pages_repo_path: str | None = None,
     environ: dict[str, str] | None = None,
+    comfyui_client: ComfyUIClientProtocol | None = None,
 ) -> BlogPublishResult:
     """Orchestrate Flow A blog publishing for one ready post."""
     preflight = _preflight_inspect(
@@ -984,8 +995,64 @@ def publish_blog_post(
 
     validation_summary: dict[str, Any] = {}
     warnings: list[str] = []
+    blog_image_generation_summary: dict[str, Any] = {}
 
     if not skip_validation:
+        comfy_config = load_comfyui_settings(environ)
+        image_result = ensure_blog_image(
+            base_path,
+            preflight.source_relative_path,
+            config=comfy_config,
+            client=comfyui_client,
+            environ=environ,
+            public_slug_override=public_slug_override,
+            campaign_id=preflight.campaign_id,
+        )
+        blog_image_generation_summary = image_result.to_dict()
+
+        if image_result.status == "failed":
+            failure_errors = [image_result.error_code or BLOG_IMAGE_GENERATION_FAILED]
+            return _failed_result(
+                preflight,
+                errors=failure_errors,
+                campaign_id=preflight.campaign_id,
+                state=campaign.get("state") if campaign else None,
+                source_public_url=(
+                    campaign.get("source_public_url") if campaign else None
+                ),
+                blog_image_generation=blog_image_generation_summary,
+            )
+
+        if image_result.front_matter_updated:
+            updated_hash = recompute_source_hash_after_generation(
+                base_path,
+                preflight.source_relative_path,
+            )
+            if updated_hash:
+                expected_key = preflight.expected_idempotency_key
+                if (
+                    preflight.publication_date
+                    and preflight.source_slug
+                    and preflight.public_slug
+                ):
+                    expected_key = build_blog_publish_idempotency_key(
+                        source_slug=preflight.source_slug,
+                        public_slug=preflight.public_slug,
+                        publication_date=preflight.publication_date,
+                        source_content_sha256=updated_hash,
+                    )
+                preflight = PreflightContext(
+                    source_relative_path=preflight.source_relative_path,
+                    source_slug=preflight.source_slug,
+                    public_slug=preflight.public_slug,
+                    publication_date=preflight.publication_date,
+                    source_content_sha256=updated_hash,
+                    campaign_id=preflight.campaign_id,
+                    expected_idempotency_key=expected_key,
+                    image_relative_path=preflight.image_relative_path,
+                    errors=preflight.errors,
+                )
+
         validation = validate_ready_post(
             base_path,
             preflight.source_relative_path,
@@ -1012,6 +1079,7 @@ def publish_blog_post(
                 source_public_url=validation.source_public_url,
                 metadata_written=validation.metadata_written,
                 metadata_error_code=validation.metadata_error_code,
+                blog_image_generation=blog_image_generation_summary,
             )
 
         preflight_campaign_id = validation.campaign_id or preflight.campaign_id
@@ -1296,6 +1364,7 @@ def publish_blog_post(
         warnings=warnings,
         validation=validation_summary,
         blog_publish=blog_publish,
+        blog_image_generation=blog_image_generation_summary,
         metadata_written=metadata_written,
         metadata_error_code=metadata_error_code,
     )

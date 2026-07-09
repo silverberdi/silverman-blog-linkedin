@@ -31,6 +31,28 @@ The worker **fails fast at startup** if `SILVERMAN_BLOG_LINKEDIN_API_KEY` is mis
 
 The worker starts without `DEEPSEEK_API_KEY`. Other endpoints work normally. Invalid optional DeepSeek settings do not block startup; they cause `POST /generate-linkedin-draft` to return `deepseek_config_invalid`. The DeepSeek API key is never included in HTTP responses, run metadata, or info-level logs.
 
+### ComfyUI blog image generation (optional — disabled by default)
+
+When enabled, Flow A `POST /publish-blog-post` can generate a missing companion PNG and patch canonical `image` front matter via ComfyUI **before** editorial validation. Generation is **off by default**; with no ComfyUI env vars set, publish behavior matches pre-change validation requirements.
+
+ComfyUI may run locally, on your LAN, or on a hosted service such as [Comfy Cloud](https://cloud.comfy.org) (`https://cloud.comfy.org`). Hosted integrations may require an API path prefix (for example `/api`) and an API key sent as a Bearer token and/or inside the `/prompt` request `extra_data` (required for some Partner Nodes). Verify the exact endpoint shape with your operator documentation.
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `SILVERMAN_COMFYUI_IMAGE_ENABLED` | No | `false` | Master enable for automatic blog image generation |
+| `SILVERMAN_COMFYUI_BASE_URL` | When enabled | — | ComfyUI base URL (local/LAN example `http://127.0.0.1:8188`; Comfy Cloud example `https://cloud.comfy.org`) |
+| `SILVERMAN_COMFYUI_API_PREFIX` | No | empty | Optional API path prefix (Comfy Cloud example `/api`) |
+| `SILVERMAN_COMFYUI_API_KEY` | No | unset | ComfyUI/Comfy Cloud API key; never logged or returned in HTTP responses |
+| `SILVERMAN_COMFYUI_AUTH_HEADER_NAME` | No | `Authorization` | HTTP header name for Bearer API key when key is set |
+| `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD` | No | unset | When set with API key, include key in `/prompt` `extra_data` under this field (Partner Nodes) |
+| `SILVERMAN_COMFYUI_WORKFLOW_PATH` | No | `prompts/comfyui/blog-image-workflow.json` | Workflow JSON with bindings for prompt, dimensions, and seed |
+| `SILVERMAN_COMFYUI_TIMEOUT_SECONDS` | No | `120` | Generation/poll timeout (positive number) |
+| `SILVERMAN_COMFYUI_IMAGE_WIDTH` | No | `1200` | Output width (4:3 hero/thumbnail) |
+| `SILVERMAN_COMFYUI_IMAGE_HEIGHT` | No | `900` | Output height |
+| `SILVERMAN_COMFYUI_DRY_RUN` | No | `false` | Plan generation only; no ComfyUI calls or file writes |
+
+When `SILVERMAN_COMFYUI_IMAGE_ENABLED=true` and generation is required but fails, publish returns `status: failed` with a `blog_image_generation_*` error code and does not write public repo files. HTTP responses include a `blog_image_generation` summary (`status`, paths, dimensions, `prompt_hash`) but never full prompt text or ComfyUI API keys. The worker calls ComfyUI REST endpoints (`/prompt`, `/history/{id}`, `/view`), optionally prefixed for hosted deployments.
+
 ### LinkedIn publication (optional — required only for real `POST /publish-linkedin-due-variants`)
 
 | Variable | Required | Default | Purpose |

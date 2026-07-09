@@ -46,8 +46,16 @@ from silverman_blog_linkedin.github_pages_publish import (
     render_expected_public_post,
     run_publish,
 )
+from silverman_blog_linkedin.comfyui_client import (
+    BLOG_IMAGE_GENERATION_COMFYUI_FAILED,
+    FakeComfyUIClient,
+)
 from silverman_blog_linkedin.main import create_app
-from silverman_blog_linkedin.ready_post_validation import CONTENT_CONTAINS_TODO
+from silverman_blog_linkedin.ready_post_validation import (
+    CONTENT_CONTAINS_TODO,
+    FRONTMATTER_REQUIRED_FIELD_MISSING,
+    READY_POST_IMAGE_MISSING,
+)
 from tests.conftest import auth_header, create_full_layout, make_settings
 
 SOURCE_SLUG = "01-why-i-did-not-start-with-the-database"
@@ -60,23 +68,25 @@ SITE_URL = "https://silverman.pro"
 TITLE = "Why I Did Not Start With the Database"
 
 
-def _canonical_frontmatter() -> str:
-    return (
-        "---\n"
-        f"title: {TITLE}\n"
-        "audience: architects\n"
-        "type: blog-post\n"
-        "language: en\n"
-        "layout: post\n"
-        f"date: {PUBLICATION_DATE}\n"
-        "categories:\n"
-        "  - architecture\n"
-        "tags:\n"
-        "  - databases\n"
-        "description: A senior practitioner's take on starting with the domain.\n"
-        f"image: /assets/images/{PUBLIC_SLUG}.png\n"
-        "---\n"
-    )
+def _canonical_frontmatter(*, include_image: bool = True) -> str:
+    lines = [
+        "---",
+        f"title: {TITLE}",
+        "audience: architects",
+        "type: blog-post",
+        "language: en",
+        "layout: post",
+        f"date: {PUBLICATION_DATE}",
+        "categories:",
+        "  - architecture",
+        "tags:",
+        "  - databases",
+        "description: A senior practitioner's take on starting with the domain.",
+    ]
+    if include_image:
+        lines.append(f"image: /assets/images/{PUBLIC_SLUG}.png")
+    lines.append("---")
+    return "\n".join(lines) + "\n"
 
 
 def _canonical_body(*, extra: str = "") -> str:
@@ -125,18 +135,28 @@ def _publish_env(editorial_base: Path, repo_path: Path) -> dict[str, str]:
     }
 
 
+def _comfy_enabled_env(editorial_base: Path, repo_path: Path) -> dict[str, str]:
+    env = _publish_env(editorial_base, repo_path)
+    env["SILVERMAN_COMFYUI_IMAGE_ENABLED"] = "true"
+    env["SILVERMAN_COMFYUI_BASE_URL"] = "http://127.0.0.1:8188"
+    return env
+
+
 def _publish(
     editorial_base: Path,
     repo_path: Path,
     *,
     relative: str = SOURCE_RELATIVE,
+    environ: dict[str, str] | None = None,
+    comfyui_client=None,
 ):
     return publish_blog_post(
         editorial_base,
         relative,
         site_url=SITE_URL,
         github_pages_repo_path=str(repo_path),
-        environ=_publish_env(editorial_base, repo_path),
+        environ=environ or _publish_env(editorial_base, repo_path),
+        comfyui_client=comfyui_client,
     )
 
 
@@ -1067,3 +1087,84 @@ def test_published_campaign_metadata_has_idempotency_key(
     campaign = read_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID)
     assert campaign is not None
     assert campaign["blog_publish"]["idempotency_key"] == expected_key
+
+
+def test_disabled_generation_validation_fails_without_image(
+    editorial_base: Path, public_repo: Path
+):
+    _write_post(
+        editorial_base,
+        frontmatter=_canonical_frontmatter(include_image=False),
+        with_png=False,
+    )
+
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "failed"
+    assert BLOG_PUBLISH_VALIDATION_FAILED in result.errors
+    assert (
+        FRONTMATTER_REQUIRED_FIELD_MISSING in result.errors
+        or READY_POST_IMAGE_MISSING in result.errors
+    )
+    assert result.blog_image_generation.get("skip_reason") == "generation_disabled"
+    assert not list((public_repo / "_posts").glob("*.md"))
+
+
+def test_enabled_generation_then_publish_success(
+    editorial_base: Path, public_repo: Path
+):
+    _write_post(
+        editorial_base,
+        frontmatter=_canonical_frontmatter(include_image=False),
+        with_png=False,
+    )
+
+    result = _publish(
+        editorial_base,
+        public_repo,
+        environ=_comfy_enabled_env(editorial_base, public_repo),
+        comfyui_client=FakeComfyUIClient(),
+    )
+
+    assert result.status == "completed"
+    assert result.state == STATE_BLOG_PUBLISHED
+    assert result.blog_image_generation.get("status") == "generated"
+    assert (editorial_base / IMAGE_RELATIVE).is_file()
+    assert (public_repo / "assets/images" / f"{PUBLIC_SLUG}.png").is_file()
+
+
+def test_generation_failure_blocks_publish_before_public_writes(
+    editorial_base: Path, public_repo: Path
+):
+    _write_post(
+        editorial_base,
+        frontmatter=_canonical_frontmatter(include_image=False),
+        with_png=False,
+    )
+
+    result = _publish(
+        editorial_base,
+        public_repo,
+        environ=_comfy_enabled_env(editorial_base, public_repo),
+        comfyui_client=FakeComfyUIClient(
+            error_code=BLOG_IMAGE_GENERATION_COMFYUI_FAILED
+        ),
+    )
+
+    assert result.status == "failed"
+    assert BLOG_IMAGE_GENERATION_COMFYUI_FAILED in result.errors
+    assert result.blog_image_generation.get("status") == "failed"
+    assert not list((public_repo / "_posts").glob("*.md"))
+    assert not list((public_repo / "assets/images").glob("*.png"))
+
+
+def test_existing_valid_image_publish_unchanged_when_generation_disabled(
+    editorial_base: Path, public_repo: Path
+):
+    _validated_campaign(editorial_base)
+    _write_post(editorial_base)
+
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "completed"
+    assert result.blog_image_generation.get("skip_reason") == "already_valid"
