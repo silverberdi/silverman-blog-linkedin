@@ -87,7 +87,10 @@ metadata/runs
 metadata/campaigns
 metadata/backups
 prompts
+editorial-calendar
 ```
+
+`editorial-calendar/calendar.json` is optional for `/health` (folder only). Planning endpoints report `calendar_missing` until the file exists. A versioned example lives at `docs/examples/editorial-calendar/calendar.example.json`; copy it to `{editorial_base}/editorial-calendar/calendar.json` when you are ready to plan.
 
 Create this layout under your base path before expecting `healthy` status from `/health`.
 
@@ -101,7 +104,10 @@ python -m pip install -e ".[dev]"
 export SILVERMAN_BLOG_LINKEDIN_API_KEY="your-local-dev-key"
 
 # Optional: create sample editorial tree for a healthy health check
-mkdir -p data/silverman-blog-linkedin/{blog-posts/{ready,processed,error},linkedin-posts/{review,approved,published},metadata/{runs,campaigns,backups},prompts}
+mkdir -p data/silverman-blog-linkedin/{blog-posts/{ready,processed,error},linkedin-posts/{review,approved,published},metadata/{runs,campaigns,backups},prompts,editorial-calendar}
+# Optional: copy the versioned calendar example when ready to use planning endpoints
+cp docs/examples/editorial-calendar/calendar.example.json \
+   data/silverman-blog-linkedin/editorial-calendar/calendar.json
 
 python -m silverman_blog_linkedin.main
 ```

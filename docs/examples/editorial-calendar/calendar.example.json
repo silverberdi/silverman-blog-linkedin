@@ -1,0 +1,33 @@
+{
+  "schema_version": "1",
+  "updated_at_utc": "2026-07-09T20:00:00Z",
+  "items": [
+    {
+      "item_id": "sample-planned-future",
+      "title": "Future architecture post (planned)",
+      "status": "planned",
+      "due_at_utc": "2026-08-15T14:00:00Z",
+      "source_folder": "blog-posts/ready",
+      "source_selection_mode": "single_markdown_in_folder",
+      "flow_type": "flow_a_ready_blog_post",
+      "content_mode": "user_provided_approved_blog",
+      "target_audience": "engineering-leadership",
+      "topic_theme": "systems-design"
+    },
+    {
+      "item_id": "sample-scheduled-flow-a",
+      "title": "Why I did not start with the database",
+      "status": "scheduled",
+      "due_at_utc": "2026-07-01T14:00:00Z",
+      "source_folder": "blog-posts/ready",
+      "source_relative_path": "blog-posts/ready/01-why-i-did-not-start-with-the-database.md",
+      "flow_type": "flow_a_ready_blog_post",
+      "content_mode": "user_provided_approved_blog",
+      "target_audience": "executive-recruiter",
+      "topic_theme": "architecture-decisions",
+      "public_slug": "why-i-did-not-start-with-the-database",
+      "site_url": "https://silverman.pro",
+      "notes": "Example only; copy to {editorial_base}/editorial-calendar/calendar.json and adjust paths before planning."
+    }
+  ]
+}

@@ -16,6 +16,7 @@ EXPECTED_FOLDERS: tuple[str, ...] = (
     "metadata/campaigns",
     "metadata/backups",
     "prompts",
+    "editorial-calendar",
 )
 
 

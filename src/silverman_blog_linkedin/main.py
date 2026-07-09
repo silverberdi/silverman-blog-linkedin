@@ -23,6 +23,11 @@ from silverman_blog_linkedin.draft_writer import (
     validate_source_path_shape,
     write_draft_file,
 )
+from silverman_blog_linkedin.editorial_calendar_plan import (
+    get_editorial_calendar_status,
+    plan_editorial_calendar_due,
+    validate_canonical_utc_timestamp,
+)
 from silverman_blog_linkedin.file_reader import (
     derive_filename,
     normalize_relative_path,
@@ -439,6 +444,19 @@ class PublishBlogPostRequest(BaseModel):
         if not stripped:
             raise ValueError("public_slug must not be empty or whitespace-only")
         return stripped
+
+
+class PlanEditorialCalendarDueRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    now_utc: str | None = None
+
+    @field_validator("now_utc")
+    @classmethod
+    def validate_now_utc(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return validate_canonical_utc_timestamp(value)
 
 
 def _generate_linkedin_draft_editorial_fields(
@@ -1549,6 +1567,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             result.campaign_id,
             result.state,
             result.source_relative_path,
+        )
+        return result.to_dict()
+
+    @app.post("/editorial-calendar/plan-due")
+    def editorial_calendar_plan_due(
+        body: PlanEditorialCalendarDueRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = plan_editorial_calendar_due(
+            settings.base_path,
+            now_utc=body.now_utc,
+        )
+        logger.info(
+            "editorial-calendar/plan-due status=%s due_items=%s",
+            result.status,
+            len(result.due_items),
+        )
+        return result.to_dict()
+
+    @app.get("/editorial-calendar/status")
+    def editorial_calendar_status(_auth: None = Depends(require_api_key)) -> dict:
+        result = get_editorial_calendar_status(settings.base_path)
+        logger.info(
+            "editorial-calendar/status status=%s calendar_present=%s",
+            result.status,
+            result.calendar_present,
         )
         return result.to_dict()
 

@@ -23,7 +23,7 @@ For local development on Mac, use `docker-compose.example.yml` instead.
 - Docker and Docker Compose v2 on the Ubuntu server
 - Repository checkout or synced artifacts on the server
 - Write access to `/home/silverman/compartido_mac/silverman-blog-linkedin` (for `metadata/runs/` and `linkedin-posts/review/`)
-- Editorial folder layout under the shared mount (see README)
+- Editorial folder layout under the shared mount (see README), including `editorial-calendar/` (required for `/health`; `editorial-calendar/calendar.json` optional for `/health`)
 - **Flow A publish:** a local clone of the GitHub Pages repo (`silverberdi.github.io`) on the server host with `_posts/` and `assets/images/` (default `/home/silverman/silverberdi.github.io`). The deploy script does **not** clone this repo automatically.
 
 ## First-time setup
@@ -407,7 +407,13 @@ Stop the conflicting process or change the host port mapping in `silverman-worke
 
 ### Health check returns `degraded`
 
-`GET /health` may return HTTP 200 with `status: degraded` when editorial folders are missing. Ensure the full folder layout exists under `/home/silverman/compartido_mac/silverman-blog-linkedin`.
+`GET /health` may return HTTP 200 with `status: degraded` when editorial folders are missing. Ensure the full folder layout exists under `/home/silverman/compartido_mac/silverman-blog-linkedin`, including:
+
+```bash
+mkdir -p /home/silverman/compartido_mac/silverman-blog-linkedin/editorial-calendar
+```
+
+Container path: `/data/silverman-blog-linkedin/editorial-calendar/`. The folder is required for `/health`; `calendar.json` inside it is optional for `/health` and may be added later for planning endpoints.
 
 ### `folders_ready: false` or write failures
 
