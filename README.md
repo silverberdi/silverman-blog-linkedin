@@ -35,7 +35,7 @@ The worker starts without `DEEPSEEK_API_KEY`. Other endpoints work normally. Inv
 
 When enabled, Flow A `POST /publish-blog-post` can generate a missing companion PNG and patch canonical `image` front matter via ComfyUI **before** editorial validation. Generation is **off by default**; with no ComfyUI env vars set, publish behavior matches pre-change validation requirements.
 
-ComfyUI may run locally, on your LAN, or on a hosted service such as [Comfy Cloud](https://cloud.comfy.org) (`https://cloud.comfy.org`). Hosted integrations may require an API path prefix (for example `/api`) and an API key sent as a Bearer token and/or inside the `/prompt` request `extra_data` (required for some Partner Nodes). Verify the exact endpoint shape with your operator documentation.
+ComfyUI may run locally, on your LAN, or on a hosted service such as [Comfy Cloud](https://cloud.comfy.org) (`https://cloud.comfy.org`). Hosted integrations may require an API path prefix (for example `/api`) and an API key. **Comfy Cloud** expects `X-API-Key: <api-key>` (raw key, no `Bearer` prefix). Some workflows and Partner Nodes also require the Comfy account API key in `/prompt` `extra_data` under `api_key_comfy_org`. Use `Authorization: Bearer <api-key>` only when the hosted API explicitly documents Bearer auth (not Comfy Cloud). API keys are never logged or returned in HTTP responses.
 
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
@@ -43,15 +43,17 @@ ComfyUI may run locally, on your LAN, or on a hosted service such as [Comfy Clou
 | `SILVERMAN_COMFYUI_BASE_URL` | When enabled | — | ComfyUI base URL (local/LAN example `http://127.0.0.1:8188`; Comfy Cloud example `https://cloud.comfy.org`) |
 | `SILVERMAN_COMFYUI_API_PREFIX` | No | empty | Optional API path prefix (Comfy Cloud example `/api`) |
 | `SILVERMAN_COMFYUI_API_KEY` | No | unset | ComfyUI/Comfy Cloud API key; never logged or returned in HTTP responses |
-| `SILVERMAN_COMFYUI_AUTH_HEADER_NAME` | No | `Authorization` | HTTP header name for Bearer API key when key is set |
-| `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD` | No | unset | When set with API key, include key in `/prompt` `extra_data` under this field (Partner Nodes) |
-| `SILVERMAN_COMFYUI_WORKFLOW_PATH` | No | `prompts/comfyui/blog-image-workflow.json` | Workflow JSON with bindings for prompt, dimensions, and seed |
+| `SILVERMAN_COMFYUI_AUTH_HEADER_NAME` | No | `Authorization` | HTTP header for API key when key is set; `Authorization` sends `Bearer <key>`, any other name (e.g. `X-API-Key` for Comfy Cloud) sends the raw key |
+| `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD` | No | unset | When set with API key, include key in `/prompt` `extra_data` under this field (Comfy Cloud example: `api_key_comfy_org` for Partner Nodes) |
+| `SILVERMAN_COMFYUI_WORKFLOW_PATH` | No | `prompts/comfyui/silverman-blog-openai-gpt-image.json` | Workflow JSON with bindings for prompt, seed, and output discovery |
 | `SILVERMAN_COMFYUI_TIMEOUT_SECONDS` | No | `120` | Generation/poll timeout (positive number) |
-| `SILVERMAN_COMFYUI_IMAGE_WIDTH` | No | `1200` | Output width (4:3 hero/thumbnail) |
-| `SILVERMAN_COMFYUI_IMAGE_HEIGHT` | No | `900` | Output height |
+| `SILVERMAN_COMFYUI_IMAGE_WIDTH` | No | `1200` | Requested output width for metadata and workflows that support dimension bindings (4:3 hero/thumbnail target) |
+| `SILVERMAN_COMFYUI_IMAGE_HEIGHT` | No | `900` | Requested output height for metadata and workflows that support dimension bindings |
 | `SILVERMAN_COMFYUI_DRY_RUN` | No | `false` | Plan generation only; no ComfyUI calls or file writes |
 
-When `SILVERMAN_COMFYUI_IMAGE_ENABLED=true` and generation is required but fails, publish returns `status: failed` with a `blog_image_generation_*` error code and does not write public repo files. HTTP responses include a `blog_image_generation` summary (`status`, paths, dimensions, `prompt_hash`) but never full prompt text or ComfyUI API keys. The worker calls ComfyUI REST endpoints (`/prompt`, `/history/{id}`, `/view`), optionally prefixed for hosted deployments.
+When `SILVERMAN_COMFYUI_IMAGE_ENABLED=true` and generation is required but fails, publish returns `status: failed` with a `blog_image_generation_*` error code and does not write public repo files. HTTP responses include a `blog_image_generation` summary (`status`, paths, dimensions, `prompt_hash`, and when applicable `workflow_controls_dimensions`) but never full prompt text or ComfyUI API keys. The worker calls ComfyUI REST endpoints (`/prompt`, `/history/{id}`, `/view`), optionally prefixed for hosted deployments.
+
+The default Comfy Cloud workflow (`silverman-blog-openai-gpt-image.json`) uses the `OpenAIGPTImage1` preset size **1536×1024** because `gpt-image-1.5` does not support custom resolution in that template. **1536×1024** is accepted for MVP because the prompt enforces a centered subject and safe margins for blog `object-fit: cover` cropping. **1200×900** remains the preferred future/custom target when the selected model or workflow supports explicit width/height bindings (see `prompts/comfyui/blog-image-workflow.json` for local Stable Diffusion).
 
 ### LinkedIn publication (optional — required only for real `POST /publish-linkedin-due-variants`)
 

@@ -42,6 +42,15 @@
 ## 7. Comfy Cloud / hosted compatibility
 
 - [x] 7.1 Add optional env vars: `SILVERMAN_COMFYUI_API_PREFIX`, `SILVERMAN_COMFYUI_API_KEY`, `SILVERMAN_COMFYUI_AUTH_HEADER_NAME`, `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD`
-- [x] 7.2 Build ComfyUI client URLs with optional API prefix; send Bearer auth and optional `extra_data` API key field without exposing secrets
+- [x] 7.2 Build ComfyUI client URLs with optional API prefix; send conditional auth header (`Authorization` → Bearer, other headers → raw key) and optional `extra_data` API key field without exposing secrets
 - [x] 7.3 Update README, deployment docs, and env example for local/LAN and Comfy Cloud/hosted ComfyUI
 - [x] 7.4 Add tests for API prefix, auth header, `extra_data`, secret non-leakage, and unchanged local behavior
+
+## 8. Comfy Cloud OpenAI workflow template
+
+- [x] 8.1 Add `prompts/comfyui/silverman-blog-openai-gpt-image.json` with Comfy Cloud `OpenAIGPTImage1` + `SaveImage` workflow and bindings (`positive_prompt`, `seed`, `output`)
+- [x] 8.2 Point default `SILVERMAN_COMFYUI_WORKFLOW_PATH` to Comfy Cloud workflow; keep `blog-image-workflow.json` for local SD with width/height bindings
+- [x] 8.3 Make `negative_prompt`, `width`, `height`, and `seed` optional bindings in `inject_workflow_parameters()`
+- [x] 8.4 Record `workflow_controls_dimensions` in generation metadata when width/height bindings are absent
+- [x] 8.5 Document 1536×1024 Comfy Cloud preset vs 1200×900 future/local target in README and env example
+- [x] 8.6 Add tests for OpenAI workflow injection, optional bindings, preset size preservation, and local workflow compatibility

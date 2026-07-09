@@ -19,10 +19,12 @@ from silverman_blog_linkedin.comfyui_client import (
     build_comfyui_request_headers,
     inject_workflow_parameters,
     load_workflow_template,
+    workflow_has_dimension_bindings,
 )
 from silverman_blog_linkedin.comfyui_config import (
     ComfyUISettings,
     DEFAULT_WORKFLOW_PATH,
+    LOCAL_WORKFLOW_PATH,
     load_comfyui_settings,
 )
 
@@ -53,18 +55,25 @@ def _settings(
 
 
 @pytest.fixture
-def workflow_template() -> tuple[dict, dict]:
+def local_workflow_template() -> tuple[dict, dict]:
+    return load_workflow_template(LOCAL_WORKFLOW_PATH)
+
+
+@pytest.fixture
+def openai_workflow_template() -> tuple[dict, dict]:
     return load_workflow_template(DEFAULT_WORKFLOW_PATH)
 
 
-def test_load_workflow_template_has_bindings(workflow_template):
-    workflow, bindings = workflow_template
-    assert "6" in workflow
-    assert bindings["positive_prompt"]["node"] == "6"
+def test_load_workflow_template_has_bindings(openai_workflow_template):
+    workflow, bindings = openai_workflow_template
+    assert "10" in workflow
+    assert bindings["positive_prompt"]["node"] == "10"
+    assert bindings["positive_prompt"]["input"] == "prompt"
+    assert bindings["output"]["node"] == "14"
 
 
-def test_inject_workflow_parameters_sets_prompt_and_dimensions(workflow_template):
-    workflow, bindings = workflow_template
+def test_inject_workflow_parameters_sets_prompt_and_dimensions(local_workflow_template):
+    workflow, bindings = local_workflow_template
     graph = inject_workflow_parameters(
         workflow,
         bindings,
@@ -80,6 +89,80 @@ def test_inject_workflow_parameters_sets_prompt_and_dimensions(workflow_template
     assert graph["5"]["inputs"]["width"] == 1200
     assert graph["5"]["inputs"]["height"] == 900
     assert graph["3"]["inputs"]["seed"] == 42
+
+
+def test_inject_openai_workflow_parameters_positive_prompt_and_seed_only(
+    openai_workflow_template,
+):
+    workflow, bindings = openai_workflow_template
+    graph = inject_workflow_parameters(
+        workflow,
+        bindings,
+        positive_prompt="editorial architecture visual",
+        negative_prompt="no text",
+        width=1200,
+        height=900,
+        seed=99,
+    )
+
+    assert graph["10"]["inputs"]["prompt"] == "editorial architecture visual"
+    assert graph["10"]["inputs"]["seed"] == 99
+    assert graph["10"]["inputs"]["size"] == "1536x1024"
+    assert graph["10"]["inputs"]["quality"] == "high"
+    assert graph["10"]["inputs"]["background"] == "opaque"
+    assert graph["10"]["inputs"]["n"] == 1
+    assert graph["10"]["inputs"]["model"] == "gpt-image-1.5"
+
+
+def test_inject_openai_workflow_missing_negative_prompt_binding_does_not_fail(
+    openai_workflow_template,
+):
+    workflow, bindings = openai_workflow_template
+    inject_workflow_parameters(
+        workflow,
+        bindings,
+        positive_prompt="topic",
+        negative_prompt="ignored negative",
+        width=1200,
+        height=900,
+        seed=1,
+    )
+
+
+def test_inject_openai_workflow_missing_width_height_bindings_does_not_fail(
+    openai_workflow_template,
+):
+    workflow, bindings = openai_workflow_template
+    assert not workflow_has_dimension_bindings(bindings)
+    graph = inject_workflow_parameters(
+        workflow,
+        bindings,
+        positive_prompt="topic",
+        negative_prompt="no text",
+        width=9999,
+        height=8888,
+        seed=1,
+    )
+    assert graph["10"]["inputs"]["size"] == "1536x1024"
+
+
+def test_openai_workflow_preserves_preset_size(openai_workflow_template):
+    workflow, bindings = openai_workflow_template
+    graph = inject_workflow_parameters(
+        workflow,
+        bindings,
+        positive_prompt="topic",
+        negative_prompt="no text",
+        width=1200,
+        height=900,
+        seed=1,
+    )
+    assert graph["10"]["inputs"]["size"] == "1536x1024"
+
+
+def test_local_workflow_has_dimension_bindings(local_workflow_template):
+    _workflow, bindings = local_workflow_template
+    assert workflow_has_dimension_bindings(bindings)
 
 
 def test_fake_client_returns_png_bytes():
@@ -120,9 +203,11 @@ def test_load_workflow_template_rejects_invalid_file(tmp_path: Path):
         load_workflow_template(bad)
 
 
-def test_inject_workflow_parameters_requires_bindings(workflow_template):
-    workflow, _bindings = workflow_template
-    with pytest.raises(ValueError):
+def test_inject_workflow_parameters_requires_positive_prompt_binding(
+    local_workflow_template,
+):
+    workflow, _bindings = local_workflow_template
+    with pytest.raises(ValueError, match="positive_prompt"):
         inject_workflow_parameters(
             workflow,
             {},
@@ -168,11 +253,23 @@ def test_build_comfyui_request_headers_empty_without_api_key():
     assert build_comfyui_request_headers(_settings()) == {}
 
 
-def test_build_comfyui_request_headers_custom_header_name():
+def test_build_comfyui_request_headers_custom_header_name_uses_raw_key():
     headers = build_comfyui_request_headers(
         _settings(api_key=SECRET_API_KEY, auth_header_name="X-API-Key")
     )
-    assert headers == {"X-API-Key": f"Bearer {SECRET_API_KEY}"}
+    assert headers == {"X-API-Key": SECRET_API_KEY}
+
+
+def test_build_comfyui_prompt_payload_includes_comfy_cloud_extra_data_field():
+    payload = build_comfyui_prompt_payload(
+        {"1": {}},
+        client_id="client-1",
+        settings=_settings(
+            api_key=SECRET_API_KEY,
+            extra_data_api_key_field="api_key_comfy_org",
+        ),
+    )
+    assert payload["extra_data"] == {"api_key_comfy_org": SECRET_API_KEY}
 
 
 def test_build_comfyui_prompt_payload_includes_extra_data_when_configured():
@@ -233,7 +330,7 @@ def test_http_client_applies_api_prefix_auth_and_extra_data():
                 json_body={
                     prompt_id: {
                         "outputs": {
-                            "9": {
+                            "14": {
                                 "images": [
                                     {
                                         "filename": "out.png",
@@ -257,7 +354,8 @@ def test_http_client_applies_api_prefix_auth_and_extra_data():
         base_url="https://cloud.comfy.org",
         api_prefix="/api",
         api_key=SECRET_API_KEY,
-        extra_data_api_key_field="comfy_api_key",
+        auth_header_name="X-API-Key",
+        extra_data_api_key_field="api_key_comfy_org",
     )
     client = ComfyUIHttpClient(settings, client=mock_client)
     result = client.generate_image(
@@ -274,22 +372,22 @@ def test_http_client_applies_api_prefix_auth_and_extra_data():
     post_call = mock_client.post.call_args
     assert post_call.args[0] == "https://cloud.comfy.org/api/prompt"
     assert post_call.kwargs["headers"] == {
-        "Authorization": f"Bearer {SECRET_API_KEY}",
+        "X-API-Key": SECRET_API_KEY,
     }
     assert post_call.kwargs["json"]["extra_data"] == {
-        "comfy_api_key": SECRET_API_KEY,
+        "api_key_comfy_org": SECRET_API_KEY,
     }
 
     history_call = mock_client.get.call_args_list[0]
     assert history_call.args[0] == "https://cloud.comfy.org/api/history/prompt-123"
     assert history_call.kwargs["headers"] == {
-        "Authorization": f"Bearer {SECRET_API_KEY}",
+        "X-API-Key": SECRET_API_KEY,
     }
 
     view_call = mock_client.get.call_args_list[1]
     assert view_call.args[0] == "https://cloud.comfy.org/api/view"
     assert view_call.kwargs["headers"] == {
-        "Authorization": f"Bearer {SECRET_API_KEY}",
+        "X-API-Key": SECRET_API_KEY,
     }
 
     serialized = json.dumps(
@@ -322,7 +420,7 @@ def test_http_client_local_behavior_without_prefix_or_key():
                 json_body={
                     prompt_id: {
                         "outputs": {
-                            "9": {
+                            "14": {
                                 "images": [
                                     {
                                         "filename": "out.png",
@@ -364,7 +462,7 @@ def test_load_comfyui_settings_reads_cloud_compat_fields():
             "SILVERMAN_COMFYUI_API_PREFIX": "/api",
             "SILVERMAN_COMFYUI_API_KEY": SECRET_API_KEY,
             "SILVERMAN_COMFYUI_AUTH_HEADER_NAME": "X-API-Key",
-            "SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD": "comfy_api_key",
+            "SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD": "api_key_comfy_org",
         }
     )
 
@@ -372,7 +470,7 @@ def test_load_comfyui_settings_reads_cloud_compat_fields():
     assert settings.api_prefix == "/api"
     assert settings.api_key == SECRET_API_KEY
     assert settings.auth_header_name == "X-API-Key"
-    assert settings.extra_data_api_key_field == "comfy_api_key"
+    assert settings.extra_data_api_key_field == "api_key_comfy_org"
 
 
 def test_load_comfyui_settings_defaults_cloud_compat_fields_empty():

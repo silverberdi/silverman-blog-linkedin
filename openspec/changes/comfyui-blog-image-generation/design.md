@@ -9,7 +9,7 @@ Flow A blog publish (`blog_publish_flow.py` → `publish_blog_post()`) runs pref
 
 Authors sometimes submit Markdown without `image` and without a PNG. The public Jekyll theme at [silverman.pro](https://silverman.pro) reuses the same front matter `image` for hero, list cards, tag cards, and sidebar thumbnails with CSS `aspect-ratio: 1.3333333333` and `object-fit: cover` — canonical generated size **1200×900** (4:3). Legacy **1024×768** remains compatible when supplied manually.
 
-ComfyUI runs as an operator-managed service — locally on Mac, on the LAN, or on a hosted platform such as Comfy Cloud (`https://cloud.comfy.org`). The Comfy Cloud API is compatible with the local ComfyUI REST API; hosted deployments may require an API path prefix (for example `/api`) and an API key via Bearer auth and/or `extra_data` on `/prompt` (Partner Nodes). The worker calls ComfyUI over its REST API per ADR-0001; n8n does not invoke ComfyUI directly in this change.
+ComfyUI runs as an operator-managed service — locally on Mac, on the LAN, or on a hosted platform such as Comfy Cloud (`https://cloud.comfy.org`). The Comfy Cloud API is compatible with the local ComfyUI REST API; hosted deployments may require an API path prefix (for example `/api`) and an API key via `X-API-Key` and/or `extra_data.api_key_comfy_org` on `/prompt` (Partner Nodes). The worker calls ComfyUI over its REST API per ADR-0001; n8n does not invoke ComfyUI directly in this change.
 
 ### Policy references
 
@@ -86,8 +86,8 @@ If generation is disabled and canonical image prerequisites are missing, skip ge
 | `SILVERMAN_COMFYUI_BASE_URL` | ComfyUI origin (local/LAN or hosted, e.g. `https://cloud.comfy.org`) | unset (required when enabled) |
 | `SILVERMAN_COMFYUI_API_PREFIX` | Optional API path prefix (hosted example `/api`) | empty |
 | `SILVERMAN_COMFYUI_API_KEY` | ComfyUI/Comfy Cloud API key | unset |
-| `SILVERMAN_COMFYUI_AUTH_HEADER_NAME` | HTTP header for Bearer API key | `Authorization` |
-| `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD` | `extra_data` field for API key on `/prompt` (Partner Nodes) | unset |
+| `SILVERMAN_COMFYUI_AUTH_HEADER_NAME` | HTTP header for API key | `Authorization` (`Authorization` → `Bearer <key>`; other names e.g. `X-API-Key` → raw key) |
+| `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD` | `extra_data` field for API key on `/prompt` (Partner Nodes) | unset (Comfy Cloud example: `api_key_comfy_org`) |
 | `SILVERMAN_COMFYUI_WORKFLOW_PATH` | Workflow JSON path | repo default workflow file |
 | `SILVERMAN_COMFYUI_TIMEOUT_SECONDS` | HTTP/poll timeout | `120` |
 | `SILVERMAN_COMFYUI_IMAGE_WIDTH` | Output width | `1200` |
@@ -108,7 +108,7 @@ Publish request-level dry-run (if bridge supports) OR generation dry-run via env
 2. Poll `GET {base_url}{api_prefix}/history/{prompt_id}` until completed or timeout.
 3. Download first PNG output via `GET {base_url}{api_prefix}/view?filename=...&type=output`.
 
-When `SILVERMAN_COMFYUI_API_KEY` is set, send `{SILVERMAN_COMFYUI_AUTH_HEADER_NAME}: Bearer <api-key>`. Never log, return, or store the API key in metadata or HTTP responses.
+When `SILVERMAN_COMFYUI_API_KEY` is set, send the key in the configured auth header: if `SILVERMAN_COMFYUI_AUTH_HEADER_NAME` is `Authorization`, use `Authorization: Bearer <api-key>`; for any other header name (Comfy Cloud example `X-API-Key`), send the raw API key value with no `Bearer` prefix. When `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD` is set (Comfy Cloud example `api_key_comfy_org`), also include the key in `/prompt` `extra_data`. Never log, return, or store the API key in metadata or HTTP responses.
 
 When `SILVERMAN_COMFYUI_API_PREFIX` is empty, URLs match local ComfyUI defaults (`/prompt`, `/history`, `/view`).
 

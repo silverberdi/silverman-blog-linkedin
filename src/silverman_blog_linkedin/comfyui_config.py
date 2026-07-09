@@ -25,7 +25,9 @@ ENV_DRY_RUN = "SILVERMAN_COMFYUI_DRY_RUN"
 DEFAULT_AUTH_HEADER_NAME = "Authorization"
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_WORKFLOW_PATH = _REPO_ROOT / "prompts" / "comfyui" / "blog-image-workflow.json"
+_COMFYUI_PROMPTS_DIR = _REPO_ROOT / "prompts" / "comfyui"
+DEFAULT_WORKFLOW_PATH = _COMFYUI_PROMPTS_DIR / "silverman-blog-openai-gpt-image.json"
+LOCAL_WORKFLOW_PATH = _COMFYUI_PROMPTS_DIR / "blog-image-workflow.json"
 
 
 def _parse_bool(raw: str | None, *, default: bool = False) -> bool:

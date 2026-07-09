@@ -19,6 +19,8 @@ from silverman_blog_linkedin.comfyui_client import (
     BLOG_IMAGE_GENERATION_TIMEOUT,
     ComfyUIClientProtocol,
     ComfyUIHttpClient,
+    load_workflow_template,
+    workflow_has_dimension_bindings,
 )
 from silverman_blog_linkedin.comfyui_config import (
     ComfyUISettings,
@@ -61,6 +63,7 @@ class BlogImageGenerationResult:
     public_image_path: str | None = None
     width: int | None = None
     height: int | None = None
+    workflow_controls_dimensions: bool | None = None
     prompt_hash: str | None = None
     generated_at: str | None = None
     error_code: str | None = None
@@ -150,6 +153,8 @@ def _build_metadata_summary(result: BlogImageGenerationResult) -> dict[str, Any]
         summary["width"] = result.width
     if result.height is not None:
         summary["height"] = result.height
+    if result.workflow_controls_dimensions is not None:
+        summary["workflow_controls_dimensions"] = result.workflow_controls_dimensions
     if result.prompt_hash is not None:
         summary["prompt_hash"] = result.prompt_hash
     if result.generated_at is not None:
@@ -195,6 +200,7 @@ def _append_run_record(
         "public_image_path": summary.get("public_image_path"),
         "width": summary.get("width"),
         "height": summary.get("height"),
+        "workflow_controls_dimensions": summary.get("workflow_controls_dimensions"),
         "prompt_hash": summary.get("prompt_hash"),
         "error_code": summary.get("error_code"),
         "skip_reason": summary.get("skip_reason"),
@@ -252,6 +258,13 @@ def ensure_blog_image(
     result.public_image_path = public_image_path
     result.width = settings.image_width
     result.height = settings.image_height
+    try:
+        _workflow, workflow_bindings = load_workflow_template(settings.workflow_path)
+        result.workflow_controls_dimensions = not workflow_has_dimension_bindings(
+            workflow_bindings
+        )
+    except ValueError:
+        result.workflow_controls_dimensions = None
 
     detection = _detection_outcome(
         frontmatter=frontmatter,

@@ -118,13 +118,21 @@ ComfyUI integration MUST be behind an injectable client interface (protocol or a
 
 The client MUST build endpoint URLs as `{base_url}{api_prefix}/prompt`, `{base_url}{api_prefix}/history/{prompt_id}`, and `{base_url}{api_prefix}/view`. When `api_prefix` is empty, behavior MUST match local ComfyUI defaults.
 
-When `SILVERMAN_COMFYUI_API_KEY` is configured, the client MUST send `{SILVERMAN_COMFYUI_AUTH_HEADER_NAME}: Bearer <api-key>` on ComfyUI requests. When `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD` is also configured, the client MUST include the API key in the `/prompt` request `extra_data` under that field name (for Comfy Cloud Partner Nodes).
+When `SILVERMAN_COMFYUI_API_KEY` is configured, the client MUST send the API key in the configured auth header on ComfyUI requests. When `SILVERMAN_COMFYUI_AUTH_HEADER_NAME` is `Authorization`, the value MUST be `Bearer <api-key>`. When the header name is any other value (Comfy Cloud example `X-API-Key`), the value MUST be the raw API key with no `Bearer` prefix.
+
+When `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD` is also configured (Comfy Cloud example `api_key_comfy_org`), the client MUST include the API key in the `/prompt` request `extra_data` under that field name (for Comfy Cloud Partner Nodes).
 
 The API key MUST NOT appear in HTTP responses, campaign metadata, run metadata, exceptions exposed by the worker, or test assertion output.
 
 The client MUST load workflow JSON from a configurable path defaulting to a repository workflow template.
 
-The client MUST inject at minimum: positive prompt, negative prompt, width, height, and a deterministic or configurable seed into the workflow before submission.
+The client MUST inject at minimum: positive prompt into the workflow before submission.
+
+Optional workflow bindings (when present in the template): negative prompt, width, height, and seed. When a binding is absent, the client MUST NOT fail injection.
+
+The default Comfy Cloud workflow template (`silverman-blog-openai-gpt-image.json`) uses `OpenAIGPTImage1` with preset size `1536x1024` because `gpt-image-1.5` does not support custom resolution in that template. Local workflows MAY expose width/height bindings (for example `blog-image-workflow.json` targeting 1200×900).
+
+When width/height bindings are absent, metadata MUST record configured `width`/`height` as requested dimensions and MUST set `workflow_controls_dimensions: true` to indicate actual output dimensions are controlled by the workflow preset, not verified by the worker.
 
 The client MUST poll ComfyUI job completion within a configurable timeout and retrieve output PNG bytes.
 
@@ -148,7 +156,12 @@ ComfyUI errors MUST map to stable worker error codes without exposing secrets or
 #### Scenario: API key sent via auth header and extra_data
 
 - **WHEN** `SILVERMAN_COMFYUI_API_KEY` and `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD` are configured
-- **THEN** the client sends the Bearer auth header and includes the key in `/prompt` `extra_data` without exposing it in worker results or metadata
+- **THEN** the client sends the configured auth header (Bearer only when header name is `Authorization`) and includes the key in `/prompt` `extra_data` without exposing it in worker results or metadata
+
+#### Scenario: Comfy Cloud X-API-Key header
+
+- **WHEN** `SILVERMAN_COMFYUI_AUTH_HEADER_NAME` is `X-API-Key` and an API key is configured
+- **THEN** the client sends `X-API-Key: <api-key>` with no `Bearer` prefix
 
 #### Scenario: Tests use fake client
 
@@ -183,7 +196,8 @@ When blog image generation runs in a publish or standalone context with campaign
 - `status`: one of `generated`, `skipped`, `failed`, `dry_run`
 - `image_relative_path` (editorial PNG path when written)
 - `public_image_path` (`/assets/images/<public_slug>.png`)
-- `width`, `height`
+- `width`, `height` (requested dimensions; actual output may be workflow-controlled)
+- `workflow_controls_dimensions` when the workflow preset controls output size
 - `prompt_hash` (SHA-256 of assembled prompt; MUST NOT store full prompt text in campaign metadata)
 - `generated_at` when applicable
 - `error_code` when failed
@@ -228,8 +242,8 @@ Blog image generation MUST be configurable via environment variables including a
 | `SILVERMAN_COMFYUI_BASE_URL` | ComfyUI server base URL (local/LAN or hosted) |
 | `SILVERMAN_COMFYUI_API_PREFIX` | Optional API path prefix (hosted example `/api`) |
 | `SILVERMAN_COMFYUI_API_KEY` | ComfyUI/Comfy Cloud API key (never logged or returned) |
-| `SILVERMAN_COMFYUI_AUTH_HEADER_NAME` | HTTP header for Bearer API key (default `Authorization`) |
-| `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD` | `extra_data` field for API key on `/prompt` when set |
+| `SILVERMAN_COMFYUI_AUTH_HEADER_NAME` | HTTP header for API key (default `Authorization` → `Bearer <key>`; Comfy Cloud `X-API-Key` → raw key) |
+| `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD` | `extra_data` field for API key on `/prompt` when set (Comfy Cloud example `api_key_comfy_org`) |
 | `SILVERMAN_COMFYUI_WORKFLOW_PATH` | Filesystem path to workflow JSON |
 | `SILVERMAN_COMFYUI_TIMEOUT_SECONDS` | Generation timeout |
 | `SILVERMAN_COMFYUI_IMAGE_WIDTH` | Output width (default 1200) |

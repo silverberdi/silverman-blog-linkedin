@@ -21,6 +21,7 @@ from silverman_blog_linkedin.comfyui_client import FakeComfyUIClient
 from silverman_blog_linkedin.comfyui_config import (
     ComfyUISettings,
     ComfyUISettingsLoadResult,
+    LOCAL_WORKFLOW_PATH,
 )
 
 SOURCE_SLUG = "01-why-i-did-not-start-with-the-database"
@@ -89,10 +90,7 @@ def _enabled_config(*, dry_run: bool = False) -> ComfyUISettingsLoadResult:
             api_key=None,
             auth_header_name="Authorization",
             extra_data_api_key_field=None,
-            workflow_path=Path(__file__).resolve().parents[1]
-            / "prompts"
-            / "comfyui"
-            / "blog-image-workflow.json",
+            workflow_path=LOCAL_WORKFLOW_PATH,
             timeout_seconds=30,
             image_width=1200,
             image_height=900,
@@ -262,6 +260,56 @@ def test_run_metadata_written_on_generation(editorial_base: Path):
     assert result.run_id is not None
     run_path = editorial_base / "metadata" / "runs" / f"{result.run_id}.json"
     assert run_path.is_file()
+
+
+def test_openai_workflow_metadata_marks_workflow_controlled_dimensions(
+    editorial_base: Path,
+):
+    from silverman_blog_linkedin.comfyui_config import DEFAULT_WORKFLOW_PATH
+
+    _write_post(editorial_base, image=None, with_png=False)
+    config = ComfyUISettingsLoadResult(
+        settings=ComfyUISettings(
+            enabled=True,
+            base_url="https://cloud.comfy.org",
+            api_prefix="/api",
+            api_key=None,
+            auth_header_name="Authorization",
+            extra_data_api_key_field=None,
+            workflow_path=DEFAULT_WORKFLOW_PATH,
+            timeout_seconds=30,
+            image_width=1200,
+            image_height=900,
+            dry_run=True,
+        )
+    )
+
+    result = ensure_blog_image(
+        editorial_base,
+        SOURCE_RELATIVE,
+        config=config,
+        client=FakeComfyUIClient(),
+        dry_run=True,
+    )
+
+    assert result.status == "dry_run"
+    assert result.width == 1200
+    assert result.height == 900
+    assert result.workflow_controls_dimensions is True
+
+
+def test_local_workflow_metadata_has_dimension_bindings(editorial_base: Path):
+    _write_post(editorial_base, image=None, with_png=False)
+
+    result = ensure_blog_image(
+        editorial_base,
+        SOURCE_RELATIVE,
+        config=_enabled_config(dry_run=True),
+        client=FakeComfyUIClient(),
+        dry_run=True,
+    )
+
+    assert result.workflow_controls_dimensions is False
 
 
 def test_missing_source_returns_failed(editorial_base: Path):

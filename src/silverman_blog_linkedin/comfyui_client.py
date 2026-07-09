@@ -37,7 +37,11 @@ def build_comfyui_request_headers(settings: ComfyUISettings) -> dict[str, str]:
     """Return HTTP headers for ComfyUI requests when an API key is configured."""
     if not settings.api_key:
         return {}
-    return {settings.auth_header_name: f"Bearer {settings.api_key}"}
+    if settings.auth_header_name.lower() == "authorization":
+        value = f"Bearer {settings.api_key}"
+    else:
+        value = settings.api_key
+    return {settings.auth_header_name: value}
 
 
 def build_comfyui_prompt_payload(
@@ -92,6 +96,13 @@ def load_workflow_template(workflow_path: Path) -> tuple[dict[str, Any], dict[st
     return workflow, bindings
 
 
+def workflow_has_dimension_bindings(bindings: dict[str, Any]) -> bool:
+    """Return True when the workflow template exposes width and height bindings."""
+    width = bindings.get("width")
+    height = bindings.get("height")
+    return isinstance(width, dict) and isinstance(height, dict)
+
+
 def inject_workflow_parameters(
     workflow: dict[str, Any],
     bindings: dict[str, Any],
@@ -102,13 +113,15 @@ def inject_workflow_parameters(
     height: int,
     seed: int,
 ) -> dict[str, Any]:
-    """Return a copy of the workflow graph with prompt and dimension inputs set."""
+    """Return a copy of the workflow graph with bound prompt and dimension inputs set."""
     graph = copy.deepcopy(workflow)
 
-    def _set_binding(name: str, value: Any) -> None:
+    def _set_binding(name: str, value: Any, *, required: bool) -> None:
         binding = bindings.get(name)
         if not isinstance(binding, dict):
-            raise ValueError(f"missing binding for {name!r}")
+            if required:
+                raise ValueError(f"missing binding for {name!r}")
+            return
         node_id = str(binding["node"])
         input_name = str(binding["input"])
         node = graph.get(node_id)
@@ -119,11 +132,11 @@ def inject_workflow_parameters(
             raise ValueError(f"workflow node {node_id!r} inputs must be a mapping")
         inputs[input_name] = value
 
-    _set_binding("positive_prompt", positive_prompt)
-    _set_binding("negative_prompt", negative_prompt)
-    _set_binding("width", width)
-    _set_binding("height", height)
-    _set_binding("seed", seed)
+    _set_binding("positive_prompt", positive_prompt, required=True)
+    _set_binding("negative_prompt", negative_prompt, required=False)
+    _set_binding("width", width, required=False)
+    _set_binding("height", height, required=False)
+    _set_binding("seed", seed, required=False)
     return graph
 
 

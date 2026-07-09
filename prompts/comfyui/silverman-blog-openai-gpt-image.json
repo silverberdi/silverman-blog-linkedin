@@ -1,0 +1,28 @@
+{
+  "bindings": {
+    "positive_prompt": {"node": "10", "input": "prompt"},
+    "seed": {"node": "10", "input": "seed"},
+    "output": {"node": "14"}
+  },
+  "workflow": {
+    "10": {
+      "class_type": "OpenAIGPTImage1",
+      "inputs": {
+        "prompt": "",
+        "seed": 0,
+        "quality": "high",
+        "background": "opaque",
+        "size": "1536x1024",
+        "n": 1,
+        "model": "gpt-image-1.5"
+      }
+    },
+    "14": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "blog-image",
+        "images": ["10", 0]
+      }
+    }
+  }
+}
