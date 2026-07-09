@@ -21,6 +21,19 @@ BLOG_IMAGE_GENERATION_NOT_CONFIGURED = "blog_image_generation_not_configured"
 POLL_INTERVAL_SECONDS = 0.5
 
 
+COMFY_CLOUD_BASE_URL = "https://cloud.comfy.org"
+
+
+def uses_comfy_cloud_jobs_api(settings: ComfyUISettings) -> bool:
+    """Return True when job status should be polled via Comfy Cloud /jobs/{id}."""
+    base = (settings.base_url or "").rstrip("/").lower()
+    prefix = settings.api_prefix.strip()
+    if prefix and not prefix.startswith("/"):
+        prefix = f"/{prefix}"
+    prefix = prefix.rstrip("/")
+    return base == COMFY_CLOUD_BASE_URL and prefix == "/api"
+
+
 def build_comfyui_api_url(base_url: str, api_prefix: str, endpoint: str) -> str:
     """Build a ComfyUI API URL from base URL, optional prefix, and endpoint path."""
     root = base_url.rstrip("/")
@@ -140,6 +153,37 @@ def inject_workflow_parameters(
     return graph
 
 
+def _is_job_completed(job_entry: dict[str, Any]) -> bool:
+    status = job_entry.get("status")
+    if status in {"in_progress", "pending", "running", "queued"}:
+        return False
+    if status == "completed":
+        return True
+    execution_status = job_entry.get("execution_status")
+    if isinstance(execution_status, dict):
+        status_str = execution_status.get("status_str")
+        if status_str in {"running", "pending", "queued"}:
+            return False
+        if status_str == "success":
+            return True
+    outputs = job_entry.get("outputs")
+    if isinstance(outputs, dict) and outputs:
+        return True
+    return False
+
+
+def _is_job_failed(job_entry: dict[str, Any]) -> bool:
+    status = job_entry.get("status")
+    if status in {"failed", "error", "cancelled"}:
+        return True
+    execution_status = job_entry.get("execution_status")
+    if isinstance(execution_status, dict):
+        status_str = execution_status.get("status_str")
+        if status_str in {"error", "failed"}:
+            return True
+    return False
+
+
 def _extract_output_image(
     history_entry: dict[str, Any],
     bindings: dict[str, Any],
@@ -179,8 +223,45 @@ def _extract_output_image(
     return None
 
 
+def _download_view_image(
+    client: httpx.Client,
+    *,
+    base_url: str,
+    api_prefix: str,
+    image_ref: dict[str, str],
+    request_headers: dict[str, str],
+) -> bytes | None:
+    """Download PNG bytes from /view, following redirects without exposing signed URLs."""
+    params = {
+        "filename": image_ref["filename"],
+        "type": image_ref["type"],
+    }
+    if image_ref["subfolder"]:
+        params["subfolder"] = image_ref["subfolder"]
+
+    try:
+        view_response = client.get(
+            build_comfyui_api_url(base_url, api_prefix, "/view"),
+            params=params,
+            headers=request_headers,
+            follow_redirects=True,
+        )
+        view_response.raise_for_status()
+    except httpx.HTTPError:
+        return None
+
+    content_type = view_response.headers.get("content-type", "")
+    png_bytes = view_response.content
+    if not png_bytes:
+        return None
+    if content_type and "image/png" not in content_type.lower():
+        if not png_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+            return None
+    return png_bytes
+
+
 class ComfyUIHttpClient:
-    """Production ComfyUI client using HTTP /prompt, /history, and /view."""
+    """Production ComfyUI client using HTTP /prompt, job polling, and /view."""
 
     def __init__(
         self,
@@ -194,7 +275,11 @@ class ComfyUIHttpClient:
         self._workflow_path = settings.workflow_path
         self._request_headers = build_comfyui_request_headers(settings)
         self._owns_client = client is None
-        self._client = client or httpx.Client(timeout=settings.timeout_seconds)
+        self._client = client or httpx.Client(
+            timeout=settings.timeout_seconds,
+            follow_redirects=True,
+        )
+        self._use_jobs_api = uses_comfy_cloud_jobs_api(settings)
 
     def close(self) -> None:
         if self._owns_client:
@@ -262,67 +347,78 @@ class ComfyUIHttpClient:
             )
 
         deadline = time.monotonic() + self._settings.timeout_seconds
-        history_entry: dict[str, Any] | None = None
+        completed_entry: dict[str, Any] | None = None
 
         while time.monotonic() < deadline:
             try:
-                history_response = self._client.get(
-                    build_comfyui_api_url(
-                        base_url,
-                        api_prefix,
-                        f"/history/{prompt_id}",
-                    ),
-                    headers=self._request_headers,
-                )
-                history_response.raise_for_status()
-                history_payload = history_response.json()
+                if self._use_jobs_api:
+                    status_response = self._client.get(
+                        build_comfyui_api_url(
+                            base_url,
+                            api_prefix,
+                            f"/jobs/{prompt_id}",
+                        ),
+                        headers=self._request_headers,
+                    )
+                    status_response.raise_for_status()
+                    status_payload = status_response.json()
+                else:
+                    status_response = self._client.get(
+                        build_comfyui_api_url(
+                            base_url,
+                            api_prefix,
+                            f"/history/{prompt_id}",
+                        ),
+                        headers=self._request_headers,
+                    )
+                    status_response.raise_for_status()
+                    status_payload = status_response.json()
             except (httpx.HTTPError, json.JSONDecodeError):
                 time.sleep(POLL_INTERVAL_SECONDS)
                 continue
 
-            if isinstance(history_payload, dict) and prompt_id in history_payload:
-                entry = history_payload[prompt_id]
-                if isinstance(entry, dict):
-                    history_entry = entry
+            entry: dict[str, Any] | None = None
+            if self._use_jobs_api:
+                if isinstance(status_payload, dict):
+                    entry = status_payload
+            elif isinstance(status_payload, dict) and prompt_id in status_payload:
+                candidate = status_payload[prompt_id]
+                if isinstance(candidate, dict):
+                    entry = candidate
+
+            if entry is not None:
+                if _is_job_failed(entry):
+                    return ComfyUIImageResult(
+                        png_bytes=None,
+                        error_code=BLOG_IMAGE_GENERATION_COMFYUI_FAILED,
+                    )
+                if _is_job_completed(entry):
+                    completed_entry = entry
                     break
 
             time.sleep(POLL_INTERVAL_SECONDS)
 
-        if history_entry is None:
+        if completed_entry is None:
             return ComfyUIImageResult(
                 png_bytes=None,
                 error_code=BLOG_IMAGE_GENERATION_TIMEOUT,
             )
 
-        image_ref = _extract_output_image(history_entry, bindings)
+        image_ref = _extract_output_image(completed_entry, bindings)
         if image_ref is None:
             return ComfyUIImageResult(
                 png_bytes=None,
                 error_code=BLOG_IMAGE_GENERATION_COMFYUI_FAILED,
             )
 
-        params = {
-            "filename": image_ref["filename"],
-            "type": image_ref["type"],
-        }
-        if image_ref["subfolder"]:
-            params["subfolder"] = image_ref["subfolder"]
-
-        try:
-            view_response = self._client.get(
-                build_comfyui_api_url(base_url, api_prefix, "/view"),
-                params=params,
-                headers=self._request_headers,
-            )
-            view_response.raise_for_status()
-            png_bytes = view_response.content
-        except httpx.HTTPError:
-            return ComfyUIImageResult(
-                png_bytes=None,
-                error_code=BLOG_IMAGE_GENERATION_COMFYUI_FAILED,
-            )
-
-        if not png_bytes:
+        png_bytes = _download_view_image(
+            self._client,
+            base_url=base_url,
+            api_prefix=api_prefix,
+            image_ref=image_ref,
+            request_headers=self._request_headers,
+        )
+        if png_bytes is None:
             return ComfyUIImageResult(
                 png_bytes=None,
                 error_code=BLOG_IMAGE_GENERATION_COMFYUI_FAILED,

@@ -12,6 +12,7 @@ import pytest
 from silverman_blog_linkedin.comfyui_client import (
     BLOG_IMAGE_GENERATION_COMFYUI_FAILED,
     BLOG_IMAGE_GENERATION_NOT_CONFIGURED,
+    BLOG_IMAGE_GENERATION_TIMEOUT,
     ComfyUIHttpClient,
     FakeComfyUIClient,
     build_comfyui_api_url,
@@ -19,6 +20,7 @@ from silverman_blog_linkedin.comfyui_client import (
     build_comfyui_request_headers,
     inject_workflow_parameters,
     load_workflow_template,
+    uses_comfy_cloud_jobs_api,
     workflow_has_dimension_bindings,
 )
 from silverman_blog_linkedin.comfyui_config import (
@@ -239,8 +241,18 @@ def test_build_comfyui_api_url_with_prefix():
         == "https://cloud.comfy.org/api/prompt"
     )
     assert (
-        build_comfyui_api_url("https://cloud.comfy.org", "api", "/history/abc")
-        == "https://cloud.comfy.org/api/history/abc"
+        build_comfyui_api_url("https://cloud.comfy.org", "api", "/jobs/abc")
+        == "https://cloud.comfy.org/api/jobs/abc"
+    )
+
+
+def test_uses_comfy_cloud_jobs_api_detects_cloud_config():
+    assert uses_comfy_cloud_jobs_api(
+        _settings(base_url="https://cloud.comfy.org", api_prefix="/api")
+    )
+    assert not uses_comfy_cloud_jobs_api(_settings())
+    assert not uses_comfy_cloud_jobs_api(
+        _settings(base_url="https://cloud.comfy.org", api_prefix="")
     )
 
 
@@ -311,6 +323,177 @@ def _mock_http_response(
     return httpx.Response(status_code, content=content, request=request)
 
 
+def test_http_client_cloud_uses_jobs_api_and_follows_view_redirect():
+    prompt_id = "prompt-123"
+    png_bytes = b"\x89PNG\r\n\x1a\ncloud-output"
+    signed_redirect_url = (
+        "https://storage.comfy.org/signed/out.png?token=do-not-leak-signed-url"
+    )
+    poll_count = {"jobs": 0}
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path.endswith("/api/prompt"):
+            return httpx.Response(
+                200,
+                json={"node_errors": {}, "prompt_id": prompt_id},
+            )
+        if request.method == "GET" and request.url.path.endswith(f"/api/jobs/{prompt_id}"):
+            poll_count["jobs"] += 1
+            if poll_count["jobs"] == 1:
+                return httpx.Response(
+                    200,
+                    json={
+                        "status": "in_progress",
+                        "execution_status": {"status_str": "running"},
+                    },
+                )
+            return httpx.Response(
+                200,
+                json={
+                    "status": "completed",
+                    "execution_status": {"status_str": "success"},
+                    "outputs": {
+                        "14": {
+                            "images": [
+                                {
+                                    "filename": "out.png",
+                                    "subfolder": "",
+                                    "type": "output",
+                                }
+                            ]
+                        }
+                    },
+                },
+            )
+        if request.method == "GET" and request.url.path.endswith("/api/view"):
+            return httpx.Response(
+                302,
+                headers={"Location": signed_redirect_url},
+            )
+        if str(request.url) == signed_redirect_url:
+            return httpx.Response(
+                200,
+                content=png_bytes,
+                headers={"Content-Type": "image/png"},
+            )
+        raise AssertionError(f"unexpected request: {request.method} {request.url}")
+
+    transport = httpx.MockTransport(_handler)
+    http_client = httpx.Client(transport=transport, follow_redirects=True)
+
+    settings = _settings(
+        base_url="https://cloud.comfy.org",
+        api_prefix="/api",
+        api_key=SECRET_API_KEY,
+        auth_header_name="X-API-Key",
+        extra_data_api_key_field="api_key_comfy_org",
+    )
+    client = ComfyUIHttpClient(settings, client=http_client)
+    result = client.generate_image(
+        positive_prompt="topic",
+        negative_prompt="no text",
+        width=1200,
+        height=900,
+        seed=7,
+    )
+
+    assert result.error_code is None
+    assert result.png_bytes == png_bytes
+    assert poll_count["jobs"] == 2
+
+    serialized = json.dumps(
+        {
+            "error_code": result.error_code,
+            "png_size": len(result.png_bytes or b""),
+        }
+    )
+    assert SECRET_API_KEY not in serialized
+    assert "do-not-leak-signed-url" not in serialized
+
+
+def test_http_client_cloud_failed_job_maps_to_comfyui_failed():
+    prompt_id = "failed-job"
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path.endswith("/api/prompt"):
+            return httpx.Response(200, json={"prompt_id": prompt_id})
+        if request.method == "GET" and request.url.path.endswith(f"/api/jobs/{prompt_id}"):
+            return httpx.Response(
+                200,
+                json={
+                    "status": "failed",
+                    "execution_status": {"status_str": "error"},
+                },
+            )
+        raise AssertionError(f"unexpected request: {request.method} {request.url}")
+
+    transport = httpx.MockTransport(_handler)
+    client = ComfyUIHttpClient(
+        _settings(base_url="https://cloud.comfy.org", api_prefix="/api"),
+        client=httpx.Client(transport=transport),
+    )
+    result = client.generate_image(
+        positive_prompt="topic",
+        negative_prompt="no text",
+        width=1200,
+        height=900,
+        seed=1,
+    )
+
+    assert result.png_bytes is None
+    assert result.error_code == BLOG_IMAGE_GENERATION_COMFYUI_FAILED
+
+
+def test_http_client_cloud_timeout_when_job_never_completes():
+    prompt_id = "slow-job"
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path.endswith("/api/prompt"):
+            return httpx.Response(200, json={"prompt_id": prompt_id})
+        if request.method == "GET" and request.url.path.endswith(f"/api/jobs/{prompt_id}"):
+            return httpx.Response(
+                200,
+                json={
+                    "status": "in_progress",
+                    "execution_status": {"status_str": "running"},
+                },
+            )
+        raise AssertionError(f"unexpected request: {request.method} {request.url}")
+
+    transport = httpx.MockTransport(_handler)
+    settings = _settings(
+        base_url="https://cloud.comfy.org",
+        api_prefix="/api",
+    )
+    settings = ComfyUISettings(
+        enabled=settings.enabled,
+        base_url=settings.base_url,
+        api_prefix=settings.api_prefix,
+        api_key=settings.api_key,
+        auth_header_name=settings.auth_header_name,
+        extra_data_api_key_field=settings.extra_data_api_key_field,
+        workflow_path=settings.workflow_path,
+        timeout_seconds=0.6,
+        image_width=settings.image_width,
+        image_height=settings.image_height,
+        dry_run=settings.dry_run,
+    )
+    client = ComfyUIHttpClient(
+        settings,
+        client=httpx.Client(transport=transport),
+    )
+    result = client.generate_image(
+        positive_prompt="topic",
+        negative_prompt="no text",
+        width=1200,
+        height=900,
+        seed=1,
+    )
+
+    assert result.png_bytes is None
+    assert result.error_code == BLOG_IMAGE_GENERATION_TIMEOUT
+
+
 def test_http_client_applies_api_prefix_auth_and_extra_data():
     prompt_id = "prompt-123"
     png_bytes = b"\x89PNG\r\n\x1a\ncloud-output"
@@ -323,24 +506,24 @@ def test_http_client_applies_api_prefix_auth_and_extra_data():
                 url,
                 json_body={"prompt_id": prompt_id},
             )
-        if method == "GET" and url.endswith(f"/api/history/{prompt_id}"):
+        if method == "GET" and url.endswith(f"/api/jobs/{prompt_id}"):
             return _mock_http_response(
                 method,
                 url,
                 json_body={
-                    prompt_id: {
-                        "outputs": {
-                            "14": {
-                                "images": [
-                                    {
-                                        "filename": "out.png",
-                                        "subfolder": "",
-                                        "type": "output",
-                                    }
-                                ]
-                            }
+                    "status": "completed",
+                    "execution_status": {"status_str": "success"},
+                    "outputs": {
+                        "14": {
+                            "images": [
+                                {
+                                    "filename": "out.png",
+                                    "subfolder": "",
+                                    "type": "output",
+                                }
+                            ]
                         }
-                    }
+                    },
                 },
             )
         if method == "GET" and url.endswith("/api/view"):
@@ -378,9 +561,9 @@ def test_http_client_applies_api_prefix_auth_and_extra_data():
         "api_key_comfy_org": SECRET_API_KEY,
     }
 
-    history_call = mock_client.get.call_args_list[0]
-    assert history_call.args[0] == "https://cloud.comfy.org/api/history/prompt-123"
-    assert history_call.kwargs["headers"] == {
+    jobs_call = mock_client.get.call_args_list[0]
+    assert jobs_call.args[0] == "https://cloud.comfy.org/api/jobs/prompt-123"
+    assert jobs_call.kwargs["headers"] == {
         "X-API-Key": SECRET_API_KEY,
     }
 

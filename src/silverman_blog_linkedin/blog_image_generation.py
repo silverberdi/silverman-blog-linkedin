@@ -260,7 +260,7 @@ def ensure_blog_image(
     result.height = settings.image_height
     try:
         _workflow, workflow_bindings = load_workflow_template(settings.workflow_path)
-        result.workflow_controls_dimensions = not workflow_has_dimension_bindings(
+        result.workflow_controls_dimensions = workflow_has_dimension_bindings(
             workflow_bindings
         )
     except ValueError:

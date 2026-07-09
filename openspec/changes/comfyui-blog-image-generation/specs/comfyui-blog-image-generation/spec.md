@@ -116,7 +116,13 @@ The worker SHALL call ComfyUI using a configurable base URL, optional API path p
 
 ComfyUI integration MUST be behind an injectable client interface (protocol or abstract base) so tests can substitute fakes without a live ComfyUI server.
 
-The client MUST build endpoint URLs as `{base_url}{api_prefix}/prompt`, `{base_url}{api_prefix}/history/{prompt_id}`, and `{base_url}{api_prefix}/view`. When `api_prefix` is empty, behavior MUST match local ComfyUI defaults.
+The client MUST build endpoint URLs as `{base_url}{api_prefix}/prompt`, `{base_url}{api_prefix}/view`, and poll job completion via either `{base_url}{api_prefix}/jobs/{job_id}` (Comfy Cloud) or `{base_url}{api_prefix}/history/{prompt_id}` (local ComfyUI). When `api_prefix` is empty, behavior MUST match local ComfyUI defaults.
+
+For Comfy Cloud (`https://cloud.comfy.org` with `api_prefix` `/api`), `POST /prompt` returns `prompt_id` which is also the `job_id`. Job status MUST be polled via `GET /jobs/{job_id}` until `status` is `completed` and/or `execution_status.status_str` is `success`, or until timeout/failure. Completed job output images MUST be read from `outputs[<output_node_id>].images[0]` using the workflow binding `bindings.output.node` for `filename`, `subfolder`, and `type`.
+
+For local ComfyUI, job completion MUST continue to be polled via `GET /history/{prompt_id}`.
+
+Image download via `GET /view` MUST follow HTTP redirects (Comfy Cloud returns HTTP 302 to signed storage URLs). The client MUST return final PNG bytes from the redirect target without logging, storing, or exposing signed redirect URLs in results, metadata, or exceptions.
 
 When `SILVERMAN_COMFYUI_API_KEY` is configured, the client MUST send the API key in the configured auth header on ComfyUI requests. When `SILVERMAN_COMFYUI_AUTH_HEADER_NAME` is `Authorization`, the value MUST be `Bearer <api-key>`. When the header name is any other value (Comfy Cloud example `X-API-Key`), the value MUST be the raw API key with no `Bearer` prefix.
 
@@ -132,7 +138,9 @@ Optional workflow bindings (when present in the template): negative prompt, widt
 
 The default Comfy Cloud workflow template (`silverman-blog-openai-gpt-image.json`) uses `OpenAIGPTImage1` with preset size `1536x1024` because `gpt-image-1.5` does not support custom resolution in that template. Local workflows MAY expose width/height bindings (for example `blog-image-workflow.json` targeting 1200×900).
 
-When width/height bindings are absent, metadata MUST record configured `width`/`height` as requested dimensions and MUST set `workflow_controls_dimensions: true` to indicate actual output dimensions are controlled by the workflow preset, not verified by the worker.
+When width/height bindings are absent, metadata MUST record configured `width`/`height` as requested dimensions (not verified output size) and MUST set `workflow_controls_dimensions: false` because the worker does not inject dimensions into the workflow graph.
+
+When both width and height bindings are present, metadata MUST set `workflow_controls_dimensions: true` because the worker injects configured dimensions into the workflow before submission.
 
 The client MUST poll ComfyUI job completion within a configurable timeout and retrieve output PNG bytes.
 
@@ -151,7 +159,22 @@ ComfyUI errors MUST map to stable worker error codes without exposing secrets or
 #### Scenario: Hosted API prefix applied
 
 - **WHEN** `SILVERMAN_COMFYUI_API_PREFIX` is `/api` and base URL is `https://cloud.comfy.org`
-- **THEN** the client calls `https://cloud.comfy.org/api/prompt`, `/api/history/{id}`, and `/api/view`
+- **THEN** the client calls `https://cloud.comfy.org/api/prompt`, polls `https://cloud.comfy.org/api/jobs/{job_id}`, and downloads via `https://cloud.comfy.org/api/view` with redirect following
+
+#### Scenario: Comfy Cloud job polling and output extraction
+
+- **WHEN** Comfy Cloud returns `prompt_id` from `/prompt` and `/jobs/{job_id}` transitions from in-progress to completed with `outputs[<output_node_id>].images[0]`
+- **THEN** the client extracts the output image reference and downloads PNG bytes via `/view`
+
+#### Scenario: Comfy Cloud view redirect followed
+
+- **WHEN** Comfy Cloud `/view` returns HTTP 302 to a signed storage URL
+- **THEN** the client follows the redirect, returns PNG bytes, and does not expose the signed URL in worker results or metadata
+
+#### Scenario: Local history polling unchanged
+
+- **WHEN** base URL is local ComfyUI without Comfy Cloud jobs API detection
+- **THEN** the client polls `/history/{prompt_id}` as before
 
 #### Scenario: API key sent via auth header and extra_data
 
@@ -167,6 +190,11 @@ ComfyUI errors MUST map to stable worker error codes without exposing secrets or
 
 - **WHEN** unit tests run without `SILVERMAN_COMFYUI_IMAGE_ENABLED` against a live server
 - **THEN** tests inject a fake client returning deterministic PNG bytes
+
+#### Scenario: Tests do not inherit ambient ComfyUI env
+
+- **WHEN** unit tests run while the operator shell exports Comfy Cloud `SILVERMAN_COMFYUI_*` variables
+- **THEN** tests clear or override those variables (shared helper or explicit `environ` / config) so disabled-generation cases remain skipped and enabled cases configure state inside the test
 
 ### Requirement: Generated asset paths and front matter update
 
@@ -196,8 +224,8 @@ When blog image generation runs in a publish or standalone context with campaign
 - `status`: one of `generated`, `skipped`, `failed`, `dry_run`
 - `image_relative_path` (editorial PNG path when written)
 - `public_image_path` (`/assets/images/<public_slug>.png`)
-- `width`, `height` (requested dimensions; actual output may be workflow-controlled)
-- `workflow_controls_dimensions` when the workflow preset controls output size
+- `width`, `height` (requested dimensions from worker config; actual PNG size may differ when bindings are absent)
+- `workflow_controls_dimensions` when true, the workflow template exposes width and height bindings and the worker injected configured dimensions
 - `prompt_hash` (SHA-256 of assembled prompt; MUST NOT store full prompt text in campaign metadata)
 - `generated_at` when applicable
 - `error_code` when failed

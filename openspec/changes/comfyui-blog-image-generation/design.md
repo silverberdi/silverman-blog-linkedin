@@ -61,7 +61,7 @@ If generation is disabled and canonical image prerequisites are missing, skip ge
 | Module | Responsibility |
 |--------|----------------|
 | `blog_image_prompt.py` | Build deterministic positive/negative prompt strings from title, description, tags, categories, body excerpt; enforce editorial style rules (no readable text, no logos, centered subject, safe margins for cover crop). |
-| `comfyui_client.py` | Load workflow JSON template, inject width/height/prompt/seed, POST to ComfyUI `/prompt`, poll history, download output bytes via `/view`. Protocol behind `ComfyUIClientProtocol` for fakes. |
+| `comfyui_client.py` | Load workflow JSON template, inject width/height/prompt/seed, POST to ComfyUI `/prompt`, poll Comfy Cloud `/jobs/{id}` or local `/history/{id}`, download output bytes via `/view` (follow redirects). Protocol behind `ComfyUIClientProtocol` for fakes. |
 | `blog_image_generation.py` | `ensure_blog_image(base_path, source_relative_path, *, config, client, dry_run)` — detection, orchestration, PNG write, front matter patch, metadata object. |
 
 **Rationale:** Testability and separation mirror `deepseek_client.py` / `linkedin_package_flow.py` patterns.
@@ -104,13 +104,16 @@ Publish request-level dry-run (if bridge supports) OR generation dry-run via env
 
 **Decision:** Use ComfyUI REST API (local/LAN or hosted such as Comfy Cloud):
 
-1. `POST {base_url}{api_prefix}/prompt` with workflow graph + client id; optionally include API key in `extra_data` when configured.
-2. Poll `GET {base_url}{api_prefix}/history/{prompt_id}` until completed or timeout.
-3. Download first PNG output via `GET {base_url}{api_prefix}/view?filename=...&type=output`.
+1. `POST {base_url}{api_prefix}/prompt` with workflow graph + client id; optionally include API key in `extra_data` when configured. Comfy Cloud returns `prompt_id` (also `job_id`).
+2. Poll job completion:
+   - **Comfy Cloud** (`https://cloud.comfy.org` + `/api` prefix): `GET {base_url}{api_prefix}/jobs/{job_id}` until `status` is `completed` and/or `execution_status.status_str` is `success`, or failed/timeout.
+   - **Local ComfyUI**: `GET {base_url}{api_prefix}/history/{prompt_id}` until completed or timeout.
+3. Extract output image from `outputs[<output_node_id>].images[0]` (workflow binding `bindings.output.node`).
+4. Download PNG via `GET {base_url}{api_prefix}/view?filename=...&subfolder=...&type=...`, following HTTP redirects (Comfy Cloud returns 302 to signed storage). Do not log or store signed redirect URLs.
 
 When `SILVERMAN_COMFYUI_API_KEY` is set, send the key in the configured auth header: if `SILVERMAN_COMFYUI_AUTH_HEADER_NAME` is `Authorization`, use `Authorization: Bearer <api-key>`; for any other header name (Comfy Cloud example `X-API-Key`), send the raw API key value with no `Bearer` prefix. When `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD` is set (Comfy Cloud example `api_key_comfy_org`), also include the key in `/prompt` `extra_data`. Never log, return, or store the API key in metadata or HTTP responses.
 
-When `SILVERMAN_COMFYUI_API_PREFIX` is empty, URLs match local ComfyUI defaults (`/prompt`, `/history`, `/view`).
+When `SILVERMAN_COMFYUI_API_PREFIX` is empty, URLs match local ComfyUI defaults (`/prompt`, `/history`, `/view`). Comfy Cloud uses `/jobs/{job_id}` instead of `/history/{prompt_id}`.
 
 Wrap in retry-safe polling with configurable timeout. Surface ComfyUI errors as `blog_image_generation_comfyui_failed` without leaking stack traces or secrets in HTTP JSON.
 
@@ -128,6 +131,7 @@ Wrap in retry-safe polling with configurable timeout. Surface ComfyUI errors as 
   "public_image_path": "/assets/images/<public_slug>.png",
   "width": 1200,
   "height": 900,
+  "workflow_controls_dimensions": false,
   "prompt_hash": "<sha256 of prompt>",
   "generated_at": "<utc iso>",
   "error_code": null
@@ -135,6 +139,8 @@ Wrap in retry-safe polling with configurable timeout. Surface ComfyUI errors as 
 ```
 
 Also append a run record under `metadata/runs/` when generation executes (reuse `run_metadata.py` patterns). Do not store full prompt text in campaign JSON (hash only).
+
+`width`/`height` are requested dimensions from env config. `workflow_controls_dimensions` is `true` only when the workflow template exposes width and height bindings (for example local `blog-image-workflow.json`). Comfy Cloud OpenAI preset workflows without bindings set it `false` even though actual output may be 1536×1024 from the template preset.
 
 **Rationale:** Auditability for n8n branching; keeps metadata small.
 

@@ -22,6 +22,7 @@ from silverman_blog_linkedin.comfyui_config import (
     ComfyUISettings,
     ComfyUISettingsLoadResult,
     LOCAL_WORKFLOW_PATH,
+    load_comfyui_settings,
 )
 
 SOURCE_SLUG = "01-why-i-did-not-start-with-the-database"
@@ -79,6 +80,10 @@ def _write_post(
     if with_png:
         (ready / f"{SOURCE_SLUG}.png").write_bytes(b"\x89PNG\r\n\x1a\nexisting")
     return md_path
+
+
+def _disabled_config() -> ComfyUISettingsLoadResult:
+    return load_comfyui_settings({})
 
 
 def _enabled_config(*, dry_run: bool = False) -> ComfyUISettingsLoadResult:
@@ -177,7 +182,35 @@ def test_non_canonical_image_path_does_not_generate(editorial_base: Path):
 def test_disabled_generation_preserves_old_behavior(editorial_base: Path):
     _write_post(editorial_base, image=None, with_png=False)
 
-    result = ensure_blog_image(editorial_base, SOURCE_RELATIVE)
+    result = ensure_blog_image(
+        editorial_base,
+        SOURCE_RELATIVE,
+        config=_disabled_config(),
+        environ={},
+    )
+
+    assert result.status == "skipped"
+    assert result.skip_reason == SKIP_REASON_GENERATION_DISABLED
+    assert not (editorial_base / IMAGE_RELATIVE).exists()
+
+
+def test_disabled_generation_ignores_ambient_comfyui_env(
+    editorial_base: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Explicit empty environ must not inherit operator Comfy Cloud exports."""
+    monkeypatch.setenv("SILVERMAN_COMFYUI_IMAGE_ENABLED", "true")
+    monkeypatch.setenv("SILVERMAN_COMFYUI_BASE_URL", "https://cloud.comfy.org")
+    monkeypatch.setenv("SILVERMAN_COMFYUI_API_PREFIX", "/api")
+    monkeypatch.setenv("SILVERMAN_COMFYUI_API_KEY", "ambient-secret-key")
+    _write_post(editorial_base, image=None, with_png=False)
+
+    result = ensure_blog_image(
+        editorial_base,
+        SOURCE_RELATIVE,
+        config=_disabled_config(),
+        environ={},
+        client=FakeComfyUIClient(),
+    )
 
     assert result.status == "skipped"
     assert result.skip_reason == SKIP_REASON_GENERATION_DISABLED
@@ -262,7 +295,7 @@ def test_run_metadata_written_on_generation(editorial_base: Path):
     assert run_path.is_file()
 
 
-def test_openai_workflow_metadata_marks_workflow_controlled_dimensions(
+def test_openai_workflow_metadata_without_dimension_bindings(
     editorial_base: Path,
 ):
     from silverman_blog_linkedin.comfyui_config import DEFAULT_WORKFLOW_PATH
@@ -295,7 +328,7 @@ def test_openai_workflow_metadata_marks_workflow_controlled_dimensions(
     assert result.status == "dry_run"
     assert result.width == 1200
     assert result.height == 900
-    assert result.workflow_controls_dimensions is True
+    assert result.workflow_controls_dimensions is False
 
 
 def test_local_workflow_metadata_has_dimension_bindings(editorial_base: Path):
@@ -309,7 +342,7 @@ def test_local_workflow_metadata_has_dimension_bindings(editorial_base: Path):
         dry_run=True,
     )
 
-    assert result.workflow_controls_dimensions is False
+    assert result.workflow_controls_dimensions is True
 
 
 def test_missing_source_returns_failed(editorial_base: Path):

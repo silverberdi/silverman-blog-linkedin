@@ -51,6 +51,27 @@
 - [x] 8.1 Add `prompts/comfyui/silverman-blog-openai-gpt-image.json` with Comfy Cloud `OpenAIGPTImage1` + `SaveImage` workflow and bindings (`positive_prompt`, `seed`, `output`)
 - [x] 8.2 Point default `SILVERMAN_COMFYUI_WORKFLOW_PATH` to Comfy Cloud workflow; keep `blog-image-workflow.json` for local SD with width/height bindings
 - [x] 8.3 Make `negative_prompt`, `width`, `height`, and `seed` optional bindings in `inject_workflow_parameters()`
-- [x] 8.4 Record `workflow_controls_dimensions` in generation metadata when width/height bindings are absent
+- [x] 8.4 Record `workflow_controls_dimensions` in generation metadata (`true` when width/height bindings present, `false` otherwise)
 - [x] 8.5 Document 1536×1024 Comfy Cloud preset vs 1200×900 future/local target in README and env example
 - [x] 8.6 Add tests for OpenAI workflow injection, optional bindings, preset size preservation, and local workflow compatibility
+
+## 9. Comfy Cloud jobs API and redirect-following view
+
+- [x] 9.1 Poll Comfy Cloud job status via `/jobs/{job_id}` when base URL is `https://cloud.comfy.org` and `api_prefix` is `/api`; keep local `/history/{prompt_id}` polling
+- [x] 9.2 Parse Comfy Cloud completed jobs (`status` / `execution_status.status_str`) and extract output from `outputs[output_node_id].images[0]`
+- [x] 9.3 Follow HTTP redirects on `/view` and return final PNG bytes without exposing signed redirect URLs
+- [x] 9.4 Map failed Comfy Cloud jobs to `blog_image_generation_comfyui_failed` and running jobs past timeout to `blog_image_generation_timeout`
+- [x] 9.5 Add tests for Comfy Cloud `/jobs` polling, redirect-following `/view`, secret non-leakage, and unchanged local `/history` behavior
+- [x] 9.6 Update spec, design, and README for Comfy Cloud jobs API and redirect-following view
+
+## 10. ComfyUI test isolation
+
+- [x] 10.1 Add shared `clear_comfyui_env` helper and autouse fixture clearing all `SILVERMAN_COMFYUI_*` vars
+- [x] 10.2 Update disabled-generation tests to pass explicit disabled config / empty `environ`
+- [x] 10.3 Add regression test proving ambient operator env does not enable generation when config is explicit
+
+## 11. Dimension metadata semantics
+
+- [x] 11.1 Set `workflow_controls_dimensions` true only when workflow template exposes width and height bindings
+- [x] 11.2 Default Comfy Cloud workflow reports `workflow_controls_dimensions: false` while preserving requested `width`/`height` from config
+- [x] 11.3 Update spec, design, and tests for requested vs workflow-controlled dimensions
