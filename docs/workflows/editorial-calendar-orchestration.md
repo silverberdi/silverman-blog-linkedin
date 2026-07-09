@@ -142,8 +142,8 @@ This capability:
 
 ## Staged rollout
 
-1. **This change** — calendar artifact, validation, read-only planner endpoints
-2. **Later** — execution connector for due Flow A items
+1. Planning foundation — read-only planner (this document)
+2. **Flow A execution connector** — [editorial-calendar-flow-a-execution-connector.md](./editorial-calendar-flow-a-execution-connector.md) (dry-run default; publish → package → schedule)
 3. **Later** — n8n/manual trigger wiring (workflows still inactive until a separate change)
 4. **Later** — LinkedIn due-publication orchestration when explicitly enabled
 

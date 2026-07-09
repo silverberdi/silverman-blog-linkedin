@@ -23,6 +23,9 @@ from silverman_blog_linkedin.draft_writer import (
     validate_source_path_shape,
     write_draft_file,
 )
+from silverman_blog_linkedin.editorial_calendar_flow_a_execute import (
+    execute_due_editorial_calendar_flow_a,
+)
 from silverman_blog_linkedin.editorial_calendar_plan import (
     get_editorial_calendar_status,
     plan_editorial_calendar_due,
@@ -457,6 +460,30 @@ class PlanEditorialCalendarDueRequest(BaseModel):
         if value is None:
             return None
         return validate_canonical_utc_timestamp(value)
+
+
+class ExecuteEditorialCalendarFlowADueRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    now_utc: str | None = None
+    dry_run: bool = True
+    limit: int | None = None
+
+    @field_validator("now_utc")
+    @classmethod
+    def validate_now_utc(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return validate_canonical_utc_timestamp(value)
+
+    @field_validator("limit")
+    @classmethod
+    def validate_limit(cls, value: int | None) -> int | None:
+        if value is None:
+            return None
+        if value <= 0:
+            raise ValueError("limit must be a positive integer")
+        return value
 
 
 def _generate_linkedin_draft_editorial_fields(
@@ -1593,6 +1620,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "editorial-calendar/status status=%s calendar_present=%s",
             result.status,
             result.calendar_present,
+        )
+        return result.to_dict()
+
+    @app.post("/editorial-calendar/execute-flow-a-due")
+    def editorial_calendar_execute_flow_a_due(
+        body: ExecuteEditorialCalendarFlowADueRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = execute_due_editorial_calendar_flow_a(
+            settings.base_path,
+            now_utc=body.now_utc,
+            dry_run=body.dry_run,
+            limit=body.limit,
+        )
+        logger.info(
+            "editorial-calendar/execute-flow-a-due status=%s dry_run=%s items=%s counts=%s",
+            result.status,
+            result.dry_run,
+            len(result.items),
+            result.counts,
         )
         return result.to_dict()
 
