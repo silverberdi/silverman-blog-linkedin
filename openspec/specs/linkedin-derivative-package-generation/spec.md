@@ -3,7 +3,6 @@
 ## Purpose
 
 Flow A multi-variant LinkedIn derivative package generation for the `silverman-blog-linkedin` HTTP worker: campaign eligibility, lifecycle transitions (`blog_published` → `derivatives_pending` → `derivatives_generated`), per-variant DeepSeek generation reuse, artifact persistence under `linkedin-posts/generated/`, package idempotency, and `POST /generate-linkedin-package`. Implements child slice 5 under umbrella `flow-a-automatic-blog-linkedin-publishing-roadmap`.
-
 ## Requirements
 ### Requirement: Umbrella and dependency references
 
@@ -186,6 +185,17 @@ The `linkedin_package` object MUST include at minimum:
 - `source_relative_path`
 - `source_content_sha256`
 - `variant_ids` (ordered or sorted list of variant IDs in this package)
+- `article_preview` (object per canonical spec `linkedin-article-preview-image-support` when package generation runs after that change is applied)
+
+The `linkedin_package.article_preview` object MUST include at minimum:
+
+- `status` (`available`, `missing`, `skipped`, or `invalid`)
+- `public_image_url` (when resolved)
+- `public_image_path` (when resolved)
+- `public_url` (publish-confirmed blog URL)
+- `article_title` (when available)
+- `article_description` (when available)
+- `error_code` (when status is not `available` and a stable code applies)
 
 Each `variants[]` entry for a generated variant MUST include at minimum:
 
@@ -201,10 +211,14 @@ Each `variants[]` entry for a generated variant MUST include at minimum:
 - `idempotency_key` (per-variant derivative key from `build_derivative_idempotency_key`)
 - `generated_at`
 - `provider` and `model` when available from generation
+- `article_preview_status` (same status values as package `article_preview.status`)
+- `public_image_url`, `public_image_path`, `public_url`, `article_title`, and `article_description` when resolved by article preview metadata support
 
 Campaign metadata MUST NOT include `markdown_content`, `generated_draft_content`, or draft body text.
 
 HTTP responses for `POST /generate-linkedin-package` MUST NOT include `generated_draft_content`, `markdown_content`, or variant body text.
+
+Incomplete article preview metadata MUST NOT prevent writing successful package metadata when variant generation otherwise succeeds.
 
 #### Scenario: Metadata stores paths not bodies
 
@@ -219,7 +233,12 @@ HTTP responses for `POST /generate-linkedin-package` MUST NOT include `generated
 #### Scenario: Package object recorded
 
 - **WHEN** package generation succeeds
-- **THEN** campaign metadata includes `linkedin_package` with `package_id`, `idempotency_key`, `package_status`, `generated_at`, and `variant_ids`
+- **THEN** campaign metadata includes `linkedin_package` with `package_id`, `idempotency_key`, `package_status`, `generated_at`, `variant_ids`, and `article_preview`
+
+#### Scenario: Variant preview summary recorded
+
+- **WHEN** package generation succeeds and article preview metadata is resolved
+- **THEN** each generated variant entry includes `article_preview_status` and `public_image_url` when available without variant body text
 
 ### Requirement: Package idempotency
 
@@ -387,25 +406,32 @@ The response MUST include at minimum:
 - `source_content_sha256`
 - `variants` (array of per-variant summaries with paths and hashes, not full bodies)
 - `package` (package metadata object or null on failure before package creation)
+- `article_preview` (object per `linkedin-article-preview-image-support`, or null on failure before preview resolution)
 - `errors` (array)
 - `warnings` (array)
 - `metadata_written` (boolean)
 - `metadata_error_code` (string or null)
 
-On `status` `completed`, `package_id` and `variants` MUST be populated.
+On `status` `completed`, `package_id`, `variants`, and `article_preview` MUST be populated.
+
+Per-variant entries in `variants` SHOULD include article preview summary fields (`article_preview_status`, `public_image_url`, `public_image_path`, `public_url`, `article_title`, `article_description` as applicable).
 
 On failure after valid body validation, `status` MUST be `failed` and `errors` MUST contain applicable stable error codes.
 
-The response MUST NOT include `markdown_content`, `generated_draft_content`, variant body text, `DEEPSEEK_API_KEY`, `SILVERMAN_BLOG_LINKEDIN_API_KEY`, or prompt text.
+Incomplete article preview metadata MUST surface in `warnings[]` with stable preview codes but MUST NOT change `status` to `failed` when package generation otherwise succeeds.
+
+The response MUST NOT include `markdown_content`, `generated_draft_content`, variant body text, `DEEPSEEK_API_KEY`, `SILVERMAN_BLOG_LINKEDIN_API_KEY`, prompt text, image bytes, or OAuth tokens.
 
 The endpoint MUST NOT move or modify source blog post files.
 
 The endpoint MUST NOT modify n8n workflow JSON.
 
+The endpoint MUST NOT call LinkedIn API publish or image upload endpoints.
+
 #### Scenario: Completed package response
 
 - **WHEN** package generation succeeds for an authenticated valid request
-- **THEN** the response is JSON with `status` `completed`, populated `package_id`, `variants`, `package`, `metadata_written` true, and HTTP `200`
+- **THEN** the response is JSON with `status` `completed`, populated `package_id`, `variants`, `package`, `article_preview`, `metadata_written` true, and HTTP `200`
 
 #### Scenario: Failed eligibility response
 
@@ -416,6 +442,11 @@ The endpoint MUST NOT modify n8n workflow JSON.
 
 - **WHEN** variant artifacts are written but campaign metadata persistence fails
 - **THEN** the response is JSON with `status` `failed`, `metadata_written` false, `metadata_error_code` `linkedin_package_metadata_write_failed`, and HTTP `200`
+
+#### Scenario: Preview warning does not fail package
+
+- **WHEN** package generation succeeds but article preview status is `missing`
+- **THEN** response `status` is `completed`, `article_preview.status` is `missing`, and `warnings[]` includes a stable preview code
 
 ### Requirement: Stable error codes
 
@@ -469,6 +500,12 @@ The worker SHALL include automated tests in `tests/test_linkedin_package_generat
 - no n8n workflow JSON changed
 - no scheduling metadata created
 - no LinkedIn API publication attempted
+- article preview metadata `available` when front matter and public repo image exist
+- article preview `missing` with warning when public repo configured but image file absent (package still `completed`)
+- article preview `skipped` when public repo path not configured
+- article preview `invalid` for non-canonical front matter image paths
+- absolute `public_image_url` normalization from `/assets/images/<slug>.png`
+- no LinkedIn API, OAuth, or OG HTTP fetch in default preview metadata tests
 
 Tests MUST inject or mock the generation function for deterministic behavior. Tests MUST use a mocked generator that returns `source_public_url` exactly once per variant when testing successful generation.
 
@@ -483,4 +520,9 @@ During implementation (`/opsx-apply`), the worker MUST inspect real signatures a
 
 - **WHEN** the full test suite runs after apply
 - **THEN** existing `tests/test_generate_linkedin_draft.py` and related tests pass without contract changes to `POST /generate-linkedin-draft`
+
+#### Scenario: Preview metadata tests pass without LinkedIn
+
+- **WHEN** `pytest` runs after apply
+- **THEN** article preview metadata tests pass without calls to LinkedIn APIs
 
