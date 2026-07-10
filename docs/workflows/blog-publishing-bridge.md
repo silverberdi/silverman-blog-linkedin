@@ -132,6 +132,35 @@ Write prepared files after reviewing dry-run output:
 
 Apply copies the PNG and writes normalized Jekyll Markdown. Source files in `blog-posts/ready/` are not modified, moved, or deleted.
 
+When the worker publish flow (`POST /publish-blog-post`) runs before bridge apply, it may already copy the hero image into `assets/images/<public-slug>.png` via automatic public asset handoff. In that case, bridge apply reuses the matching public image and writes only the `_posts/` Markdown file. Manual image copy is not required for normal Flow A automation.
+
+## Automatic public asset handoff (Flow A worker)
+
+During `POST /publish-blog-post`, the worker evaluates blog image prerequisites **before** validation and bridge apply:
+
+1. **Public asset is canonical for Jekyll.** If `assets/images/<public-slug>.png` already exists in the configured public repo checkout (`SILVERMAN_GITHUB_PAGES_REPO_PATH`), the worker reuses it and does not call ComfyUI solely because the editorial ready sibling PNG is missing.
+2. **Ready sibling adoption.** If `blog-posts/ready/<source-slug>.png` exists but the public asset is missing, the worker copies it into `assets/images/<public-slug>.png` automatically (no manual `cp`, no ComfyUI).
+3. **ComfyUI generation.** When no reusable public or local PNG exists and ComfyUI generation is enabled, the worker generates the editorial PNG, then immediately hands it off to the public repo asset path.
+4. **Optional ready sibling backfill.** When only the public asset exists, the worker may copy it back to `blog-posts/ready/<source-slug>.png` for bridge compatibility. Backfill failure is a non-blocking warning when publish can proceed using the public asset.
+5. **Front matter.** Canonical Jekyll path is always `image: /assets/images/<public-slug>.png`.
+
+### Retry behavior
+
+Retries reuse existing valid public or local PNGs. ComfyUI is not invoked again when:
+
+- the public asset already exists, or
+- a prior run wrote the ready sibling PNG but publish failed before completion (the worker adopts the sibling into public assets on retry).
+
+### Troubleshooting `blog_image_public_asset_handoff_failed`
+
+This stable error means the worker could not copy or adopt into `assets/images/<public-slug>.png` (permissions, missing `assets/images/` layout, I/O error, or unset `SILVERMAN_GITHUB_PAGES_REPO_PATH` when handoff is required).
+
+Checklist:
+
+- Confirm `SILVERMAN_GITHUB_PAGES_REPO_PATH` points at a valid `silverberdi.github.io` checkout with `_posts/` and `assets/images/`.
+- Ensure the worker process user can write to `assets/images/` (readable copied files use mode `0644`).
+- Retry after fixing permissions; existing valid PNGs are reused without duplicate ComfyUI generation.
+
 ## Manual git commit and push
 
 After a successful `--apply`:

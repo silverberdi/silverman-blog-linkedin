@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -28,6 +29,8 @@ ENV_SITE_URL = "SILVERMAN_SITE_URL"
 DEFAULT_SITE_URL = "https://silverman.pro"
 DEFAULT_LAYOUT = "post"
 JEKYLL_DATE_SUFFIX = " 00:00:00 -0500"
+
+BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED = "blog_image_public_asset_handoff_failed"
 
 
 class PublishError(Exception):
@@ -291,12 +294,116 @@ def render_expected_public_post(
     return render_markdown(frontmatter, body)
 
 
-def check_no_overwrite(post_target: Path, image_target: Path) -> None:
+@dataclass(frozen=True)
+class PublicBlogImageCopyResult:
+    status: str
+    image_relative: str
+    error_message: str | None = None
+
+
+def public_blog_image_relative(public_slug: str) -> str:
+    """Return the public repo relative path for a blog hero image."""
+    validate_slug(public_slug, label="public slug")
+    return f"{IMAGES_RELATIVE / f'{public_slug}.png'}"
+
+
+def copy_public_blog_image(
+    source_png: Path,
+    repo_path: Path,
+    public_slug: str,
+) -> PublicBlogImageCopyResult:
+    """Copy a PNG into public assets/images when missing; reuse when target exists."""
+    image_relative = public_blog_image_relative(public_slug)
+    try:
+        validate_repo_layout(repo_path)
+    except PublishError as exc:
+        return PublicBlogImageCopyResult(
+            status="failed",
+            image_relative=image_relative,
+            error_message=str(exc),
+        )
+
+    image_target = (repo_path / image_relative).resolve()
+    try:
+        _require_relative_to(image_target, repo_path, "image target path")
+    except PublishError as exc:
+        return PublicBlogImageCopyResult(
+            status="failed",
+            image_relative=image_relative,
+            error_message=str(exc),
+        )
+
+    if image_target.exists():
+        if image_target.is_file():
+            return PublicBlogImageCopyResult(
+                status="reused",
+                image_relative=image_relative,
+            )
+        return PublicBlogImageCopyResult(
+            status="failed",
+            image_relative=image_relative,
+            error_message=f"public image target exists but is not a regular file: {image_target}",
+        )
+
+    if not source_png.is_file():
+        return PublicBlogImageCopyResult(
+            status="failed",
+            image_relative=image_relative,
+            error_message=f"source PNG not found: {source_png}",
+        )
+
+    try:
+        image_target.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = image_target.with_suffix(image_target.suffix + ".tmp")
+        shutil.copy2(source_png, tmp_path)
+        try:
+            tmp_path.chmod(0o644)
+        except OSError:
+            pass
+        tmp_path.replace(image_target)
+        try:
+            image_target.chmod(0o644)
+        except OSError:
+            pass
+    except OSError as exc:
+        tmp_candidate = image_target.with_suffix(image_target.suffix + ".tmp")
+        if tmp_candidate.exists():
+            try:
+                tmp_candidate.unlink()
+            except OSError:
+                pass
+        return PublicBlogImageCopyResult(
+            status="failed",
+            image_relative=image_relative,
+            error_message=str(exc),
+        )
+
+    return PublicBlogImageCopyResult(
+        status="copied",
+        image_relative=image_relative,
+    )
+
+
+def check_no_overwrite(
+    post_target: Path,
+    image_target: Path,
+    *,
+    source_png: Path | None = None,
+) -> None:
     conflicts: list[str] = []
     if post_target.exists():
         conflicts.append(str(post_target))
     if image_target.exists():
-        conflicts.append(str(image_target))
+        if source_png is not None and source_png.is_file():
+            try:
+                if image_target.read_bytes() == source_png.read_bytes():
+                    pass
+                else:
+                    conflicts.append(str(image_target))
+            except OSError:
+                conflicts.append(str(image_target))
+        else:
+            conflicts.append(str(image_target))
     if conflicts:
         joined = "; ".join(conflicts)
         raise PublishError(f"refusing to overwrite existing target(s): {joined}")
@@ -316,7 +423,7 @@ def build_plan(
     post_target, image_target, post_relative, image_relative = target_paths(
         config, public_slug, publication_date
     )
-    check_no_overwrite(post_target, image_target)
+    check_no_overwrite(post_target, image_target, source_png=source_png)
 
     return PublishPlan(
         source_slug=source_slug,
@@ -338,9 +445,10 @@ def apply_plan(plan: PublishPlan) -> None:
         plan.source_md, plan.public_slug, plan.publication_date
     )
 
-    plan.image_target.parent.mkdir(parents=True, exist_ok=True)
     plan.post_target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(plan.source_png, plan.image_target)
+    if not plan.image_target.exists():
+        plan.image_target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(plan.source_png, plan.image_target)
     plan.post_target.write_text(markdown, encoding="utf-8")
 
 

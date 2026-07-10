@@ -23,6 +23,14 @@ from silverman_blog_linkedin.blog_publish_flow import (
     RECONCILED_FROM_ERROR_WARNING,
     publish_blog_post,
 )
+from silverman_blog_linkedin.github_pages_publish import (
+    BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED,
+    render_expected_public_post,
+    run_publish,
+)
+from silverman_blog_linkedin.blog_image_generation import (
+    WARNING_READY_SIBLING_BACKFILL_FAILED,
+)
 from silverman_blog_linkedin.campaign_lifecycle import (
     ACTOR_WORKER,
     FLOW_A,
@@ -41,10 +49,6 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     read_campaign_metadata,
     transition_state,
     write_campaign_metadata,
-)
-from silverman_blog_linkedin.github_pages_publish import (
-    render_expected_public_post,
-    run_publish,
 )
 from silverman_blog_linkedin.comfyui_client import (
     BLOG_IMAGE_GENERATION_COMFYUI_FAILED,
@@ -586,6 +590,7 @@ def test_reconcile_error_campaign_with_run_publish_canonical_output(
         "  - architecture\n"
         "tags:\n"
         "  - databases\n"
+        f"image: /assets/images/{PUBLIC_SLUG}.png\n"
         "---\n"
     )
     body = _canonical_body()
@@ -737,9 +742,10 @@ def test_public_post_mismatch_does_not_adopt_image(
     assert image_path.read_bytes() == official_image
 
 
-def test_missing_public_image_does_not_adopt(
+def test_missing_public_image_handoff_completes_publish(
     editorial_base: Path, public_repo: Path
 ):
+    """Pre-handoff fills missing public image when canonical post already exists."""
     _error_campaign(editorial_base)
     _write_post(editorial_base)
 
@@ -755,13 +761,9 @@ def test_missing_public_image_does_not_adopt(
 
     result = _publish(editorial_base, public_repo)
 
-    assert result.status == "failed"
-    assert BLOG_PUBLISH_TARGET_EXISTS in result.errors
-    assert (
-        result.blog_publish.get("reconciliation_skip_reason")
-        == "blog_publish_reconciliation_skipped_missing_public_image"
-    )
-    assert result.blog_publish.get("public_image_adopted") is None
+    assert result.status == "completed"
+    assert (public_repo / "assets/images" / f"{PUBLIC_SLUG}.png").is_file()
+    assert result.blog_image_generation.get("public_asset_handoff_status") == "copied"
 
 
 def test_campaign_beyond_blog_publish_does_not_adopt_image(
@@ -924,7 +926,7 @@ def test_public_repo_not_configured(editorial_base: Path):
     )
 
     assert result.status == "failed"
-    assert BLOG_PUBLISH_PUBLIC_REPO_NOT_CONFIGURED in result.errors
+    assert BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED in result.errors
 
 
 def test_source_file_not_moved_after_publish(editorial_base: Path, public_repo: Path):
@@ -1163,8 +1165,124 @@ def test_existing_valid_image_publish_unchanged_when_generation_disabled(
 ):
     _validated_campaign(editorial_base)
     _write_post(editorial_base)
+    (public_repo / "assets/images" / f"{PUBLIC_SLUG}.png").write_bytes(
+        (editorial_base / IMAGE_RELATIVE).read_bytes()
+    )
 
     result = _publish(editorial_base, public_repo)
 
     assert result.status == "completed"
     assert result.blog_image_generation.get("skip_reason") == "already_valid"
+
+
+def test_publish_adopts_ready_sibling_before_validation(
+    editorial_base: Path, public_repo: Path
+):
+    _validated_campaign(editorial_base)
+    _write_post(editorial_base)
+
+    result = _publish(
+        editorial_base,
+        public_repo,
+        environ=_comfy_enabled_env(editorial_base, public_repo),
+        comfyui_client=FakeComfyUIClient(),
+    )
+
+    assert result.status == "completed"
+    assert result.blog_image_generation.get("public_asset_handoff_status") == "copied"
+    assert (public_repo / "assets/images" / f"{PUBLIC_SLUG}.png").is_file()
+
+
+def test_publish_handoff_failure_blocks_validation_and_bridge(
+    editorial_base: Path, public_repo: Path,
+):
+    _validated_campaign(editorial_base)
+    _write_post(editorial_base)
+    images_dir = public_repo / "assets/images"
+    images_dir.chmod(0o555)
+
+    try:
+        result = _publish(
+            editorial_base,
+            public_repo,
+            environ=_comfy_enabled_env(editorial_base, public_repo),
+            comfyui_client=FakeComfyUIClient(),
+        )
+    finally:
+        images_dir.chmod(0o755)
+
+    assert result.status == "failed"
+    assert BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED in result.errors
+    assert result.blog_image_generation.get("status") == "failed"
+    assert not list((public_repo / "_posts").glob("*.md"))
+
+
+def test_publish_public_asset_backfill_warning_allows_image_step(
+    editorial_base: Path, public_repo: Path,
+):
+    content = _write_post(
+        editorial_base,
+        with_png=False,
+    ).read_text(encoding="utf-8")
+    campaign = build_initial_campaign_metadata(
+        flow=FLOW_A,
+        source_slug=SOURCE_SLUG,
+        public_slug=PUBLIC_SLUG,
+        source_relative_path=SOURCE_RELATIVE,
+        image_relative_path=IMAGE_RELATIVE,
+        source_content=content,
+        publication_date=PUBLICATION_DATE,
+    )
+    transition_state(
+        campaign,
+        STATE_VALIDATED,
+        reason="Editorial validation passed",
+        actor=ACTOR_WORKER,
+    )
+    write_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID, campaign)
+
+    assert f"image: /assets/images/{PUBLIC_SLUG}.png" in content
+    (public_repo / "assets/images" / f"{PUBLIC_SLUG}.png").write_bytes(
+        b"\x89PNG\r\n\x1a\npublic-only"
+    )
+    ready_dir = editorial_base / "blog-posts" / "ready"
+    ready_dir.chmod(0o555)
+
+    try:
+        result = _publish(
+            editorial_base,
+            public_repo,
+            environ=_comfy_enabled_env(editorial_base, public_repo),
+            comfyui_client=FakeComfyUIClient(),
+        )
+    finally:
+        ready_dir.chmod(0o755)
+
+    assert BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED not in result.errors
+    assert WARNING_READY_SIBLING_BACKFILL_FAILED in (
+        result.blog_image_generation.get("warnings") or []
+    )
+    assert result.blog_image_generation.get("skip_reason") == "public_asset_reuse"
+    assert result.blog_image_generation.get("ready_sibling_backfill_status") == "failed"
+    assert result.status == "failed"
+    assert (
+        BLOG_PUBLISH_VALIDATION_FAILED in result.errors
+        or BLOG_PUBLISH_TARGET_EXISTS in result.errors
+    )
+
+
+def test_bridge_apply_succeeds_when_public_image_pre_handoff(
+    editorial_base: Path, public_repo: Path
+):
+    _validated_campaign(editorial_base)
+    _write_post(editorial_base)
+    sibling_bytes = (editorial_base / IMAGE_RELATIVE).read_bytes()
+    (public_repo / "assets/images" / f"{PUBLIC_SLUG}.png").write_bytes(sibling_bytes)
+
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "completed"
+    assert (public_repo / "assets/images" / f"{PUBLIC_SLUG}.png").read_bytes() == (
+        sibling_bytes
+    )
+    assert (public_repo / "_posts" / f"{PUBLICATION_DATE}-{PUBLIC_SLUG}.md").is_file()

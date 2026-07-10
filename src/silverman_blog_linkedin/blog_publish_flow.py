@@ -635,6 +635,25 @@ def _resolve_source_public_url(
     return None
 
 
+def _handoff_image_matches_ready(
+    base_path: Path,
+    repo_path: Path,
+    preflight: PreflightContext,
+    *,
+    image_relative: str,
+) -> bool:
+    if not preflight.image_relative_path:
+        return False
+    source_png = (base_path / preflight.image_relative_path).resolve()
+    public_image = (repo_path / image_relative).resolve()
+    if not source_png.is_file() or not public_image.is_file():
+        return False
+    try:
+        return source_png.read_bytes() == public_image.read_bytes()
+    except OSError:
+        return False
+
+
 def _reconciliation_skip_reason(
     base_path: Path,
     campaign: dict[str, Any],
@@ -665,6 +684,13 @@ def _reconciliation_skip_reason(
     if not post_exists and not image_exists:
         return None, {}, None
     if not post_exists:
+        if _handoff_image_matches_ready(
+            base_path,
+            repo_path,
+            preflight,
+            image_relative=image_relative,
+        ):
+            return None, {}, None
         return RECONCILIATION_SKIPPED_MISSING_PUBLIC_POST, {}, None
     if not image_exists:
         return RECONCILIATION_SKIPPED_MISSING_PUBLIC_IMAGE, {}, None
@@ -706,6 +732,7 @@ def _target_exists_failure(
     reconciliation_diagnostics: dict[str, Any] | None = None,
     warnings: list[str],
     validation_summary: dict[str, Any],
+    blog_image_generation: dict[str, Any] | None = None,
 ) -> BlogPublishResult:
     blog_publish = dict(campaign.get("blog_publish") or {})
     if skip_reason:
@@ -721,6 +748,7 @@ def _target_exists_failure(
         state=campaign.get("state"),
         source_public_url=_resolve_source_public_url(preflight, campaign, site_url),
         blog_publish=blog_publish,
+        blog_image_generation=blog_image_generation or {},
     )
 
 
@@ -737,6 +765,7 @@ def _attempt_blog_publish_reconciliation(
     image_relative: str,
     warnings: list[str],
     validation_summary: dict[str, Any],
+    blog_image_generation: dict[str, Any] | None = None,
 ) -> BlogPublishResult | None:
     """Reconcile metadata when both public targets exist; otherwise explain skip."""
     if campaign.get("state") not in RECONCILABLE_PUBLISH_STATES:
@@ -759,7 +788,7 @@ def _attempt_blog_publish_reconciliation(
         image_relative=image_relative,
         pub_date=pub_date,
     )
-    if skip_reason is None:
+    if skip_reason is None and comparison is not None:
         return _reconcile_existing_publication(
             base_path,
             preflight,
@@ -773,7 +802,11 @@ def _attempt_blog_publish_reconciliation(
             validation_summary=validation_summary,
             reconciled_from_error=campaign.get("state") == STATE_ERROR,
             comparison=comparison,
+            blog_image_generation=blog_image_generation,
         )
+
+    if skip_reason is None:
+        return None
 
     if post_exists or image_exists:
         return _target_exists_failure(
@@ -785,6 +818,7 @@ def _attempt_blog_publish_reconciliation(
             reconciliation_diagnostics=reconciliation_diagnostics,
             warnings=warnings,
             validation_summary=validation_summary,
+            blog_image_generation=blog_image_generation,
         )
 
     return None
@@ -804,6 +838,7 @@ def _reconcile_existing_publication(
     validation_summary: dict[str, Any],
     reconciled_from_error: bool = False,
     comparison: PublicTargetComparison | None = None,
+    blog_image_generation: dict[str, Any] | None = None,
 ) -> BlogPublishResult:
     """Align campaign metadata with public repo files already on disk."""
     assert preflight.public_slug is not None
@@ -904,6 +939,7 @@ def _reconcile_existing_publication(
         warnings=result_warnings,
         validation=validation_summary,
         blog_publish=blog_publish,
+        blog_image_generation=blog_image_generation or {},
         metadata_written=metadata_written,
         metadata_error_code=metadata_error_code,
     )
@@ -997,62 +1033,63 @@ def publish_blog_post(
     warnings: list[str] = []
     blog_image_generation_summary: dict[str, Any] = {}
 
-    if not skip_validation:
-        comfy_config = load_comfyui_settings(environ)
-        image_result = ensure_blog_image(
+    comfy_config = load_comfyui_settings(environ)
+    image_result = ensure_blog_image(
+        base_path,
+        preflight.source_relative_path,
+        config=comfy_config,
+        client=comfyui_client,
+        environ=environ,
+        public_slug_override=public_slug_override,
+        campaign_id=preflight.campaign_id,
+        github_pages_repo_path=github_pages_repo_path,
+    )
+    blog_image_generation_summary = image_result.to_dict()
+
+    if image_result.status == "failed":
+        failure_errors = [image_result.error_code or BLOG_IMAGE_GENERATION_FAILED]
+        return _failed_result(
+            preflight,
+            errors=failure_errors,
+            campaign_id=preflight.campaign_id,
+            state=campaign.get("state") if campaign else None,
+            source_public_url=(
+                campaign.get("source_public_url") if campaign else None
+            ),
+            blog_image_generation=blog_image_generation_summary,
+        )
+
+    if image_result.front_matter_updated:
+        updated_hash = recompute_source_hash_after_generation(
             base_path,
             preflight.source_relative_path,
-            config=comfy_config,
-            client=comfyui_client,
-            environ=environ,
-            public_slug_override=public_slug_override,
-            campaign_id=preflight.campaign_id,
         )
-        blog_image_generation_summary = image_result.to_dict()
-
-        if image_result.status == "failed":
-            failure_errors = [image_result.error_code or BLOG_IMAGE_GENERATION_FAILED]
-            return _failed_result(
-                preflight,
-                errors=failure_errors,
-                campaign_id=preflight.campaign_id,
-                state=campaign.get("state") if campaign else None,
-                source_public_url=(
-                    campaign.get("source_public_url") if campaign else None
-                ),
-                blog_image_generation=blog_image_generation_summary,
-            )
-
-        if image_result.front_matter_updated:
-            updated_hash = recompute_source_hash_after_generation(
-                base_path,
-                preflight.source_relative_path,
-            )
-            if updated_hash:
-                expected_key = preflight.expected_idempotency_key
-                if (
-                    preflight.publication_date
-                    and preflight.source_slug
-                    and preflight.public_slug
-                ):
-                    expected_key = build_blog_publish_idempotency_key(
-                        source_slug=preflight.source_slug,
-                        public_slug=preflight.public_slug,
-                        publication_date=preflight.publication_date,
-                        source_content_sha256=updated_hash,
-                    )
-                preflight = PreflightContext(
-                    source_relative_path=preflight.source_relative_path,
+        if updated_hash:
+            expected_key = preflight.expected_idempotency_key
+            if (
+                preflight.publication_date
+                and preflight.source_slug
+                and preflight.public_slug
+            ):
+                expected_key = build_blog_publish_idempotency_key(
                     source_slug=preflight.source_slug,
                     public_slug=preflight.public_slug,
                     publication_date=preflight.publication_date,
                     source_content_sha256=updated_hash,
-                    campaign_id=preflight.campaign_id,
-                    expected_idempotency_key=expected_key,
-                    image_relative_path=preflight.image_relative_path,
-                    errors=preflight.errors,
                 )
+            preflight = PreflightContext(
+                source_relative_path=preflight.source_relative_path,
+                source_slug=preflight.source_slug,
+                public_slug=preflight.public_slug,
+                publication_date=preflight.publication_date,
+                source_content_sha256=updated_hash,
+                campaign_id=preflight.campaign_id,
+                expected_idempotency_key=expected_key,
+                image_relative_path=preflight.image_relative_path,
+                errors=preflight.errors,
+            )
 
+    if not skip_validation:
         validation = validate_ready_post(
             base_path,
             preflight.source_relative_path,
@@ -1193,6 +1230,7 @@ def publish_blog_post(
         image_relative=image_relative,
         warnings=warnings,
         validation_summary=validation_summary,
+        blog_image_generation=blog_image_generation_summary,
     )
     if reconciliation_result is not None:
         return reconciliation_result
@@ -1277,6 +1315,7 @@ def publish_blog_post(
                 image_relative=image_relative,
                 warnings=warnings,
                 validation_summary=validation_summary,
+                blog_image_generation=blog_image_generation_summary,
             )
             if overwrite_reconciliation is not None:
                 return overwrite_reconciliation
