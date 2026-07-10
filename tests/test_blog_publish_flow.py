@@ -57,6 +57,10 @@ from silverman_blog_linkedin.comfyui_client import (
     BLOG_IMAGE_GENERATION_COMFYUI_FAILED,
     FakeComfyUIClient,
 )
+from silverman_blog_linkedin.linkedin_article_preview import (
+    ARTICLE_PREVIEW_AVAILABLE,
+    resolve_linkedin_article_preview,
+)
 from silverman_blog_linkedin.main import create_app
 from silverman_blog_linkedin.ready_post_validation import (
     CONTENT_CONTAINS_TODO,
@@ -1438,3 +1442,26 @@ def test_reconcile_adjusted_date_public_post_matches_canonical_output(
     assert result.source_public_url == (
         f"{SITE_URL}/2026/07/10/{POST_02_PUBLIC_SLUG}/"
     )
+
+
+def test_published_post_supports_available_article_preview_metadata(
+    editorial_base: Path, public_repo: Path
+):
+    _validated_campaign(editorial_base)
+    result = _publish(editorial_base, public_repo)
+
+    assert result.status == "completed"
+    campaign = read_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    markdown_content = (editorial_base / SOURCE_RELATIVE).read_text(encoding="utf-8")
+    preview = resolve_linkedin_article_preview(
+        markdown_content=markdown_content,
+        campaign=campaign,
+        source_public_url=result.source_public_url,
+        environ=_publish_env(editorial_base, public_repo),
+    )
+
+    assert preview.status == ARTICLE_PREVIEW_AVAILABLE
+    assert preview.public_image_url == f"{SITE_URL}/assets/images/{PUBLIC_SLUG}.png"
+    assert preview.article_title == TITLE
+    assert preview.public_url == result.source_public_url

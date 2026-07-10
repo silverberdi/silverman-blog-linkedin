@@ -160,3 +160,13 @@ A review UI for queued variants is planned separately. v1 escape hatch: cancel e
 ## Separation from Flow A Core
 
 Flow A Core success (`distribution_scheduled` + `linkedin_distribution`) does not require LinkedIn API publication. Evidence collector may display publication state counts informationally without changing Flow A Core PASS semantics.
+
+## Article preview image metadata (package generation)
+
+Flow A `POST /generate-linkedin-package` records **article preview metadata** derived from the canonical public blog hero image. This is **not** LinkedIn media upload and does not call LinkedIn APIs.
+
+- **Source:** front matter `image` (for example `/assets/images/<public_slug>.png`) and the matching file under the public blog repo checkout (`assets/images/<public_slug>.png`).
+- **Output:** `linkedin_package.article_preview` and per-variant fields including `public_image_url` (absolute HTTPS URL on `silverman.pro`), `article_title`, `article_description`, and `public_url`.
+- **Validation:** when `SILVERMAN_GITHUB_PAGES_REPO_PATH` is configured, the worker checks that the public image file exists before marking preview status `available`. Missing assets yield status `missing` with stable code `linkedin_article_preview_public_image_missing` in `warnings[]` — package generation still completes.
+- **Link preview semantics:** `public_image_url` is metadata for LinkedIn link/card preview behavior when publication is enabled later. The worker does not upload image bytes to LinkedIn during package generation.
+- **Publication remains disabled:** `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=false` by default. Preview metadata does not publish posts or require a LinkedIn token.

@@ -21,11 +21,25 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     STATE_DERIVATIVES_PENDING,
     STATE_VALIDATED,
     build_initial_campaign_metadata,
+    compute_source_content_sha256,
     read_campaign_metadata,
     transition_state,
     write_campaign_metadata,
 )
 from silverman_blog_linkedin.deepseek_client import DeepSeekGenerationResult
+from silverman_blog_linkedin.linkedin_article_preview import (
+    ARTICLE_PREVIEW_AVAILABLE,
+    ARTICLE_PREVIEW_INVALID,
+    ARTICLE_PREVIEW_MISSING,
+    ARTICLE_PREVIEW_SKIPPED,
+    LINKEDIN_ARTICLE_PREVIEW_IMAGE_INVALID,
+    LINKEDIN_ARTICLE_PREVIEW_PUBLIC_IMAGE_MISSING,
+    LINKEDIN_ARTICLE_PREVIEW_PUBLIC_REPO_NOT_CONFIGURED,
+    build_public_image_url,
+)
+from silverman_blog_linkedin.linkedin_distribution_schedule import (
+    schedule_linkedin_distribution,
+)
 from silverman_blog_linkedin.linkedin_package_flow import (
     GENERATED_RELATIVE,
     LINKEDIN_PACKAGE_CAMPAIGN_NOT_FOUND,
@@ -178,6 +192,49 @@ def _generate(
         environ={"DEEPSEEK_API_KEY": "test-key"},
         generate_content=generate_content or _mock_generator_factory(),
     )
+
+
+def _setup_public_repo(repo_path: Path, *, with_image: bool = False) -> None:
+    images_dir = repo_path / "assets" / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+    (repo_path / "_posts").mkdir(parents=True, exist_ok=True)
+    if with_image:
+        (images_dir / f"{PUBLIC_SLUG}.png").write_bytes(b"\x89PNG\r\n\x1a\nfake")
+
+
+def _publish_env(editorial_base: Path, repo_path: Path) -> dict[str, str]:
+    return {
+        "DEEPSEEK_API_KEY": "test-key",
+        "SILVERMAN_GITHUB_PAGES_REPO_PATH": str(repo_path),
+        "SILVERMAN_SITE_URL": SITE_URL,
+        "SILVERMAN_BLOG_LINKEDIN_BASE_PATH": str(editorial_base),
+    }
+
+
+def _generate_with_repo(
+    base: Path,
+    repo_path: Path,
+    *,
+    with_image: bool = True,
+    campaign_id: str | None = CANONICAL_CAMPAIGN_ID,
+    **kwargs,
+):
+    _setup_public_repo(repo_path, with_image=with_image)
+    env = _publish_env(base, repo_path)
+    return generate_linkedin_package(
+        base,
+        campaign_id=campaign_id,
+        environ=env,
+        generate_content=kwargs.pop("generate_content", None) or _mock_generator_factory(),
+        **kwargs,
+    )
+
+
+@pytest.fixture
+def public_repo(tmp_path: Path) -> Path:
+    repo_path = tmp_path / "public-blog"
+    repo_path.mkdir()
+    return repo_path
 
 
 @pytest.fixture
@@ -622,3 +679,129 @@ def test_package_idempotency_key_format(editorial_base: Path):
     assert result.status == "completed"
     assert result.package is not None
     assert result.package["idempotency_key"] == expected
+
+
+def test_build_public_image_url_converts_relative_path():
+    assert (
+        build_public_image_url(SITE_URL, f"/assets/images/{PUBLIC_SLUG}.png")
+        == f"{SITE_URL}/assets/images/{PUBLIC_SLUG}.png"
+    )
+
+
+def test_package_includes_public_image_url_when_public_image_exists(
+    editorial_base: Path,
+    public_repo: Path,
+):
+    _blog_published_campaign(editorial_base)
+
+    result = _generate_with_repo(editorial_base, public_repo, with_image=True)
+
+    assert result.status == "completed"
+    assert result.article_preview is not None
+    assert result.article_preview["status"] == ARTICLE_PREVIEW_AVAILABLE
+    assert (
+        result.article_preview["public_image_url"]
+        == f"{SITE_URL}/assets/images/{PUBLIC_SLUG}.png"
+    )
+    assert result.package is not None
+    assert result.package["article_preview"]["public_image_url"] == (
+        f"{SITE_URL}/assets/images/{PUBLIC_SLUG}.png"
+    )
+    for variant in result.variants:
+        assert variant["public_image_url"] == f"{SITE_URL}/assets/images/{PUBLIC_SLUG}.png"
+        assert variant["article_title"] == TITLE
+        assert variant["public_url"] == PUBLIC_URL
+
+
+def test_missing_public_image_produces_clear_warning_not_package_failure(
+    editorial_base: Path,
+    public_repo: Path,
+):
+    _blog_published_campaign(editorial_base)
+
+    result = _generate_with_repo(editorial_base, public_repo, with_image=False)
+
+    assert result.status == "completed"
+    assert result.article_preview is not None
+    assert result.article_preview["status"] == ARTICLE_PREVIEW_MISSING
+    assert (
+        result.article_preview["error_code"]
+        == LINKEDIN_ARTICLE_PREVIEW_PUBLIC_IMAGE_MISSING
+    )
+    assert LINKEDIN_ARTICLE_PREVIEW_PUBLIC_IMAGE_MISSING in result.warnings
+    assert LINKEDIN_PACKAGE_GENERATION_FAILED not in result.errors
+
+
+def test_article_preview_skipped_when_public_repo_not_configured(editorial_base: Path):
+    _blog_published_campaign(editorial_base)
+
+    result = _generate(editorial_base)
+
+    assert result.status == "completed"
+    assert result.article_preview is not None
+    assert result.article_preview["status"] == ARTICLE_PREVIEW_SKIPPED
+    assert (
+        result.article_preview["error_code"]
+        == LINKEDIN_ARTICLE_PREVIEW_PUBLIC_REPO_NOT_CONFIGURED
+    )
+    assert LINKEDIN_ARTICLE_PREVIEW_PUBLIC_REPO_NOT_CONFIGURED in result.warnings
+
+
+def test_invalid_image_path_produces_invalid_status_and_warning(
+    editorial_base: Path,
+    public_repo: Path,
+):
+    _blog_published_campaign(editorial_base)
+    invalid_frontmatter = _canonical_frontmatter().replace(
+        f"image: /assets/images/{PUBLIC_SLUG}.png",
+        "image: /images/wrong.png",
+    )
+    content = invalid_frontmatter + _canonical_body()
+    (editorial_base / SOURCE_RELATIVE).write_text(content, encoding="utf-8")
+    campaign = read_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    campaign["source_content_sha256"] = compute_source_content_sha256(content)
+    write_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID, campaign)
+
+    result = _generate_with_repo(editorial_base, public_repo, with_image=True)
+
+    assert result.status == "completed"
+    assert result.article_preview is not None
+    assert result.article_preview["status"] == ARTICLE_PREVIEW_INVALID
+    assert result.article_preview["error_code"] == LINKEDIN_ARTICLE_PREVIEW_IMAGE_INVALID
+    assert LINKEDIN_ARTICLE_PREVIEW_IMAGE_INVALID in result.warnings
+
+
+def test_flow_a_schedules_distribution_after_package_with_article_preview(
+    editorial_base: Path,
+    public_repo: Path,
+):
+    _blog_published_campaign(editorial_base)
+    package_result = _generate_with_repo(editorial_base, public_repo, with_image=True)
+    assert package_result.status == "completed"
+
+    schedule_result = schedule_linkedin_distribution(
+        editorial_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+    )
+
+    assert schedule_result.status == "completed"
+    assert schedule_result.variant_schedules
+    for item in schedule_result.variant_schedules:
+        assert item["publish_state"] == "pending"
+
+
+def test_no_linkedin_media_upload_on_package_generation(
+    editorial_base: Path,
+    public_repo: Path,
+):
+    _blog_published_campaign(editorial_base)
+
+    with patch("httpx.Client.post") as mock_post, patch(
+        "httpx.Client.put"
+    ) as mock_put:
+        result = _generate_with_repo(editorial_base, public_repo, with_image=True)
+
+    assert result.status == "completed"
+    mock_post.assert_not_called()
+    mock_put.assert_not_called()

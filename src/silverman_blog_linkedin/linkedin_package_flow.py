@@ -36,6 +36,11 @@ from silverman_blog_linkedin.deepseek_client import (
 )
 from silverman_blog_linkedin.deepseek_config import DeepSeekSettings, load_deepseek_settings
 from silverman_blog_linkedin.file_reader import normalize_relative_path
+from silverman_blog_linkedin.linkedin_article_preview import (
+    ARTICLE_PREVIEW_AVAILABLE,
+    LinkedInArticlePreviewMetadata,
+    resolve_linkedin_article_preview,
+)
 from silverman_blog_linkedin.linkedin_prompt import build_chat_messages
 from silverman_blog_linkedin.run_metadata import PROVIDER_DEEPSEEK, utc_now_iso
 
@@ -105,6 +110,7 @@ class LinkedInPackageResult:
     source_content_sha256: str | None = None
     variants: list[dict[str, Any]] = field(default_factory=list)
     package: dict[str, Any] | None = None
+    article_preview: dict[str, Any] | None = None
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     metadata_written: bool = False
@@ -260,6 +266,32 @@ def write_generated_variant_file(
     return artifact_relative, content_sha256, None
 
 
+def _article_preview_warnings(preview: LinkedInArticlePreviewMetadata) -> list[str]:
+    if preview.status == ARTICLE_PREVIEW_AVAILABLE:
+        return []
+    if preview.error_code:
+        return [preview.error_code]
+    return []
+
+
+def _attach_article_preview_fields(
+    entry: dict[str, Any],
+    preview: LinkedInArticlePreviewMetadata,
+) -> dict[str, Any]:
+    enriched = dict(entry)
+    enriched["article_preview_status"] = preview.status
+    if preview.public_image_url:
+        enriched["public_image_url"] = preview.public_image_url
+    if preview.public_image_path:
+        enriched["public_image_path"] = preview.public_image_path
+    if preview.article_title:
+        enriched["article_title"] = preview.article_title
+    if preview.article_description:
+        enriched["article_description"] = preview.article_description
+    enriched["public_url"] = preview.public_url
+    return enriched
+
+
 def _variant_metadata_entry(
     *,
     variant_id: str,
@@ -270,11 +302,12 @@ def _variant_metadata_entry(
     generated_at: str,
     provider: str,
     model: str,
+    article_preview: LinkedInArticlePreviewMetadata | None = None,
 ) -> dict[str, Any]:
     editorial = DEFAULT_VARIANT_EDITORIAL_MAP[variant_id]
     campaign_id = campaign["campaign_id"]
     source_content_sha256 = campaign["source_content_sha256"]
-    return {
+    entry = {
         "variant": variant_id,
         "audience": editorial["audience"],
         "tone": editorial["tone"],
@@ -294,10 +327,13 @@ def _variant_metadata_entry(
         "provider": provider,
         "model": model,
     }
+    if article_preview is not None:
+        return _attach_article_preview_fields(entry, article_preview)
+    return entry
 
 
 def _variant_summary(entry: dict[str, Any]) -> dict[str, Any]:
-    return {
+    summary = {
         "variant": entry["variant"],
         "artifact_relative_path": entry["artifact_relative_path"],
         "derivative_content_sha256": entry["derivative_content_sha256"],
@@ -306,6 +342,20 @@ def _variant_summary(entry: dict[str, Any]) -> dict[str, Any]:
         "model": entry.get("model"),
         "generated_at": entry.get("generated_at"),
     }
+    for field_name in (
+        "article_preview_status",
+        "public_image_url",
+        "public_image_path",
+        "article_title",
+        "article_description",
+        "public_url",
+        "audience",
+        "tone",
+        "campaign_id",
+    ):
+        if field_name in entry:
+            summary[field_name] = entry[field_name]
+    return summary
 
 
 def _get_variant_metadata_map(campaign: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -439,8 +489,18 @@ def _completed_result(
     metadata_written: bool,
     metadata_error_code: str | None = None,
     errors: list[str] | None = None,
+    article_preview: LinkedInArticlePreviewMetadata | None = None,
+    preview_warnings: list[str] | None = None,
 ) -> LinkedInPackageResult:
     package = dict(campaign.get("linkedin_package") or {})
+    preview_dict = (
+        article_preview.to_dict()
+        if article_preview is not None
+        else package.get("article_preview")
+    )
+    merged_warnings = list(
+        dict.fromkeys([*(campaign.get("warnings") or []), *(preview_warnings or [])])
+    )
     return LinkedInPackageResult(
         status="completed",
         campaign_id=campaign["campaign_id"],
@@ -451,8 +511,9 @@ def _completed_result(
         source_content_sha256=campaign.get("source_content_sha256"),
         variants=[_variant_summary(entry) for entry in variant_entries],
         package=package,
+        article_preview=preview_dict,
         errors=errors or [],
-        warnings=list(campaign.get("warnings") or []),
+        warnings=merged_warnings,
         metadata_written=metadata_written,
         metadata_error_code=metadata_error_code,
     )
@@ -534,6 +595,15 @@ def generate_linkedin_package(
         flow=FLOW_A,
     )
 
+    article_preview = resolve_linkedin_article_preview(
+        markdown_content=markdown_content,
+        campaign=campaign,
+        source_public_url=source_public_url,
+        site_url=site_url,
+        environ=environ,
+    )
+    preview_warnings = _article_preview_warnings(article_preview)
+
     if _check_idempotent_completed(
         campaign,
         variant_ids=variant_ids,
@@ -547,6 +617,8 @@ def generate_linkedin_package(
             campaign,
             variant_entries=variant_entries,
             metadata_written=False,
+            article_preview=article_preview,
+            preview_warnings=preview_warnings,
         )
 
     orphan_error = _check_orphan_artifacts(
@@ -652,6 +724,7 @@ def generate_linkedin_package(
                 generated_at=generated_at,
                 provider=PROVIDER_DEEPSEEK,
                 model=model_name,
+                article_preview=article_preview,
             )
         )
 
@@ -668,7 +741,12 @@ def generate_linkedin_package(
         "source_relative_path": source_relative,
         "source_content_sha256": on_disk_hash,
         "variant_ids": variant_ids,
+        "article_preview": article_preview.to_dict(),
     }
+    if preview_warnings:
+        working_campaign["warnings"] = list(
+            dict.fromkeys([*(working_campaign.get("warnings") or []), *preview_warnings])
+        )
 
     try:
         transition_state(
@@ -711,4 +789,6 @@ def generate_linkedin_package(
         working_campaign,
         variant_entries=generated_entries,
         metadata_written=True,
+        article_preview=article_preview,
+        preview_warnings=preview_warnings,
     )

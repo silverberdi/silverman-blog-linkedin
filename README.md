@@ -769,6 +769,8 @@ Defaults to dry-run (safe without LinkedIn credentials). Real queue: `--real`. R
 
 See [docs/deployment/linkedin-publication-prerequisites.md](docs/deployment/linkedin-publication-prerequisites.md) for Developer App setup, `w_member_social`, and the two-step queue → publish workflow.
 
+**Article preview image metadata:** `POST /generate-linkedin-package` records `public_image_url` and related fields from the public blog hero image (`/assets/images/<public_slug>.png`). This is link-preview metadata only — not LinkedIn media upload. LinkedIn publication remains disabled until `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=true`.
+
 ## Blog publishing bridge (GitHub Pages)
 
 Operator CLI to prepare one ready editorial post pair (`<source-slug>.md` + `<source-slug>.png`) for the public Jekyll site at [silverman.pro](https://silverman.pro). Source slugs may include numeric ordering prefixes (`01-`, `02-`); the helper derives a public slug for URLs and published filenames. Dry-run by default; writes require `--apply`. No HTTP endpoint, no automatic git push.
