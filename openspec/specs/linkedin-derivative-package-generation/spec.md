@@ -67,9 +67,9 @@ The campaign `state` MUST be `blog_published`, `derivatives_pending`, or `deriva
 
 The campaign MUST have a non-null, non-empty `source_public_url` that was publish-confirmed by blog publish flow.
 
-The source Markdown file MUST exist on disk at the campaign's active source path: `processed_source_relative_path` when `source_file_status.location` is `processed`, otherwise `source_relative_path` under `blog-posts/ready/`.
+The source Markdown file MUST exist on disk at the campaign's active source path: `processed_source_relative_path` when `source_file_status.location` is `processed`; `queued_source_relative_path` when `location` is `queued` or `execution_state` is `processing` or `stale`; otherwise `source_relative_path` under `blog-posts/ready/` for legacy paths.
 
-Campaign lookup by `source_relative_path` MUST match `original_source_relative_path`, `processed_source_relative_path`, or active `source_relative_path`.
+Campaign lookup by `source_relative_path` MUST match `original_source_relative_path`, `queued_source_relative_path`, `processed_source_relative_path`, or active `source_relative_path`.
 
 The current source file SHA-256 MUST match stored `source_content_sha256` in campaign metadata.
 
@@ -83,6 +83,16 @@ Package generation MUST be rejected when:
 - source file is missing at resolved active path (`linkedin_package_source_missing`)
 - source content hash differs from stored hash (`linkedin_package_source_hash_changed`)
 - stored `source_public_url` differs from request-supplied override without metadata proof of same campaign/package (`linkedin_package_public_url_changed`)
+
+#### Scenario: Package generation resolves queued source path
+
+- **WHEN** package generation is requested by `campaign_id` for a campaign in `blog_published` with source Markdown only under `blog-posts/queued/` per metadata
+- **THEN** generation proceeds using the queued path without requiring a `ready/` copy
+
+#### Scenario: Package generation resolves processed source on idempotent re-run
+
+- **WHEN** package generation is requested by `campaign_id` for a campaign in `derivatives_generated` with source Markdown only under `blog-posts/processed/` per metadata
+- **THEN** idempotent behavior applies without requiring a `ready/` copy
 
 #### Scenario: Campaign not found
 

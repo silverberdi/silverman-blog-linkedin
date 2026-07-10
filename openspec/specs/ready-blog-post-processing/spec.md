@@ -90,9 +90,13 @@ The worker SHALL list candidate entries only from `blog-posts/ready/` under the 
 
 Discovery MUST be non-recursive (direct children only). The worker MUST NOT accept arbitrary filesystem paths from the HTTP request body.
 
+Discovery MUST ignore hidden filesystem artifacts: `.DS_Store`, files beginning with `._`, and any direct child whose basename begins with `.`.
+
+Ignored hidden artifacts MUST be reported in `ignored_files` with reason `hidden_artifact`.
+
 #### Scenario: Markdown files discovered
 
-- **WHEN** `blog-posts/ready/` contains regular files with a `.md` extension
+- **WHEN** `blog-posts/ready/` contains regular files with a `.md` extension that are not hidden artifacts
 - **THEN** those files are considered Markdown candidates for validation
 
 #### Scenario: Non-Markdown files ignored
@@ -109,6 +113,22 @@ Discovery MUST be non-recursive (direct children only). The worker MUST NOT acce
 
 - **WHEN** the worker resolves a candidate path
 - **THEN** the resolved path MUST remain under `blog-posts/ready/` relative to the configured base path
+
+#### Scenario: Hidden macOS artifacts ignored
+
+- **WHEN** `blog-posts/ready/` contains `.DS_Store` or `._companion.md`
+- **THEN** those entries are in `ignored_files` with reason `hidden_artifact` and are not counted as Markdown candidates
+
+### Requirement: Queued folder is not scanned by process-ready
+
+`POST /process-ready` MUST NOT scan `blog-posts/queued/` for candidates.
+
+`blog-posts/queued/` semantics are defined by `flow-a-operational-queue-lifecycle`.
+
+#### Scenario: Process-ready scans ready only
+
+- **WHEN** a client sends authenticated `POST /process-ready` and sources exist only under `blog-posts/queued/`
+- **THEN** the response reports zero Markdown candidates from `ready/` and does not list queued sources
 
 ### Requirement: Markdown candidate validation
 

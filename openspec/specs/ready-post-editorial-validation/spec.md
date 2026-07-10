@@ -46,7 +46,10 @@ The entry point MUST return a structured `ReadyPostValidationResult` (or equival
 
 ### Requirement: File location and extension validation
 
-The source file MUST be under `blog-posts/ready/` relative to the editorial base path.
+The source file MUST be under `blog-posts/ready/` or `blog-posts/queued/` relative to the editorial base path depending on validation phase:
+
+- Queue intake validation (acceptance boundary) MUST validate paths under `blog-posts/ready/` only.
+- Full editorial validation during Flow A processing MUST validate paths under `blog-posts/queued/` when `source_file_status.location` is `queued`.
 
 The source file MUST have extension `.md`.
 
@@ -61,10 +64,15 @@ The derived `public_slug` MUST strip a leading numeric prefix matching `^\d+-` w
 - **WHEN** source file is `blog-posts/ready/01-why-i-did-not-start-with-the-database.md`
 - **THEN** `source_slug` is `01-why-i-did-not-start-with-the-database`, `public_slug` is `why-i-did-not-start-with-the-database`, and no `invalid_public_slug` error is recorded
 
-#### Scenario: File not under ready folder
+#### Scenario: Valid queued path during processing validation
+
+- **WHEN** `validate_ready_post` is called with `blog-posts/queued/01-why-i-did-not-start-with-the-database.md` during Flow A processing
+- **THEN** validation proceeds with the same slug rules and returns structured results without requiring the file to be in `ready/`
+
+#### Scenario: File not under ready or queued folder
 
 - **WHEN** `source_relative_path` is `blog-posts/processed/post.md`
-- **THEN** validation fails with error code `ready_post_not_under_ready`
+- **THEN** validation fails with error code `ready_post_not_under_ready` or equivalent queued-path error code
 
 #### Scenario: Non-markdown extension
 

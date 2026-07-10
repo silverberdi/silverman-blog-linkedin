@@ -340,11 +340,13 @@ Full `pytest` and `openspec validate --all` MUST pass after apply.
 
 ### Requirement: Processed source path resolution for scheduling idempotency
 
-When resolving a campaign by `source_relative_path`, `schedule_linkedin_distribution` MUST match `original_source_relative_path`, `processed_source_relative_path`, or active `source_relative_path` on the campaign document.
+When resolving a campaign by `source_relative_path`, `schedule_linkedin_distribution` MUST match `original_source_relative_path`, `queued_source_relative_path`, `processed_source_relative_path`, or active `source_relative_path` on the campaign document.
 
 Idempotent re-run for campaigns in `distribution_scheduled` or later MUST NOT fail campaign resolution solely because the source Markdown is absent from `blog-posts/ready/` when `processed_source_relative_path` exists on disk.
 
-Scheduling MUST continue to NOT relocate editorial source files; physical moves remain owned by `flow-a-source-lifecycle-completion`.
+Idempotent scheduling for active Flow A campaigns MUST NOT fail campaign resolution solely because the source Markdown is absent from `blog-posts/ready/` when `queued_source_relative_path` exists on disk.
+
+Scheduling MUST continue to NOT relocate editorial source files; physical moves remain owned by `flow-a-operational-queue-lifecycle` and `flow-a-source-lifecycle-completion`.
 
 #### Scenario: Schedule idempotency by original ready path after move
 
@@ -354,4 +356,9 @@ Scheduling MUST continue to NOT relocate editorial source files; physical moves 
 #### Scenario: Schedule idempotency by campaign_id without ready copy
 
 - **WHEN** `schedule_linkedin_distribution` is called with `campaign_id` for a campaign in `distribution_scheduled` whose source exists only under `blog-posts/processed/`
-- **THEN** the operation returns idempotent completed/skipped outcome without campaign-not-found or source-missing errors attributable to ready-folder absence
+- **THEN** the campaign is resolved and idempotent already-scheduled behavior applies without requiring `blog-posts/ready/`
+
+#### Scenario: Schedule resolves queued source during active Flow A
+
+- **WHEN** `schedule_linkedin_distribution` is called for a campaign whose source exists only under `blog-posts/queued/` during an in-progress Flow A execution
+- **THEN** scheduling proceeds without campaign resolution failure due to missing `ready/` copy

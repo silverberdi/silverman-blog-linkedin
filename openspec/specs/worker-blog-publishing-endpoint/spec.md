@@ -417,16 +417,25 @@ This child change MUST NOT commit or push the public GitHub Pages repository.
 
 When campaign metadata indicates `source_file_status.location` is `processed` and `state` is `distribution_scheduled`, `distribution_complete`, or `flow_a_complete`, `publish_blog_post` MUST resolve the source Markdown path from `processed_source_relative_path` (falling back to `source_relative_path` when processed path is absent on legacy campaigns).
 
-Campaign lookup by `source_relative_path` MUST match `original_source_relative_path`, `processed_source_relative_path`, or active `source_relative_path`.
+When `source_file_status.location` is `queued` or `execution_state` is `processing` or `stale`, `publish_blog_post` MUST resolve the source Markdown path from `queued_source_relative_path` (falling back to active `source_relative_path`).
+
+Campaign lookup by `source_relative_path` MUST match `original_source_relative_path`, `queued_source_relative_path`, `processed_source_relative_path`, or active `source_relative_path`.
 
 Idempotent publish for post-schedule campaigns MUST NOT fail with `blog_publish_source_not_ready` solely because the Markdown file is absent from `blog-posts/ready/`.
 
-`publish_blog_post` MUST continue to NOT perform physical source file moves; moves remain owned by `flow-a-source-lifecycle-completion`.
+Active Flow A publish for queued campaigns MUST NOT fail with `blog_publish_source_not_ready` solely because the Markdown file is absent from `blog-posts/ready/` when `queued_source_relative_path` exists on disk.
+
+`publish_blog_post` MUST continue to NOT perform physical source file moves; moves remain owned by `flow-a-operational-queue-lifecycle` and `flow-a-source-lifecycle-completion`.
 
 #### Scenario: Idempotent publish with processed source only
 
 - **WHEN** `publish_blog_post` is called by `campaign_id` or original ready `source_relative_path` for a campaign in `distribution_scheduled` with source file only under `blog-posts/processed/`
 - **THEN** the operation returns `status: completed` with `blog_publish.status` `already_published` without requiring the file in `blog-posts/ready/`
+
+#### Scenario: Publish resolves queued source during active Flow A
+
+- **WHEN** `publish_blog_post` is called for a campaign with `source_file_status.location` `queued` and Markdown only under `blog-posts/queued/`
+- **THEN** publish proceeds without `blog_publish_source_not_ready` and does not require the file in `blog-posts/ready/`
 
 #### Scenario: Campaign lookup by original ready path after move
 
