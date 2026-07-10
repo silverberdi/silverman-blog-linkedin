@@ -2,191 +2,137 @@
 
 ### Current state
 
-Flow A LinkedIn publication (`linkedin_publication_flow.py` → `publish_linkedin_due_variants()`) publishes personal-profile **text posts** via `create_member_text_post()` in `linkedin_client.py`. Commentary is variant text plus `source_public_url`. The canonical spec explicitly forbids image upload and company pages.
+Flow A package generation (`linkedin_package_flow.py` → `generate_linkedin_package()` / `POST /generate-linkedin-package`) produces multi-variant LinkedIn derivative artifacts and campaign metadata with publish-confirmed `source_public_url`. It does not record structured article preview metadata from the blog hero image.
 
-A real publication succeeded but appeared on LinkedIn as plain text with a URL—no link preview card—despite the live blog having a canonical hero image at `/assets/images/<public_slug>.png` (1200×900, 4:3) exposed through the Jekyll theme at [silverman.pro](https://silverman.pro).
+LinkedIn publication (`publish_linkedin_due_variants()`) remains a separate, opt-in capability per `linkedin-publication-integration` and is **out of scope** for this change.
 
-### Dependency
-
-OpenSpec change `comfyui-blog-image-generation` (proposed) ensures every Flow A ready post can receive a canonical blog image before publish when generation is enabled. **This change MUST NOT be implemented until `comfyui-blog-image-generation` is validated and archived.** After that, Flow A campaigns will reliably have:
-
-- front matter `image: /assets/images/<public_slug>.png`
-- companion PNG in editorial workspace and public `assets/images/` after blog publish
-- publish-confirmed `source_public_url` in campaign metadata
+Blog posts use front matter `image: /assets/images/<public_slug>.png` and publish to the public Jekyll site at [silverman.pro](https://silverman.pro). When `SILVERMAN_GITHUB_PAGES_REPO_PATH` is configured, the worker can verify the public asset file exists locally before marking preview status `available`.
 
 ### Policy references
 
-- LinkedIn publication: `openspec/specs/linkedin-publication-integration/spec.md`, `linkedin_publication_flow.py`, `linkedin_client.py`
-- Blog images: proposed `comfyui-blog-image-generation`, `ready-post-editorial-validation`, `github-pages-blog-publishing`
+- Package generation: `openspec/specs/linkedin-derivative-package-generation/spec.md`, `linkedin_package_flow.py`
+- Blog images and public paths: `github-pages-blog-publishing`, archived `blog-image-public-asset-handoff`, active/proposed `comfyui-blog-image-generation`
 - Flow A umbrella: `openspec/specs/flow-a-automatic-publishing/spec.md`
-- ADR-0001: worker HTTP boundary; n8n does not call LinkedIn or fetch OG metadata directly in this change
+- LinkedIn publication (unchanged by this change): `openspec/specs/linkedin-publication-integration/spec.md`
+- ADR-0001: worker HTTP boundary; n8n does not resolve preview metadata directly in this change
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- When preview is enabled, publish LinkedIn posts that preserve visual link/article preview when a public blog image exists.
-- Support two strategies with explicit selection and `auto` fallback ordering.
-- Default **disabled**; dry-run plans strategy and image resolution without LinkedIn API calls.
-- When `preview_required` is true, fail closed before publishing a degraded text-only post.
-- Record preview strategy, image URL/path, and LinkedIn image URN in `linkedin_publication` metadata.
-- Injectable LinkedIn Images API client for tests; no live LinkedIn in default test runs.
+- During package generation, resolve and record article preview metadata from blog front matter and campaign context.
+- Normalize site-root-relative image paths to absolute HTTPS `public_image_url` on the configured site base (default `https://silverman.pro`).
+- Validate public image file existence when public repo path is configured.
+- Use preview status values: `available`, `missing`, `skipped`, `invalid`.
+- Warn (not fail package generation) when preview metadata is incomplete, using stable warning codes.
+- Preserve existing package generation eligibility, idempotency, lifecycle transitions, and scheduling behavior.
 
 **Non-Goals:**
 
-- Implementing in this proposal phase; n8n activation; cron; `--real-publish`.
-- Modifying ComfyUI generation, public blog theme, or `silverberdi.github.io` directly.
-- Company page publishing, video/carousel media, LinkedIn native scheduling.
-- Guaranteed OG crawler behavior (LinkedIn controls link preview rendering for OG strategy).
-- Archiving or git commit/push.
+- LinkedIn Images API upload, direct media upload, or any LinkedIn API call.
+- OG metadata HTTP fetch/scraping at package generation or publish time.
+- `publish_linkedin_due_variants()` preview integration, `linkedin_explicit` / `og_metadata` / `auto` strategies.
+- Fail-closed publication semantics, LinkedIn token requirements, or `SILVERMAN_LINKEDIN_PREVIEW_*` env vars.
+- Smoke-script reporting for real LinkedIn preview publication.
+- n8n activation; cron; `--real-publish`; modifying archived changes.
 
 ## Decisions
 
-### 1. Dependency gate before implementation
+### 1. Metadata at package generation, not publish time
 
-**Decision:** Add an explicit OpenSpec dependency on archived `comfyui-blog-image-generation`. Apply phase MUST verify that change is archived before merging runtime code.
+**Decision:** Resolve article preview metadata inside `generate_linkedin_package()` and persist it on `linkedin_package` and per-variant entries. Do not modify `publish_linkedin_due_variants()` or `linkedin_publication` publish metadata in this change.
 
-**Rationale:** Preview support assumes canonical blog images exist; implementing earlier would encode brittle fallbacks for missing images.
+**Rationale:** Immediate operator need is visible, canonical preview fields on generated packages. Publication-time visual strategies are a separate, higher-risk slice.
 
-**Alternatives considered:** Soft dependency with optional preview — rejected because it encourages URL-only posts when images are missing.
+**Alternatives considered:** Implement full publish-time preview in the same change — rejected; scope too broad and not formally approved.
 
-### 2. Preview strategies: OG metadata vs LinkedIn explicit image
+### 2. Image URL resolution
 
-**Decision:** Support three strategy modes via `SILVERMAN_LINKEDIN_PREVIEW_STRATEGY`:
+**Decision:** Resolve preview fields as:
 
-| Mode | Behavior |
-|------|----------|
-| `og_metadata` | Publish article/link-style post referencing `source_public_url`; rely on live page `og:image`, `og:title`, `og:description`, and canonical URL for LinkedIn crawler preview. |
-| `linkedin_explicit` | Upload blog image bytes to LinkedIn Images API (initialize → upload → register), obtain image URN, attach to post payload as supported media/thumbnail reference. |
-| `auto` (default when preview enabled) | Attempt `og_metadata` sufficiency check first; if insufficient or validation fails, fall back to `linkedin_explicit` when image bytes are resolvable. |
+| Field | Source |
+|-------|--------|
+| `public_image_path` | Front matter `image` when it matches `/assets/images/<slug>.png` site-root-relative pattern |
+| `public_image_url` | `{site_base_url}{public_image_path}` where `site_base_url` defaults to `https://silverman.pro` (no trailing slash) |
+| `article_title` | Blog front matter `title` when available |
+| `article_description` | Blog front matter `description` or excerpt equivalent when available |
+| `public_url` | Campaign publish-confirmed `source_public_url` |
 
-**Rationale:** OG is zero-upload and matches how most link shares work when metadata is correct. Explicit upload gives control when OG is missing, stale, or LinkedIn crawler does not render the card.
+**Rationale:** Aligns with `github-pages-blog-publishing` and existing publish settings; no network fetch required.
 
-**Alternatives considered:** OG only — rejected; real publication already showed URL-only despite live blog. Explicit only — rejected; higher API surface and scope requirements when OG would suffice.
+### 3. Public repo existence validation
 
-**Apply-phase note:** Verify exact LinkedIn REST Posts API fields for article/link posts and Images API upload sequence against current official documentation (same discipline as original `linkedin-publication-integration`).
+**Decision:** When `SILVERMAN_GITHUB_PAGES_REPO_PATH` is set, verify `assets/images/<public_slug>.png` exists under that checkout before status `available`. When unset, skip filesystem validation and set status `skipped` (metadata still resolved from front matter when valid).
 
-### 3. Public image URL resolution
+When configured and file missing, set status `missing` and add stable warning `linkedin_article_preview_public_image_missing`. Package generation still completes.
 
-**Decision:** Resolve preview image URL as:
+Invalid front matter `image` paths set status `invalid` with `linkedin_article_preview_image_invalid`. Missing/unparseable image path sets `missing` with `linkedin_article_preview_image_missing`.
 
-```
-{site_base_url}{front_matter_image}
-```
+**Rationale:** Operators need a trustworthy `available` signal without blocking derivative generation when images are still in flight.
 
-where `site_base_url` defaults to `https://silverman.pro` (from existing publish settings), and `front_matter_image` is `/assets/images/<public_slug>.png` from campaign/blog metadata or processed post record.
-
-For `linkedin_explicit`, download image bytes from the resolved public URL (preferred after blog publish) or read companion PNG from editorial workspace when public fetch is unavailable in dry-run tests.
-
-**Rationale:** Aligns with `github-pages-blog-publishing` and ComfyUI output conventions; public URL is what OG strategy exposes.
-
-### 4. OG sufficiency check (planning and optional gate)
-
-**Decision:** Before choosing `og_metadata`, worker performs a bounded HTTP GET of `source_public_url` (HEAD/GET, configurable timeout) and parses HTML for:
-
-- `og:image` (absolute URL)
-- `og:title`
-- `og:description`
-- canonical link or final URL matching expected blog URL
-
-Mark OG **sufficient** when all four are present and `og:image` resolves to an absolute HTTPS URL. Dry-run reports sufficiency without publishing.
-
-**Rationale:** Prevents selecting OG strategy when the live page would not produce a card; supports `auto` fallback.
-
-**Alternatives considered:** Skip validation and always use OG — rejected given observed production gap.
-
-### 5. Module split
+### 4. Module split
 
 **Decision:**
 
 | Module | Responsibility |
 |--------|----------------|
-| `linkedin_preview_flow.py` | `plan_linkedin_preview(...)`, `resolve_preview_image_url(...)`, OG sufficiency check, strategy selection, fail-closed gating |
-| `linkedin_image_client.py` | Images API upload protocol + `upload_member_image(...)` returning image URN; fake for tests |
-| `linkedin_client.py` (extend) | `build_article_post_payload(...)` / `create_member_article_post(...)` alongside existing text post helpers |
+| `linkedin_article_preview.py` (or equivalent) | `resolve_linkedin_article_preview(...)`, path normalization, optional public-repo check, `LinkedInArticlePreviewMetadata` dataclass |
+| `linkedin_package_flow.py` (extend) | Invoke resolver once per package run; attach `article_preview` to result, campaign `linkedin_package`, and per-variant metadata |
 
-`publish_linkedin_due_variants()` calls preview planner before post creation when preview enabled.
+No `linkedin_image_client.py`, no `linkedin_preview_flow.py` publish planner, no OG HTTP client in this change.
 
-**Rationale:** Mirrors `linkedin_client` / `linkedin_publication_flow` separation; keeps image upload testable.
+### 5. No new publication configuration
 
-### 6. Configuration (disabled by default)
+**Decision:** This change introduces no `SILVERMAN_LINKEDIN_PREVIEW_*` environment variables. Reuse existing `SILVERMAN_GITHUB_PAGES_REPO_PATH` and site URL configuration only.
 
-**Decision:** New environment variables:
+**Rationale:** Metadata resolution is always attempted during package generation; incomplete preview surfaces as status + warnings, not gated by a publication flag.
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `SILVERMAN_LINKEDIN_PREVIEW_ENABLED` | `false` | Master enable for visual preview path |
-| `SILVERMAN_LINKEDIN_PREVIEW_REQUIRED` | `false` | When `true`, block publish if preview cannot be planned/executed |
-| `SILVERMAN_LINKEDIN_PREVIEW_STRATEGY` | `auto` | `og_metadata` \| `linkedin_explicit` \| `auto` |
-| `SILVERMAN_LINKEDIN_PREVIEW_OG_TIMEOUT_SECONDS` | `10` | Bounded timeout for OG fetch |
-| `SILVERMAN_LINKEDIN_PREVIEW_IMAGE_MAX_BYTES` | `10485760` | Reject oversized uploads (10 MiB) |
+### 6. Package generation must not fail on incomplete preview
 
-When `SILVERMAN_LINKEDIN_PREVIEW_ENABLED` is `false`, behavior MUST remain identical to current text-only publication.
+**Decision:** Incomplete or missing preview metadata MUST NOT change package `status` from `completed` when variant generation otherwise succeeds. Warnings carry stable codes; operators review `article_preview.status` and `warnings[]`.
 
-### 7. Fail-closed when preview required
+**Rationale:** Preview metadata is additive; blocking packages would regress Flow A Core.
 
-**Decision:** If `SILVERMAN_LINKEDIN_PREVIEW_REQUIRED=true` and preview planning or execution fails (missing image URL, OG insufficient in `og_metadata` mode, upload failure in `linkedin_explicit` mode), publish-due MUST NOT call LinkedIn Posts API and MUST return stable error `linkedin_preview_required_blocked_publish`. Variant `publish_state` remains `queued` (configuration/planning failure, not API failure).
+### 7. HTTP boundary unchanged
 
-If `preview_required=false` and preview fails, fall back to legacy text-only post with warning in response/metadata.
+**Decision:** No new endpoints. Extend existing `POST /generate-linkedin-package` response with `article_preview` and per-variant preview summary fields. Request body unchanged.
 
-**Rationale:** Prevents accidental degraded URL-only posts when operator expects visual presence.
+**Rationale:** n8n and Flow A connectors already call package generation; additive response fields are sufficient.
 
-### 8. Publication metadata shape
+### 8. Test strategy
 
-**Decision:** Extend `linkedin_publication` object on variant metadata and publish-due per-variant results:
+**Decision:** Tests in `tests/test_linkedin_package_generation.py` (and fixtures as needed) cover:
 
-```json
-{
-  "preview_enabled": true,
-  "preview_strategy": "og_metadata",
-  "preview_image_url": "https://silverman.pro/assets/images/my-slug.png",
-  "preview_image_path": "/assets/images/my-slug.png",
-  "linkedin_image_urn": null,
-  "og_metadata_sufficient": true
-}
-```
+- valid front matter → `available` when public file exists
+- missing public file when repo configured → `missing` + warning, package still `completed`
+- repo not configured → `skipped`
+- invalid image path → `invalid`
+- absolute `public_image_url` normalization
+- no LinkedIn API, no OAuth, no HTTP OG fetch
 
-For `linkedin_explicit`, set `linkedin_image_urn` to registered URN. Never include image bytes or tokens.
+## Deferred (future change)
 
-### 9. HTTP boundary unchanged
+The following were removed from this change and belong in a future publication-time follow-up (for example `linkedin-article-preview-publication`):
 
-**Decision:** No new HTTP endpoints. Preview integrates into existing `POST /publish-linkedin-due-variants` request/response fields. Optional request override `preview_strategy` MAY be added with `extra="forbid"` model discipline.
-
-**Rationale:** Queue/cancel flow unchanged; preview is a publish-time concern.
-
-### 10. Test strategy
-
-**Decision:** Fake `LinkedInImageClientProtocol` and HTTP client for OG fetch. Tests cover:
-
-- disabled preview → text-only unchanged
-- dry-run reports planned strategy
-- `og_metadata` sufficient → article payload planned
-- `og_metadata` insufficient + `auto` → explicit upload path
-- `preview_required` + failure → no API call, variant stays `queued`
-- successful explicit upload → URN in metadata
-- no live LinkedIn API in default `pytest` runs
+- LinkedIn Images API upload and `linkedin_image_urn`
+- `og_metadata` / `linkedin_explicit` / `auto` strategies and OG HTTP sufficiency checks
+- `publish_linkedin_due_variants()` integration and fail-closed `preview_required` semantics
+- `SILVERMAN_LINKEDIN_PREVIEW_*` configuration and smoke-script preview reporting
 
 ## Risks / Trade-offs
 
 | Risk | Mitigation |
 |------|------------|
-| LinkedIn OG crawler still omits card despite valid metadata | Offer `linkedin_explicit` and `auto` fallback; document Post Inspector / cache refresh for operators |
-| Images API requires additional LinkedIn product/scopes | Document prerequisites; explicit strategy fails with stable code; `auto` can still use OG |
-| OG fetch adds latency to publish-due | Bounded timeout; optional skip in dry-run; cache not required in v1 |
-| Posts API article payload changes | Apply phase verifies against official docs; keep text-only fallback when preview not required |
-| Publishing before blog is live breaks OG | Eligibility already requires `source_public_url`; OG check fails closed when page 404 |
+| Package generated before public image handoff completes | Status `missing` + warning; operator can re-run idempotent package generation after publish/handoff |
+| Front matter `image` out of sync with public asset | Public-repo check when configured; stable `invalid` / `missing` codes |
+| Operators confuse metadata with LinkedIn upload | Docs state metadata-only; no API calls; publication remains disabled by default |
 
 ## Migration Plan
 
-1. Archive `comfyui-blog-image-generation` and confirm canonical images on live posts.
-2. Implement preview modules behind `SILVERMAN_LINKEDIN_PREVIEW_ENABLED=false` (no behavior change).
-3. Validate dry-run on staging campaign; confirm planned strategy and image URL.
-4. Enable preview in staging with `preview_required=false`; verify link card on test post.
-5. Enable `preview_required=true` for production Flow A when operator confident in OG or explicit path.
-6. Rollback: set `SILVERMAN_LINKEDIN_PREVIEW_ENABLED=false` to restore text-only behavior.
+1. Implement resolver and package-flow integration behind additive metadata fields (no behavior change to scheduling or publication).
+2. Run `pytest` and staging package generation; confirm `article_preview` on campaign JSON and HTTP response.
+3. Operators use preview metadata for review; publication-time preview implemented only in a future approved change.
 
 ## Open Questions
 
-- Exact LinkedIn Posts API field for article/link posts with thumbnail URN (verify at apply against current REST docs).
-- Whether additional OAuth scopes beyond `w_member_social` are required for Images API in the operator's LinkedIn app.
-- Whether campaign metadata should store resolved `public_image_url` at blog-publish time to avoid re-derivation (optional enhancement; v1 may derive at publish-due).
+- Whether idempotent package re-runs should refresh `article_preview` when a previously `missing` public image later exists (default: yes on non-idempotent-short-circuit regeneration paths; idempotent return SHOULD include stored preview metadata).

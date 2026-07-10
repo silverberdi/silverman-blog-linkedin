@@ -1,26 +1,26 @@
 ## ADDED Requirements
 
-### Requirement: LinkedIn article preview image support (deferred slice)
+### Requirement: LinkedIn article preview metadata at package generation (deferred publication slice)
 
-After OpenSpec change `comfyui-blog-image-generation` is archived and canonical blog images are available on the public site, Flow A SHALL support LinkedIn article/link preview image support via canonical spec `linkedin-article-preview-image-support` when the operator enables preview configuration.
+Flow A `POST /generate-linkedin-package` SHALL record article preview metadata via canonical spec `linkedin-article-preview-image-support` so campaigns expose `public_image_url` and related fields at derivative generation time.
 
-This slice is **deferred** and MUST NOT be implemented until `comfyui-blog-image-generation` is validated and archived.
+This metadata slice MUST NOT call LinkedIn APIs, require LinkedIn tokens, or change distribution scheduling semantics.
 
-When enabled, LinkedIn publish-due MUST use blog image metadata and `source_public_url` to preserve visual link preview quality instead of publishing degraded plain text with URL only.
+LinkedIn publication-time visual preview (OG strategy, Images API upload, `publish_linkedin_due_variants()` integration) is **deferred** to a separate future change and MUST NOT be implemented under `linkedin-article-preview-image-support`.
 
-Preview behavior MUST remain disabled by default (`SILVERMAN_LINKEDIN_PREVIEW_ENABLED=false`) until the operator explicitly enables it.
+Package generation MUST continue to satisfy Flow A Core boundaries: no `publish_state` writes and no automatic LinkedIn publication.
 
-#### Scenario: Preview deferred until blog images archived
+#### Scenario: Package generation records preview metadata
 
-- **WHEN** `comfyui-blog-image-generation` is not archived
-- **THEN** Flow A documentation and implementation MUST NOT include LinkedIn preview image runtime behavior
+- **WHEN** Flow A package generation succeeds for a campaign with publish-confirmed `source_public_url`
+- **THEN** campaign metadata and HTTP response include `article_preview` per `linkedin-article-preview-image-support`
 
-#### Scenario: Preview enabled after dependency complete
+#### Scenario: Publication-time preview deferred
 
-- **WHEN** `comfyui-blog-image-generation` is archived, blog posts have canonical images on the public site, and operator enables preview
-- **THEN** Flow A LinkedIn publish-due MUST use `linkedin-article-preview-image-support` strategies for visual preview when preview is enabled
+- **WHEN** this change is applied
+- **THEN** `publish_linkedin_due_variants()` does not gain preview strategy or image upload behavior
 
-#### Scenario: Preview disabled preserves text-only publish
+#### Scenario: Scheduling unchanged
 
-- **WHEN** preview is not enabled
-- **THEN** Flow A LinkedIn publication continues text-only behavior per `linkedin-publication-integration`
+- **WHEN** package generation records article preview metadata
+- **THEN** `POST /schedule-linkedin-distribution` eligibility and behavior are unchanged

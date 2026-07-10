@@ -1,56 +1,53 @@
 ## Why
 
-Flow A LinkedIn publication currently sends personal-profile text posts whose commentary includes variant text and the blog URL. A real publication validated successfully, but the live post appeared as plain text plus URL without a visual link preview card—even though the blog post has a canonical hero image (1200×900, 4:3) suitable for social sharing. Future automated publications should preserve visual presence when a public blog image is available. This change depends on `comfyui-blog-image-generation` so every Flow A post can rely on a canonical blog image before LinkedIn preview support is implemented.
+Flow A `POST /generate-linkedin-package` records variant text, paths, and publish-confirmed `source_public_url`, but it does not yet record structured article preview metadata derived from the blog post hero image. Operators and downstream LinkedIn publication work need a canonical `public_image_url` and related fields at package-generation time so link-preview context is available before any LinkedIn API call. A real LinkedIn publication validated successfully but appeared as plain text plus URL without a visual card; recording preview metadata early makes that gap visible and prepares campaigns for a future publication-time slice.
 
 ## Goals
 
-- Define how LinkedIn publication uses the blog image for article/link preview support when a public image is available.
-- Support two controlled strategies: (1) Open Graph/social metadata via public blog URL, and (2) LinkedIn explicit image upload/register via Images API.
-- Add configuration flags so visual preview behavior is disabled/safe by default until explicitly enabled.
-- Add validation/dry-run behavior that reports which preview strategy would be used without calling LinkedIn API.
-- Add publication result metadata: preview strategy, image path/URL, and LinkedIn image URN when applicable.
-- When preview is required, fail closed—do not publish a degraded plain URL-only post if visual preview cannot be created.
-- Add tests with a fake LinkedIn image/media client; no live LinkedIn API in default tests.
-- **MUST NOT** implement until `comfyui-blog-image-generation` is implemented, validated, and archived.
+- Record article preview metadata during `POST /generate-linkedin-package` from blog front matter `image` and publish-confirmed `source_public_url`.
+- Resolve absolute `public_image_url` as `https://silverman.pro/assets/images/<public_slug>.png` (or configured site base URL) from site-root-relative front matter paths such as `/assets/images/<public_slug>.png`.
+- When `SILVERMAN_GITHUB_PAGES_REPO_PATH` is configured, validate that the matching public blog image file exists before marking preview status `available`.
+- Expose package-level `article_preview` metadata and per-variant preview fields where useful.
+- Emit stable warnings when preview metadata is incomplete; package generation MUST still complete unless existing eligibility rules already fail the request.
+- Preserve existing LinkedIn package generation, lifecycle transitions, scheduling behavior, and Flow A Core boundaries.
+- Add tests with no LinkedIn API calls, no OAuth tokens, and no media upload.
 
 ## Non-Goals
 
-- Implementing this change or modifying runtime code as part of this proposal.
-- Activating n8n, cron/scheduled triggers, or `--real-publish`.
-- Modifying the public blog repository directly or changing ComfyUI image generation behavior.
-- Company page publishing, native LinkedIn scheduling, analytics, or comment automation.
-- Archiving this change or committing/pushing as part of this proposal.
+- LinkedIn publication-time preview behavior (Images API upload, OG fetch, `publish_linkedin_due_variants()` integration, fail-closed publish semantics).
+- Preview enablement env vars for publication (`SILVERMAN_LINKEDIN_PREVIEW_*`).
+- Activating n8n, cron, `--real-publish`, or LinkedIn publication (`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`).
+- Modifying the public blog repository, ComfyUI generation, or archived OpenSpec changes.
+- Applying preserved WIP from `stash@{0}` as part of this proposal update.
+- Archiving this change or committing/pushing as part of this proposal edit.
 
 ## What Changes
 
-- Add OpenSpec change `linkedin-article-preview-image-support` as a **proposed-only** follow-up to `comfyui-blog-image-generation` and `linkedin-publication-integration`.
-- Add capability spec `linkedin-article-preview-image-support` covering preview strategy selection, OG metadata validation, LinkedIn Images API upload path, configuration, dry-run planning, publication metadata, fail-closed semantics, and stable error codes.
-- Extend `publish_linkedin_due_variants()` (and related client modules) to plan and optionally execute visual preview when enabled—without changing queue/cancel semantics.
-- Add environment variables for preview enablement, strategy mode, required-vs-optional preview, and OG validation timeout.
-- Extend per-variant `linkedin_publication` metadata and publish-due HTTP responses with `preview_strategy`, `preview_image_url`, `preview_image_path`, and `linkedin_image_urn` when applicable.
-- Add delta specs for `linkedin-publication-integration` (publish-due behavior, configuration, metadata, tests, operator docs) and `flow-a-automatic-publishing` (umbrella sequence note).
-- Add `linkedin_image_client.py` (or equivalent) with injectable protocol for Images API fakes; extend `tests/test_linkedin_publication.py` and add focused preview tests.
-- Document operator prerequisites for preview (public `og:image` on live blog, optional Images API product/scopes) and dependency gate on archived `comfyui-blog-image-generation`.
+- Narrow active OpenSpec change `linkedin-article-preview-image-support` to **LinkedIn article preview metadata support** at package-generation time only.
+- Add capability spec `linkedin-article-preview-image-support` covering preview resolution, public-repo validation, status values (`available`, `missing`, `skipped`, `invalid`), package/variant metadata shape, stable warning codes, and test coverage.
+- Extend `generate_linkedin_package()` / `linkedin_package_flow.py` to resolve and persist `article_preview` metadata without changing queue, schedule, or publish semantics.
+- Add delta spec for `linkedin-derivative-package-generation` (package metadata, HTTP response, tests).
+- Add delta spec for `flow-a-automatic-publishing` (umbrella note: metadata recorded at package generation; publication-time preview deferred).
+- Update operator documentation for package-generation preview metadata only.
 
-No n8n workflow JSON changes. No automatic triggers. No live LinkedIn API calls in default test runs.
+No delta changes to `linkedin-publication-integration`. No new HTTP endpoints. No n8n workflow JSON changes. No LinkedIn API calls.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `linkedin-article-preview-image-support`: Worker-side LinkedIn article/link preview image support — strategy selection (`og_metadata`, `linkedin_explicit`, `auto`), public image URL resolution from campaign/blog metadata, OG metadata sufficiency checks, LinkedIn Images API upload/register path, dry-run planning, preview metadata on publication results, fail-closed when preview is required, disabled-by-default configuration, injectable image client for tests, and stable error codes.
+- `linkedin-article-preview-image-support`: Worker-side LinkedIn article preview **metadata** support during package generation — `public_image_url` / `public_image_path` resolution from front matter, optional public-repo file validation, preview status values, package- and variant-level metadata, stable warning codes, and tests without LinkedIn credentials.
 
 ### Modified Capabilities
 
-- `linkedin-publication-integration`: Publish-due service gains optional visual preview path when enabled; configuration, per-variant metadata, stable error codes, test coverage, smoke script dry-run reporting, and operator documentation updated from text-only-only to include controlled preview strategies.
-- `flow-a-automatic-publishing`: Umbrella Flow A sequence documents LinkedIn preview image support as a deferred slice after canonical blog images exist (`comfyui-blog-image-generation` archived).
+- `linkedin-derivative-package-generation`: Package generation and `POST /generate-linkedin-package` responses gain `article_preview` metadata and per-variant preview fields; existing generation, idempotency, and lifecycle behavior preserved.
+- `flow-a-automatic-publishing`: Umbrella Flow A sequence documents article preview metadata at package generation; LinkedIn publication-time preview remains a deferred follow-up.
 
 ## Impact
 
-- **Dependency gate**: Implementation blocked until `comfyui-blog-image-generation` is archived; assumes canonical `image` front matter and public asset at `/assets/images/<public_slug>.png` (1200×900).
-- **LinkedIn publication reference**: Canonical spec `openspec/specs/linkedin-publication-integration/spec.md`, `linkedin_publication_flow.py`, `linkedin_client.py`.
-- **Blog metadata reference**: Campaign `source_public_url` (publish-confirmed), front matter `image`, `github-pages-blog-publishing` public URL conventions.
-- **New modules**: Preview planner/resolver (for example `linkedin_preview_flow.py`), LinkedIn Images API client (for example `linkedin_image_client.py`).
-- **Configuration**: New env vars under LinkedIn publication settings; defaults keep current text-only behavior.
-- **Tests**: Extended `tests/test_linkedin_publication.py`; new preview-focused tests with fake image client; no live LinkedIn in CI.
-- **Operations**: Operator may need LinkedIn Images API product when using `linkedin_explicit` strategy; OG strategy requires live blog page with sufficient `og:image`, `og:title`, `og:description`, and canonical URL.
+- **Package generation reference**: `linkedin_package_flow.py`, canonical spec `linkedin-derivative-package-generation`.
+- **Blog metadata reference**: front matter `image`, `source_public_url`, `github-pages-blog-publishing` URL conventions, optional `SILVERMAN_GITHUB_PAGES_REPO_PATH` for existence checks.
+- **New module (apply phase)**: for example `linkedin_article_preview.py` with `resolve_linkedin_article_preview()` (name MAY differ if equivalent).
+- **Configuration**: Reuse existing `SILVERMAN_GITHUB_PAGES_REPO_PATH` and site URL settings; no new LinkedIn preview publication env vars.
+- **Tests**: Extend `tests/test_linkedin_package_generation.py` (and related fixtures); no live LinkedIn in CI.
+- **Deferred**: Publication-time OG strategy, `linkedin_explicit` Images API upload, `publish_linkedin_due_variants()` preview integration, smoke-script preview reporting — tracked as future work outside this change.
