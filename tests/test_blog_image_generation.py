@@ -8,7 +8,11 @@ import pytest
 
 from silverman_blog_linkedin.blog_image_generation import (
     BLOG_IMAGE_GENERATION_COMFYUI_FAILED,
+    BLOG_IMAGE_GENERATION_DISABLED,
     BLOG_IMAGE_GENERATION_FAILED,
+    BLOG_IMAGE_GENERATION_FRONTMATTER_UPDATE_FAILED,
+    BLOG_IMAGE_GENERATION_NOT_CONFIGURED,
+    BLOG_IMAGE_GENERATION_WRITE_FAILED,
     SKIP_REASON_GENERATION_DISABLED,
     SKIP_REASON_NON_CANONICAL_IMAGE,
     SKIP_REASON_PUBLIC_ASSET_REUSE,
@@ -23,7 +27,11 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     METADATA_CAMPAIGNS_RELATIVE,
     write_campaign_metadata,
 )
-from silverman_blog_linkedin.comfyui_client import FakeComfyUIClient
+from silverman_blog_linkedin.comfyui_client import (
+    BLOG_IMAGE_GENERATION_COMFYUI_FAILED,
+    BLOG_IMAGE_GENERATION_TIMEOUT,
+    FakeComfyUIClient,
+)
 from silverman_blog_linkedin.comfyui_config import (
     ComfyUISettings,
     ComfyUISettingsLoadResult,
@@ -134,6 +142,15 @@ def _publish_env(editorial_base: Path, repo_path: Path) -> dict[str, str]:
     }
 
 
+def _production_comfy_env(editorial_base: Path, public_repo: Path) -> dict[str, str]:
+    env = _publish_env(editorial_base, public_repo)
+    env["SILVERMAN_COMFYUI_IMAGE_ENABLED"] = "true"
+    env["SILVERMAN_COMFYUI_BASE_URL"] = "https://cloud.comfy.org"
+    env["SILVERMAN_COMFYUI_API_PREFIX"] = "/api"
+    env["SILVERMAN_COMFYUI_API_KEY"] = "test-api-key"
+    return env
+
+
 def test_missing_image_generates_png_and_patches_frontmatter(
     editorial_base: Path, public_repo: Path
 ):
@@ -230,7 +247,8 @@ def test_disabled_generation_preserves_old_behavior(editorial_base: Path):
         environ={},
     )
 
-    assert result.status == "skipped"
+    assert result.status == "failed"
+    assert result.error_code == BLOG_IMAGE_GENERATION_DISABLED
     assert result.skip_reason == SKIP_REASON_GENERATION_DISABLED
     assert not (editorial_base / IMAGE_RELATIVE).exists()
 
@@ -253,7 +271,8 @@ def test_disabled_generation_ignores_ambient_comfyui_env(
         client=FakeComfyUIClient(),
     )
 
-    assert result.status == "skipped"
+    assert result.status == "failed"
+    assert result.error_code == BLOG_IMAGE_GENERATION_DISABLED
     assert result.skip_reason == SKIP_REASON_GENERATION_DISABLED
     assert not (editorial_base / IMAGE_RELATIVE).exists()
 
@@ -642,3 +661,220 @@ def test_copy_public_blog_image_missing_layout_fails(tmp_path: Path):
 
     assert result.status == "failed"
     assert result.error_message is not None
+
+
+def _write_post_02_missing_pngs(base: Path) -> Path:
+    ready = base / "blog-posts" / "ready"
+    ready.mkdir(parents=True, exist_ok=True)
+    md_path = ready / f"{POST_02_SOURCE_SLUG}.md"
+    fm = _frontmatter(image=f"/assets/images/{POST_02_PUBLIC_SLUG}.png")
+    md_path.write_text(fm + _body(), encoding="utf-8")
+    return md_path
+
+
+def test_post_02_regression_comfyui_generates_and_hands_off_public_asset(
+    editorial_base: Path, public_repo: Path
+):
+    """Deployed failure: canonical front matter, no ready/public PNG, ComfyUI enabled."""
+    _write_post_02_missing_pngs(editorial_base)
+    source_relative = f"blog-posts/ready/{POST_02_SOURCE_SLUG}.md"
+    env = _production_comfy_env(editorial_base, public_repo)
+    config = load_comfyui_settings(env)
+    assert config.settings.enabled is True
+    assert not hasattr(config.settings, "image_enabled")
+    fake = FakeComfyUIClient()
+
+    result = ensure_blog_image(
+        editorial_base,
+        source_relative,
+        config=config,
+        client=fake,
+        github_pages_repo_path=public_repo,
+        environ=env,
+    )
+
+    assert result.status == "generated"
+    assert result.error_code is None
+    assert (editorial_base / "blog-posts/ready" / f"{POST_02_SOURCE_SLUG}.png").is_file()
+    public_path = public_repo / "assets/images" / f"{POST_02_PUBLIC_SLUG}.png"
+    assert public_path.is_file()
+    assert result.public_asset_handoff_status == "copied"
+    assert result.public_asset_source == "comfyui_generated"
+    assert result.public_repo_image_relative_path == f"assets/images/{POST_02_PUBLIC_SLUG}.png"
+    assert len(fake.calls) == 1
+
+
+def test_ensure_blog_image_uses_settings_enabled_from_load_comfyui_settings(
+    editorial_base: Path, public_repo: Path, monkeypatch: pytest.MonkeyPatch
+):
+    _write_post(editorial_base, image="canonical", with_png=False)
+    env = _production_comfy_env(editorial_base, public_repo)
+    config = load_comfyui_settings(env)
+
+    def _fail_if_image_enabled_accessed(*args: object, **kwargs: object) -> bool:
+        raise AssertionError("ensure_blog_image must not read image_enabled")
+
+    monkeypatch.setattr(
+        "silverman_blog_linkedin.blog_image_generation._comfyui_generation_enabled",
+        lambda settings: settings.enabled,
+    )
+    fake = FakeComfyUIClient()
+
+    result = ensure_blog_image(
+        editorial_base,
+        SOURCE_RELATIVE,
+        config=config,
+        client=fake,
+        github_pages_repo_path=public_repo,
+        environ=env,
+    )
+
+    assert config.settings.enabled is True
+    assert result.status == "generated"
+    assert len(fake.calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("error_code", "fake_error"),
+    [
+        (BLOG_IMAGE_GENERATION_DISABLED, None),
+        (BLOG_IMAGE_GENERATION_NOT_CONFIGURED, None),
+        (BLOG_IMAGE_GENERATION_COMFYUI_FAILED, BLOG_IMAGE_GENERATION_COMFYUI_FAILED),
+        (BLOG_IMAGE_GENERATION_TIMEOUT, BLOG_IMAGE_GENERATION_TIMEOUT),
+        (BLOG_IMAGE_GENERATION_WRITE_FAILED, None),
+        (BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED, None),
+    ],
+)
+def test_specific_failure_codes_are_not_generic_blog_image_generation_failed(
+    editorial_base: Path,
+    public_repo: Path,
+    error_code: str,
+    fake_error: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _write_post(editorial_base, image="canonical", with_png=False)
+
+    if error_code == BLOG_IMAGE_GENERATION_DISABLED:
+        config = _disabled_config()
+        client = FakeComfyUIClient()
+    elif error_code == BLOG_IMAGE_GENERATION_NOT_CONFIGURED:
+        config = ComfyUISettingsLoadResult(
+            settings=ComfyUISettings(
+                enabled=True,
+                base_url=None,
+                api_prefix="",
+                api_key=None,
+                auth_header_name="Authorization",
+                extra_data_api_key_field=None,
+                workflow_path=LOCAL_WORKFLOW_PATH,
+                timeout_seconds=30,
+                image_width=1200,
+                image_height=900,
+                dry_run=False,
+            ),
+            config_invalid=True,
+        )
+        client = FakeComfyUIClient()
+    elif error_code == BLOG_IMAGE_GENERATION_WRITE_FAILED:
+        config = _enabled_config()
+        client = FakeComfyUIClient()
+
+        def _raise_oserror(*args: object, **kwargs: object) -> None:
+            raise OSError("disk full")
+
+        monkeypatch.setattr(Path, "write_bytes", _raise_oserror)
+    elif error_code == BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED:
+        config = _enabled_config()
+        client = FakeComfyUIClient()
+        images_dir = public_repo / "assets/images"
+        images_dir.chmod(0o555)
+        try:
+            result = ensure_blog_image(
+                editorial_base,
+                SOURCE_RELATIVE,
+                config=config,
+                client=client,
+                github_pages_repo_path=public_repo,
+                environ=_publish_env(editorial_base, public_repo),
+            )
+        finally:
+            images_dir.chmod(0o755)
+        assert result.status == "failed"
+        assert result.error_code == error_code
+        assert result.error_code != BLOG_IMAGE_GENERATION_FAILED
+        return
+    else:
+        config = _enabled_config()
+        client = FakeComfyUIClient(error_code=fake_error)
+
+    result = ensure_blog_image(
+        editorial_base,
+        SOURCE_RELATIVE,
+        config=config,
+        client=client,
+        github_pages_repo_path=public_repo,
+        environ=_publish_env(editorial_base, public_repo),
+    )
+
+    assert result.status == "failed"
+    assert result.error_code == error_code
+    assert result.error_code != BLOG_IMAGE_GENERATION_FAILED
+
+
+def test_unexpected_exception_returns_generic_blog_image_generation_failed(
+    editorial_base: Path, public_repo: Path, monkeypatch: pytest.MonkeyPatch
+):
+    _write_post(editorial_base, image="canonical", with_png=False)
+
+    def _boom(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("unexpected orchestration failure")
+
+    monkeypatch.setattr(
+        "silverman_blog_linkedin.blog_image_generation.build_blog_image_prompt",
+        _boom,
+    )
+
+    result = ensure_blog_image(
+        editorial_base,
+        SOURCE_RELATIVE,
+        config=_enabled_config(),
+        client=FakeComfyUIClient(),
+        github_pages_repo_path=public_repo,
+        environ=_publish_env(editorial_base, public_repo),
+    )
+
+    assert result.status == "failed"
+    assert result.error_code == BLOG_IMAGE_GENERATION_FAILED
+
+
+def test_failure_with_campaign_id_records_metadata_and_error_code(
+    editorial_base: Path, public_repo: Path
+):
+    _write_post(editorial_base, image="canonical", with_png=False)
+    campaign_id = f"flow-a-{PUBLICATION_DATE}-{PUBLIC_SLUG}"
+    write_campaign_metadata(
+        editorial_base,
+        campaign_id,
+        {"campaign_id": campaign_id, "state": "ready"},
+    )
+    fake = FakeComfyUIClient(error_code=BLOG_IMAGE_GENERATION_COMFYUI_FAILED)
+
+    result = ensure_blog_image(
+        editorial_base,
+        SOURCE_RELATIVE,
+        config=_enabled_config(),
+        client=fake,
+        campaign_id=campaign_id,
+        github_pages_repo_path=public_repo,
+        environ=_publish_env(editorial_base, public_repo),
+    )
+
+    assert result.status == "failed"
+    assert result.error_code == BLOG_IMAGE_GENERATION_COMFYUI_FAILED
+    assert result.metadata_written is True
+    from silverman_blog_linkedin.campaign_lifecycle import read_campaign_metadata
+
+    campaign = read_campaign_metadata(editorial_base, campaign_id)
+    assert campaign is not None
+    assert campaign["blog_image_generation"]["status"] == "failed"
+    assert campaign["blog_image_generation"]["error_code"] == BLOG_IMAGE_GENERATION_COMFYUI_FAILED

@@ -79,6 +79,11 @@ class ComfyUISettings:
     def is_configured(self) -> bool:
         return bool(self.enabled and self.base_url and self.base_url.strip())
 
+    @property
+    def generation_enabled(self) -> bool:
+        """True when ``SILVERMAN_COMFYUI_IMAGE_ENABLED`` is set (``enabled`` field)."""
+        return self.enabled
+
 
 @dataclass(frozen=True)
 class ComfyUISettingsLoadResult:

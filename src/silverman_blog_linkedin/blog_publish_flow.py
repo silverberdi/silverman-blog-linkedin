@@ -1047,7 +1047,11 @@ def publish_blog_post(
     blog_image_generation_summary = image_result.to_dict()
 
     if image_result.status == "failed":
-        failure_errors = [image_result.error_code or BLOG_IMAGE_GENERATION_FAILED]
+        failure_errors: list[str] = []
+        if image_result.error_code:
+            failure_errors.append(image_result.error_code)
+        else:
+            failure_errors.append(BLOG_IMAGE_GENERATION_FAILED)
         return _failed_result(
             preflight,
             errors=failure_errors,
@@ -1057,6 +1061,8 @@ def publish_blog_post(
                 campaign.get("source_public_url") if campaign else None
             ),
             blog_image_generation=blog_image_generation_summary,
+            metadata_written=image_result.metadata_written,
+            metadata_error_code=image_result.metadata_error_code,
         )
 
     if image_result.front_matter_updated:

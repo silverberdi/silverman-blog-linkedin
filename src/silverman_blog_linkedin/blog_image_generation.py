@@ -83,6 +83,7 @@ class BlogImageGenerationResult:
     skip_reason: str | None = None
     front_matter_updated: bool = False
     metadata_written: bool = False
+    metadata_error_code: str | None = None
     run_id: str | None = None
     public_asset_handoff_status: str | None = None
     public_asset_source: str | None = None
@@ -104,6 +105,11 @@ def _canonical_public_image_path(public_slug: str) -> str:
 
 def _is_blank(value: Any) -> bool:
     return value is None or (isinstance(value, str) and value.strip() == "")
+
+
+def _comfyui_generation_enabled(settings: ComfyUISettings) -> bool:
+    """Return whether ComfyUI generation is enabled via ``ComfyUISettings.enabled``."""
+    return settings.generation_enabled
 
 
 def _resolve_github_pages_repo_path(
@@ -240,23 +246,16 @@ def _handoff_failure_result(
     started_at: str,
     run_id: str,
 ) -> BlogImageGenerationResult:
-    result.status = "failed"
-    result.error_code = BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED
     result.public_asset_handoff_status = "failed"
     result.public_repo_image_relative_path = public_blog_image_relative(public_slug)
-    completed_at = utc_now_iso()
-    summary = _build_metadata_summary(result)
-    result.metadata_written = _persist_campaign_blog_image_generation(
-        base_path, campaign_id, summary
-    )
-    _append_run_record(
-        base_path,
-        run_id=run_id,
-        summary=summary,
+    return _finalize_failure(
+        result,
+        error_code=BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED,
+        base_path=base_path,
+        campaign_id=campaign_id,
         started_at=started_at,
-        completed_at=completed_at,
+        run_id=run_id,
     )
-    return result
 
 
 def _finalize_success(
@@ -271,11 +270,13 @@ def _finalize_success(
     result.status = status
     if status in ("generated", "skipped"):
         result.generated_at = utc_now_iso()
-    completed_at = result.generated_at or utc_now_iso()
     summary = _build_metadata_summary(result)
-    result.metadata_written = _persist_campaign_blog_image_generation(
+    written, metadata_error_code = _persist_campaign_blog_image_generation(
         base_path, campaign_id, summary
     )
+    result.metadata_written = written
+    result.metadata_error_code = metadata_error_code
+    completed_at = result.generated_at or utc_now_iso()
     _append_run_record(
         base_path,
         run_id=run_id,
@@ -326,15 +327,62 @@ def _persist_campaign_blog_image_generation(
     base_path: Path,
     campaign_id: str | None,
     summary: dict[str, Any],
-) -> bool:
+) -> tuple[bool, str | None]:
     if not campaign_id:
-        return False
+        return False, None
     campaign = read_campaign_metadata(base_path, campaign_id)
     if campaign is None:
-        return False
+        return False, "campaign_not_found"
     campaign["blog_image_generation"] = summary
     write_result = write_campaign_metadata(base_path, campaign_id, campaign)
-    return write_result.written
+    if write_result.written:
+        return True, None
+    return False, write_result.error_code or "campaign_metadata_write_failed"
+
+
+def _record_result_metadata(
+    result: BlogImageGenerationResult,
+    *,
+    base_path: Path,
+    campaign_id: str | None,
+    started_at: str,
+    run_id: str,
+) -> None:
+    summary = _build_metadata_summary(result)
+    written, metadata_error_code = _persist_campaign_blog_image_generation(
+        base_path, campaign_id, summary
+    )
+    result.metadata_written = written
+    result.metadata_error_code = metadata_error_code
+    completed_at = result.generated_at or utc_now_iso()
+    _append_run_record(
+        base_path,
+        run_id=run_id,
+        summary=summary,
+        started_at=started_at,
+        completed_at=completed_at,
+    )
+
+
+def _finalize_failure(
+    result: BlogImageGenerationResult,
+    *,
+    error_code: str,
+    base_path: Path,
+    campaign_id: str | None,
+    started_at: str,
+    run_id: str,
+) -> BlogImageGenerationResult:
+    result.status = "failed"
+    result.error_code = error_code
+    _record_result_metadata(
+        result,
+        base_path=base_path,
+        campaign_id=campaign_id,
+        started_at=started_at,
+        run_id=run_id,
+    )
+    return result
 
 
 def _append_run_record(
@@ -384,6 +432,48 @@ def ensure_blog_image(
     github_pages_repo_path: str | Path | None = None,
 ) -> BlogImageGenerationResult:
     """Detect missing canonical images, optionally generate via ComfyUI, update source files."""
+    try:
+        return _ensure_blog_image_impl(
+            base_path,
+            source_relative_path,
+            config=config,
+            client=client,
+            dry_run=dry_run,
+            environ=environ,
+            public_slug_override=public_slug_override,
+            campaign_id=campaign_id,
+            github_pages_repo_path=github_pages_repo_path,
+        )
+    except Exception:
+        normalized = source_relative_path.replace("\\", "/").lstrip("/")
+        result = BlogImageGenerationResult(
+            status="failed",
+            source_relative_path=normalized,
+            error_code=BLOG_IMAGE_GENERATION_FAILED,
+        )
+        if campaign_id:
+            summary = _build_metadata_summary(result)
+            written, metadata_error_code = _persist_campaign_blog_image_generation(
+                base_path, campaign_id, summary
+            )
+            result.metadata_written = written
+            result.metadata_error_code = metadata_error_code
+        return result
+
+
+def _ensure_blog_image_impl(
+    base_path: Path,
+    source_relative_path: str,
+    *,
+    config: ComfyUISettingsLoadResult | None = None,
+    client: ComfyUIClientProtocol | None = None,
+    dry_run: bool | None = None,
+    environ: dict[str, str] | None = None,
+    public_slug_override: str | None = None,
+    campaign_id: str | None = None,
+    github_pages_repo_path: str | Path | None = None,
+) -> BlogImageGenerationResult:
+    """Internal implementation for ``ensure_blog_image``."""
     normalized = source_relative_path.replace("\\", "/").lstrip("/")
     result = BlogImageGenerationResult(
         status="skipped",
@@ -454,9 +544,11 @@ def ensure_blog_image(
             result.public_asset_source = PUBLIC_ASSET_SOURCE_EXISTING
             result.ready_sibling_backfill_status = "not_needed"
         summary = _build_metadata_summary(result)
-        result.metadata_written = _persist_campaign_blog_image_generation(
+        written, metadata_error_code = _persist_campaign_blog_image_generation(
             base_path, campaign_id, summary
         )
+        result.metadata_written = written
+        result.metadata_error_code = metadata_error_code
         return result
 
     needs_handoff = detection.reuse_public_asset or detection.adopt_ready_sibling
@@ -482,9 +574,11 @@ def ensure_blog_image(
                 result.ready_sibling_backfill_status = "not_needed"
             completed_at = utc_now_iso()
             summary = _build_metadata_summary(result)
-            result.metadata_written = _persist_campaign_blog_image_generation(
+            written, metadata_error_code = _persist_campaign_blog_image_generation(
                 base_path, campaign_id, summary
             )
+            result.metadata_written = written
+            result.metadata_error_code = metadata_error_code
             _append_run_record(
                 base_path,
                 run_id=run_id,
@@ -502,15 +596,14 @@ def ensure_blog_image(
                 _patch_frontmatter_image(source_md, public_slug)
                 result.front_matter_updated = True
             except (OSError, PublishError):
-                result.status = "failed"
                 result.error_code = BLOG_IMAGE_GENERATION_FRONTMATTER_UPDATE_FAILED
-                return _finalize_success(
+                return _finalize_failure(
                     result,
+                    error_code=BLOG_IMAGE_GENERATION_FRONTMATTER_UPDATE_FAILED,
                     base_path=base_path,
                     campaign_id=campaign_id,
                     started_at=started_at,
                     run_id=run_id,
-                    status="failed",
                 )
 
         assert repo_path is not None
@@ -545,9 +638,11 @@ def ensure_blog_image(
             result.public_asset_source = PUBLIC_ASSET_SOURCE_READY_SIBLING
             completed_at = utc_now_iso()
             summary = _build_metadata_summary(result)
-            result.metadata_written = _persist_campaign_blog_image_generation(
+            written, metadata_error_code = _persist_campaign_blog_image_generation(
                 base_path, campaign_id, summary
             )
+            result.metadata_written = written
+            result.metadata_error_code = metadata_error_code
             _append_run_record(
                 base_path,
                 run_id=run_id,
@@ -581,15 +676,13 @@ def ensure_blog_image(
                 _patch_frontmatter_image(source_md, public_slug)
                 result.front_matter_updated = True
             except (OSError, PublishError):
-                result.status = "failed"
-                result.error_code = BLOG_IMAGE_GENERATION_FRONTMATTER_UPDATE_FAILED
-                return _finalize_success(
+                return _finalize_failure(
                     result,
+                    error_code=BLOG_IMAGE_GENERATION_FRONTMATTER_UPDATE_FAILED,
                     base_path=base_path,
                     campaign_id=campaign_id,
                     started_at=started_at,
                     run_id=run_id,
-                    status="failed",
                 )
 
         return _finalize_success(
@@ -601,31 +694,36 @@ def ensure_blog_image(
             status="generated",
         )
 
-    if not settings.enabled:
+    if not _comfyui_generation_enabled(settings):
         result.skip_reason = SKIP_REASON_GENERATION_DISABLED
-        summary = _build_metadata_summary(result)
-        result.metadata_written = _persist_campaign_blog_image_generation(
-            base_path, campaign_id, summary
+        return _finalize_failure(
+            result,
+            error_code=BLOG_IMAGE_GENERATION_DISABLED,
+            base_path=base_path,
+            campaign_id=campaign_id,
+            started_at=started_at,
+            run_id=run_id,
         )
-        return result
 
     if load_result.config_invalid:
-        result.status = "failed"
-        result.error_code = BLOG_IMAGE_GENERATION_NOT_CONFIGURED
-        summary = _build_metadata_summary(result)
-        result.metadata_written = _persist_campaign_blog_image_generation(
-            base_path, campaign_id, summary
+        return _finalize_failure(
+            result,
+            error_code=BLOG_IMAGE_GENERATION_NOT_CONFIGURED,
+            base_path=base_path,
+            campaign_id=campaign_id,
+            started_at=started_at,
+            run_id=run_id,
         )
-        return result
 
     if not settings.base_url:
-        result.status = "failed"
-        result.error_code = BLOG_IMAGE_GENERATION_NOT_CONFIGURED
-        summary = _build_metadata_summary(result)
-        result.metadata_written = _persist_campaign_blog_image_generation(
-            base_path, campaign_id, summary
+        return _finalize_failure(
+            result,
+            error_code=BLOG_IMAGE_GENERATION_NOT_CONFIGURED,
+            base_path=base_path,
+            campaign_id=campaign_id,
+            started_at=started_at,
+            run_id=run_id,
         )
-        return result
 
     title = str(frontmatter.get("title") or source_slug)
     prompt = build_blog_image_prompt(
@@ -644,9 +742,11 @@ def ensure_blog_image(
         result.public_asset_source = PUBLIC_ASSET_SOURCE_COMFYUI
         completed_at = utc_now_iso()
         summary = _build_metadata_summary(result)
-        result.metadata_written = _persist_campaign_blog_image_generation(
+        written, metadata_error_code = _persist_campaign_blog_image_generation(
             base_path, campaign_id, summary
         )
+        result.metadata_written = written
+        result.metadata_error_code = metadata_error_code
         _append_run_record(
             base_path,
             run_id=run_id,
@@ -675,41 +775,28 @@ def ensure_blog_image(
             comfy_client.close()
 
     if generation.error_code or not generation.png_bytes:
-        result.status = "failed"
-        result.error_code = generation.error_code or BLOG_IMAGE_GENERATION_COMFYUI_FAILED
-        completed_at = utc_now_iso()
-        summary = _build_metadata_summary(result)
-        result.metadata_written = _persist_campaign_blog_image_generation(
-            base_path, campaign_id, summary
-        )
-        _append_run_record(
-            base_path,
-            run_id=run_id,
-            summary=summary,
+        propagated_code = generation.error_code or BLOG_IMAGE_GENERATION_COMFYUI_FAILED
+        return _finalize_failure(
+            result,
+            error_code=propagated_code,
+            base_path=base_path,
+            campaign_id=campaign_id,
             started_at=started_at,
-            completed_at=completed_at,
+            run_id=run_id,
         )
-        return result
 
     try:
         ready_png_path.parent.mkdir(parents=True, exist_ok=True)
         ready_png_path.write_bytes(generation.png_bytes)
     except OSError:
-        result.status = "failed"
-        result.error_code = BLOG_IMAGE_GENERATION_WRITE_FAILED
-        completed_at = utc_now_iso()
-        summary = _build_metadata_summary(result)
-        result.metadata_written = _persist_campaign_blog_image_generation(
-            base_path, campaign_id, summary
-        )
-        _append_run_record(
-            base_path,
-            run_id=run_id,
-            summary=summary,
+        return _finalize_failure(
+            result,
+            error_code=BLOG_IMAGE_GENERATION_WRITE_FAILED,
+            base_path=base_path,
+            campaign_id=campaign_id,
             started_at=started_at,
-            completed_at=completed_at,
+            run_id=run_id,
         )
-        return result
 
     if repo_path is None:
         return _handoff_failure_result(
@@ -745,15 +832,13 @@ def ensure_blog_image(
             _patch_frontmatter_image(source_md, public_slug)
             result.front_matter_updated = True
         except (OSError, PublishError):
-            result.status = "failed"
-            result.error_code = BLOG_IMAGE_GENERATION_FRONTMATTER_UPDATE_FAILED
-            return _finalize_success(
+            return _finalize_failure(
                 result,
+                error_code=BLOG_IMAGE_GENERATION_FRONTMATTER_UPDATE_FAILED,
                 base_path=base_path,
                 campaign_id=campaign_id,
                 started_at=started_at,
                 run_id=run_id,
-                status="failed",
             )
 
     return _finalize_success(

@@ -29,6 +29,8 @@ from silverman_blog_linkedin.github_pages_publish import (
     run_publish,
 )
 from silverman_blog_linkedin.blog_image_generation import (
+    BLOG_IMAGE_GENERATION_DISABLED,
+    BLOG_IMAGE_GENERATION_FAILED,
     WARNING_READY_SIBLING_BACKFILL_FAILED,
 )
 from silverman_blog_linkedin.campaign_lifecycle import (
@@ -1091,7 +1093,7 @@ def test_published_campaign_metadata_has_idempotency_key(
     assert campaign["blog_publish"]["idempotency_key"] == expected_key
 
 
-def test_disabled_generation_validation_fails_without_image(
+def test_disabled_generation_fails_with_specific_image_error(
     editorial_base: Path, public_repo: Path
 ):
     _write_post(
@@ -1103,13 +1105,33 @@ def test_disabled_generation_validation_fails_without_image(
     result = _publish(editorial_base, public_repo)
 
     assert result.status == "failed"
-    assert BLOG_PUBLISH_VALIDATION_FAILED in result.errors
-    assert (
-        FRONTMATTER_REQUIRED_FIELD_MISSING in result.errors
-        or READY_POST_IMAGE_MISSING in result.errors
-    )
-    assert result.blog_image_generation.get("skip_reason") == "generation_disabled"
+    assert BLOG_IMAGE_GENERATION_DISABLED in result.errors
+    assert result.blog_image_generation.get("error_code") == BLOG_IMAGE_GENERATION_DISABLED
     assert not list((public_repo / "_posts").glob("*.md"))
+
+
+def test_publish_surfaces_specific_comfyui_timeout_error(
+    editorial_base: Path, public_repo: Path
+):
+    from silverman_blog_linkedin.comfyui_client import BLOG_IMAGE_GENERATION_TIMEOUT
+
+    _write_post(
+        editorial_base,
+        frontmatter=_canonical_frontmatter(include_image=False),
+        with_png=False,
+    )
+
+    result = _publish(
+        editorial_base,
+        public_repo,
+        environ=_comfy_enabled_env(editorial_base, public_repo),
+        comfyui_client=FakeComfyUIClient(error_code=BLOG_IMAGE_GENERATION_TIMEOUT),
+    )
+
+    assert result.status == "failed"
+    assert BLOG_IMAGE_GENERATION_TIMEOUT in result.errors
+    assert result.errors.count(BLOG_IMAGE_GENERATION_FAILED) == 0
+    assert result.blog_image_generation.get("error_code") == BLOG_IMAGE_GENERATION_TIMEOUT
 
 
 def test_enabled_generation_then_publish_success(
