@@ -45,6 +45,14 @@ Written to the public blog repo checkout when `--apply` is used (using the **pub
 
 Frontmatter includes `layout`, `title`, `date`, `categories`, `tags`, `description`, and `image: /assets/images/<public-slug>.png`.
 
+When the intended URL date would be **future-relative** to publish execution time, Jekyll would exclude the post from the site build (GitHub Pages does not enable `future: true`). Flow A and bridge `--apply` therefore write a **safe publication timestamp** (`date` at or before execution time) and add an explicit `permalink` preserving the intended `/YYYY/MM/DD/<public-slug>/` path. The `_posts/` filename and reported `public_url` still use the **intended URL date**.
+
+When the intended URL date is already safe, `date` uses `YYYY-MM-DD 00:00:00 -0500` as before and no `permalink` is added.
+
+**Do not manually edit public-repo `date` or `permalink` after a normal Flow A publish** — the bridge computes Jekyll-safe values automatically. Manual edits are only for exceptional recovery.
+
+Optional bridge parameter `on_future_date=fail` rejects future-relative intended dates with error code `blog_publish_future_date_requires_scheduled_execution` instead of adjusting (Flow A uses `adjust` by default).
+
 ### Metadata expectations
 
 Before real publication, source posts in `blog-posts/ready/` should already include appropriate `categories` and `tags`. The helper preserves them when present and defaults to empty lists when absent; it does not fabricate taxonomy.

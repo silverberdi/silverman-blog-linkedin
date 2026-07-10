@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -25,6 +25,7 @@ from silverman_blog_linkedin.blog_publish_flow import (
 )
 from silverman_blog_linkedin.github_pages_publish import (
     BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED,
+    EDITORIAL_TZ,
     render_expected_public_post,
     run_publish,
 )
@@ -155,6 +156,7 @@ def _publish(
     relative: str = SOURCE_RELATIVE,
     environ: dict[str, str] | None = None,
     comfyui_client=None,
+    execution_time: datetime | None = None,
 ):
     return publish_blog_post(
         editorial_base,
@@ -163,6 +165,7 @@ def _publish(
         github_pages_repo_path=str(repo_path),
         environ=environ or _publish_env(editorial_base, repo_path),
         comfyui_client=comfyui_client,
+        execution_time=execution_time,
     )
 
 
@@ -1308,3 +1311,130 @@ def test_bridge_apply_succeeds_when_public_image_pre_handoff(
         sibling_bytes
     )
     assert (public_repo / "_posts" / f"{PUBLICATION_DATE}-{PUBLIC_SLUG}.md").is_file()
+
+
+POST_02_SOURCE_SLUG = "02-deferring-is-not-avoiding-it-can-be-architecture"
+POST_02_PUBLIC_SLUG = "deferring-is-not-avoiding-it-can-be-architecture"
+POST_02_PUBLICATION_DATE = "2026-07-10"
+POST_02_EXECUTION_TIME = datetime(2026, 7, 9, 21, 8, 0, tzinfo=EDITORIAL_TZ)
+POST_02_SOURCE_RELATIVE = f"blog-posts/ready/{POST_02_SOURCE_SLUG}.md"
+POST_02_CAMPAIGN_ID = f"flow-a-{POST_02_PUBLICATION_DATE}-{POST_02_PUBLIC_SLUG}"
+
+
+def _write_post_02(editorial_base: Path) -> Path:
+    ready = editorial_base / "blog-posts" / "ready"
+    ready.mkdir(parents=True, exist_ok=True)
+    md_path = ready / f"{POST_02_SOURCE_SLUG}.md"
+    md_path.write_text(
+        "---\n"
+        "title: Deferring Is Not Avoiding — It Can Be Architecture\n"
+        "audience: architects\n"
+        "type: blog-post\n"
+        "language: en\n"
+        "layout: post\n"
+        f"date: {POST_02_PUBLICATION_DATE}\n"
+        "categories:\n"
+        "  - architecture\n"
+        "tags:\n"
+        "  - leadership\n"
+        "description: On intentional deferral as an architectural choice.\n"
+        f"image: /assets/images/{POST_02_PUBLIC_SLUG}.png\n"
+        "---\n"
+        "# Deferring Is Not Avoiding\n\n"
+        "Editorial body for post 02 regression.\n",
+        encoding="utf-8",
+    )
+    (ready / f"{POST_02_SOURCE_SLUG}.png").write_bytes(b"\x89PNG\r\n\x1a\nfake")
+    return md_path
+
+
+def _validated_post_02_campaign(editorial_base: Path) -> dict:
+    content = _write_post_02(editorial_base).read_text(encoding="utf-8")
+    campaign = build_initial_campaign_metadata(
+        flow=FLOW_A,
+        source_slug=POST_02_SOURCE_SLUG,
+        public_slug=POST_02_PUBLIC_SLUG,
+        source_relative_path=POST_02_SOURCE_RELATIVE,
+        image_relative_path=f"blog-posts/ready/{POST_02_SOURCE_SLUG}.png",
+        source_content=content,
+        publication_date=POST_02_PUBLICATION_DATE,
+    )
+    transition_state(
+        campaign,
+        STATE_VALIDATED,
+        reason="Editorial validation passed",
+        actor=ACTOR_WORKER,
+    )
+    write_campaign_metadata(editorial_base, POST_02_CAMPAIGN_ID, campaign)
+    return campaign
+
+
+def test_publish_adjusted_date_preserves_intended_source_public_url(
+    editorial_base: Path, public_repo: Path
+):
+    _validated_post_02_campaign(editorial_base)
+
+    result = _publish(
+        editorial_base,
+        public_repo,
+        relative=POST_02_SOURCE_RELATIVE,
+        execution_time=POST_02_EXECUTION_TIME,
+    )
+
+    expected_url = (
+        f"{SITE_URL}/2026/07/10/{POST_02_PUBLIC_SLUG}/"
+    )
+    assert result.status == "completed"
+    assert result.source_public_url == expected_url
+    assert result.blog_publish["source_public_url"] == expected_url
+    assert result.blog_publish.get("date_adjusted") is True
+    assert result.blog_publish.get("permalink") == (
+        f"/2026/07/10/{POST_02_PUBLIC_SLUG}/"
+    )
+
+    post_path = (
+        public_repo
+        / "_posts"
+        / f"{POST_02_PUBLICATION_DATE}-{POST_02_PUBLIC_SLUG}.md"
+    )
+    assert post_path.is_file()
+    post_body = post_path.read_text(encoding="utf-8")
+    assert "date: 2026-07-09 21:08:00 -0500" in post_body
+    assert (
+        f"permalink: /2026/07/10/{POST_02_PUBLIC_SLUG}/" in post_body
+        or f'permalink: "/2026/07/10/{POST_02_PUBLIC_SLUG}/"' in post_body
+    )
+
+
+def test_reconcile_adjusted_date_public_post_matches_canonical_output(
+    editorial_base: Path, public_repo: Path
+):
+    _validated_post_02_campaign(editorial_base)
+    md_path = editorial_base / POST_02_SOURCE_RELATIVE
+    post_body = render_expected_public_post(
+        md_path,
+        POST_02_PUBLIC_SLUG,
+        date.fromisoformat(POST_02_PUBLICATION_DATE),
+        execution_time=POST_02_EXECUTION_TIME,
+    )
+    post_path = (
+        public_repo
+        / "_posts"
+        / f"{POST_02_PUBLICATION_DATE}-{POST_02_PUBLIC_SLUG}.md"
+    )
+    image_path = public_repo / "assets/images" / f"{POST_02_PUBLIC_SLUG}.png"
+    post_path.write_text(post_body, encoding="utf-8")
+    image_path.write_bytes((editorial_base / f"blog-posts/ready/{POST_02_SOURCE_SLUG}.png").read_bytes())
+
+    result = _publish(
+        editorial_base,
+        public_repo,
+        relative=POST_02_SOURCE_RELATIVE,
+        execution_time=POST_02_EXECUTION_TIME,
+    )
+
+    assert result.status == "completed"
+    assert result.blog_publish["status"] == "reconciled"
+    assert result.source_public_url == (
+        f"{SITE_URL}/2026/07/10/{POST_02_PUBLIC_SLUG}/"
+    )

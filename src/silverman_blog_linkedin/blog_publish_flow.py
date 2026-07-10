@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict, dataclass, field
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -534,6 +534,7 @@ def _compare_public_targets(
     post_relative: str,
     image_relative: str,
     pub_date: date,
+    execution_time: datetime,
 ) -> PublicTargetComparison | None:
     """Compare public artifacts against canonical publish output for the ready source."""
     assert preflight.source_slug is not None
@@ -551,7 +552,10 @@ def _compare_public_targets(
 
     try:
         expected_post = render_expected_public_post(
-            source_md, preflight.public_slug, pub_date
+            source_md,
+            preflight.public_slug,
+            pub_date,
+            execution_time=execution_time,
         )
         actual_post = public_post.read_text(encoding="utf-8")
         expected_image = source_png.read_bytes()
@@ -663,6 +667,7 @@ def _reconciliation_skip_reason(
     post_relative: str,
     image_relative: str,
     pub_date: date,
+    execution_time: datetime,
 ) -> tuple[str | None, dict[str, Any], PublicTargetComparison | None]:
     if campaign.get("state") not in RECONCILABLE_PUBLISH_STATES:
         return RECONCILIATION_SKIPPED_STATE_NOT_ALLOWED, {}, None
@@ -710,6 +715,7 @@ def _reconciliation_skip_reason(
         post_relative=post_relative,
         image_relative=image_relative,
         pub_date=pub_date,
+        execution_time=execution_time,
     )
     if comparison is None:
         return RECONCILIATION_SKIPPED_PUBLIC_CONTENT_MISMATCH, {}, None
@@ -766,6 +772,7 @@ def _attempt_blog_publish_reconciliation(
     warnings: list[str],
     validation_summary: dict[str, Any],
     blog_image_generation: dict[str, Any] | None = None,
+    execution_time: datetime,
 ) -> BlogPublishResult | None:
     """Reconcile metadata when both public targets exist; otherwise explain skip."""
     if campaign.get("state") not in RECONCILABLE_PUBLISH_STATES:
@@ -787,6 +794,7 @@ def _attempt_blog_publish_reconciliation(
         post_relative=post_relative,
         image_relative=image_relative,
         pub_date=pub_date,
+        execution_time=execution_time,
     )
     if skip_reason is None and comparison is not None:
         return _reconcile_existing_publication(
@@ -982,8 +990,14 @@ def publish_blog_post(
     github_pages_repo_path: str | None = None,
     environ: dict[str, str] | None = None,
     comfyui_client: ComfyUIClientProtocol | None = None,
+    execution_time: datetime | None = None,
 ) -> BlogPublishResult:
     """Orchestrate Flow A blog publishing for one ready post."""
+    publish_execution_time = (
+        execution_time
+        if execution_time is not None
+        else datetime.now(timezone.utc)
+    )
     preflight = _preflight_inspect(
         base_path,
         source_relative_path,
@@ -1237,6 +1251,7 @@ def publish_blog_post(
         warnings=warnings,
         validation_summary=validation_summary,
         blog_image_generation=blog_image_generation_summary,
+        execution_time=publish_execution_time,
     )
     if reconciliation_result is not None:
         return reconciliation_result
@@ -1302,6 +1317,7 @@ def publish_blog_post(
             apply=True,
             public_slug_override=public_slug_override,
             environ=env,
+            execution_time=publish_execution_time,
         )
     except PublishError as exc:
         error_code = BLOG_PUBLISH_TARGET_EXISTS
@@ -1322,6 +1338,7 @@ def publish_blog_post(
                 warnings=warnings,
                 validation_summary=validation_summary,
                 blog_image_generation=blog_image_generation_summary,
+                execution_time=publish_execution_time,
             )
             if overwrite_reconciliation is not None:
                 return overwrite_reconciliation
@@ -1388,6 +1405,11 @@ def publish_blog_post(
         "public_repo_image_path": plan.image_relative,
         "error_code": None,
     }
+    if plan.date_adjusted:
+        blog_publish["date_adjusted"] = True
+        blog_publish["publish_timestamp"] = plan.publish_timestamp.isoformat()
+        if plan.permalink:
+            blog_publish["permalink"] = plan.permalink
     campaign["blog_publish"] = blog_publish
     campaign["source_public_url"] = plan.public_url
 

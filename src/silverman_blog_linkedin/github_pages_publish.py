@@ -9,9 +9,9 @@ import re
 import shutil
 import sys
 from dataclasses import asdict, dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 
@@ -29,12 +29,22 @@ ENV_SITE_URL = "SILVERMAN_SITE_URL"
 DEFAULT_SITE_URL = "https://silverman.pro"
 DEFAULT_LAYOUT = "post"
 JEKYLL_DATE_SUFFIX = " 00:00:00 -0500"
+EDITORIAL_TZ = timezone(timedelta(hours=-5))
 
 BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED = "blog_image_public_asset_handoff_failed"
+BLOG_PUBLISH_FUTURE_DATE_REQUIRES_SCHEDULED_EXECUTION = (
+    "blog_publish_future_date_requires_scheduled_execution"
+)
+
+OnFutureDate = Literal["adjust", "fail"]
 
 
 class PublishError(Exception):
     """Validation or publish conflict error with a user-facing message."""
+
+    def __init__(self, message: str, *, error_code: str | None = None) -> None:
+        super().__init__(message)
+        self.error_code = error_code
 
 
 @dataclass(frozen=True)
@@ -42,6 +52,14 @@ class PublishConfig:
     editorial_base: Path
     repo_path: Path
     site_url: str
+
+
+@dataclass(frozen=True)
+class PublishDateResolution:
+    intended_url_date: date
+    publish_timestamp: datetime
+    permalink: str | None
+    date_adjusted: bool
 
 
 @dataclass(frozen=True)
@@ -57,6 +75,10 @@ class PublishPlan:
     post_relative: str
     image_relative: str
     public_url: str
+    intended_url_date: date
+    publish_timestamp: datetime
+    date_adjusted: bool
+    permalink: str | None
     status: str = "ready"
 
 
@@ -198,8 +220,72 @@ def public_url(site_url: str, publication_date: date, slug: str) -> str:
     )
 
 
+def intended_permalink(public_slug: str, intended_url_date: date) -> str:
+    validate_slug(public_slug, label="public slug")
+    return (
+        f"/{intended_url_date.year:04d}/"
+        f"{intended_url_date.month:02d}/"
+        f"{intended_url_date.day:02d}/"
+        f"{public_slug}/"
+    )
+
+
+def _intended_jekyll_datetime(intended_url_date: date) -> datetime:
+    return datetime(
+        intended_url_date.year,
+        intended_url_date.month,
+        intended_url_date.day,
+        0,
+        0,
+        0,
+        tzinfo=EDITORIAL_TZ,
+    )
+
+
+def resolve_publish_dates(
+    intended_url_date: date,
+    execution_time: datetime,
+    public_slug: str,
+    *,
+    on_future_date: OnFutureDate = "adjust",
+) -> PublishDateResolution:
+    """Resolve Jekyll-safe publication timestamp vs intended URL date."""
+    validate_slug(public_slug, label="public slug")
+    exec_utc = execution_time.astimezone(timezone.utc)
+    intended_dt = _intended_jekyll_datetime(intended_url_date)
+
+    if intended_dt.astimezone(timezone.utc) > exec_utc:
+        if on_future_date == "fail":
+            raise PublishError(
+                (
+                    f"intended URL date {intended_url_date.isoformat()} is "
+                    f"future-relative to execution time; scheduled execution required"
+                ),
+                error_code=BLOG_PUBLISH_FUTURE_DATE_REQUIRES_SCHEDULED_EXECUTION,
+            )
+        publish_timestamp = exec_utc.astimezone(EDITORIAL_TZ).replace(microsecond=0)
+        return PublishDateResolution(
+            intended_url_date=intended_url_date,
+            publish_timestamp=publish_timestamp,
+            permalink=intended_permalink(public_slug, intended_url_date),
+            date_adjusted=True,
+        )
+
+    return PublishDateResolution(
+        intended_url_date=intended_url_date,
+        publish_timestamp=intended_dt,
+        permalink=None,
+        date_adjusted=False,
+    )
+
+
+def format_jekyll_date(publish_timestamp: datetime) -> str:
+    local = publish_timestamp.astimezone(EDITORIAL_TZ)
+    return local.strftime("%Y-%m-%d %H:%M:%S") + " -0500"
+
+
 def jekyll_date(publication_date: date) -> str:
-    return f"{publication_date.isoformat()}{JEKYLL_DATE_SUFFIX}"
+    return format_jekyll_date(_intended_jekyll_datetime(publication_date))
 
 
 def _title_from_slug(slug: str) -> str:
@@ -255,7 +341,9 @@ def _resolve_description(frontmatter: dict[str, Any]) -> str:
 
 
 def prepare_frontmatter(
-    source_md: Path, public_slug: str, publication_date: date
+    source_md: Path,
+    public_slug: str,
+    date_resolution: PublishDateResolution,
 ) -> tuple[dict[str, Any], str]:
     content = source_md.read_text(encoding="utf-8")
     existing, body = _split_frontmatter(content)
@@ -264,7 +352,11 @@ def prepare_frontmatter(
     frontmatter.pop("status", None)
     frontmatter["layout"] = frontmatter.get("layout") or DEFAULT_LAYOUT
     frontmatter["title"] = frontmatter.get("title") or _title_from_slug(public_slug)
-    frontmatter["date"] = jekyll_date(publication_date)
+    frontmatter["date"] = format_jekyll_date(date_resolution.publish_timestamp)
+    if date_resolution.permalink is not None:
+        frontmatter["permalink"] = date_resolution.permalink
+    else:
+        frontmatter.pop("permalink", None)
     frontmatter["categories"] = _normalize_list(frontmatter.get("categories"))
     frontmatter["tags"] = _normalize_list(frontmatter.get("tags"))
     frontmatter["description"] = _resolve_description(frontmatter)
@@ -287,10 +379,26 @@ def render_markdown(frontmatter: dict[str, Any], body: str) -> str:
 
 
 def render_expected_public_post(
-    source_md: Path, public_slug: str, publication_date: date
+    source_md: Path,
+    public_slug: str,
+    intended_url_date: date,
+    *,
+    execution_time: datetime | None = None,
+    on_future_date: OnFutureDate = "adjust",
 ) -> str:
     """Return the canonical Jekyll post body that publish would write."""
-    frontmatter, body = prepare_frontmatter(source_md, public_slug, publication_date)
+    exec_time = (
+        execution_time
+        if execution_time is not None
+        else datetime.now(timezone.utc)
+    )
+    resolution = resolve_publish_dates(
+        intended_url_date,
+        exec_time,
+        public_slug,
+        on_future_date=on_future_date,
+    )
+    frontmatter, body = prepare_frontmatter(source_md, public_slug, resolution)
     return render_markdown(frontmatter, body)
 
 
@@ -416,19 +524,33 @@ def build_plan(
     *,
     apply: bool,
     public_slug_override: str | None = None,
+    execution_time: datetime | None = None,
+    on_future_date: OnFutureDate = "adjust",
 ) -> PublishPlan:
     public_slug = resolve_public_slug(source_slug, public_slug_override)
     validate_repo_layout(config.repo_path)
     source_md, source_png = resolve_source_paths(config, source_slug)
+    intended_url_date = publication_date
+    exec_time = (
+        execution_time
+        if execution_time is not None
+        else datetime.now(timezone.utc)
+    )
+    date_resolution = resolve_publish_dates(
+        intended_url_date,
+        exec_time,
+        public_slug,
+        on_future_date=on_future_date,
+    )
     post_target, image_target, post_relative, image_relative = target_paths(
-        config, public_slug, publication_date
+        config, public_slug, intended_url_date
     )
     check_no_overwrite(post_target, image_target, source_png=source_png)
 
     return PublishPlan(
         source_slug=source_slug,
         public_slug=public_slug,
-        publication_date=publication_date,
+        publication_date=intended_url_date,
         mode="apply" if apply else "dry-run",
         source_md=source_md,
         source_png=source_png,
@@ -436,13 +558,26 @@ def build_plan(
         image_target=image_target,
         post_relative=post_relative,
         image_relative=image_relative,
-        public_url=public_url(config.site_url, publication_date, public_slug),
+        public_url=public_url(config.site_url, intended_url_date, public_slug),
+        intended_url_date=date_resolution.intended_url_date,
+        publish_timestamp=date_resolution.publish_timestamp,
+        date_adjusted=date_resolution.date_adjusted,
+        permalink=date_resolution.permalink,
     )
 
 
-def apply_plan(plan: PublishPlan) -> None:
+def apply_plan(
+    plan: PublishPlan,
+    *,
+    execution_time: datetime | None = None,
+    on_future_date: OnFutureDate = "adjust",
+) -> None:
     markdown = render_expected_public_post(
-        plan.source_md, plan.public_slug, plan.publication_date
+        plan.source_md,
+        plan.public_slug,
+        plan.intended_url_date,
+        execution_time=execution_time or plan.publish_timestamp,
+        on_future_date=on_future_date,
     )
 
     plan.post_target.parent.mkdir(parents=True, exist_ok=True)
@@ -455,6 +590,8 @@ def apply_plan(plan: PublishPlan) -> None:
 def plan_to_dict(plan: PublishPlan) -> dict[str, Any]:
     data = asdict(plan)
     data["publication_date"] = plan.publication_date.isoformat()
+    data["intended_url_date"] = plan.intended_url_date.isoformat()
+    data["publish_timestamp"] = plan.publish_timestamp.isoformat()
     data["source_md"] = str(plan.source_md)
     data["source_png"] = str(plan.source_png)
     data["post_target"] = plan.post_relative
@@ -467,6 +604,12 @@ def print_summary(plan: PublishPlan) -> None:
     print(f"public_slug: {plan.public_slug}")
     print(f"mode: {plan.mode}")
     print(f"publication_date: {plan.publication_date.isoformat()}")
+    print(f"intended_url_date: {plan.intended_url_date.isoformat()}")
+    print(f"publish_timestamp: {format_jekyll_date(plan.publish_timestamp)}")
+    if plan.date_adjusted:
+        print(f"date_adjusted: true")
+        if plan.permalink:
+            print(f"permalink: {plan.permalink}")
     print(f"post_target: {plan.post_relative}")
     print(f"image_target: {plan.image_relative}")
     print(f"public_url: {plan.public_url}")
@@ -481,6 +624,8 @@ def run_publish(
     json_output: bool = False,
     public_slug_override: str | None = None,
     environ: dict[str, str] | None = None,
+    execution_time: datetime | None = None,
+    on_future_date: OnFutureDate = "adjust",
 ) -> PublishPlan:
     import os
 
@@ -494,16 +639,23 @@ def run_publish(
         if publication_date is not None
         else parse_publication_date(None)
     )
+    exec_time = (
+        execution_time
+        if execution_time is not None
+        else datetime.now(timezone.utc)
+    )
     plan = build_plan(
         config,
         source_slug,
         pub_date,
         apply=apply,
         public_slug_override=public_slug_override,
+        execution_time=exec_time,
+        on_future_date=on_future_date,
     )
 
     if apply:
-        apply_plan(plan)
+        apply_plan(plan, execution_time=exec_time, on_future_date=on_future_date)
 
     if json_output:
         print(json.dumps(plan_to_dict(plan), indent=2))

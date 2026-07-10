@@ -5,17 +5,21 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
 import yaml
 
 from silverman_blog_linkedin.github_pages_publish import (
+    BLOG_PUBLISH_FUTURE_DATE_REQUIRES_SCHEDULED_EXECUTION,
+    EDITORIAL_TZ,
     PublishError,
     apply_plan,
     build_plan,
     derive_public_slug,
+    format_jekyll_date,
+    intended_permalink,
     jekyll_date,
     load_config,
     main,
@@ -23,15 +27,29 @@ from silverman_blog_linkedin.github_pages_publish import (
     public_url,
     render_markdown,
     resolve_public_slug,
+    resolve_publish_dates,
     run_publish,
     target_paths,
     validate_slug,
 )
 
 FIXED_DATE = date(2026, 7, 6)
+SAFE_EXECUTION_TIME = datetime(2026, 7, 6, 15, 0, 0, tzinfo=EDITORIAL_TZ)
+POST_02_SOURCE_SLUG = "02-deferring-is-not-avoiding-it-can-be-architecture"
+POST_02_PUBLIC_SLUG = "deferring-is-not-avoiding-it-can-be-architecture"
+POST_02_INTENDED_DATE = date(2026, 7, 10)
+POST_02_EXECUTION_TIME = datetime(2026, 7, 9, 21, 8, 0, tzinfo=EDITORIAL_TZ)
 SLUG = "example-post"
 SOURCE_SLUG_WITH_PREFIX = "01-why-i-did-not-start-with-the-database"
 PUBLIC_SLUG_FROM_PREFIX = "why-i-did-not-start-with-the-database"
+
+
+def _safe_resolution(
+    intended_url_date: date = FIXED_DATE,
+    execution_time: datetime = SAFE_EXECUTION_TIME,
+    public_slug: str = SLUG,
+):
+    return resolve_publish_dates(intended_url_date, execution_time, public_slug)
 
 
 def _env(editorial_base: Path, repo_path: Path) -> dict[str, str]:
@@ -191,7 +209,7 @@ def test_frontmatter_image_path(tmp_path: Path) -> None:
     md_path = tmp_path / "source.md"
     md_path.write_text("---\ntitle: Keep Me\n---\nBody\n", encoding="utf-8")
 
-    frontmatter, body = prepare_frontmatter(md_path, SLUG, FIXED_DATE)
+    frontmatter, body = prepare_frontmatter(md_path, SLUG, _safe_resolution())
 
     assert frontmatter["image"] == "/assets/images/example-post.png"
     assert frontmatter["layout"] == "post"
@@ -212,7 +230,7 @@ def test_status_draft_removed_from_published_frontmatter(tmp_path: Path) -> None
         encoding="utf-8",
     )
 
-    frontmatter, body = prepare_frontmatter(md_path, SLUG, FIXED_DATE)
+    frontmatter, body = prepare_frontmatter(md_path, SLUG, _safe_resolution())
     rendered = render_markdown(frontmatter, body)
     parsed = yaml.safe_load(rendered.split("---", 2)[1])
 
@@ -228,7 +246,7 @@ def test_description_falls_back_to_subtitle(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    frontmatter, _ = prepare_frontmatter(md_path, SLUG, FIXED_DATE)
+    frontmatter, _ = prepare_frontmatter(md_path, SLUG, _safe_resolution())
 
     assert frontmatter["description"] == "A concise editorial subtitle"
     assert "subtitle" not in frontmatter
@@ -241,7 +259,7 @@ def test_existing_description_not_replaced_by_subtitle(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    frontmatter, _ = prepare_frontmatter(md_path, SLUG, FIXED_DATE)
+    frontmatter, _ = prepare_frontmatter(md_path, SLUG, _safe_resolution())
 
     assert frontmatter["description"] == "Keep this"
 
@@ -254,7 +272,7 @@ def test_no_invented_description_without_subtitle(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    frontmatter, _ = prepare_frontmatter(md_path, SLUG, FIXED_DATE)
+    frontmatter, _ = prepare_frontmatter(md_path, SLUG, _safe_resolution())
 
     assert frontmatter["description"] == ""
 
@@ -447,3 +465,109 @@ def test_cli_module_invocation(tmp_path: Path) -> None:
     assert "public_slug: example-post" in result.stdout
     assert "public_url: https://silverman.pro/2026/07/06/example-post/" in result.stdout
     assert not (repo / "_posts/2026-07-06-example-post.md").exists()
+
+
+def test_resolve_publish_dates_adjusts_future_intended_date() -> None:
+    resolution = resolve_publish_dates(
+        POST_02_INTENDED_DATE,
+        POST_02_EXECUTION_TIME,
+        POST_02_PUBLIC_SLUG,
+    )
+
+    assert resolution.intended_url_date == POST_02_INTENDED_DATE
+    assert resolution.date_adjusted is True
+    assert resolution.permalink == (
+        "/2026/07/10/deferring-is-not-avoiding-it-can-be-architecture/"
+    )
+    assert format_jekyll_date(resolution.publish_timestamp) == (
+        "2026-07-09 21:08:00 -0500"
+    )
+
+
+def test_resolve_publish_dates_safe_date_unchanged() -> None:
+    resolution = resolve_publish_dates(
+        FIXED_DATE,
+        SAFE_EXECUTION_TIME,
+        SLUG,
+    )
+
+    assert resolution.date_adjusted is False
+    assert resolution.permalink is None
+    assert format_jekyll_date(resolution.publish_timestamp) == jekyll_date(FIXED_DATE)
+
+
+def test_intended_permalink_path() -> None:
+    assert intended_permalink(POST_02_PUBLIC_SLUG, POST_02_INTENDED_DATE) == (
+        "/2026/07/10/deferring-is-not-avoiding-it-can-be-architecture/"
+    )
+
+
+def test_on_future_date_fail_raises_stable_error() -> None:
+    with pytest.raises(PublishError) as exc_info:
+        resolve_publish_dates(
+            POST_02_INTENDED_DATE,
+            POST_02_EXECUTION_TIME,
+            POST_02_PUBLIC_SLUG,
+            on_future_date="fail",
+        )
+
+    assert exc_info.value.error_code == (
+        BLOG_PUBLISH_FUTURE_DATE_REQUIRES_SCHEDULED_EXECUTION
+    )
+
+
+def test_future_date_apply_writes_safe_date_and_permalink(tmp_path: Path) -> None:
+    editorial = tmp_path / "editorial"
+    repo = tmp_path / "repo"
+    _setup_editorial(editorial, slug=POST_02_SOURCE_SLUG)
+    _setup_repo(repo)
+
+    plan = run_publish(
+        POST_02_SOURCE_SLUG,
+        publication_date=POST_02_INTENDED_DATE,
+        apply=True,
+        execution_time=POST_02_EXECUTION_TIME,
+        environ=_env(editorial, repo),
+    )
+
+    assert plan.date_adjusted is True
+    assert plan.post_relative == (
+        "_posts/2026-07-10-deferring-is-not-avoiding-it-can-be-architecture.md"
+    )
+    assert plan.public_url == (
+        "https://silverman.pro/2026/07/10/"
+        "deferring-is-not-avoiding-it-can-be-architecture/"
+    )
+    assert plan.permalink == (
+        "/2026/07/10/deferring-is-not-avoiding-it-can-be-architecture/"
+    )
+
+    post_path = repo / plan.post_relative
+    parsed = yaml.safe_load(post_path.read_text(encoding="utf-8").split("---", 2)[1])
+    assert parsed["date"] == "2026-07-09 21:08:00 -0500"
+    assert parsed["permalink"] == (
+        "/2026/07/10/deferring-is-not-avoiding-it-can-be-architecture/"
+    )
+
+
+def test_safe_date_apply_omits_permalink(tmp_path: Path) -> None:
+    editorial = tmp_path / "editorial"
+    repo = tmp_path / "repo"
+    _setup_editorial(editorial)
+    _setup_repo(repo)
+
+    plan = run_publish(
+        SLUG,
+        publication_date=FIXED_DATE,
+        apply=True,
+        execution_time=SAFE_EXECUTION_TIME,
+        environ=_env(editorial, repo),
+    )
+
+    assert plan.date_adjusted is False
+    assert plan.permalink is None
+
+    post_path = repo / plan.post_relative
+    parsed = yaml.safe_load(post_path.read_text(encoding="utf-8").split("---", 2)[1])
+    assert parsed["date"] == jekyll_date(FIXED_DATE)
+    assert "permalink" not in parsed
