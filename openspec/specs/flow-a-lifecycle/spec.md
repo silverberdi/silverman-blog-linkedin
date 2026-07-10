@@ -25,7 +25,6 @@ This change MUST NOT parse or apply editorial canon content at runtime.
 
 - **WHEN** lifecycle transition helpers are invoked for a campaign with `flow` `flow_b`
 - **THEN** the operation is rejected with machine-readable error code `flow_b_not_eligible_for_flow_a`
-
 ### Requirement: Campaign metadata storage path
 
 The system SHALL persist per-campaign lifecycle metadata at `metadata/campaigns/<campaign-id>.json` relative to the editorial base path.
@@ -46,7 +45,6 @@ The worker MUST verify `metadata/campaigns/` exists, is a directory, and is writ
 
 - **WHEN** `write_campaign_metadata` completes (success or failure)
 - **THEN** the caller receives a `CampaignMetadataWriteResult` with `written` boolean and optional `error_code` (`invalid_campaign_id`, `metadata_campaigns_not_ready`, `metadata_campaigns_not_writable`, or `campaign_metadata_write_failed`)
-
 ### Requirement: Campaign ID format
 
 Campaign IDs MUST be stable across reruns and safe as single path segments.
@@ -77,59 +75,58 @@ Canonical example:
 
 - **WHEN** `campaign_metadata_relative_path`, `write_campaign_metadata`, or `read_campaign_metadata` is called with an invalid campaign ID (for example `../evil`, `random-file`, or uppercase slug segments)
 - **THEN** path helpers raise `invalid_campaign_id`, write returns `written: false` with `error_code` `invalid_campaign_id`, and read returns `None` without attempting filesystem access
+### Requirement: Authorized image-remediation source hash mutation
 
+When editorial image remediation patches or normalizes the canonical frontmatter `image` field as the only authorized Markdown mutation, the worker MUST follow this protocol on the same campaign:
+
+1. Record or retain the queue/intake digest for traceability in `intake_source_content_sha256` when not already set; otherwise preserve the existing intake value.
+2. Allow only the expected canonical `image` frontmatter mutation by the image-remediation phase.
+3. Recompute active `source_content_sha256` from updated Markdown bytes via `compute_source_content_sha256`.
+4. Persist the updated active hash on the same campaign before full validation and publish idempotency checks.
+5. Recompute the blog publish idempotency key from the updated active hash per existing namespaced key format.
+6. Preserve `campaign_id`, `source_slug`, `public_slug`, original path chain, queue metadata, attempt metadata, and `state_history`.
+7. MUST NOT classify authorized remediation as `campaign_content_hash_changed` or `blog_publish_content_hash_changed`.
+8. Any unrelated body or frontmatter mutation MUST still fail with the existing content-hash guard.
+9. Metadata-write failure during authorized hash reconciliation MUST block publish, return a stable explicit metadata error, and MUST NOT write public repo files.
+
+Authorized remediation MUST NOT create a new campaign document.
+
+#### Scenario: Missing image field patched by worker changes hash safely
+
+- **WHEN** editorial remediation adds `image: /assets/images/<public_slug>.png` to a queued source that omitted `image`
+- **THEN** `source_content_sha256` updates to the new digest, `intake_source_content_sha256` retains the pre-remediation digest, and `campaign_content_hash_changed` is not raised
+
+#### Scenario: Same campaign retained after authorized hash update
+
+- **WHEN** authorized hash reconciliation succeeds after frontmatter patch
+- **THEN** `campaign_id`, `source_slug`, `public_slug`, and queue path metadata remain unchanged on the same campaign document
+
+#### Scenario: Active hash and idempotency key updated
+
+- **WHEN** authorized hash reconciliation succeeds
+- **THEN** stored `source_content_sha256` and `blog_publish.idempotency_key` reflect the post-remediation digest before full validation and publish proceed
+
+#### Scenario: Body mutation still rejected
+
+- **WHEN** Markdown body bytes change between queue acceptance and publish outside authorized image remediation
+- **THEN** validation or publish guards fail with `campaign_content_hash_changed` or `blog_publish_content_hash_changed` and do not overwrite progressed metadata
+
+#### Scenario: Hash metadata persistence failure blocks handoff and publish
+
+- **WHEN** authorized hash reconciliation cannot persist campaign metadata
+- **THEN** publish returns failed with primary error `blog_publish_hash_reconciliation_failed`, public handoff is not invoked, and no public repo files are written
 ### Requirement: Campaign metadata required fields
 
-Each campaign metadata document MUST include at minimum:
+Each campaign metadata document MUST include at minimum the existing required fields per canonical `flow-a-lifecycle`.
 
-- `campaign_id`, `flow`, `state`, `created_at`, `updated_at`
-- `source_slug`, `public_slug`, `source_relative_path`, `image_relative_path`
-- `source_content_sha256`, `publication_date`
-- `source_public_url` (nullable until publish-confirmed)
-- `blog_publish` (object with idempotency key and publish status)
-- `variants` (array of derivative variant records)
-- `state_history` (array of transition records)
-- `errors` and `warnings` (arrays)
+When queue acceptance records an intake digest, the document MUST also include `intake_source_content_sha256` set to the SHA-256 digest at acceptance time.
 
-After successful Flow A source lifecycle completion, the document MUST also include:
+`source_content_sha256` MUST always represent the active canonical source digest used for publish and derivative idempotency. After authorized image-remediation frontmatter patch, `source_content_sha256` MUST be updated to the post-remediation digest while `intake_source_content_sha256` preserves the pre-remediation digest for traceability.
 
-- `original_source_relative_path` (immutable ready-folder path once set)
-- `processed_source_relative_path` (processed-folder path after move)
-- `original_image_relative_path` and `processed_image_relative_path` when a companion image was moved
+#### Scenario: Intake hash preserved after authorized remediation
 
-After queue acceptance (canonical spec `flow-a-operational-queue-lifecycle`), the document MUST also include when applicable:
-
-- `queued_source_relative_path` and optional `queued_image_relative_path`
-- `queued_at` and `last_transition_at`
-
-After error-folder placement, the document MUST also include when applicable:
-
-- `error_source_relative_path` and optional `error_image_relative_path`
-
-The document MUST include `source_file_status` with physical `location`, logical `execution_state`, optional execution attempt fields, `recovery_classification` (canonical enum), and `last_error` when set.
-
-`source_slug` and `public_slug` MUST remain unchanged by physical collision suffixes in `processed/` or `error/`.
-
-#### Scenario: Initial campaign document shape
-
-- **WHEN** a Flow A campaign is created for a ready post
-- **THEN** all required top-level fields are present, `state` is `ready`, `variants` is an array (possibly empty), and `state_history` contains the initial transition
-
-#### Scenario: Source fingerprint recorded without body
-
-- **WHEN** campaign metadata is created from source Markdown bytes
-- **THEN** `source_content_sha256` is a hex SHA-256 digest of the source content and no Markdown body field is stored in the campaign document
-
-#### Scenario: Lifecycle completion adds path traceability fields
-
-- **WHEN** Flow A source lifecycle completes successfully
-- **THEN** campaign metadata includes `original_source_relative_path`, `processed_source_relative_path`, and optional image path fields while retaining `source_content_sha256`
-
-#### Scenario: Queue acceptance adds queued path fields
-
-- **WHEN** queue acceptance succeeds for a Flow A source
-- **THEN** campaign metadata includes `queued_source_relative_path`, `queued_at`, `source_file_status.location` `queued`, and `execution_state` `idle`
-
+- **WHEN** editorial remediation patches frontmatter `image` after queue acceptance
+- **THEN** `intake_source_content_sha256` remains the acceptance-time digest and `source_content_sha256` reflects the updated Markdown bytes
 ### Requirement: Metadata body exclusion
 
 Campaign metadata MUST NOT store full content bodies.
@@ -147,7 +144,6 @@ Campaign metadata MAY store paths, hashes, statuses, schedule times, and error c
 
 - **WHEN** a variant entry is recorded after LinkedIn draft generation
 - **THEN** the variant record includes `draft_relative_path` and `draft_content_sha256` but not the draft text body
-
 ### Requirement: Canonical LinkedIn variant IDs
 
 The `variants[].variant` field MUST use a canonical variant ID defined in `content-strategy/silverman-editorial-system.md` (`#linkedin-derivative-package`).
@@ -172,7 +168,6 @@ New variant IDs MAY be introduced only by updating the editorial canon first; th
 
 - **WHEN** a variant entry is prepared with `variant` `executive` or `short_provocative`
 - **THEN** validation rejects the entry with a machine-readable error (for example `invalid_variant_id`)
-
 ### Requirement: Lifecycle states
 
 Flow A lifecycle MUST support at minimum these `state` values:
@@ -188,7 +183,6 @@ Flow A lifecycle MUST support at minimum these `state` values:
 
 - **WHEN** automated validation fails for a Flow A ready post
 - **THEN** `state` becomes `validation_failed` and the campaign records machine-readable errors
-
 ### Requirement: State transition history
 
 Each state change MUST append a `state_history` entry with:
@@ -211,7 +205,6 @@ Failure transitions MUST also append to top-level `errors[]`.
 
 - **WHEN** state transitions to `validation_failed` or `error` because of a failure
 - **THEN** the history entry includes a non-empty `error_code` and `errors[]` is updated
-
 ### Requirement: State transition enforcement
 
 The worker lifecycle helpers MUST enforce valid state transitions for Flow A campaigns.
@@ -227,7 +220,6 @@ Invalid transitions MUST be rejected with machine-readable error `invalid_state_
 
 - **WHEN** a transition from `validated` to `blog_publish_pending` is attempted for a Flow A campaign
 - **THEN** the transition succeeds and `updated_at` is refreshed
-
 ### Requirement: Blog publish idempotency key
 
 Blog publication intent MUST use an idempotency key derived from:
@@ -250,7 +242,6 @@ Future blog publish operations MUST treat an existing published target for the s
 
 - **WHEN** `source_content_sha256` changes while other blog key components are unchanged
 - **THEN** the blog publish idempotency key changes
-
 ### Requirement: LinkedIn derivative idempotency key
 
 LinkedIn derivative generation MUST use an idempotency key derived from:
@@ -280,7 +271,6 @@ Re-runs with unchanged source content and variant MUST NOT create duplicate draf
 
 - **WHEN** derivative generation is requested for an idempotency key that already has a recorded `draft_relative_path` and matching `source_content_sha256`
 - **THEN** no duplicate draft file is created for that variant
-
 ### Requirement: LinkedIn publication schedule slot idempotency key
 
 Future LinkedIn API publication MUST use a schedule slot idempotency key derived from:
@@ -304,7 +294,6 @@ Duplicate schedule slots for the same campaign, variant, and time MUST NOT creat
 
 - **WHEN** scheduling is requested for a `schedule_idempotency_key` already present on a variant
 - **THEN** the operation returns an already-scheduled outcome without creating a duplicate slot
-
 ### Requirement: Source file marking policy
 
 Flow A source files SHALL be marked via `source_file_status`:
@@ -330,7 +319,6 @@ Deterministic non-retryable failures before durable external side effects after 
 
 - **WHEN** Flow A source lifecycle completes successfully
 - **THEN** `source_file_status.location` becomes `processed`, `execution_state` becomes `idle`, `marked_processed_at` and `physical_move_completed_at` are set, source files exist under `blog-posts/processed/`, and campaign `state` is `flow_a_complete`
-
 ### Requirement: Operational execution attempt metadata
 
 `source_file_status` MUST support execution attempt fields: `execution_attempt_id`, `attempt_count`, `processing_claimed_at`, `processing_started_at`, `last_progress_at`, and `processing_lease_expires_at`.
@@ -348,7 +336,6 @@ These fields MUST be set when `execution_state` transitions to `processing` and 
 
 - **WHEN** stale detection runs for a campaign with `execution_state=processing`
 - **THEN** staleness is determined from `last_progress_at + SILVERMAN_FLOW_A_PROCESSING_STALE_SECONDS` and not from an independently maintained lease value
-
 ### Requirement: Legacy campaign compatibility for queue fields
 
 When `queued_source_relative_path` is absent and `source_file_status.location` is `processed`, workers MUST resolve active source paths from `processed_source_relative_path` without requiring queue metadata.
@@ -359,7 +346,6 @@ When `queued_source_relative_path` is absent and source files remain only in `bl
 
 - **WHEN** campaign metadata from before queue lifecycle has `processed_source_relative_path` and no `queued_source_relative_path`
 - **THEN** downstream services resolve the processed path and idempotent operations succeed
-
 ### Requirement: Worker lifecycle module
 
 The worker SHALL provide a lifecycle metadata module (for example `campaign_lifecycle.py`) implementing campaign ID generation, idempotency key builders, initial metadata construction, state transition enforcement, metadata sanitization, and campaign JSON read/write aligned with `run_metadata.py` patterns.

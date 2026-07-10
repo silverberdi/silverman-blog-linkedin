@@ -17,12 +17,13 @@ Final state MUST be:
 - `release_flow_a_execution` called exactly once by the connector when the claim remains `processing`;
 - no public handoff, blog publish, package, schedule, or lifecycle completion.
 
-**Local image write or frontmatter patch inconsistency**
+**Local image write, frontmatter patch inconsistency, or active-folder sibling backfill failure**
 
 Final state MUST be:
 
 - remain physically reconcilable in `queued/` when possible;
-- `recovery_classification=repair_required`;
+- `recovery_classification` `retryable` or `repair_required` per cause;
+- persist `blog_image_active_sibling_backfill_failed` when backfill from public asset fails during editorial remediation;
 - no public handoff or publish;
 - `release_flow_a_execution` called exactly once when the claim remains `processing`;
 - preserve evidence and the specific error code.
@@ -68,6 +69,11 @@ Final state MUST be:
 
 - **WHEN** full validation succeeded but public handoff failed
 - **THEN** campaign ends with `location=queued`, `execution_state=idle`, `recovery_classification=repair_required`, `last_error.category` documents public handoff, and connector invokes `release_flow_a_execution` exactly once
+
+#### Scenario: Active-folder backfill failure ends queued with remediation error
+
+- **WHEN** `publish_blog_post` fails with `blog_image_active_sibling_backfill_failed` during editorial remediation
+- **THEN** campaign ends with `location=queued`, `execution_state=idle`, `recovery_classification` per cause, connector invokes `release_flow_a_execution` exactly once, and `blog_image_public_asset_handoff_failed` is not recorded
 
 #### Scenario: Deterministic validation error move does not cause redundant release
 

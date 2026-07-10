@@ -25,7 +25,6 @@ Campaign LinkedIn distribution scheduling (`schedule_linkedin_distribution`, `li
 
 - **WHEN** `execute_due_editorial_calendar_flow_a` completes in real execution mode
 - **THEN** `editorial-calendar/calendar.json` content is unchanged from before the invocation
-
 ### Requirement: Execution service entry point
 
 The worker SHALL expose `execute_due_editorial_calendar_flow_a(base_path, *, now_utc=None, dry_run=True, limit=None)` returning a structured `EditorialCalendarFlowAExecutionResult` serializable to JSON.
@@ -47,7 +46,6 @@ When `dry_run` is `true`, `read_only` MUST be `true`.
 
 - **WHEN** the planner returns `no_due_items`
 - **THEN** the execution result reflects `no_due_items`, `items` is empty, and no downstream services are called
-
 ### Requirement: Dry-run default and safety
 
 `dry_run` MUST default to `true` at the service entry point and HTTP endpoint.
@@ -71,7 +69,54 @@ When `dry_run` is `true`, the connector MUST:
 
 - **WHEN** `dry_run=true` and a due item is Flow A eligible with `review_required=false` and `selection_status=selected`
 - **THEN** the item result indicates it would execute Flow A steps without performing them and does not include simulated downstream success outputs
+### Requirement: Connector does not block on missing generatable PNG or image before publish
 
+The connector MUST NOT invoke blocking full `validate_ready_post()` before `publish_blog_post` for eligible real-execution items.
+
+Pre-generation validation and full validation MUST be owned by `publish_blog_post` per `worker-blog-publishing-endpoint`.
+
+The connector MUST NOT fail an item with `ready_post_image_missing` before `publish_blog_post` when the source is Markdown-only with absent, empty, or canonical frontmatter `image` and automatic generation is eligible.
+
+#### Scenario: Markdown-only queued source reaches publish without connector image failure
+
+- **WHEN** real execution queue-accepts Markdown-only `blog-posts/ready/01-example.md` to `blog-posts/queued/01-example.md` with absent `image` and no PNG
+- **THEN** the connector invokes `publish_blog_post` without prior full validation failure and does not record `ready_post_image_missing` at the connector validation step
+
+#### Scenario: Connector does not stub away validation in integration tests
+
+- **WHEN** integration tests prove the Markdown-only connector path
+- **THEN** tests MUST NOT patch or autouse-stub `validate_ready_post` or `validate_ready_post_pre_generation` for assertions on that path
+### Requirement: Image-related failure claim-release matrix
+
+For image-related `publish_blog_post` failures after `claim_flow_a_execution`, the connector MUST apply exactly one claim-release path per case:
+
+| Failure class | `release_flow_a_execution` | Notes |
+|---------------|---------------------------|-------|
+| ComfyUI transient (`blog_image_generation_*` retryable) | Exactly once | No downstream steps |
+| Local write/patch inconsistency or active-folder backfill failure | Exactly once when claim `processing` | `retryable` or `repair_required`; no handoff or publish |
+| Public handoff after full validation | Exactly once | `repair_required`; preserve editorial PNG |
+| Hash metadata persistence failure | Exactly once when applicable | No handoff or publish |
+| Deterministic pre/full validation before handoff with error move | Error move owns closure | Connector MUST NOT redundantly release |
+| Error move or metadata failure during deterministic move | Per `repair_required` policy | No redundant release |
+
+The connector MUST NOT invoke `generate_linkedin_package`, `schedule_linkedin_distribution`, or `complete_flow_a_source_lifecycle` on any image-related publish failure.
+
+Integration tests MUST assert persisted campaign state and exact `release_flow_a_execution` call count for representative failure classes.
+
+#### Scenario: ComfyUI transient failure releases claim once
+
+- **WHEN** `publish_blog_post` fails with `blog_image_generation_timeout` after claim
+- **THEN** connector calls `release_flow_a_execution` exactly once, leaves source in `queued/`, and does not invoke downstream steps
+
+#### Scenario: Handoff failure releases claim once
+
+- **WHEN** `publish_blog_post` fails with `blog_image_public_asset_handoff_failed` after full validation
+- **THEN** connector calls `release_flow_a_execution` exactly once, sets `repair_required`, and does not invoke downstream steps
+
+#### Scenario: Deterministic validation error move does not double-release
+
+- **WHEN** post-acceptance editorial validation error move closes the claim while moving source to `error/`
+- **THEN** connector does not call `release_flow_a_execution` again
 ### Requirement: Real execution Flow A sequence with result chaining
 
 When `dry_run` is `false`, the connector MUST execute Flow A only for items where:
@@ -84,11 +129,13 @@ When `dry_run` is `false`, the connector MUST execute Flow A only for items wher
 For each eligible item, the connector MUST invoke internal services in strict order:
 
 0. `accept_flow_a_source_for_queue` (canonical spec `flow-a-operational-queue-lifecycle`) when source is in `blog-posts/ready/`; or resolve already-queued campaign per already-queued connector requirement when source has previously been accepted
-1. `claim_flow_a_execution` then `publish_blog_post`
+1. `claim_flow_a_execution` then `publish_blog_post` — which owns pre-generation validation, editorial image remediation, authorized hash reconciliation, full validation, public handoff, and blog publication
 2. `generate_linkedin_package`
 3. `schedule_linkedin_distribution`
 4. `complete_flow_a_source_lifecycle` (canonical spec `flow-a-source-lifecycle-completion`) — terminal completion sets `location=processed` and `execution_state=idle`
-5. `release_flow_a_execution` ONLY on recoverable or failed non-terminal exits; if invoked after successful lifecycle completion it MUST be idempotent (`already_released`)
+5. `release_flow_a_execution` ONLY on recoverable or failed non-terminal exits not already closed by error move; if invoked after successful lifecycle completion it MUST be idempotent (`already_released`)
+
+The connector MUST NOT call `validate_ready_post()` or `validate_ready_post_pre_generation()` as a separate blocking step before `publish_blog_post`.
 
 Each subsequent step MUST use the actual result object from the immediately prior step as its primary input source:
 
@@ -109,6 +156,17 @@ When lifecycle completion succeeds or skips as already processed, item results M
 
 Item results MUST include `queue_acceptance_status` (`completed`, `skipped_already_queued`, `failed`, `partial`, `repair_required`) when queue stage runs.
 
+When `publish_blog_post` fails with pre-generation or full validation errors before public handoff after queue acceptance, the connector MUST apply existing post-acceptance editorial validation failure policy (move to `error/` when deterministic) and MUST NOT redundantly release a claim already closed by error move.
+
+When `publish_blog_post` fails with ComfyUI transient errors, the connector MUST apply retryable queued policy, call `release_flow_a_execution` exactly once, and MUST NOT classify the failure as `ready_post_image_missing`.
+
+When `publish_blog_post` fails with public handoff errors after full validation, the connector MUST apply `repair_required` queued policy, call `release_flow_a_execution` exactly once, and preserve editorial PNG evidence.
+
+#### Scenario: Real mode Markdown-only executes remediation inside publish
+
+- **WHEN** `dry_run=false`, one eligible due Flow A item exists with Markdown-only source in `blog-posts/ready/` (absent `image`), queue acceptance succeeds, and ComfyUI generation is enabled
+- **THEN** `publish_blog_post` is invoked with queued `source_relative_path`, editorial remediation and handoff run inside publish in staged order, blog publication proceeds on success, and lifecycle completion moves both queued Markdown and generated PNG to `blog-posts/processed/`
+
 #### Scenario: Real mode executes queue acceptance then Flow A sequence
 
 - **WHEN** `dry_run=false`, one eligible due Flow A item exists with source in `blog-posts/ready/`, and no skip rule applies
@@ -124,6 +182,10 @@ Item results MUST include `queue_acceptance_status` (`completed`, `skipped_alrea
 - **WHEN** `schedule_linkedin_distribution` fails for an item in real execution mode after queue acceptance
 - **THEN** `complete_flow_a_source_lifecycle` is not invoked and source files remain in `blog-posts/queued/`
 
+#### Scenario: ComfyUI failure keeps source in queued with single release
+
+- **WHEN** `publish_blog_post` fails with `blog_image_generation_timeout` after queue acceptance
+- **THEN** the connector does not invoke lifecycle completion, source remains in `blog-posts/queued/`, `release_flow_a_execution` is called exactly once, and generated partial artifacts are preserved when present
 ### Requirement: Dry-run does not perform source lifecycle
 
 When `dry_run` is `true`, the connector MUST NOT call `accept_flow_a_source_for_queue`, `claim_flow_a_execution`, `complete_flow_a_source_lifecycle`, or move editorial source files.
@@ -132,7 +194,6 @@ When `dry_run` is `true`, the connector MUST NOT call `accept_flow_a_source_for_
 
 - **WHEN** `execute_due_editorial_calendar_flow_a` runs with `dry_run=true` for an eligible Flow A item
 - **THEN** queue acceptance and lifecycle completion are not invoked, no `execution_state=processing` is written, and `read_only` is `true`
-
 ### Requirement: Dry-run queue acceptance reporting
 
 When `dry_run` is `true` and an item would pass queue acceptance eligibility, the item result MUST report a would-accept queue decision without fabricated `queued_source_relative_path` values on disk.
@@ -141,7 +202,6 @@ When `dry_run` is `true` and an item would pass queue acceptance eligibility, th
 
 - **WHEN** `dry_run=true` and a due eligible Flow A item references a valid ready source
 - **THEN** the item result indicates queue acceptance would occur and the source remains in `blog-posts/ready/`
-
 ### Requirement: Queue acceptance failure stops Flow A sequence
 
 In real execution mode, when queue acceptance fails for an eligible item, the connector MUST NOT invoke publish, package, schedule, or lifecycle completion for that item.
@@ -152,7 +212,6 @@ The item MUST have `execution_status` `failed` and `failed_step` `queue_acceptan
 
 - **WHEN** real execution runs for an eligible item and queue acceptance returns failed status
 - **THEN** `publish_blog_post` is not invoked and `failed_step` is `queue_acceptance`
-
 ### Requirement: Already-queued campaign connector behavior
 
 When `calendar.json` still references the original ready path but the campaign source has already moved to `queued`, a later connector invocation MUST:
@@ -187,7 +246,6 @@ When `calendar.json` still references the original ready path but the campaign s
 
 - **WHEN** a source was queue-accepted on its due date, the due time has passed, and the connector runs again for the same calendar item
 - **THEN** `queue_acceptance_status` is `skipped_already_queued`, the source remains in `blog-posts/queued/`, and Flow A may continue without dequeuing or moving back to `ready/`
-
 ### Requirement: Failure handling stops Flow A sequence per item
 
 In real execution mode, the connector MUST stop the Flow A sequence for an item at the first failing step:
@@ -218,7 +276,6 @@ Failed item results MUST preserve downstream `errors[]` and `warnings[]` from th
 
 - **WHEN** real execution runs for an eligible item, publish and package succeed, and `schedule_linkedin_distribution` returns a failed status
 - **THEN** the item `execution_status` is `failed` and `failed_step` is `schedule_linkedin_distribution`
-
 ### Requirement: Calendar campaign_id guardrail and conflict handling
 
 The connector MUST treat calendar `campaign_id` in `calendar.json` as a guardrail and reconciliation hint — not authoritative over downstream publish or package outputs.
@@ -243,7 +300,6 @@ The connector MUST NOT invent new campaign reconciliation policy (no calendar wr
 
 - **WHEN** a due item includes calendar `campaign_id` `flow-a-2026-07-01-example`, publish succeeds with resolved `campaign_id` `flow-a-2026-07-06-different-slug`, and no skip rule applied earlier
 - **THEN** the item `execution_status` is `failed`, `failed_step` is `publish_blog`, `calendar_campaign_id_conflict` is in item errors, and package/schedule are not invoked for that item
-
 ### Requirement: Skip behavior for ineligible or already-processed items
 
 The connector MUST skip execution (dry-run or real) with explicit per-item status when:
@@ -263,7 +319,6 @@ Skipped items MUST NOT invoke publish, package, or schedule services.
 
 - **WHEN** planner returns an item with `selection_status=rejected`
 - **THEN** that item is not executed and is reported with a skip status indicating not Flow A executable
-
 ### Requirement: Explicit calendar-item model for first connector
 
 This capability MUST execute only items with planner-resolved `source_relative_path` from explicit calendar item configuration.
@@ -274,7 +329,6 @@ Queue-slot scheduling mode and every-X-days automatic folder source selection MU
 
 - **WHEN** a calendar item specifies `source_relative_path`, the item is due, and the planner selects it
 - **THEN** the connector may execute Flow A for that item subject to other eligibility rules
-
 ### Requirement: Optional execution limit
 
 The service and HTTP endpoint MUST accept optional `limit` (positive integer). When provided, the connector MUST process at most `limit` eligible due items per invocation in planner order.
@@ -283,7 +337,6 @@ The service and HTTP endpoint MUST accept optional `limit` (positive integer). W
 
 - **WHEN** three eligible due items exist and `limit=1`
 - **THEN** at most one item is processed or reported as would-execute in dry-run
-
 ### Requirement: Structured execution response
 
 Each element in `items[]` MUST include at minimum: `item_id`, `execution_status`, `source_relative_path` (when selected), `review_required`, `planned_flow_steps`, per-item `errors`, and per-item `warnings`. When `execution_status` is `failed`, the item MUST include `failed_step`.
@@ -296,7 +349,6 @@ Top-level `status` MUST reflect overall outcome (for example `completed`, `parti
 
 - **WHEN** execution completes with mixed executed and skipped items
 - **THEN** the response includes `counts` reflecting each outcome category
-
 ### Requirement: HTTP execution endpoint
 
 The worker SHALL expose `POST /editorial-calendar/execute-flow-a-due` protected by API-key authentication (`Depends(require_api_key)`).
@@ -326,7 +378,6 @@ The response MUST serialize `EditorialCalendarFlowAExecutionResult`.
 
 - **WHEN** a client calls the endpoint with an empty JSON body `{}`
 - **THEN** `dry_run` is `true` in the response
-
 ### Requirement: Operator documentation
 
 The repository MUST document that this capability:
@@ -342,7 +393,6 @@ The repository MUST document that this capability:
 
 - **WHEN** an operator reads the execution connector workflow documentation
 - **THEN** it explicitly states dry-run is the default and real execution is opt-in
-
 ### Requirement: Staged rollout alignment
 
 This change SHALL implement staged rollout step 2 only: Flow A execution connector with dry-run default.

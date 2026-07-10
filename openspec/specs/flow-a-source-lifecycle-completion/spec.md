@@ -22,17 +22,53 @@ The entry point MUST NOT republish the blog, alter public blog content, alter Li
 
 - **WHEN** `complete_flow_a_source_lifecycle` is called for a campaign in `distribution_scheduled` with source Markdown at `blog-posts/queued/<name>.md` and scheduling has already succeeded
 - **THEN** the Markdown file exists at `blog-posts/processed/<name>.md` (or collision suffix path when required), no duplicate remains in `blog-posts/queued/`, `execution_state` is `idle`, and the result `status` is `completed`
+### Requirement: Queued generated companion image lifecycle move
+
+When ComfyUI generates `blog-posts/queued/<source_slug>.png` during Flow A execution, lifecycle completion MUST discover that companion PNG beside the queued Markdown and move it with the Markdown to `blog-posts/processed/`.
+
+The companion image MAY be absent at queue acceptance.
+
+The companion image MAY be generated during queued publish execution (editorial remediation inside `publish_blog_post`).
+
+Lifecycle completion MUST discover the queued companion beside queued Markdown when metadata was not set earlier.
+
+`queued_image_relative_path` MUST be recorded when the image becomes present or is discovered at lifecycle completion, not only when the PNG existed at queue acceptance time.
+
+`processed_image_relative_path` MUST be recorded after successful move to `blog-posts/processed/`.
+
+Logical `source_slug`, `public_slug`, `source_content_sha256`, generated-image metadata, and public asset handoff metadata MUST be preserved across the move.
+
+Partial-move recovery semantics MUST apply when Markdown moves but image move fails (`physical_move_state=partial`, `recovery_classification=repair_required`).
+
+#### Scenario: Generated queued PNG moves to processed with Markdown
+
+- **WHEN** Flow A completes scheduling for a campaign whose queued source is `blog-posts/queued/01-example.md` and ComfyUI generated `blog-posts/queued/01-example.png` during publish execution
+- **THEN** lifecycle completion moves both files to `blog-posts/processed/`, no copy remains in `blog-posts/queued/`, metadata records `queued_image_relative_path` when discovered, and `processed_image_relative_path` after move
+
+#### Scenario: No Markdown or PNG remains in ready or queued after success
+
+- **WHEN** lifecycle completion succeeds after queue acceptance and generation during publish
+- **THEN** neither the Markdown nor the generated PNG remains under `blog-posts/ready/` or `blog-posts/queued/`
+
+#### Scenario: Image discovered at completion records queued_image_relative_path
+
+- **WHEN** companion PNG was created in `blog-posts/queued/` during publish but `queued_image_relative_path` was not set at queue acceptance
+- **THEN** lifecycle completion discovers the PNG beside queued Markdown, records `queued_image_relative_path`, and moves it to processed with `processed_image_relative_path` recorded
+### Requirement: Successful lifecycle completion moves companion image when present
+
+When `complete_flow_a_source_lifecycle` is called and the companion PNG exists beside the queued source Markdown (including ComfyUI-generated `blog-posts/queued/<source_slug>.png`), the PNG MUST be moved to `blog-posts/processed/` (same basename unless collision handling applies), and `processed_image_relative_path` MUST be recorded in the result.
+
+When no companion PNG exists, lifecycle completion MUST proceed with Markdown only and `processed_image_relative_path` MUST be null.
 
 #### Scenario: Successful lifecycle completion moves companion image when present
 
 - **WHEN** `complete_flow_a_source_lifecycle` is called and the companion PNG exists beside the queued source Markdown
 - **THEN** the PNG is moved to `blog-posts/processed/` (same basename unless collision handling applies), and `processed_image_relative_path` is recorded in the result
 
-#### Scenario: Lifecycle completion does not run before scheduling
+#### Scenario: Generated image discovered at completion time
 
-- **WHEN** `complete_flow_a_source_lifecycle` is called for a campaign whose `state` is before `distribution_scheduled`
-- **THEN** the operation returns `status: failed` with error code `flow_a_source_lifecycle_premature` and does not move files
-
+- **WHEN** companion PNG was created in `blog-posts/queued/` during publish but `queued_image_relative_path` was not set at queue acceptance
+- **THEN** lifecycle completion discovers the PNG beside queued Markdown and moves it to processed
 ### Requirement: Campaign metadata path traceability
 
 On successful source lifecycle completion, campaign metadata MUST retain:
@@ -59,7 +95,6 @@ Campaign `state` MUST transition to `flow_a_complete` when lifecycle completion 
 
 - **WHEN** source lifecycle completes successfully
 - **THEN** `source_content_sha256` remains available on the campaign document for idempotency and reconciliation
-
 ### Requirement: Idempotent lifecycle completion
 
 When campaign `source_file_status.location` is already `processed` and `processed_source_relative_path` points to an existing file, `complete_flow_a_source_lifecycle` MUST return `status: skipped` (or `completed` with `already_processed: true`) without requiring the source Markdown to exist in `blog-posts/ready/`.
@@ -75,7 +110,6 @@ Re-running MUST NOT duplicate moves, republish content, or fail solely because t
 
 - **WHEN** Flow A downstream services are invoked by `campaign_id` for a campaign in `distribution_scheduled` or later with source files only under `blog-posts/processed/`
 - **THEN** operations return idempotent skip/completed outcomes without error `blog_publish_source_not_ready` solely due to missing ready copy
-
 ### Requirement: Failure and partial-move behavior
 
 If Flow A fails before successful `schedule_linkedin_distribution`, source files MUST remain in `blog-posts/queued/` (when queue acceptance succeeded) or `blog-posts/ready/` (when queue acceptance did not run), and lifecycle completion MUST NOT have been invoked.
@@ -95,7 +129,6 @@ Markdown and companion image moves during lifecycle completion MUST be coordinat
 
 - **WHEN** scheduling succeeds but moving Markdown from `queued/` to `processed/` fails
 - **THEN** campaign remains `distribution_scheduled`, scheduling metadata is unchanged, `recovery_classification` is `repair_required`, and the lifecycle result reports `flow_a_source_move_failed`
-
 ### Requirement: Deterministic processed-path collision handling
 
 When the target path `blog-posts/processed/<filename>` already exists and is not the same file being moved, the worker MUST allocate a deterministic alternate name using suffix pattern `<stem>-processed-<n><ext>` starting at `n=1` and incrementing until a free name is found or `flow_a_source_move_collision_exhausted` is returned.
@@ -106,7 +139,6 @@ Collision handling MUST apply independently to Markdown and image files.
 
 - **WHEN** `blog-posts/processed/02-example.md` already exists for a different campaign and lifecycle completion moves `blog-posts/ready/02-example.md`
 - **THEN** the moved file is written to `blog-posts/processed/02-example-processed-1.md` and metadata records that processed path
-
 ### Requirement: Folder semantics
 
 `blog-posts/ready/` MUST contain only pending operator-approved input not yet accepted into the operational queue.
@@ -123,7 +155,6 @@ Lifecycle completion MUST NOT write to `blog-posts/error/` on success.
 
 - **WHEN** Flow A completes through queue acceptance, scheduling, and source lifecycle for a post with Markdown and companion image
 - **THEN** those filenames are absent from `blog-posts/ready/` and `blog-posts/queued/` and present under `blog-posts/processed/`
-
 ### Requirement: Automated test coverage
 
 The test suite MUST cover at minimum:

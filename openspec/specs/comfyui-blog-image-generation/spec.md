@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Worker-side ComfyUI blog image generation for Flow A: missing-image detection, editorial visual prompt assembly, configurable ComfyUI-compatible REST API client (local/LAN or Comfy Cloud), asset writes, front matter updates, generation metadata, dry-run mode, and stable error codes. Consumed by `publish_blog_post()` before `validate_ready_post()` when generation is enabled.
+Worker-side ComfyUI blog image generation for Flow A: missing-image detection, staged editorial remediation, staged public asset handoff, editorial visual prompt assembly, configurable ComfyUI-compatible REST API client (local/LAN or Comfy Cloud), asset writes, front matter updates, generation metadata, dry-run mode, and stable error codes. Consumed by `publish_blog_post()` in staged order: editorial remediation before full validation; public handoff after full validation.
 ## Requirements
 ### Requirement: Umbrella and dependency references
 
@@ -12,7 +12,19 @@ Image generation behavior MUST align with public blog template constraints at [s
 
 Blog publish integration MUST use canonical spec `worker-blog-publishing-endpoint` and worker module `blog_publish_flow.py`.
 
-Ready-post validation rules MUST remain defined by canonical spec `ready-post-editorial-validation`; generation MUST satisfy those rules before validation runs.
+Ready-post validation rules MUST remain defined by canonical spec `ready-post-editorial-validation`.
+
+Editorial image remediation MUST satisfy local canonical image prerequisites for the active Markdown + PNG pair before full validation runs.
+
+Validation phase ordering inside `publish_blog_post()` MUST be explicit:
+
+- pre-generation validation runs before editorial remediation;
+- editorial remediation satisfies local canonical image prerequisites beside the active folder;
+- authorized hash reconciliation runs when frontmatter is patched;
+- full validation runs after remediation;
+- public handoff runs only after full validation.
+
+There MUST be no statement implying that all validation occurs after generation or remediation.
 
 Publishing bridge semantics MUST remain defined by canonical spec `github-pages-blog-publishing` and worker module `github_pages_publish.py`.
 
@@ -27,85 +39,112 @@ Flow B campaigns MUST NOT trigger ComfyUI blog image generation.
 
 - **WHEN** blog image generation runs in the context of a Flow B campaign
 - **THEN** generation is skipped or publish fails according to publish-flow policy without writing generated assets
+### Requirement: Staged editorial image remediation phase
 
-### Requirement: Blog image generation service entry point
+The worker SHALL expose an editorial-only image remediation phase (for example `ensure_editorial_blog_image` or an internal step of `ensure_blog_image` invoked with `handoff=False`) that:
 
-The worker SHALL expose a blog image generation entry point (for example `ensure_blog_image(base_path, source_relative_path, *, config=..., client=..., dry_run=..., github_pages_repo_path=...)`) that detects missing canonical blog images, optionally generates them via ComfyUI, performs public blog asset handoff per canonical spec `blog-image-public-asset-handoff`, updates editorial source files, and returns a structured `BlogImageGenerationResult` (or equivalent dataclass) serializable to JSON.
+- detects missing, empty, or canonical frontmatter `image` states per missing image detection rules;
+- generates via ComfyUI, adopts a local sibling, or backfills the active-folder sibling from a readable public asset when eligible;
+- patches canonical frontmatter `image: /assets/images/<public_slug>.png` when authorized;
+- writes or updates companion PNG beside the active Markdown folder;
+- records editorial provenance metadata;
+- MUST NOT write to the configured public GitHub Pages repository checkout.
 
-The entry point MUST NOT move source files between `ready`, `processed`, or `error` folders.
+ComfyUI MUST NOT run when a readable public asset exists and reuse/backfill rules apply.
 
-The entry point MUST NOT run `git commit` or `git push`.
+#### Scenario: Editorial remediation writes queued PNG without public handoff
 
-The entry point MUST hand off or reuse images in the configured public GitHub Pages repository checkout per `blog-image-public-asset-handoff` but MUST NOT overwrite an existing public `assets/images/<public_slug>.png` except by explicit reuse semantics defined in `blog-image-public-asset-handoff`.
+- **WHEN** `ensure_editorial_blog_image` completes ComfyUI generation for `blog-posts/queued/02-example.md` inside `publish_blog_post` before full validation
+- **THEN** `blog-posts/queued/02-example.png` exists, frontmatter is patched if needed, and no file is written to `assets/images/` in the public checkout
 
-#### Scenario: Generate image for post missing front matter image
+#### Scenario: Missing frontmatter image patched during editorial remediation
 
-- **WHEN** `ensure_blog_image` is called for a ready post whose front matter lacks `image`, ComfyUI generation is enabled, dry-run is false, and no reusable public or local PNG exists
-- **THEN** the function generates a PNG, writes `blog-posts/ready/<source_slug>.png`, hands off to `assets/images/<public_slug>.png` in the public repo when missing, updates front matter to `image: /assets/images/<public_slug>.png`, and returns `status: generated`
+- **WHEN** `ensure_editorial_blog_image` is called for a ready post whose front matter lacks `image`, ComfyUI generation is enabled, and no reusable public or local PNG exists
+- **THEN** the function generates a PNG beside the active Markdown, patches front matter to `image: /assets/images/<public_slug>.png`, and does not write to the public repo
+### Requirement: Staged public asset handoff phase
 
-#### Scenario: Skip when image already valid locally and publicly
+The worker SHALL expose a public handoff phase (for example `handoff_public_blog_image` or an internal step invoked only after full validation) that:
 
-- **WHEN** front matter `image` equals `/assets/images/<public_slug>.png`, companion PNG `blog-posts/ready/<source_slug>.png` exists, and public `assets/images/<public_slug>.png` exists
-- **THEN** the function returns `status: skipped` without calling ComfyUI
+- runs only after `validate_ready_post()` succeeds for the active local Markdown + companion PNG pair;
+- copies or reuses the validated active-folder PNG into `assets/images/<public_slug>.png` per `blog-image-public-asset-handoff`;
+- MUST NOT run when full validation fails.
 
-#### Scenario: Public asset reuse without ComfyUI
+`publish_blog_post` orchestration MUST defer public handoff until after full validation even if `ensure_blog_image()` remains a compatibility facade for other callers.
 
-- **WHEN** public `assets/images/<public_slug>.png` exists and is readable
-- **THEN** the function returns `status: skipped` with public asset reuse metadata and does not call ComfyUI, even if the editorial ready sibling PNG is missing
+#### Scenario: Full validation failure performs no public asset write
 
-#### Scenario: Public asset exists with missing ready sibling does not trigger ComfyUI
+- **WHEN** `publish_blog_post` runs editorial remediation successfully but `validate_ready_post` fails afterward
+- **THEN** no file is created or modified at `assets/images/<public_slug>.png` in the public checkout and publish returns failed with the validation error
 
-- **WHEN** public `assets/images/<public_slug>.png` exists and is readable, front matter `image` is canonical, and `blog-posts/ready/<source_slug>.png` is missing
-- **THEN** the function does not call ComfyUI solely because the ready sibling is missing; it may attempt optional ready sibling backfill per `blog-image-public-asset-handoff`
+#### Scenario: Public handoff runs only after full validation success
 
+- **WHEN** editorial remediation and full validation both succeed for `blog-posts/queued/01-example.md`
+- **THEN** `handoff_public_blog_image` copies or reuses the validated queued PNG into public assets before GitHub Pages post publish proceeds
+### Requirement: Blog image generation entry point
+
+The worker SHALL expose a blog image generation entry point (for example `ensure_blog_image(base_path, source_relative_path, *, config=..., client=..., dry_run=..., github_pages_repo_path=..., handoff=...)`) that MAY compose editorial remediation and public handoff for compatibility.
+
+For `publish_blog_post`, the entry point or publish orchestrator MUST enforce staged ordering: editorial remediation and frontmatter patch before full validation; public handoff only after full validation.
+
+Generated companion PNG MUST be written beside the active Markdown source file (`blog-posts/ready/<source_slug>.png` or `blog-posts/queued/<source_slug>.png`).
+
+Detection and output MUST NOT hardcode `blog-posts/ready/` when `source_relative_path` is under `blog-posts/queued/`.
+
+The entry point MUST return a structured `BlogImageGenerationResult` (or equivalent dataclass) serializable to JSON.
+
+#### Scenario: Queued source generation writes beside queued Markdown
+
+- **WHEN** editorial remediation completes ComfyUI generation for `blog-posts/queued/02-example.md`
+- **THEN** `blog-posts/queued/02-example.png` exists and `image_relative_path` in the result references the queued path
+
+#### Scenario: Ready source generation unchanged
+
+- **WHEN** editorial remediation completes ComfyUI generation for `blog-posts/ready/02-example.md` with absent `image`
+- **THEN** `blog-posts/ready/02-example.png` exists, frontmatter is patched, and existing ready-path behavior is preserved
+
+#### Scenario: Compatibility facade may compose both phases for non-publish callers
+
+- **WHEN** `ensure_blog_image` is called directly outside `publish_blog_post` with default handoff behavior for legacy ready-path callers
+- **THEN** it MAY run editorial remediation and public handoff in one call while `publish_blog_post` still uses staged ordering internally
 ### Requirement: Missing image detection
 
-The worker MUST treat a ready post as eligible for blog image remediation when **either**:
+The worker MUST treat a post as eligible for blog image remediation when **either**:
 
 - YAML front matter omits `image` or `image` is empty/whitespace-only, OR
-- front matter `image` equals `/assets/images/<public_slug>.png` and companion PNG `blog-posts/ready/<source_slug>.png` is missing **and** public repo `assets/images/<public_slug>.png` is missing, OR
-- front matter `image` equals `/assets/images/<public_slug>.png`, companion PNG exists, and public repo `assets/images/<public_slug>.png` is missing
+- front matter `image` equals `/assets/images/<public_slug>.png` and companion PNG `<active_source_folder>/<source_slug>.png` is missing **and** public repo `assets/images/<public_slug>.png` is missing, OR
+- front matter `image` equals `/assets/images/<public_slug>.png`, companion PNG exists beside the active Markdown, and public repo `assets/images/<public_slug>.png` is missing
 
-When front matter `image` equals `/assets/images/<public_slug>.png`, companion PNG is missing, and a readable public asset exists, the worker MUST NOT invoke ComfyUI; it MUST reuse the public asset and MAY attempt optional ready sibling backfill per `blog-image-public-asset-handoff`.
+`<active_source_folder>` MUST be derived from `source_relative_path` as `blog-posts/ready` or `blog-posts/queued`. Unsupported source folders MUST be rejected.
 
-When front matter `image` is present and points to any non-canonical path (any value other than `/assets/images/<public_slug>.png`), the worker MUST NOT invoke ComfyUI generation, MUST NOT overwrite front matter or companion files, and MUST leave the post unchanged so existing validation or operator remediation handles the mismatch (for example `frontmatter_invalid_image`).
+When front matter `image` equals `/assets/images/<public_slug>.png` (or is absent/empty and will be patched), companion PNG is missing, and a readable public asset exists, the worker MUST NOT invoke ComfyUI; it MUST backfill the active-folder sibling from the public asset during editorial remediation per `blog-image-public-asset-handoff` before full validation.
 
-When a valid ready sibling PNG exists and only the public asset is missing, the worker MUST adopt the sibling into the public repo per `blog-image-public-asset-handoff` and MUST NOT call ComfyUI.
+When front matter `image` is present and non-empty and points to any non-canonical path (any value other than `/assets/images/<public_slug>.png`), the worker MUST NOT invoke ComfyUI generation, MUST NOT overwrite front matter or companion files, and MUST leave the post unchanged so existing validation or operator remediation handles the mismatch (for example `frontmatter_invalid_image`).
 
-When a valid readable public asset exists, the worker MUST reuse it per `blog-image-public-asset-handoff` and MUST NOT call ComfyUI, including when the ready sibling PNG is missing.
+When a valid sibling PNG exists beside the active Markdown and only the public asset is missing, the worker MUST adopt the sibling into the public repo during the handoff phase after full validation and MUST NOT call ComfyUI.
 
-When generation is disabled and detection finds missing prerequisites that cannot be satisfied by reuse or adoption, the worker MUST NOT generate and MUST leave remediation to the operator (validation will fail with existing codes).
+When a valid readable public asset exists, the worker MUST reuse it without ComfyUI, including when the active-folder sibling PNG is missing; editorial remediation MUST attempt active-folder backfill so full validation operates on the local pair.
 
-#### Scenario: Missing image front matter triggers generation when enabled
+When generation is disabled and detection finds missing prerequisites that cannot be satisfied by reuse, adoption, or backfill, the worker MUST NOT generate and MUST leave remediation to full validation (which will fail with existing codes).
 
-- **WHEN** a ready post has valid front matter except missing `image`, no reusable public or local PNG exists, and `SILVERMAN_COMFYUI_IMAGE_ENABLED` is true
-- **THEN** `ensure_blog_image` attempts ComfyUI generation followed by public asset handoff
+#### Scenario: Missing companion in queued folder triggers generation when enabled
 
-#### Scenario: Public asset exists with missing ready sibling triggers reuse not generation
+- **WHEN** editorial remediation runs for `blog-posts/queued/01-example.md` with canonical or absent frontmatter `image`, no companion PNG in `blog-posts/queued/`, no public asset, and `SILVERMAN_COMFYUI_IMAGE_ENABLED` is true
+- **THEN** ComfyUI generation is attempted and output is written to `blog-posts/queued/01-example.png` without public repo write
 
-- **WHEN** front matter `image` is `/assets/images/<public_slug>.png`, companion PNG `blog-posts/ready/<source_slug>.png` is missing, public `assets/images/<public_slug>.png` exists and is readable, and `SILVERMAN_COMFYUI_IMAGE_ENABLED` is true
-- **THEN** `ensure_blog_image` reuses the public asset without calling ComfyUI and may attempt optional ready sibling backfill
+#### Scenario: Missing companion in ready folder still triggers generation
 
-#### Scenario: Canonical image path with missing companion and missing public asset triggers generation when enabled
+- **WHEN** editorial remediation runs for `blog-posts/ready/01-example.md` with absent `image`, no companion PNG, no public asset, and generation is enabled
+- **THEN** ComfyUI generation is attempted, frontmatter is patched, and output is written to `blog-posts/ready/01-example.png` without public repo write
 
-- **WHEN** front matter `image` is `/assets/images/<public_slug>.png`, companion PNG `blog-posts/ready/<source_slug>.png` is missing, public asset is missing, and `SILVERMAN_COMFYUI_IMAGE_ENABLED` is true
-- **THEN** `ensure_blog_image` attempts ComfyUI generation to write the missing companion PNG and hand off to public assets
+#### Scenario: Public asset exists with missing queued sibling does not trigger ComfyUI
 
-#### Scenario: Ready sibling exists but public asset missing triggers adoption
-
-- **WHEN** front matter `image` is canonical, `blog-posts/ready/<source_slug>.png` exists, and public `assets/images/<public_slug>.png` is missing
-- **THEN** `ensure_blog_image` adopts the sibling into the public repo without calling ComfyUI
+- **WHEN** public `assets/images/<public_slug>.png` exists and is readable, front matter `image` is canonical or absent, and `blog-posts/queued/<source_slug>.png` is missing
+- **THEN** editorial remediation does not call ComfyUI; it backfills the queued sibling from the public asset when writable
 
 #### Scenario: Non-canonical image path does not trigger auto-generation
 
 - **WHEN** front matter `image` is `/assets/images/wrong-slug.png` for derived `public_slug` `why-i-did-not-start-with-the-database`
-- **THEN** `ensure_blog_image` returns `status: skipped` or `not_applicable` without overwriting front matter or writing a companion PNG
-
-#### Scenario: Disabled generation leaves post unchanged when adoption impossible
-
-- **WHEN** `image` is missing, no reusable public or local PNG exists, and `SILVERMAN_COMFYUI_IMAGE_ENABLED` is false
-- **THEN** `ensure_blog_image` returns `status: skipped` with reason `generation_disabled` and does not call ComfyUI
-
+- **THEN** editorial remediation returns `status: skipped` or `not_applicable` without overwriting front matter or writing a companion PNG
 ### Requirement: Visual prompt assembly
 
 The worker SHALL build a deterministic visual generation prompt from available post fields:
@@ -135,7 +174,6 @@ The worker MUST also supply a negative prompt (or workflow-equivalent) excluding
 
 - **WHEN** tags and categories are absent but body content exists
 - **THEN** the assembled prompt incorporates a bounded body excerpt
-
 ### Requirement: ComfyUI client abstraction
 
 The worker SHALL call ComfyUI using a configurable base URL, optional API path prefix, and workflow definition. ComfyUI may be local/LAN or hosted (for example Comfy Cloud at `https://cloud.comfy.org`).
@@ -221,13 +259,12 @@ ComfyUI errors MUST map to stable worker error codes without exposing secrets or
 
 - **WHEN** unit tests run while the operator shell exports Comfy Cloud `SILVERMAN_COMFYUI_*` variables
 - **THEN** tests clear or override those variables (shared helper or explicit `environ` / config) so disabled-generation cases remain skipped and enabled cases configure state inside the test
-
 ### Requirement: Generated asset paths and front matter update
 
 On successful generation or adoption, the worker MUST:
 
-- ensure PNG exists at `blog-posts/ready/<source_slug>.png`
-- ensure PNG exists at public repo `assets/images/<public_slug>.png` when it was missing before handoff
+- ensure PNG exists at `<active_source_folder>/<source_slug>.png` where `<active_source_folder>` is `blog-posts/ready` or `blog-posts/queued` derived from `source_relative_path`
+- ensure PNG exists at public repo `assets/images/<public_slug>.png` when handoff runs after full validation and the public target was missing before handoff
 - set front matter `image` to `/assets/images/<public_slug>.png` on the source Markdown file when needed
 
 `public_slug` MUST be derived using the same rules as `github-pages-blog-publishing` (strip leading numeric prefix `^\d+-` when present).
@@ -238,7 +275,6 @@ Generated PNG SHOULD default to 1200×900 pixels when the workflow controls dime
 
 - **WHEN** generation succeeds for source slug `02-deferring-is-not-avoiding-it-can-be-architecture`
 - **THEN** PNG is at `blog-posts/ready/02-deferring-is-not-avoiding-it-can-be-architecture.png`, public PNG is at `assets/images/deferring-is-not-avoiding-it-can-be-architecture.png`, and front matter `image` is `/assets/images/deferring-is-not-avoiding-it-can-be-architecture.png`
-
 ### Requirement: Blog image generation metadata
 
 When blog image generation runs in a publish or standalone context with campaign metadata available, the worker MUST record a `blog_image_generation` object on the campaign including at minimum:
@@ -249,7 +285,7 @@ When blog image generation runs in a publish or standalone context with campaign
 - `public_asset_handoff_status` per `blog-image-public-asset-handoff`
 - `public_asset_source` when applicable per `blog-image-public-asset-handoff`
 - `public_repo_image_relative_path` when applicable
-- `ready_sibling_backfill_status` when applicable per `blog-image-public-asset-handoff`
+- `active_sibling_backfill_status` when applicable per `blog-image-public-asset-handoff`
 - `warnings[]` when applicable per `blog-image-public-asset-handoff`
 - `width`, `height` (requested dimensions from worker config; actual PNG size may differ when bindings are absent)
 - `workflow_controls_dimensions` when true, the workflow template exposes width and height bindings and the worker injected configured dimensions
@@ -261,16 +297,25 @@ The worker SHOULD append a run record under `metadata/runs/` for generation atte
 
 HTTP responses MUST NOT include ComfyUI secrets or full prompt text.
 
-#### Scenario: Successful adoption metadata
+#### Scenario: Successful active-folder sibling adoption metadata
 
-- **WHEN** a ready sibling PNG is adopted into public assets during publish
-- **THEN** campaign JSON includes `blog_image_generation.status` `generated` or `skipped` as appropriate, `public_asset_handoff_status` `copied`, and `public_asset_source` `ready_sibling_png`
+- **WHEN** an active-folder sibling PNG is adopted into public assets during publish handoff
+- **THEN** campaign JSON includes `blog_image_generation.status` `generated` or `skipped` as appropriate, `public_asset_handoff_status` `copied`, and `public_asset_source` `active_sibling_png`
+
+#### Scenario: Legacy persisted ready_sibling_png remains readable
+
+- **WHEN** campaign metadata from a prior release records `public_asset_source` `ready_sibling_png`
+- **THEN** consumers treat it as semantically equivalent to `active_sibling_png` for ready-folder sources; new writes MUST use `active_sibling_png`
 
 #### Scenario: Failed handoff metadata
 
-- **WHEN** public asset handoff fails
+- **WHEN** public asset handoff fails after successful full validation
 - **THEN** campaign JSON records `blog_image_generation.status` `failed` and `error_code` `blog_image_public_asset_handoff_failed`
 
+#### Scenario: Active-folder backfill failure metadata
+
+- **WHEN** editorial remediation fails to backfill a missing active-folder sibling from a readable public asset
+- **THEN** campaign JSON records remediation failure with `error_code` `blog_image_active_sibling_backfill_failed` (or equivalent stable remediation code) and MUST NOT record `blog_image_public_asset_handoff_failed` for that cause
 ### Requirement: Dry-run behavior
 
 The worker MUST support dry-run mode for blog image generation that:
@@ -287,7 +332,6 @@ Dry-run MUST be configurable via environment and/or an explicit parameter on the
 
 - **WHEN** dry-run is true for a post with ready sibling PNG and missing public asset
 - **THEN** result includes planned `public_repo_image_relative_path` and source files on disk are unchanged
-
 ### Requirement: Configuration
 
 Blog image generation MUST be configurable via environment variables including at minimum:
@@ -319,7 +363,6 @@ When enabled, missing `SILVERMAN_COMFYUI_BASE_URL` MUST fail with `blog_image_ge
 
 - **WHEN** `SILVERMAN_COMFYUI_IMAGE_ENABLED` is true and `SILVERMAN_COMFYUI_BASE_URL` is unset
 - **THEN** generation fails with `blog_image_generation_not_configured`
-
 ### Requirement: Stable blog image generation error codes
 
 The blog image generation flow MUST use stable machine-readable error codes including at minimum:
@@ -330,13 +373,25 @@ The blog image generation flow MUST use stable machine-readable error codes incl
 - `blog_image_generation_timeout`
 - `blog_image_generation_write_failed`
 - `blog_image_generation_frontmatter_update_failed`
+- `blog_image_active_sibling_backfill_failed`
 - `blog_image_public_asset_handoff_failed`
 - `blog_image_generation_failed` (generic wrapper only for unexpected failures not covered by specific codes)
 
+`blog_image_active_sibling_backfill_failed` MUST be used when editorial remediation fails while copying a readable public asset into the missing active-folder local companion PNG. This failure occurs before full-validation success, MUST NOT invoke public handoff, MUST NOT publish, and MUST be classified as `retryable` or `repair_required` according to cause.
+
+`blog_image_public_asset_handoff_failed` MUST be used when copy or adoption into the public repository fails after full validation succeeds. This failure MUST be classified `repair_required`, and the validated editorial PNG MUST be preserved.
+
+These codes MUST NOT be aliased or conflated.
+
+#### Scenario: Active-folder backfill failure error code
+
+- **WHEN** editorial remediation cannot backfill `<active_source_folder>/<source_slug>.png` from a readable public asset
+- **THEN** errors include `blog_image_active_sibling_backfill_failed`, handoff is not invoked, publish does not proceed, and `blog_image_public_asset_handoff_failed` is not returned for that cause
+
 #### Scenario: Handoff failure error code
 
-- **WHEN** public asset copy or adoption fails
-- **THEN** errors include `blog_image_public_asset_handoff_failed`
+- **WHEN** public asset copy or adoption into the public repository fails after full validation succeeds
+- **THEN** errors include `blog_image_public_asset_handoff_failed`, the validated editorial PNG is preserved, and `blog_image_active_sibling_backfill_failed` is not used for that cause
 
 #### Scenario: ComfyUI failure error code
 
@@ -347,7 +402,6 @@ The blog image generation flow MUST use stable machine-readable error codes incl
 
 - **WHEN** PNG generation succeeds but Markdown front matter cannot be updated safely
 - **THEN** errors include `blog_image_generation_frontmatter_update_failed`
-
 ### Requirement: Non-goals enforcement
 
 This change MUST NOT modify n8n workflow JSON.
@@ -369,7 +423,6 @@ This change MUST NOT require a live ComfyUI instance during default automated te
 
 - **WHEN** `pytest` runs the default test suite
 - **THEN** blog image generation tests pass using injected fakes without network access to ComfyUI
-
 ### Requirement: Public blog asset handoff integration reference
 
 Blog image generation MUST integrate public asset handoff per canonical spec `blog-image-public-asset-handoff` and MUST accept the configured public GitHub Pages repository path from `SILVERMAN_GITHUB_PAGES_REPO_PATH` (or an explicit parameter for tests).
@@ -378,4 +431,3 @@ Blog image generation MUST integrate public asset handoff per canonical spec `bl
 
 - **WHEN** `ensure_blog_image` runs during publish with `SILVERMAN_GITHUB_PAGES_REPO_PATH` set
 - **THEN** public asset evaluation and copy use that checkout root
-

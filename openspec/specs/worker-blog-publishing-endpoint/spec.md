@@ -10,7 +10,22 @@ This child change SHALL implement Flow A worker blog publishing under active umb
 
 Blog publish behavior MUST align with Flow A policy in canonical spec `editorial-canon` and artifact `content-strategy/silverman-editorial-system.md`.
 
-Ready-post validation MUST use canonical spec `ready-post-editorial-validation` and worker module `ready_post_validation.py` via `validate_ready_post()` before any publish side effect.
+Ready-post validation MUST be governed by canonical capability `ready-post-editorial-validation` and worker module `ready_post_validation.py`.
+
+For non-short-circuited publish execution, `publish_blog_post()` MUST use two validation phases in this order:
+
+1. `validate_ready_post_pre_generation()`;
+2. editorial image remediation (local only);
+3. authorized hash reconciliation when frontmatter changes;
+4. full `validate_ready_post()`;
+5. public asset handoff;
+6. GitHub Pages publish.
+
+Editorial image remediation and hash reconciliation are permitted before full validation because they are controlled local canonicalization steps, not public publish side effects.
+
+Public asset handoff and public post writes MUST occur only after full validation succeeds.
+
+An `already_published` idempotency short-circuit is exempt from both validation phases and all image/public side effects.
 
 Campaign metadata and state transitions MUST use canonical spec `flow-a-lifecycle` and worker module `campaign_lifecycle.py`.
 
@@ -28,6 +43,10 @@ Flow B campaigns MUST NOT enter this publish path.
 - **WHEN** `publish_blog_post` is invoked for a campaign with `flow` `flow_b`
 - **THEN** the operation fails with error code `blog_publish_flow_b_not_allowed` and does not write public repo files
 
+#### Scenario: Staged validation does not require full validation before local remediation
+
+- **WHEN** `publish_blog_post` runs editorial image remediation or authorized hash reconciliation for a non-short-circuited campaign
+- **THEN** those steps are permitted before full `validate_ready_post()` succeeds and no public asset handoff or public post write occurs until full validation succeeds
 ### Requirement: Blog publish service entry point
 
 The worker SHALL expose a publish service entry point (for example `publish_blog_post(base_path, source_relative_path, ...)`) that orchestrates validation, campaign lifecycle transitions, and GitHub Pages bridge application for one ready blog post.
@@ -47,72 +66,85 @@ The entry point MUST NOT run `git commit` or `git push` in the public GitHub Pag
 
 - **WHEN** this child change is applied
 - **THEN** no LinkedIn draft files are generated and no `derivatives_*` campaign state transitions occur
+### Requirement: Publish flow validation and image generation ordering
 
-### Requirement: Publish flow sequence
+Ready-post validation MUST be governed by canonical capability `ready-post-editorial-validation`.
 
-The publish flow MUST perform safe preflight path/source inspection sufficient to derive `source_slug`, `public_slug`, `publication_date` (when possible), `source_content_sha256`, `campaign_id`, and the expected blog idempotency key before any publish side effect.
+The `already_published` metadata/idempotency short-circuit MUST be evaluated first, before pre-generation validation, full validation, editorial image remediation, public asset handoff, `resolve_source_paths()`, GitHub Pages bridge planning/apply, or any public repository read/write performed only for a publish attempt.
 
-If campaign metadata exists and `state` is `blog_published`, and `flow` is `flow_a`, and stored `source_content_sha256` matches the current source hash, and stored `blog_publish.idempotency_key` matches the expected key, and stored `source_public_url` exists, the publish flow MUST return `status: completed` with `blog_publish.status` `already_published` without calling `validate_ready_post()` and without writing public repo files.
+When the short-circuit applies for a Flow A campaign with matching stored identity evidence (`state` `blog_published`, matching `source_content_sha256`, matching `blog_publish.idempotency_key`, and stored `source_public_url`), `publish_blog_post()` MUST return `status: completed` with `blog_publish.status` `already_published` without requiring Markdown or PNG to be resolvable from `ready/`, `queued/`, or `processed/`, without calling `resolve_source_paths()`, and without overwriting public files.
 
-For all other non-published campaigns, before calling `validate_ready_post()`, the publish flow MUST invoke canonical spec `comfyui-blog-image-generation` entry point `ensure_blog_image()` when the ready post lacks canonical image prerequisites per `comfyui-blog-image-generation` missing-image detection (including public asset handoff per `blog-image-public-asset-handoff`) and ComfyUI generation is enabled per worker configuration.
+For non-short-circuited campaigns, `publish_blog_post()` MUST orchestrate the following strict order:
 
-Canonical image prerequisites are satisfied when front matter `image` equals `/assets/images/<public_slug>.png` and public repo `assets/images/<public_slug>.png` exists or is successfully handed off. Companion PNG `blog-posts/ready/<source_slug>.png` is required for validation when downstream validation cannot proceed without it; when a readable public asset exists, optional ready sibling backfill per `blog-image-public-asset-handoff` may satisfy the companion requirement without ComfyUI. When front matter `image` points to a non-canonical path, `ensure_blog_image()` MUST NOT be invoked for remediation; validation or operator remediation MUST handle the mismatch.
+1. **Pre-generation gate** — `validate_ready_post_pre_generation()` validates deterministic requirements without blocking solely on missing/empty generatable frontmatter `image` or a generatable missing companion PNG.
+2. **Editorial image remediation** — `ensure_editorial_blog_image()` (or staged equivalent with `handoff=False`) per `comfyui-blog-image-generation`, using the active `source_relative_path` folder (`ready/` or `queued/`); detect, generate/adopt/backfill locally; patch canonical frontmatter when authorized; **no public repo write**.
+3. **Authorized hash reconciliation** — when editorial remediation patches frontmatter, recompute active `source_content_sha256`, persist on the same campaign, and recompute blog publish idempotency key per `flow-a-lifecycle`; metadata-write failure blocks publish without public repo writes.
+4. **Full validation** — `validate_ready_post()` requires canonical `image` and companion PNG beside the active folder.
+5. **Public asset handoff** — `handoff_public_blog_image()` (or staged equivalent) per `blog-image-public-asset-handoff`; runs only after full validation succeeds.
+6. **GitHub Pages post publish** — existing publish bridge semantics.
 
-If `ensure_blog_image()` is required and returns failure, the publish flow MUST return `status: failed` with the stable error code from the image step (including `blog_image_public_asset_handoff_failed` when applicable), MUST NOT call `validate_ready_post()`, MUST NOT transition to `blog_publish_pending`, and MUST NOT write public repo post files via the bridge.
+Editorial image remediation and hash reconciliation are permitted before full validation because they are controlled local canonicalization steps, not public publish side effects. Public asset handoff and public post writes MUST occur only after full validation succeeds.
 
-If `ensure_blog_image()` updates the source Markdown front matter, the publish flow MUST recompute `source_content_sha256` from the updated source file before validation and idempotency checks.
+If pre-generation validation returns `ok: false`, the publish flow MUST return `status: failed` with validation error codes, MUST NOT call editorial remediation, MUST NOT call full `validate_ready_post()`, MUST NOT call public handoff, MUST NOT transition to `blog_publish_pending`, and MUST NOT write public repo files.
 
-For all other non-published campaigns after the optional image generation and public asset handoff step, the publish flow MUST call `validate_ready_post()` before transitioning to `blog_publish_pending` or writing public repo files.
+If editorial remediation is required and returns failure, the publish flow MUST return `status: failed` with the stable error code from the image step (including `blog_image_generation_*` or local write/patch inconsistency codes), MUST NOT call full `validate_ready_post()`, MUST NOT call public handoff, MUST NOT transition to `blog_publish_pending`, and MUST NOT write public repo files. Generation failures MUST NOT be reported as `ready_post_image_missing`.
 
-If validation returns `ok: false`, the publish flow MUST return `status: failed` with error code `blog_publish_validation_failed` and MUST include validation errors in the response.
+If authorized hash reconciliation fails to persist metadata, the publish flow MUST return `status: failed` with primary error code `blog_publish_hash_reconciliation_failed`, MAY include the underlying metadata persistence error separately, MUST NOT call public handoff, and MUST NOT write public repo files.
 
-If validation succeeds and campaign state is `validated` with matching content hash, the publish flow MUST transition `validated` → `blog_publish_pending`, invoke the GitHub Pages bridge apply, then transition `blog_publish_pending` → `blog_published`.
+If full validation returns `ok: false`, the publish flow MUST return `status: failed` with validation error codes, MUST NOT call public handoff, MUST NOT transition to `blog_publish_pending`, and MUST NOT write public repo post files. No public asset write may have occurred.
 
-#### Scenario: Idempotent already-published short-circuit before validation
+If public handoff fails after successful full validation, the publish flow MUST return `status: failed` with `blog_image_public_asset_handoff_failed`, MUST NOT write public repo post files, and MUST preserve the validated editorial PNG.
 
-- **WHEN** publish is requested for a campaign already `blog_published` with `flow` `flow_a`, matching idempotency key, matching content hash, and stored `source_public_url`
-- **THEN** response `status` is `completed`, `blog_publish.status` is `already_published`, `validate_ready_post()` is not called, `ensure_blog_image()` is not called, and no public repo files are written
+`publish_blog_post()` MUST pass the configured public GitHub Pages repository path into handoff helpers when handoff runs.
 
-#### Scenario: Image generation and handoff before validation when enabled
+GitHub Pages source resolution MUST use active `source_relative_path` supporting `blog-posts/ready/`, `blog-posts/queued/`, and `blog-posts/processed/` for idempotent reruns per `github-pages-blog-publishing`.
 
-- **WHEN** publish is requested for a non-published campaign, the ready post lacks canonical image prerequisites (including missing public asset when editorial prerequisites otherwise exist), and ComfyUI generation is enabled
-- **THEN** `ensure_blog_image()` runs before `validate_ready_post()`, performs public asset handoff when applicable, and validation runs only after the image step succeeds or is skipped
+`ensure_blog_image()` MAY remain a compatibility facade for non-publish callers, but `publish_blog_post` MUST enforce staged ordering internally.
 
-#### Scenario: Ready sibling adoption before validation
+#### Scenario: Queued Markdown-only publish runs remediation before full validation and handoff
 
-- **WHEN** publish is requested for a non-published campaign, canonical front matter and ready sibling PNG exist, and public `assets/images/<public_slug>.png` is missing
-- **THEN** `ensure_blog_image()` adopts the sibling into public assets without ComfyUI before `validate_ready_post()`
+- **WHEN** `publish_blog_post` is called with `source_relative_path` `blog-posts/queued/01-example.md`, absent `image`, no companion PNG, and ComfyUI enabled
+- **THEN** pre-generation validation passes, editorial remediation runs and writes `blog-posts/queued/01-example.png` without public write, hash is reconciled, full validation runs, handoff runs, and publish may proceed
 
-#### Scenario: Public asset reuse with failed backfill may still proceed
+#### Scenario: Pre-generation failure skips remediation and handoff
 
-- **WHEN** publish is requested for a non-published campaign, readable public `assets/images/<public_slug>.png` exists, ready sibling PNG is missing, ready sibling backfill fails, and downstream validation/publish can proceed using the public asset
-- **THEN** `ensure_blog_image()` does not call ComfyUI, records a non-blocking backfill warning, does not return `blog_image_public_asset_handoff_failed`, and publish may continue to validation when prerequisites are otherwise satisfied
+- **WHEN** `publish_blog_post` is called and pre-generation validation fails for non-canonical frontmatter `image`
+- **THEN** editorial remediation is not called, full validation is not called, handoff is not called, and publish returns failed with the pre-generation error
 
-#### Scenario: Non-canonical image path skips generation before validation
+#### Scenario: ComfyUI failure does not report ready_post_image_missing
 
-- **WHEN** publish is requested for a non-published campaign and front matter `image` points to a non-canonical path
-- **THEN** `ensure_blog_image()` is not invoked for remediation, the post remains unchanged, and validation or operator remediation handles the mismatch
+- **WHEN** `publish_blog_post` is called, ComfyUI generation is required, and editorial remediation fails at ComfyUI
+- **THEN** response `status` is `failed` with a `blog_image_generation_*` error code, full `validate_ready_post` is not called, handoff is not called, and `ready_post_image_missing` is not the primary error
 
-#### Scenario: Public asset handoff failure prevents publish
+#### Scenario: Full validation failure performs no public asset write
 
-- **WHEN** publish is requested, image remediation is required, and public asset handoff fails
-- **THEN** `publish_blog_post` returns `status: failed` with `blog_image_public_asset_handoff_failed` in `errors[]`, does not call `validate_ready_post()`, does not transition to `blog_publish_pending`, and does not write public repo post files via the bridge
+- **WHEN** editorial remediation succeeds but `validate_ready_post` fails afterward
+- **THEN** publish returns failed with the validation error, no public asset file is written, and no public post file is written
 
-#### Scenario: Image generation failure prevents publish
+#### Scenario: Direct ready publish path preserved with missing image remediation
 
-- **WHEN** publish is requested, ComfyUI generation is enabled, the ready post lacks canonical image prerequisites with no reusable assets, and `ensure_blog_image()` fails at ComfyUI
-- **THEN** `publish_blog_post` returns `status: failed` with a blog image generation error code, does not call `validate_ready_post()`, does not transition to `blog_publish_pending`, and does not write public repo post files via the bridge
+- **WHEN** `publish_blog_post` is called with `blog-posts/ready/01-example.md`, absent `image`, and no companion PNG
+- **THEN** pre-generation validation, editorial remediation (including frontmatter patch), hash reconciliation, full validation, handoff, and publish proceed as before queue lifecycle
 
-#### Scenario: Validation failure prevents publish
+#### Scenario: Already published skips validation and image steps
 
-- **WHEN** `validate_ready_post` returns `ok: false` for a ready post
-- **THEN** `publish_blog_post` returns `status: failed`, includes `blog_publish_validation_failed` in `errors[]`, embeds a `validation` summary, does not transition to `blog_publish_pending`, and does not write public repo files via the bridge
+- **WHEN** campaign is already `blog_published` with matching hash and idempotency key
+- **THEN** response `status` is `completed`, `blog_publish.status` is `already_published`, validation and image steps are not called, and no public repo files are written
 
-#### Scenario: Validation success allows publish attempt
+#### Scenario: Public handoff failure blocks publish after full validation
 
-- **WHEN** `validate_ready_post` returns `ok: true` and campaign is in state `validated` with matching content hash
-- **THEN** the publish flow transitions to `blog_publish_pending` and attempts GitHub Pages bridge apply
+- **WHEN** editorial remediation and full validation succeed but public asset handoff fails
+- **THEN** `publish_blog_post` returns `status: failed` with `blog_image_public_asset_handoff_failed`, does not write public repo post files, and preserves the editorial PNG
 
+#### Scenario: Authorized frontmatter patch updates campaign hash safely
+
+- **WHEN** editorial remediation patches missing `image` frontmatter for a queued source
+- **THEN** active `source_content_sha256` and blog publish idempotency key are updated on the same campaign, `campaign_id` is unchanged, and validation does not fail with `campaign_content_hash_changed`
+
+#### Scenario: Unrelated body mutation still rejected
+
+- **WHEN** source Markdown body changes between queue acceptance and publish outside authorized image remediation
+- **THEN** publish fails with `campaign_content_hash_changed` or `blog_publish_content_hash_changed` per existing guards and does not write public repo files
 ### Requirement: Campaign state transitions for blog publish
 
 For Flow A blog publish, the worker MUST support these transitions:
@@ -157,7 +189,6 @@ Invalid state attempts MUST fail with error code `blog_publish_invalid_campaign_
 
 - **WHEN** campaign `state` is `derivatives_pending`, `derivatives_generated`, `distribution_scheduled`, `distribution_complete`, or `flow_a_complete`
 - **THEN** the operation fails with `blog_publish_invalid_campaign_state` without regressing `state`
-
 ### Requirement: Content hash guard
 
 If stored campaign `source_content_sha256` differs from the current source file digest at publish time, the publish flow MUST fail with error code `blog_publish_content_hash_changed` and MUST NOT overwrite public repo files or campaign publish metadata.
@@ -166,7 +197,6 @@ If stored campaign `source_content_sha256` differs from the current source file 
 
 - **WHEN** campaign is `validated` but source file bytes differ from stored `source_content_sha256`
 - **THEN** publish fails with `blog_publish_content_hash_changed`
-
 ### Requirement: Blog publish idempotency
 
 Blog publish MUST use the idempotency key from `build_blog_publish_idempotency_key()` in `campaign_lifecycle.py`.
@@ -189,7 +219,6 @@ If public repo targets already exist but campaign metadata does not prove the sa
 
 - **WHEN** `source_content_sha256` changes
 - **THEN** the computed blog publish idempotency key differs from any prior `blog_publish.idempotency_key` on the campaign
-
 ### Requirement: GitHub Pages bridge integration
 
 The publish flow MUST invoke the existing `github_pages_publish.py` bridge (for example `run_publish` with `apply=True`) to write prepared Markdown and PNG into the configured public repo checkout.
@@ -223,7 +252,6 @@ Public repo path MUST come from configuration (`SILVERMAN_GITHUB_PAGES_REPO_PATH
 
 - **WHEN** the bridge raises an error during apply (for example missing PNG)
 - **THEN** publish returns `status: failed` with `blog_publish_failed` and records failure in `blog_publish.error_code` when metadata is written
-
 ### Requirement: Campaign metadata blog_publish updates
 
 On publish attempt, the worker MUST update campaign `blog_publish` with:
@@ -251,7 +279,6 @@ Campaign metadata MUST NOT store full Markdown content, generated draft bodies, 
 
 - **WHEN** campaign metadata is written after publish
 - **THEN** the persisted JSON does not include `markdown_content` or `generated_draft_content`
-
 ### Requirement: Blog publish result shape
 
 `BlogPublishResult` (or equivalent) MUST include fields sufficient for n8n branching and operator review, including at minimum:
@@ -284,7 +311,6 @@ When publish date adjustment occurs, `blog_publish` (or equivalent summary) SHOU
 
 - **WHEN** publish evaluates blog image generation for a ready post
 - **THEN** response includes `blog_image_generation` with at minimum `status` and, when applicable, `public_image_path` and `error_code`
-
 ### Requirement: HTTP endpoint POST /publish-blog-post
 
 The worker SHALL expose `POST /publish-blog-post` protected by the same API-key authentication as other mutating worker endpoints.
@@ -326,12 +352,13 @@ Response body MUST include at minimum:
 
 - **WHEN** publish evaluates blog image generation for a ready post
 - **THEN** response includes `blog_image_generation` with at minimum `status` and, when applicable, `public_image_path` and `error_code`
-
 ### Requirement: ComfyUI blog image generation integration reference
 
-Blog publish MUST integrate pre-validation blog image generation and public asset handoff per canonical specs `comfyui-blog-image-generation` and `blog-image-public-asset-handoff`, using worker modules `blog_image_generation.py` and `comfyui_client.py`.
+Blog publish MUST integrate staged blog image generation and public asset handoff per canonical specs `comfyui-blog-image-generation` and `blog-image-public-asset-handoff`, using worker modules `blog_image_generation.py` and `comfyui_client.py`.
 
-`publish_blog_post()` MUST pass the configured public GitHub Pages repository path into `ensure_blog_image()` (or equivalent resolution from `SILVERMAN_GITHUB_PAGES_REPO_PATH`).
+`publish_blog_post()` MUST enforce staged ordering internally: editorial remediation before full validation; public handoff only after full validation.
+
+`publish_blog_post()` MUST pass the configured public GitHub Pages repository path into handoff helpers when handoff runs.
 
 When ComfyUI generation is disabled, publish behavior MUST remain backward compatible with posts that already include valid `image` front matter, companion PNG, and public asset (or successful adoption path).
 
@@ -341,7 +368,6 @@ When front matter `image` points to a non-canonical path, publish MUST NOT invok
 
 - **WHEN** ComfyUI generation is disabled and the ready post already has valid `image`, companion PNG, and public asset
 - **THEN** publish proceeds through validation and bridge apply unchanged from pre-handoff behavior
-
 ### Requirement: Extended blog publish error surfacing for image generation
 
 When publish fails due to blog image generation or public asset handoff, `errors[]` MUST include the stable error code from `comfyui-blog-image-generation` or `blog-image-public-asset-handoff` (for example `blog_image_generation_comfyui_failed`, `blog_image_public_asset_handoff_failed`, or `blog_image_generation_failed` only when no specific code applies).
@@ -355,7 +381,6 @@ When publish fails due to blog image generation or public asset handoff, `errors
 
 - **WHEN** publish aborts because ComfyUI generation failed
 - **THEN** `errors[]` includes a `blog_image_generation_*` code and `blog_image_generation.status` is `failed` in the response
-
 ### Requirement: Configuration
 
 Editorial base path MUST come from existing worker configuration (`SILVERMAN_BLOG_LINKEDIN_BASE_PATH`).
@@ -368,11 +393,11 @@ Site URL MUST default to `https://silverman.pro` when not provided in the reques
 
 - **WHEN** `site_url` is omitted from the HTTP request
 - **THEN** public URL calculation uses `https://silverman.pro`
-
 ### Requirement: Stable blog publish error codes
 
 The publish flow MUST use stable machine-readable error codes including at minimum:
 
+- `blog_publish_hash_reconciliation_failed`
 - `blog_publish_validation_failed`
 - `blog_publish_invalid_campaign_state`
 - `blog_publish_content_hash_changed`
@@ -392,7 +417,6 @@ The publish flow MUST use stable machine-readable error codes including at minim
 
 - **WHEN** campaign metadata cannot be written after a publish attempt
 - **THEN** response includes `metadata_written: false` and `metadata_error_code` describing the failure
-
 ### Requirement: Non-goals enforcement
 
 This child change MUST NOT modify n8n workflow JSON.
@@ -412,10 +436,13 @@ This child change MUST NOT commit or push the public GitHub Pages repository.
 
 - **WHEN** publish succeeds
 - **THEN** the source Markdown file remains at its original path under `blog-posts/ready/`
-
 ### Requirement: Processed source resolution for idempotent publish
 
-When campaign metadata indicates `source_file_status.location` is `processed` and `state` is `distribution_scheduled`, `distribution_complete`, or `flow_a_complete`, `publish_blog_post` MUST resolve the source Markdown path from `processed_source_relative_path` (falling back to `source_relative_path` when processed path is absent on legacy campaigns).
+The `already_published` short-circuit MUST use stored campaign identity and publish evidence (`state` `blog_published`, matching hash/idempotency key, and `source_public_url`) and MUST NOT require reading processed source files merely to prove an already-completed publish again.
+
+When the short-circuit applies, `publish_blog_post()` MUST return `status: completed` with `blog_publish.status` `already_published` without calling `validate_ready_post_pre_generation()`, `validate_ready_post()`, `ensure_editorial_blog_image()`, `handoff_public_blog_image()`, `resolve_source_paths()`, GitHub Pages bridge planning/apply, or any public repository read/write performed only for a publish attempt.
+
+When campaign metadata indicates `source_file_status.location` is `processed` and publish genuinely needs source files (non-short-circuited repair, reconciliation, or publish), `publish_blog_post` MUST resolve `blog-posts/processed/<source_slug>.{md,png}` from `processed_source_relative_path` (falling back to `source_relative_path` when processed path is absent on legacy campaigns) and MUST apply path confinement rules.
 
 When `source_file_status.location` is `queued` or `execution_state` is `processing` or `stale`, `publish_blog_post` MUST resolve the source Markdown path from `queued_source_relative_path` (falling back to active `source_relative_path`).
 
@@ -423,14 +450,26 @@ Campaign lookup by `source_relative_path` MUST match `original_source_relative_p
 
 Idempotent publish for post-schedule campaigns MUST NOT fail with `blog_publish_source_not_ready` solely because the Markdown file is absent from `blog-posts/ready/`.
 
+An already-published processed campaign MUST NOT fail solely because bridge source-pair resolution was attempted unnecessarily.
+
 Active Flow A publish for queued campaigns MUST NOT fail with `blog_publish_source_not_ready` solely because the Markdown file is absent from `blog-posts/ready/` when `queued_source_relative_path` exists on disk.
 
 `publish_blog_post` MUST continue to NOT perform physical source file moves; moves remain owned by `flow-a-operational-queue-lifecycle` and `flow-a-source-lifecycle-completion`.
 
-#### Scenario: Idempotent publish with processed source only
+#### Scenario: Already published processed campaign short-circuits before resolve_source_paths
 
-- **WHEN** `publish_blog_post` is called by `campaign_id` or original ready `source_relative_path` for a campaign in `distribution_scheduled` with source file only under `blog-posts/processed/`
-- **THEN** the operation returns `status: completed` with `blog_publish.status` `already_published` without requiring the file in `blog-posts/ready/`
+- **WHEN** a Flow A campaign is `blog_published` with matching stored hash, idempotency key, and `source_public_url`, and sources exist only under `blog-posts/processed/`
+- **THEN** `publish_blog_post` returns `status: completed` with `blog_publish.status` `already_published` without calling `resolve_source_paths()`, validation, editorial remediation, handoff, or public repo writes
+
+#### Scenario: Missing processed Markdown or PNG does not invalidate already_published
+
+- **WHEN** `publish_blog_post` is called for a campaign that satisfies `already_published` stored identity evidence and `blog-posts/processed/<source_slug>.md` or `blog-posts/processed/<source_slug>.png` is absent from disk
+- **THEN** the operation returns `status: completed` with `blog_publish.status` `already_published` without requiring sources in `ready/` or `queued/` and without calling `resolve_source_paths()`
+
+#### Scenario: Non-short-circuited processed repair resolves processed pair with confinement
+
+- **WHEN** a non-short-circuited repair or publish attempt genuinely needs source files, `source_file_status.location` is `processed`, and `blog-posts/processed/<source_slug>.{md,png}` exists
+- **THEN** `publish_blog_post` resolves both paths under `blog-posts/processed/` with path confinement and proceeds without requiring ready-folder copies
 
 #### Scenario: Publish resolves queued source during active Flow A
 
@@ -441,13 +480,11 @@ Active Flow A publish for queued campaigns MUST NOT fail with `blog_publish_sour
 
 - **WHEN** `publish_blog_post` is called with `source_relative_path` equal to a campaign's `original_source_relative_path` after lifecycle completion
 - **THEN** the campaign is resolved and idempotent behavior applies without `blog_publish_source_not_ready`
-
 ### Requirement: Blog image public asset handoff integration reference
 
-Blog publish MUST satisfy canonical spec `blog-image-public-asset-handoff` during the pre-validation image step so Jekyll-canonical `assets/images/<public_slug>.png` exists before validation and bridge apply without manual operator copying.
+Blog publish MUST satisfy canonical spec `blog-image-public-asset-handoff` during the post-validation handoff step so Jekyll-canonical `assets/images/<public_slug>.png` exists before bridge apply without manual operator copying.
 
-#### Scenario: Publish passes public repo path to image step
+#### Scenario: Publish passes public repo path to handoff step
 
-- **WHEN** `publish_blog_post` invokes `ensure_blog_image()`
-- **THEN** the configured `SILVERMAN_GITHUB_PAGES_REPO_PATH` is available for public asset evaluation and handoff
-
+- **WHEN** `publish_blog_post` invokes `handoff_public_blog_image()` after full validation
+- **THEN** the configured `SILVERMAN_GITHUB_PAGES_REPO_PATH` is available for public asset evaluation and copy

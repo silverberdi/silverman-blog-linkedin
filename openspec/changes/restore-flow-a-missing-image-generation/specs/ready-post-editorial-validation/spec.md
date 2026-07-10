@@ -126,3 +126,89 @@ The entry point MUST return a structured `ReadyPostValidationResult` (or equival
 
 - **WHEN** this child change is applied
 - **THEN** no new FastAPI route is required; validation is callable as a library module and covered by unit tests
+
+### Requirement: Campaign metadata integration
+
+On validation when `publication_date` and `public_slug` are derivable, the worker MUST create or update `metadata/campaigns/<campaign-id>.json` using lifecycle helpers.
+
+Campaign ID MUST follow `flow-a-YYYY-MM-DD-<public-slug>`.
+
+Campaign `flow` MUST be `flow_a`.
+
+Campaign MUST include `source_content_sha256` computed via `compute_source_content_sha256` from lifecycle module.
+
+Metadata-only state transitions:
+
+- Success: `ready` → `validated`
+- Failure: `ready` → `validation_failed`
+
+Validation failure MUST append blocking error codes to campaign metadata `errors[]` via lifecycle transition rules.
+
+Validation MUST NOT physically move source files in this child.
+
+On `validation_failed`, lifecycle helpers MUST mark metadata-only error state (`source_file_status.location` = `error`).
+
+**Pre-remediation hash compatibility (pre-generation validation):**
+
+- When campaign context is supplied, pre-generation validation MUST compare the current source digest against intake/pre-remediation evidence.
+- Operator or unrelated source mutations after queue acceptance MUST fail with `campaign_content_hash_changed` or `blog_publish_content_hash_changed` per existing guards.
+- Compatibility checks MUST use `intake_source_content_sha256` when present; otherwise the stored pre-remediation `source_content_sha256` at queue acceptance.
+- Absence or normalization of the canonical `image` frontmatter field is the only authorized mutation deferred to editorial remediation; pre-generation validation MUST NOT treat that deferred mutation alone as `campaign_content_hash_changed`.
+
+**Post-remediation hash compatibility (full validation):**
+
+- When editorial remediation patches or normalizes the canonical `image` field as the only authorized mutation, authorized hash reconciliation per `flow-a-lifecycle` MUST run before full validation.
+- After reconciliation, `source_content_sha256` MUST represent the active post-remediation digest.
+- `intake_source_content_sha256` MUST remain immutable once recorded at queue acceptance.
+- Full validation MUST compare the current Markdown bytes against the reconciled active `source_content_sha256`.
+- Authorized remediation MUST NOT produce `campaign_content_hash_changed` or `blog_publish_content_hash_changed`.
+- Unrelated body or frontmatter mutation outside authorized image remediation MUST still fail with `campaign_content_hash_changed` or `blog_publish_content_hash_changed`.
+
+**Existing campaign metadata behavior:**
+
+- When campaign metadata already exists in `ready` state, validation MAY transition to `validated` or `validation_failed` per outcome.
+- When campaign metadata already exists in `validated` state and `source_content_sha256` matches the current ready post content, validation MUST be idempotent: return `ok: true` without appending duplicate state history entries.
+- When campaign metadata already exists with a different `source_content_sha256` than the current post content after authorized reconciliation is not applicable, validation MUST fail with error code `campaign_content_hash_changed` and MUST NOT silently overwrite metadata; reset/revalidation behavior is deferred to a later child.
+- When campaign metadata already exists in a state beyond `validated` (for example `blog_published`, `derivatives_generated`), validation MUST NOT silently overwrite or regress the campaign; return blocking error `campaign_invalid_existing_state`.
+
+Future `worker-blog-publishing-endpoint` depends on idempotent re-validation when campaign is already `validated` with unchanged content.
+
+#### Scenario: Successful validation transitions campaign
+
+- **WHEN** all blocking checks pass for a new ready post with `publication_date` `2026-07-06` and `public_slug` `why-i-did-not-start-with-the-database`
+- **THEN** campaign ID `flow-a-2026-07-06-why-i-did-not-start-with-the-database` is created or updated, `state` becomes `validated`, and `metadata_written` is `true`
+
+#### Scenario: Failed validation transitions campaign from ready
+
+- **WHEN** a blocking check fails after campaign metadata exists in `ready` state
+- **THEN** campaign transitions to `validation_failed` with `errors[]` containing stable error codes and `metadata_written` is `true` when persistence succeeds
+
+#### Scenario: Idempotent re-validation when already validated with same content hash
+
+- **WHEN** campaign metadata exists in `validated` state and `source_content_sha256` matches the current post content after any authorized reconciliation
+- **THEN** validation returns `ok: true`, `state` remains `validated`, and no duplicate state history entry is appended
+
+#### Scenario: Content hash changed on existing campaign
+
+- **WHEN** campaign metadata exists and stored active `source_content_sha256` differs from the hash computed for the current post outside authorized image remediation
+- **THEN** validation fails with error code `campaign_content_hash_changed`, does not overwrite progressed metadata, and `metadata_written` is `false` or records explicit metadata error per lifecycle rules
+
+#### Scenario: Authorized image remediation does not fail hash guard
+
+- **WHEN** editorial remediation patches only the canonical `image` frontmatter field, hash reconciliation succeeds, and full validation runs
+- **THEN** validation does not fail with `campaign_content_hash_changed` and compares against the reconciled active digest
+
+#### Scenario: Body mutation after queue acceptance still fails
+
+- **WHEN** Markdown body bytes change between queue acceptance and full validation outside authorized image remediation
+- **THEN** pre-generation or full validation fails with `campaign_content_hash_changed` or `blog_publish_content_hash_changed` per existing guards
+
+#### Scenario: Campaign already progressed beyond validated
+
+- **WHEN** campaign metadata exists in a state beyond `validated` (for example `blog_published`)
+- **THEN** validation fails with error code `campaign_invalid_existing_state` and does not modify campaign state or history
+
+#### Scenario: Metadata write failure surfaces in result
+
+- **WHEN** `metadata/campaigns/` is not writable
+- **THEN** result includes `metadata_written: false` and `metadata_error_code` from lifecycle write result (for example `metadata_campaigns_not_writable` or `campaign_metadata_write_failed`)

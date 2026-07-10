@@ -25,7 +25,7 @@ For image-related `publish_blog_post` failures after `claim_flow_a_execution`, t
 | Failure class | `release_flow_a_execution` | Notes |
 |---------------|---------------------------|-------|
 | ComfyUI transient (`blog_image_generation_*` retryable) | Exactly once | No downstream steps |
-| Local write/patch inconsistency | Exactly once when claim `processing` | `repair_required` |
+| Local write/patch inconsistency or active-folder backfill failure | Exactly once when claim `processing` | `retryable` or `repair_required`; no handoff or publish |
 | Public handoff after full validation | Exactly once | `repair_required`; preserve editorial PNG |
 | Hash metadata persistence failure | Exactly once when applicable | No handoff or publish |
 | Deterministic pre/full validation before handoff with error move | Error move owns closure | Connector MUST NOT redundantly release |
