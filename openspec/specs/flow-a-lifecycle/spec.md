@@ -91,7 +91,13 @@ Each campaign metadata document MUST include at minimum:
 - `state_history` (array of transition records)
 - `errors` and `warnings` (arrays)
 
-The document MAY include `source_file_status` for metadata-only ready/processed/error marking.
+After successful Flow A source lifecycle completion, the document MUST also include:
+
+- `original_source_relative_path` (immutable ready-folder path once set)
+- `processed_source_relative_path` (processed-folder path after move)
+- `original_image_relative_path` and `processed_image_relative_path` when a companion image was moved
+
+The document MAY include `source_file_status` for ready/processed/error marking and physical-move state.
 
 #### Scenario: Initial campaign document shape
 
@@ -102,6 +108,11 @@ The document MAY include `source_file_status` for metadata-only ready/processed/
 
 - **WHEN** campaign metadata is created from source Markdown bytes
 - **THEN** `source_content_sha256` is a hex SHA-256 digest of the source content and no Markdown body field is stored in the campaign document
+
+#### Scenario: Lifecycle completion adds path traceability fields
+
+- **WHEN** Flow A source lifecycle completes successfully
+- **THEN** campaign metadata includes `original_source_relative_path`, `processed_source_relative_path`, and optional image path fields while retaining `source_content_sha256`
 
 ### Requirement: Metadata body exclusion
 
@@ -280,22 +291,26 @@ Duplicate schedule slots for the same campaign, variant, and time MUST NOT creat
 
 ### Requirement: Source file marking policy
 
-This change MUST define metadata-only marking for source files via `source_file_status`:
+Flow A source files SHALL be marked via `source_file_status`:
 
 - `location` values: `ready`, `processed`, `error`
 - `marked_processed_at` and `marked_error_at` timestamps
+- `physical_move_completed_at` when physical move to `processed/` succeeds
+- `physical_move_state` values: `none`, `completed`, `partial`, `failed` (when applicable)
 
-Physical moves between `blog-posts/ready/`, `blog-posts/processed/`, and `blog-posts/error/` are deferred to validation and orchestration child changes.
+Physical moves from `blog-posts/ready/` to `blog-posts/processed/` are performed by canonical spec `flow-a-source-lifecycle-completion` after successful distribution scheduling. Metadata marking and physical move MUST occur together on successful lifecycle completion.
+
+Moves to `blog-posts/error/` remain metadata-first unless a future validation change adds physical error moves.
 
 #### Scenario: Validation failure marks error in metadata
 
 - **WHEN** validation fails for a Flow A campaign
-- **THEN** `source_file_status.location` becomes `error` and `marked_error_at` is set without requiring this change to move files
+- **THEN** `source_file_status.location` becomes `error` and `marked_error_at` is set without requiring physical move to `blog-posts/error/`
 
-#### Scenario: Lifecycle completion marks processed in metadata
+#### Scenario: Lifecycle completion marks processed in metadata and on disk
 
-- **WHEN** a campaign reaches `flow_a_complete`
-- **THEN** `source_file_status.location` becomes `processed` and `marked_processed_at` is set
+- **WHEN** Flow A source lifecycle completes successfully
+- **THEN** `source_file_status.location` becomes `processed`, `marked_processed_at` and `physical_move_completed_at` are set, source files exist under `blog-posts/processed/`, and campaign `state` is `flow_a_complete`
 
 ### Requirement: Worker lifecycle module
 
