@@ -45,6 +45,7 @@ from silverman_blog_linkedin.ready_post_validation import (
     WARNING_AI_OPENING,
     WARNING_GENERIC_ENDING,
     validate_ready_post,
+    validate_ready_post_pre_generation,
 )
 
 SOURCE_SLUG = "01-why-i-did-not-start-with-the-database"
@@ -503,3 +504,64 @@ def test_campaign_metadata_created_in_ready_then_validated(editorial_base: Path)
     )
     states = [entry["to_state"] for entry in campaign["state_history"]]
     assert states == [STATE_READY, STATE_VALIDATED]
+
+
+def _pre_validate(base: Path, relative: str = SOURCE_RELATIVE, **kwargs):
+    return validate_ready_post_pre_generation(
+        base, relative, site_url=SITE_URL, **kwargs
+    )
+
+
+def test_pre_generation_allows_missing_image_when_generation_enabled(editorial_base: Path):
+    fm = _canonical_frontmatter().replace(
+        f"image: /assets/images/{PUBLIC_SLUG}.png\n", ""
+    )
+    _write_post(
+        editorial_base,
+        frontmatter=fm,
+        with_png=False,
+    )
+    result = _pre_validate(
+        editorial_base,
+        image_generation_enabled=True,
+    )
+    assert result.ok is True
+    assert READY_POST_IMAGE_MISSING not in result.errors
+
+
+def test_pre_generation_allows_empty_image_when_generation_enabled(editorial_base: Path):
+    fm = _canonical_frontmatter().replace(
+        f"image: /assets/images/{PUBLIC_SLUG}.png",
+        "image: ",
+    )
+    _write_post(editorial_base, frontmatter=fm, with_png=False)
+    result = _pre_validate(editorial_base, image_generation_enabled=True)
+    assert result.ok is True
+
+
+def test_pre_generation_blocks_non_canonical_image(editorial_base: Path):
+    fm = _canonical_frontmatter().replace(
+        f"image: /assets/images/{PUBLIC_SLUG}.png",
+        "image: /assets/images/wrong-slug.png",
+    )
+    _write_post(editorial_base, frontmatter=fm, with_png=False)
+    result = _pre_validate(editorial_base, image_generation_enabled=True)
+    assert result.ok is False
+    assert FRONTMATTER_INVALID_IMAGE in result.errors
+
+
+def test_pre_generation_queued_path(editorial_base: Path):
+    queued = editorial_base / "blog-posts" / "queued"
+    queued.mkdir(parents=True, exist_ok=True)
+    fm = _canonical_frontmatter().replace(
+        f"image: /assets/images/{PUBLIC_SLUG}.png\n", ""
+    )
+    relative = f"blog-posts/queued/{SOURCE_SLUG}.md"
+    (queued / f"{SOURCE_SLUG}.md").write_text(fm + _canonical_body(), encoding="utf-8")
+    result = _pre_validate(
+        editorial_base,
+        relative=relative,
+        image_generation_enabled=True,
+    )
+    assert result.ok is True
+    assert result.image_relative_path == f"blog-posts/queued/{SOURCE_SLUG}.png"

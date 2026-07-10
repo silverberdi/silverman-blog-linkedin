@@ -11,7 +11,11 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from silverman_blog_linkedin.blog_publish_flow import BlogPublishResult
+from silverman_blog_linkedin.blog_publish_flow import (
+    BLOG_PUBLISH_VALIDATION_FAILED,
+    BlogPublishResult,
+    publish_blog_post,
+)
 from silverman_blog_linkedin.campaign_lifecycle import (
     CampaignMetadataWriteResult,
     STATE_BLOG_PUBLISHED,
@@ -82,25 +86,8 @@ QUEUED_POST_RELATIVE = "blog-posts/queued/post.md"
 
 @pytest.fixture(autouse=True)
 def _stub_editorial_validation(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Bypass full editorial validation in connector chaining tests."""
-
-    def _validation_ok(
-        base_path: Path,
-        source_relative_path: str,
-        *,
-        site_url: str = "https://silverman.pro",
-    ) -> ReadyPostValidationResult:
-        return ReadyPostValidationResult(
-            ok=True,
-            source_relative_path=source_relative_path,
-            campaign_id=CONFLICT_CAMPAIGN_ID,
-            state=STATE_BLOG_PUBLISHED,
-        )
-
-    monkeypatch.setattr(
-        "silverman_blog_linkedin.editorial_calendar_flow_a_execute.validate_ready_post",
-        _validation_ok,
-    )
+    """Connector no longer calls validate_ready_post directly; fixture retained for compatibility."""
+    return None
 
 
 def _write_calendar(base: Path, payload: dict) -> Path:
@@ -1301,13 +1288,24 @@ def test_queue_acceptance_metadata_write_failure_blocks_connector(editorial_base
 
 
 def _validation_failure(monkeypatch: pytest.MonkeyPatch, errors: list[str] | None = None) -> None:
-    monkeypatch.setattr(
-        "silverman_blog_linkedin.editorial_calendar_flow_a_execute.validate_ready_post",
-        lambda base_path, source_relative_path, **kwargs: ReadyPostValidationResult(
-            ok=False,
+    failure_errors = errors or ["editorial_validation_failed"]
+
+    def _failed_publish(
+        base_path: Path,
+        source_relative_path: str,
+        **kwargs,
+    ) -> BlogPublishResult:
+        return BlogPublishResult(
+            status="failed",
             source_relative_path=source_relative_path,
-            errors=errors or ["editorial_validation_failed"],
-        ),
+            campaign_id=CONFLICT_CAMPAIGN_ID,
+            errors=[BLOG_PUBLISH_VALIDATION_FAILED, *failure_errors],
+            validation={"ok": False, "errors": failure_errors},
+        )
+
+    monkeypatch.setattr(
+        "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
+        _failed_publish,
     )
 
 

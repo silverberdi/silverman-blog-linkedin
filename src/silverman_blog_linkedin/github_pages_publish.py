@@ -20,6 +20,9 @@ from silverman_blog_linkedin.config import DEFAULT_BASE_PATH
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 NUMERIC_PREFIX_PATTERN = re.compile(r"^\d+-(.+)$")
 READY_RELATIVE = Path("blog-posts/ready")
+QUEUED_RELATIVE = Path("blog-posts/queued")
+PROCESSED_RELATIVE = Path("blog-posts/processed")
+ALLOWED_SOURCE_RELATIVES = (READY_RELATIVE, QUEUED_RELATIVE, PROCESSED_RELATIVE)
 POSTS_RELATIVE = Path("_posts")
 IMAGES_RELATIVE = Path("assets/images")
 
@@ -168,8 +171,34 @@ def validate_repo_layout(repo_path: Path) -> None:
 
 
 def resolve_source_paths(
-    config: PublishConfig, source_slug: str
+    config: PublishConfig,
+    source_slug: str,
+    *,
+    source_relative_path: str | None = None,
 ) -> tuple[Path, Path]:
+    if source_relative_path is not None:
+        normalized = source_relative_path.replace("\\", "/").lstrip("/")
+        matched_relative: Path | None = None
+        for allowed in ALLOWED_SOURCE_RELATIVES:
+            prefix = f"{allowed.as_posix()}/"
+            if normalized.startswith(prefix) and normalized.endswith(".md"):
+                matched_relative = allowed
+                break
+        if matched_relative is None:
+            raise PublishError(
+                f"unsupported editorial source folder for {source_relative_path!r}"
+            )
+        source_dir = (config.editorial_base / matched_relative).resolve()
+        md_path = (source_dir / f"{source_slug}.md").resolve()
+        png_path = (source_dir / f"{source_slug}.png").resolve()
+        _require_relative_to(md_path, source_dir, "markdown source path")
+        _require_relative_to(png_path, source_dir, "image source path")
+        if not md_path.is_file():
+            raise PublishError(f"missing markdown source: {matched_relative / f'{source_slug}.md'}")
+        if not png_path.is_file():
+            raise PublishError(f"missing PNG source: {matched_relative / f'{source_slug}.png'}")
+        return md_path, png_path
+
     ready_dir = config.editorial_base / READY_RELATIVE
     if not ready_dir.is_dir():
         raise PublishError(
@@ -526,10 +555,13 @@ def build_plan(
     public_slug_override: str | None = None,
     execution_time: datetime | None = None,
     on_future_date: OnFutureDate = "adjust",
+    source_relative_path: str | None = None,
 ) -> PublishPlan:
     public_slug = resolve_public_slug(source_slug, public_slug_override)
     validate_repo_layout(config.repo_path)
-    source_md, source_png = resolve_source_paths(config, source_slug)
+    source_md, source_png = resolve_source_paths(
+        config, source_slug, source_relative_path=source_relative_path
+    )
     intended_url_date = publication_date
     exec_time = (
         execution_time
@@ -626,6 +658,7 @@ def run_publish(
     environ: dict[str, str] | None = None,
     execution_time: datetime | None = None,
     on_future_date: OnFutureDate = "adjust",
+    source_relative_path: str | None = None,
 ) -> PublishPlan:
     import os
 
@@ -652,6 +685,7 @@ def run_publish(
         public_slug_override=public_slug_override,
         execution_time=exec_time,
         on_future_date=on_future_date,
+        source_relative_path=source_relative_path,
     )
 
     if apply:

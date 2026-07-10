@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from silverman_blog_linkedin.blog_image_generation import (
+    BLOG_IMAGE_GENERATION_BACKFILL_FAILED,
     BLOG_IMAGE_GENERATION_COMFYUI_FAILED,
     BLOG_IMAGE_GENERATION_DISABLED,
     BLOG_IMAGE_GENERATION_FAILED,
@@ -470,15 +471,13 @@ def test_public_asset_exists_backfill_fails_warning_no_handoff_error(
             client=fake,
             github_pages_repo_path=public_repo,
             environ=_publish_env(editorial_base, public_repo),
+            handoff=False,
         )
     finally:
         ready_dir.chmod(0o755)
 
-    assert result.status == "skipped"
-    assert result.error_code is None
-    assert BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED not in (result.error_code,)
-    assert result.ready_sibling_backfill_status == "failed"
-    assert WARNING_READY_SIBLING_BACKFILL_FAILED in result.warnings
+    assert result.status == "failed"
+    assert result.error_code == BLOG_IMAGE_GENERATION_BACKFILL_FAILED
     assert fake.calls == []
 
 

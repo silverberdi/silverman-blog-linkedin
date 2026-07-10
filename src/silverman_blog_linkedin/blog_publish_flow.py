@@ -10,7 +10,8 @@ from typing import Any
 
 from silverman_blog_linkedin.blog_image_generation import (
     BLOG_IMAGE_GENERATION_FAILED,
-    ensure_blog_image,
+    ensure_editorial_blog_image,
+    handoff_public_blog_image,
     recompute_source_hash_after_generation,
 )
 from silverman_blog_linkedin.comfyui_config import load_comfyui_settings
@@ -42,6 +43,7 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     write_campaign_metadata,
 )
 from silverman_blog_linkedin.github_pages_publish import (
+    BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED,
     DEFAULT_SITE_URL,
     ENV_REPO_PATH,
     PublishError,
@@ -56,10 +58,11 @@ from silverman_blog_linkedin.github_pages_publish import (
 )
 from silverman_blog_linkedin.ready_post_validation import (
     CAMPAIGN_CONTENT_HASH_CHANGED,
+    CAMPAIGN_METADATA_WRITE_FAILED,
     CONTENT_CONTAINS_TODO,
-    QUEUED_RELATIVE_PREFIX,
-    READY_RELATIVE_PREFIX,
+    ALLOWED_PUBLISH_SOURCE_PREFIXES,
     validate_ready_post,
+    validate_ready_post_pre_generation,
 )
 from silverman_blog_linkedin.run_metadata import utc_now_iso
 
@@ -73,6 +76,8 @@ BLOG_PUBLISH_PUBLIC_REPO_NOT_CONFIGURED = "blog_publish_public_repo_not_configur
 BLOG_PUBLISH_SOURCE_NOT_READY = "blog_publish_source_not_ready"
 BLOG_PUBLISH_FLOW_B_NOT_ALLOWED = "blog_publish_flow_b_not_allowed"
 
+BLOG_PUBLISH_HASH_RECONCILIATION_FAILED = "blog_publish_hash_reconciliation_failed"
+
 BLOG_PUBLISH_ERROR_CODES = frozenset(
     {
         BLOG_PUBLISH_VALIDATION_FAILED,
@@ -84,6 +89,7 @@ BLOG_PUBLISH_ERROR_CODES = frozenset(
         BLOG_PUBLISH_PUBLIC_REPO_NOT_CONFIGURED,
         BLOG_PUBLISH_SOURCE_NOT_READY,
         BLOG_PUBLISH_FLOW_B_NOT_ALLOWED,
+        BLOG_PUBLISH_HASH_RECONCILIATION_FAILED,
     }
 )
 
@@ -337,7 +343,7 @@ def _preflight_inspect(
     normalized = _normalize_relative_path(source_relative_path)
     errors: list[str] = []
 
-    allowed_prefixes = (READY_RELATIVE_PREFIX, QUEUED_RELATIVE_PREFIX)
+    allowed_prefixes = ALLOWED_PUBLISH_SOURCE_PREFIXES
     matched_prefix = None
     for prefix in allowed_prefixes:
         if normalized.startswith(prefix):
@@ -372,7 +378,7 @@ def _preflight_inspect(
             errors=tuple(errors),
         )
 
-    folder_name = "ready" if matched_prefix == READY_RELATIVE_PREFIX else "queued"
+    folder_name = matched_prefix.removeprefix("blog-posts/").removesuffix("/")
     source_dir = (base_path / "blog-posts" / folder_name).resolve()
     resolved = (base_path / normalized).resolve()
     try:
@@ -1088,6 +1094,60 @@ def _persist_campaign(
     return True, None
 
 
+def reconcile_authorized_source_hash(
+    base_path: Path,
+    *,
+    campaign_id: str,
+    source_relative_path: str,
+    front_matter_updated: bool,
+) -> tuple[bool, str | None, str | None, str | None]:
+    """Persist authorized active hash after editorial frontmatter patch."""
+    campaign = read_campaign_metadata(base_path, campaign_id)
+    if campaign is None:
+        return False, None, None, "campaign_not_found"
+
+    updated_hash = recompute_source_hash_after_generation(base_path, source_relative_path)
+    if not updated_hash:
+        return False, None, None, BLOG_PUBLISH_HASH_RECONCILIATION_FAILED
+
+    if not front_matter_updated:
+        return True, updated_hash, None, None
+
+    intake_hash = campaign.get("intake_source_content_sha256")
+    if not isinstance(intake_hash, str) or not intake_hash:
+        existing_active = campaign.get("source_content_sha256")
+        if isinstance(existing_active, str) and existing_active:
+            campaign["intake_source_content_sha256"] = existing_active
+
+    campaign["source_content_sha256"] = updated_hash
+    source_slug = campaign.get("source_slug")
+    public_slug = campaign.get("public_slug")
+    publication_date = campaign.get("publication_date")
+    expected_key: str | None = None
+    if source_slug and public_slug and publication_date:
+        try:
+            expected_key = build_blog_publish_idempotency_key(
+                source_slug=str(source_slug),
+                public_slug=str(public_slug),
+                publication_date=str(publication_date),
+                source_content_sha256=updated_hash,
+            )
+            blog_publish = dict(campaign.get("blog_publish") or {})
+            blog_publish["idempotency_key"] = expected_key
+            campaign["blog_publish"] = blog_publish
+        except Exception:
+            return False, updated_hash, None, BLOG_PUBLISH_HASH_RECONCILIATION_FAILED
+
+    metadata_written, metadata_error_code = _persist_campaign(
+        base_path, campaign_id, campaign
+    )
+    if not metadata_written:
+        return False, updated_hash, expected_key, (
+            metadata_error_code or BLOG_PUBLISH_HASH_RECONCILIATION_FAILED
+        )
+    return True, updated_hash, expected_key, None
+
+
 def publish_blog_post(
     base_path: Path,
     source_relative_path: str,
@@ -1160,8 +1220,33 @@ def publish_blog_post(
     warnings: list[str] = []
     blog_image_generation_summary: dict[str, Any] = {}
 
+    env = _build_environ(base_path, site_url, github_pages_repo_path, environ)
     comfy_config = load_comfyui_settings(environ)
-    image_result = ensure_blog_image(
+
+    if not skip_validation:
+        pre_validation = validate_ready_post_pre_generation(
+            base_path,
+            preflight.source_relative_path,
+            site_url=site_url,
+            environ=environ,
+        )
+        validation_summary = _validation_summary(pre_validation)
+        warnings = list(pre_validation.warnings)
+        if not pre_validation.ok:
+            errors = list(pre_validation.errors)
+            if BLOG_PUBLISH_VALIDATION_FAILED not in errors:
+                errors.insert(0, BLOG_PUBLISH_VALIDATION_FAILED)
+            return _failed_result(
+                preflight,
+                errors=errors,
+                warnings=warnings,
+                validation=validation_summary,
+                campaign_id=pre_validation.campaign_id or preflight.campaign_id,
+                state=pre_validation.state,
+                source_public_url=pre_validation.source_public_url,
+            )
+
+    editorial_result = ensure_editorial_blog_image(
         base_path,
         preflight.source_relative_path,
         config=comfy_config,
@@ -1171,28 +1256,43 @@ def publish_blog_post(
         campaign_id=preflight.campaign_id,
         github_pages_repo_path=github_pages_repo_path,
     )
-    blog_image_generation_summary = image_result.to_dict()
+    blog_image_generation_summary = editorial_result.to_dict()
 
-    if image_result.status == "failed":
+    if editorial_result.status == "failed":
         failure_errors: list[str] = []
-        if image_result.error_code:
-            failure_errors.append(image_result.error_code)
+        if editorial_result.error_code:
+            failure_errors.append(editorial_result.error_code)
         else:
             failure_errors.append(BLOG_IMAGE_GENERATION_FAILED)
         return _failed_result(
             preflight,
             errors=failure_errors,
+            warnings=warnings,
+            validation=validation_summary,
             campaign_id=preflight.campaign_id,
             state=campaign.get("state") if campaign else None,
             source_public_url=(
                 campaign.get("source_public_url") if campaign else None
             ),
             blog_image_generation=blog_image_generation_summary,
-            metadata_written=image_result.metadata_written,
-            metadata_error_code=image_result.metadata_error_code,
+            metadata_written=editorial_result.metadata_written,
+            metadata_error_code=editorial_result.metadata_error_code,
         )
 
-    if image_result.front_matter_updated:
+    if editorial_result.image_relative_path:
+        preflight = PreflightContext(
+            source_relative_path=preflight.source_relative_path,
+            source_slug=preflight.source_slug,
+            public_slug=preflight.public_slug,
+            publication_date=preflight.publication_date,
+            source_content_sha256=preflight.source_content_sha256,
+            campaign_id=preflight.campaign_id,
+            expected_idempotency_key=preflight.expected_idempotency_key,
+            image_relative_path=editorial_result.image_relative_path,
+            errors=preflight.errors,
+        )
+
+    if editorial_result.front_matter_updated:
         updated_hash = recompute_source_hash_after_generation(
             base_path,
             preflight.source_relative_path,
@@ -1221,6 +1321,47 @@ def publish_blog_post(
                 image_relative_path=preflight.image_relative_path,
                 errors=preflight.errors,
             )
+        if preflight.campaign_id:
+            existing_campaign = read_campaign_metadata(base_path, preflight.campaign_id)
+            if existing_campaign is not None:
+                reconciled_ok, reconciled_hash, updated_key, reconcile_error = (
+                    reconcile_authorized_source_hash(
+                        base_path,
+                        campaign_id=preflight.campaign_id,
+                        source_relative_path=preflight.source_relative_path,
+                        front_matter_updated=True,
+                    )
+                )
+                if not reconciled_ok:
+                    reconcile_errors = [BLOG_PUBLISH_HASH_RECONCILIATION_FAILED]
+                    underlying = reconcile_error
+                    if (
+                        underlying
+                        and underlying != BLOG_PUBLISH_HASH_RECONCILIATION_FAILED
+                    ):
+                        reconcile_errors.append(underlying)
+                    return _failed_result(
+                        preflight,
+                        errors=reconcile_errors,
+                        warnings=warnings,
+                        validation=validation_summary,
+                        campaign_id=preflight.campaign_id,
+                        state=campaign.get("state") if campaign else None,
+                        blog_image_generation=blog_image_generation_summary,
+                    )
+                if reconciled_hash:
+                    preflight = PreflightContext(
+                        source_relative_path=preflight.source_relative_path,
+                        source_slug=preflight.source_slug,
+                        public_slug=preflight.public_slug,
+                        publication_date=preflight.publication_date,
+                        source_content_sha256=reconciled_hash,
+                        campaign_id=preflight.campaign_id,
+                        expected_idempotency_key=updated_key or preflight.expected_idempotency_key,
+                        image_relative_path=preflight.image_relative_path,
+                        errors=preflight.errors,
+                    )
+                    campaign = read_campaign_metadata(base_path, preflight.campaign_id)
 
     if not skip_validation:
         validation = validate_ready_post(
@@ -1289,6 +1430,48 @@ def publish_blog_post(
                 ),
                 errors=preflight.errors,
             )
+
+    handoff_result = handoff_public_blog_image(
+        base_path,
+        preflight.source_relative_path,
+        github_pages_repo_path=github_pages_repo_path,
+        public_slug_override=public_slug_override,
+        campaign_id=preflight.campaign_id,
+        environ=environ,
+    )
+    handoff_summary = handoff_result.to_dict()
+    blog_image_generation_summary.update(
+        {
+            key: value
+            for key, value in handoff_summary.items()
+            if value is not None
+            and key
+            not in {
+                "source_relative_path",
+                "status",
+                "error_code",
+                "metadata_written",
+                "metadata_error_code",
+            }
+        }
+    )
+    if handoff_result.status == "failed":
+        handoff_errors = [
+            handoff_result.error_code or BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED
+        ]
+        blog_image_generation_summary["status"] = "failed"
+        blog_image_generation_summary["error_code"] = handoff_errors[0]
+        return _failed_result(
+            preflight,
+            errors=handoff_errors,
+            warnings=warnings,
+            validation=validation_summary,
+            campaign_id=preflight.campaign_id,
+            state=campaign.get("state") if campaign else None,
+            blog_image_generation=blog_image_generation_summary,
+            metadata_written=handoff_result.metadata_written,
+            metadata_error_code=handoff_result.metadata_error_code,
+        )
 
     eligibility_error = _check_campaign_eligible_for_publish(
         campaign,
@@ -1431,6 +1614,7 @@ def publish_blog_post(
             public_slug_override=public_slug_override,
             environ=env,
             execution_time=publish_execution_time,
+            source_relative_path=preflight.source_relative_path,
         )
     except PublishError as exc:
         error_code = BLOG_PUBLISH_TARGET_EXISTS

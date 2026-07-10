@@ -21,8 +21,11 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     transition_state,
     write_campaign_metadata,
 )
+from silverman_blog_linkedin.comfyui_config import load_comfyui_settings
 from silverman_blog_linkedin.github_pages_publish import (
     DEFAULT_SITE_URL,
+    ENV_REPO_PATH,
+    IMAGES_RELATIVE,
     PublishError,
     SLUG_PATTERN,
     _split_frontmatter,
@@ -33,7 +36,13 @@ from silverman_blog_linkedin.github_pages_publish import (
 
 READY_RELATIVE_PREFIX = "blog-posts/ready/"
 QUEUED_RELATIVE_PREFIX = "blog-posts/queued/"
+PROCESSED_RELATIVE_PREFIX = "blog-posts/processed/"
 ALLOWED_VALIDATION_PREFIXES = (READY_RELATIVE_PREFIX, QUEUED_RELATIVE_PREFIX)
+ALLOWED_PUBLISH_SOURCE_PREFIXES = (
+    READY_RELATIVE_PREFIX,
+    QUEUED_RELATIVE_PREFIX,
+    PROCESSED_RELATIVE_PREFIX,
+)
 IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".bmp"})
 
 # Blocking error codes
@@ -219,6 +228,27 @@ class ReadyPostValidationResult:
     metadata_error_code: str | None = None
 
 
+def derive_active_source_prefix(source_relative_path: str) -> tuple[str, str] | None:
+    """Return (allowed prefix, folder name) for ready/queued sources."""
+    normalized = _normalize_relative_path(source_relative_path)
+    for prefix in ALLOWED_VALIDATION_PREFIXES:
+        if normalized.startswith(prefix):
+            folder_name = "ready" if prefix == READY_RELATIVE_PREFIX else "queued"
+            return prefix, folder_name
+    return None
+
+
+def companion_image_relative_path(
+    source_relative_path: str, source_slug: str
+) -> str | None:
+    """Derive companion PNG path beside the active Markdown folder."""
+    derived = derive_active_source_prefix(source_relative_path)
+    if derived is None:
+        return None
+    prefix, _folder = derived
+    return f"{prefix}{source_slug}.png"
+
+
 def _normalize_relative_path(source_relative_path: str) -> str:
     normalized = source_relative_path.replace("\\", "/").lstrip("/")
     while "//" in normalized:
@@ -279,10 +309,19 @@ def _validate_slugs(source_slug: str) -> tuple[list[str], str | None]:
 
 
 def _validate_image(
-    base_path: Path, source_slug: str, *, source_prefix: str = READY_RELATIVE_PREFIX
+    base_path: Path,
+    source_slug: str,
+    *,
+    source_relative_path: str,
+    allow_missing_when_remediable: bool = False,
+    image_remediation_eligible: bool = False,
 ) -> tuple[list[str], str | None]:
     errors: list[str] = []
-    folder_name = "ready" if source_prefix == READY_RELATIVE_PREFIX else "queued"
+    derived = derive_active_source_prefix(source_relative_path)
+    if derived is None:
+        errors.append(READY_POST_NOT_UNDER_READY)
+        return errors, None
+    source_prefix, folder_name = derived
     source_dir = base_path / "blog-posts" / folder_name
     expected_png = source_dir / f"{source_slug}.png"
     image_relative = f"{source_prefix}{source_slug}.png"
@@ -301,6 +340,8 @@ def _validate_image(
 
     if same_basename_other:
         errors.append(READY_POST_IMAGE_INVALID_EXTENSION)
+    elif allow_missing_when_remediable and image_remediation_eligible:
+        return errors, image_relative
     else:
         errors.append(READY_POST_IMAGE_MISSING)
 
@@ -352,12 +393,74 @@ def _parse_frontmatter(content: str) -> tuple[list[str], dict[str, Any] | None, 
     return [], frontmatter, body
 
 
+def _canonical_image_path(public_slug: str) -> str:
+    return f"/assets/images/{public_slug}.png"
+
+
+def _public_asset_readable(
+    base_path: Path,
+    public_slug: str,
+    *,
+    environ: dict[str, str] | None = None,
+) -> bool:
+    import os
+
+    env = os.environ if environ is None else environ
+    raw_repo = env.get(ENV_REPO_PATH, "").strip()
+    if not raw_repo:
+        return False
+    candidate = (Path(raw_repo).expanduser().resolve() / IMAGES_RELATIVE / f"{public_slug}.png")
+    return candidate.is_file()
+
+
+def _image_remediation_eligible(
+    *,
+    frontmatter: dict[str, Any],
+    public_slug: str,
+    base_path: Path,
+    source_slug: str,
+    source_relative_path: str,
+    image_generation_enabled: bool,
+    environ: dict[str, str] | None = None,
+) -> bool:
+    expected_image = _canonical_image_path(public_slug)
+    image_value = frontmatter.get("image")
+    if not _is_blank(image_value):
+        if str(image_value).strip() != expected_image:
+            return False
+
+    derived = derive_active_source_prefix(source_relative_path)
+    if derived is None:
+        return False
+    _prefix, folder_name = derived
+    source_dir = base_path / "blog-posts" / folder_name
+    png_path = source_dir / f"{source_slug}.png"
+    if png_path.is_file():
+        return True
+    if _public_asset_readable(base_path, public_slug, environ=environ):
+        return True
+    return image_generation_enabled
+
+
 def _validate_frontmatter_fields(
-    frontmatter: dict[str, Any], public_slug: str
+    frontmatter: dict[str, Any],
+    public_slug: str,
+    *,
+    require_canonical_image: bool = True,
+    image_remediation_eligible: bool = False,
 ) -> tuple[list[str], str | None]:
     errors: list[str] = []
+    expected_image = _canonical_image_path(public_slug)
 
     for field_name in REQUIRED_FRONTMATTER_FIELDS:
+        if field_name == "image":
+            if require_canonical_image:
+                if _is_blank(frontmatter.get(field_name)):
+                    errors.append(FRONTMATTER_REQUIRED_FIELD_MISSING)
+            elif not _is_blank(frontmatter.get("image")):
+                if str(frontmatter.get("image", "")).strip() != expected_image:
+                    errors.append(FRONTMATTER_INVALID_IMAGE)
+            continue
         if field_name in ("categories", "tags"):
             values = _normalize_list(frontmatter.get(field_name))
             if not values:
@@ -375,13 +478,29 @@ def _validate_frontmatter_fields(
     if str(frontmatter.get("layout", "")).strip() != "post":
         errors.append(FRONTMATTER_REQUIRED_FIELD_MISSING)
 
-    expected_image = f"/assets/images/{public_slug}.png"
-    if str(frontmatter.get("image", "")).strip() != expected_image:
-        errors.append(FRONTMATTER_INVALID_IMAGE)
+    if require_canonical_image:
+        if str(frontmatter.get("image", "")).strip() != expected_image:
+            errors.append(FRONTMATTER_INVALID_IMAGE)
+    elif not _is_blank(frontmatter.get("image")):
+        if str(frontmatter.get("image", "")).strip() != expected_image:
+            errors.append(FRONTMATTER_INVALID_IMAGE)
 
     publication_date = _extract_publication_date(frontmatter.get("date"))
     if publication_date is None:
         errors.append(FRONTMATTER_INVALID_DATE)
+
+    if (
+        not require_canonical_image
+        and image_remediation_eligible
+        and _is_blank(frontmatter.get("image"))
+    ):
+        pass
+    elif (
+        not require_canonical_image
+        and not image_remediation_eligible
+        and _is_blank(frontmatter.get("image"))
+    ):
+        errors.append(FRONTMATTER_REQUIRED_FIELD_MISSING)
 
     return errors, publication_date
 
@@ -598,6 +717,125 @@ def _persist_campaign_metadata(
     return True, None, campaign.get("state")
 
 
+def validate_ready_post_pre_generation(
+    base_path: Path,
+    source_relative_path: str,
+    *,
+    site_url: str = DEFAULT_SITE_URL,
+    image_generation_enabled: bool | None = None,
+    environ: dict[str, str] | None = None,
+) -> ReadyPostValidationResult:
+    """Validate deterministic editorial requirements before image remediation."""
+    normalized_path = _normalize_relative_path(source_relative_path)
+    result = ReadyPostValidationResult(
+        ok=False,
+        source_relative_path=normalized_path,
+        errors=[],
+        warnings=[],
+    )
+
+    if image_generation_enabled is None:
+        load_result = load_comfyui_settings(environ)
+        image_generation_enabled = load_result.settings.generation_enabled
+
+    path_errors, resolved_file, source_slug = _validate_path_and_file(
+        base_path, normalized_path
+    )
+    result.errors.extend(path_errors)
+    if path_errors or resolved_file is None or source_slug is None:
+        return result
+
+    result.source_slug = source_slug
+
+    slug_errors, public_slug = _validate_slugs(source_slug)
+    result.errors.extend(slug_errors)
+    if slug_errors or public_slug is None:
+        return result
+
+    result.public_slug = public_slug
+
+    try:
+        content = resolved_file.read_text(encoding="utf-8")
+    except OSError:
+        result.errors.append(READY_POST_MISSING)
+        return result
+
+    fm_errors, frontmatter, body = _parse_frontmatter(content)
+    result.errors.extend(fm_errors)
+
+    remediation_eligible = False
+    if frontmatter is not None:
+        remediation_eligible = _image_remediation_eligible(
+            frontmatter=frontmatter,
+            public_slug=public_slug,
+            base_path=base_path,
+            source_slug=source_slug,
+            source_relative_path=normalized_path,
+            image_generation_enabled=image_generation_enabled,
+            environ=environ,
+        )
+
+    allow_missing_png = remediation_eligible or not image_generation_enabled
+
+    image_errors, image_relative_path = _validate_image(
+        base_path,
+        source_slug,
+        source_relative_path=normalized_path,
+        allow_missing_when_remediable=True,
+        image_remediation_eligible=allow_missing_png,
+    )
+    result.errors.extend(image_errors)
+    if image_relative_path:
+        result.image_relative_path = image_relative_path
+
+    publication_date: str | None = None
+    if frontmatter is not None:
+        field_errors, publication_date = _validate_frontmatter_fields(
+            frontmatter,
+            public_slug,
+            require_canonical_image=False,
+            image_remediation_eligible=remediation_eligible or not image_generation_enabled,
+        )
+        result.errors.extend(field_errors)
+        if publication_date:
+            result.publication_date = publication_date
+
+    result.source_content_sha256 = compute_source_content_sha256(content)
+
+    campaign_id: str | None = None
+    if publication_date and public_slug:
+        try:
+            campaign_id = generate_campaign_id(FLOW_A, publication_date, public_slug)
+            result.campaign_id = campaign_id
+        except Exception:
+            campaign_id = None
+
+        if campaign_id and result.source_content_sha256:
+            campaign_errors, _existing_campaign, _idempotent_success = (
+                _check_existing_campaign(
+                    base_path=base_path,
+                    campaign_id=campaign_id,
+                    content_hash=result.source_content_sha256,
+                )
+            )
+            result.errors.extend(campaign_errors)
+
+    if frontmatter is not None and not fm_errors:
+        content_errors = _validate_content_blocking(
+            frontmatter=frontmatter,
+            body=body,
+            full_content=content,
+        )
+        result.errors.extend(content_errors)
+        result.warnings.extend(_collect_editorial_warnings(body))
+
+    blocking_errors = [
+        code for code in result.errors if code in READY_POST_ERROR_CODES
+    ]
+    result.ok = len(blocking_errors) == 0
+    return result
+
+
 def validate_ready_post(
     base_path: Path,
     source_relative_path: str,
@@ -621,11 +859,8 @@ def validate_ready_post(
         return result
 
     result.source_slug = source_slug
-    source_prefix = (
-        QUEUED_RELATIVE_PREFIX
-        if normalized_path.startswith(QUEUED_RELATIVE_PREFIX)
-        else READY_RELATIVE_PREFIX
-    )
+    derived_prefix = derive_active_source_prefix(normalized_path)
+    source_prefix = derived_prefix[0] if derived_prefix else READY_RELATIVE_PREFIX
 
     slug_errors, public_slug = _validate_slugs(source_slug)
     result.errors.extend(slug_errors)
@@ -644,7 +879,9 @@ def validate_ready_post(
     result.errors.extend(fm_errors)
 
     image_errors, image_relative_path = _validate_image(
-        base_path, source_slug, source_prefix=source_prefix
+        base_path,
+        source_slug,
+        source_relative_path=normalized_path,
     )
     result.errors.extend(image_errors)
     if image_relative_path:

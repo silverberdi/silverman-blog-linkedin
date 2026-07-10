@@ -39,7 +39,10 @@ from silverman_blog_linkedin.github_pages_publish import (
     render_markdown,
     resolve_public_slug,
 )
-from silverman_blog_linkedin.ready_post_validation import READY_RELATIVE_PREFIX
+from silverman_blog_linkedin.ready_post_validation import (
+    companion_image_relative_path,
+    derive_active_source_prefix,
+)
 from silverman_blog_linkedin.run_metadata import (
     generate_run_id,
     utc_now_iso,
@@ -48,6 +51,7 @@ from silverman_blog_linkedin.run_metadata import (
 
 BLOG_IMAGE_GENERATION_DISABLED = "blog_image_generation_disabled"
 BLOG_IMAGE_GENERATION_FAILED = "blog_image_generation_failed"
+BLOG_IMAGE_GENERATION_BACKFILL_FAILED = "blog_image_generation_backfill_failed"
 BLOG_IMAGE_GENERATION_WRITE_FAILED = "blog_image_generation_write_failed"
 BLOG_IMAGE_GENERATION_FRONTMATTER_UPDATE_FAILED = (
     "blog_image_generation_frontmatter_update_failed"
@@ -59,9 +63,11 @@ SKIP_REASON_PUBLIC_ASSET_REUSE = "public_asset_reuse"
 SKIP_REASON_NON_CANONICAL_IMAGE = "non_canonical_image"
 SKIP_REASON_NOT_APPLICABLE = "not_applicable"
 
-WARNING_READY_SIBLING_BACKFILL_FAILED = "ready_sibling_backfill_failed"
+WARNING_ACTIVE_SIBLING_BACKFILL_FAILED = "active_sibling_backfill_failed"
+WARNING_READY_SIBLING_BACKFILL_FAILED = WARNING_ACTIVE_SIBLING_BACKFILL_FAILED
 
 PUBLIC_ASSET_SOURCE_EXISTING = "existing_public_asset"
+PUBLIC_ASSET_SOURCE_ACTIVE_SIBLING = "active_sibling_png"
 PUBLIC_ASSET_SOURCE_READY_SIBLING = "ready_sibling_png"
 PUBLIC_ASSET_SOURCE_COMFYUI = "comfyui_generated"
 
@@ -89,6 +95,7 @@ class BlogImageGenerationResult:
     public_asset_source: str | None = None
     public_repo_image_relative_path: str | None = None
     ready_sibling_backfill_status: str | None = None
+    active_sibling_backfill_status: str | None = None
     warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -154,15 +161,23 @@ def _detection_outcome(
     public_slug: str,
     source_slug: str,
     base_path: Path,
+    source_relative_path: str,
     github_pages_repo_path: Path | None,
 ) -> _DetectionOutcome:
     """Return whether remediation is needed and whether ComfyUI must be called."""
+    companion = companion_image_relative_path(source_relative_path, source_slug)
+    if companion is None:
+        return _DetectionOutcome(
+            needs_action=False,
+            needs_comfyui=False,
+            skip_reason=SKIP_REASON_NOT_APPLICABLE,
+        )
+
     canonical_image = _canonical_public_image_path(public_slug)
     image_value = frontmatter.get("image")
-    png_path = base_path / READY_RELATIVE_PREFIX / f"{source_slug}.png"
+    png_path = base_path / companion
     png_exists = png_path.is_file()
     public_exists = _public_asset_readable(github_pages_repo_path, public_slug)
-    public_repo_relative = public_blog_image_relative(public_slug)
 
     if not _is_blank(image_value):
         current = str(image_value).strip()
@@ -223,18 +238,30 @@ def _patch_frontmatter_image(source_md: Path, public_slug: str) -> None:
     source_md.write_text(render_markdown(frontmatter, body), encoding="utf-8")
 
 
+def _backfill_active_sibling_from_public(
+    public_png: Path,
+    active_png: Path,
+) -> str:
+    if active_png.is_file():
+        return "not_needed"
+    try:
+        active_png.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(public_png, active_png)
+        return "copied"
+    except OSError:
+        return "failed"
+
+
+def _record_backfill_status(result: BlogImageGenerationResult, status: str) -> None:
+    result.ready_sibling_backfill_status = status
+    result.active_sibling_backfill_status = status
+
+
 def _backfill_ready_sibling_from_public(
     public_png: Path,
     ready_png: Path,
 ) -> str:
-    if ready_png.is_file():
-        return "not_needed"
-    try:
-        ready_png.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(public_png, ready_png)
-        return "copied"
-    except OSError:
-        return "failed"
+    return _backfill_active_sibling_from_public(public_png, ready_png)
 
 
 def _handoff_failure_result(
@@ -333,6 +360,11 @@ def _persist_campaign_blog_image_generation(
     campaign = read_campaign_metadata(base_path, campaign_id)
     if campaign is None:
         return False, "campaign_not_found"
+    existing = campaign.get("blog_image_generation")
+    if isinstance(existing, dict):
+        merged = dict(existing)
+        merged.update(summary)
+        summary = merged
     campaign["blog_image_generation"] = summary
     write_result = write_campaign_metadata(base_path, campaign_id, campaign)
     if write_result.written:
@@ -419,7 +451,7 @@ def _append_run_record(
     return write_run_metadata(base_path, run_id, payload)
 
 
-def ensure_blog_image(
+def ensure_editorial_blog_image(
     base_path: Path,
     source_relative_path: str,
     *,
@@ -431,9 +463,9 @@ def ensure_blog_image(
     campaign_id: str | None = None,
     github_pages_repo_path: str | Path | None = None,
 ) -> BlogImageGenerationResult:
-    """Detect missing canonical images, optionally generate via ComfyUI, update source files."""
+    """Editorial-only image remediation without public repository writes."""
     try:
-        return _ensure_blog_image_impl(
+        return _ensure_editorial_blog_image_impl(
             base_path,
             source_relative_path,
             config=config,
@@ -461,7 +493,37 @@ def ensure_blog_image(
         return result
 
 
-def _ensure_blog_image_impl(
+def handoff_public_blog_image(
+    base_path: Path,
+    source_relative_path: str,
+    *,
+    github_pages_repo_path: str | Path | None = None,
+    public_slug_override: str | None = None,
+    campaign_id: str | None = None,
+    environ: dict[str, str] | None = None,
+    dry_run: bool | None = None,
+) -> BlogImageGenerationResult:
+    """Copy validated active-folder PNG into the public assets directory."""
+    try:
+        return _handoff_public_blog_image_impl(
+            base_path,
+            source_relative_path,
+            github_pages_repo_path=github_pages_repo_path,
+            public_slug_override=public_slug_override,
+            campaign_id=campaign_id,
+            environ=environ,
+            dry_run=dry_run,
+        )
+    except Exception:
+        normalized = source_relative_path.replace("\\", "/").lstrip("/")
+        return BlogImageGenerationResult(
+            status="failed",
+            source_relative_path=normalized,
+            error_code=BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED,
+        )
+
+
+def ensure_blog_image(
     base_path: Path,
     source_relative_path: str,
     *,
@@ -472,13 +534,90 @@ def _ensure_blog_image_impl(
     public_slug_override: str | None = None,
     campaign_id: str | None = None,
     github_pages_repo_path: str | Path | None = None,
+    handoff: bool = True,
 ) -> BlogImageGenerationResult:
-    """Internal implementation for ``ensure_blog_image``."""
+    """Compatibility facade composing editorial remediation and optional public handoff."""
+    editorial = ensure_editorial_blog_image(
+        base_path,
+        source_relative_path,
+        config=config,
+        client=client,
+        dry_run=dry_run,
+        environ=environ,
+        public_slug_override=public_slug_override,
+        campaign_id=campaign_id,
+        github_pages_repo_path=github_pages_repo_path,
+    )
+    if not handoff or editorial.status == "failed":
+        return editorial
+    if editorial.status == "dry_run":
+        return editorial
+    if editorial.skip_reason in (
+        SKIP_REASON_NON_CANONICAL_IMAGE,
+        SKIP_REASON_ALREADY_VALID,
+        SKIP_REASON_NOT_APPLICABLE,
+    ):
+        return editorial
+    handoff_result = handoff_public_blog_image(
+        base_path,
+        source_relative_path,
+        github_pages_repo_path=github_pages_repo_path,
+        public_slug_override=public_slug_override,
+        campaign_id=campaign_id,
+        environ=environ,
+        dry_run=dry_run,
+    )
+    if handoff_result.status == "failed":
+        editorial.status = "failed"
+        editorial.error_code = handoff_result.error_code
+        editorial.public_asset_handoff_status = handoff_result.public_asset_handoff_status
+        return editorial
+    editorial.public_asset_handoff_status = handoff_result.public_asset_handoff_status
+    if editorial.status == "generated" and editorial.prompt_hash:
+        editorial.public_asset_source = PUBLIC_ASSET_SOURCE_COMFYUI
+    elif editorial.skip_reason == SKIP_REASON_PUBLIC_ASSET_REUSE:
+        editorial.public_asset_source = PUBLIC_ASSET_SOURCE_EXISTING
+    elif handoff_result.public_asset_source == PUBLIC_ASSET_SOURCE_ACTIVE_SIBLING:
+        editorial.public_asset_source = PUBLIC_ASSET_SOURCE_READY_SIBLING
+    else:
+        editorial.public_asset_source = handoff_result.public_asset_source
+    editorial.public_repo_image_relative_path = handoff_result.public_repo_image_relative_path
+    if editorial.status == "skipped" and handoff_result.status in ("generated", "skipped"):
+        editorial.status = handoff_result.status
+    return editorial
+
+
+def _prepare_image_context(
+    base_path: Path,
+    source_relative_path: str,
+    *,
+    config: ComfyUISettingsLoadResult | None,
+    environ: dict[str, str] | None,
+    public_slug_override: str | None,
+    github_pages_repo_path: str | Path | None,
+    dry_run: bool | None = None,
+) -> tuple[
+    BlogImageGenerationResult,
+    ComfyUISettingsLoadResult,
+    bool,
+    Path | None,
+    Path,
+    str,
+    str,
+    dict[str, Any],
+    str,
+    Path,
+    str,
+] | None:
     normalized = source_relative_path.replace("\\", "/").lstrip("/")
     result = BlogImageGenerationResult(
         status="skipped",
         source_relative_path=normalized,
     )
+    if derive_active_source_prefix(normalized) is None:
+        result.status = "failed"
+        result.error_code = BLOG_IMAGE_GENERATION_FAILED
+        return None
 
     load_result = config if config is not None else load_comfyui_settings(environ)
     settings = load_result.settings
@@ -489,7 +628,7 @@ def _ensure_blog_image_impl(
     if not source_md.is_file():
         result.status = "failed"
         result.error_code = BLOG_IMAGE_GENERATION_FAILED
-        return result
+        return None
 
     source_slug = source_md.stem
     try:
@@ -497,7 +636,7 @@ def _ensure_blog_image_impl(
     except PublishError:
         result.status = "failed"
         result.error_code = BLOG_IMAGE_GENERATION_FAILED
-        return result
+        return None
 
     try:
         content = source_md.read_text(encoding="utf-8")
@@ -505,14 +644,19 @@ def _ensure_blog_image_impl(
     except (OSError, PublishError):
         result.status = "failed"
         result.error_code = BLOG_IMAGE_GENERATION_FAILED
-        return result
+        return None
 
-    image_relative_path = f"{READY_RELATIVE_PREFIX}{source_slug}.png"
+    companion = companion_image_relative_path(normalized, source_slug)
+    if companion is None:
+        result.status = "failed"
+        result.error_code = BLOG_IMAGE_GENERATION_FAILED
+        return None
+
+    active_png_path = base_path / companion
     public_image_path = _canonical_public_image_path(public_slug)
     public_repo_relative = public_blog_image_relative(public_slug)
-    ready_png_path = base_path / image_relative_path
 
-    result.image_relative_path = image_relative_path
+    result.image_relative_path = companion
     result.public_image_path = public_image_path
     result.public_repo_image_relative_path = public_repo_relative
     result.width = settings.image_width
@@ -525,11 +669,75 @@ def _ensure_blog_image_impl(
     except ValueError:
         result.workflow_controls_dimensions = None
 
+    return (
+        result,
+        load_result,
+        effective_dry_run,
+        repo_path,
+        source_md,
+        source_slug,
+        public_slug,
+        frontmatter,
+        body,
+        active_png_path,
+        companion,
+    )
+
+
+def _ensure_editorial_blog_image_impl(
+    base_path: Path,
+    source_relative_path: str,
+    *,
+    config: ComfyUISettingsLoadResult | None = None,
+    client: ComfyUIClientProtocol | None = None,
+    dry_run: bool | None = None,
+    environ: dict[str, str] | None = None,
+    public_slug_override: str | None = None,
+    campaign_id: str | None = None,
+    github_pages_repo_path: str | Path | None = None,
+) -> BlogImageGenerationResult:
+    """Internal editorial remediation without public repository writes."""
+    prepared = _prepare_image_context(
+        base_path,
+        source_relative_path,
+        config=config,
+        environ=environ,
+        public_slug_override=public_slug_override,
+        github_pages_repo_path=github_pages_repo_path,
+        dry_run=dry_run,
+    )
+    if prepared is None:
+        normalized = source_relative_path.replace("\\", "/").lstrip("/")
+        return BlogImageGenerationResult(
+            status="failed",
+            source_relative_path=normalized,
+            error_code=BLOG_IMAGE_GENERATION_FAILED,
+        )
+
+    (
+        result,
+        load_result,
+        effective_dry_run,
+        repo_path,
+        source_md,
+        source_slug,
+        public_slug,
+        frontmatter,
+        body,
+        active_png_path,
+        companion,
+    ) = prepared
+    settings = load_result.settings
+    public_image_path = result.public_image_path or _canonical_public_image_path(public_slug)
+
+    normalized = result.source_relative_path
+
     detection = _detection_outcome(
         frontmatter=frontmatter,
         public_slug=public_slug,
         source_slug=source_slug,
         base_path=base_path,
+        source_relative_path=normalized,
         github_pages_repo_path=repo_path,
     )
 
@@ -542,7 +750,7 @@ def _ensure_blog_image_impl(
         if detection.skip_reason == SKIP_REASON_ALREADY_VALID:
             result.public_asset_handoff_status = "reused"
             result.public_asset_source = PUBLIC_ASSET_SOURCE_EXISTING
-            result.ready_sibling_backfill_status = "not_needed"
+            _record_backfill_status(result, "not_needed")
         summary = _build_metadata_summary(result)
         written, metadata_error_code = _persist_campaign_blog_image_generation(
             base_path, campaign_id, summary
@@ -551,27 +759,13 @@ def _ensure_blog_image_impl(
         result.metadata_error_code = metadata_error_code
         return result
 
-    needs_handoff = detection.reuse_public_asset or detection.adopt_ready_sibling
-
-    if needs_handoff and repo_path is None:
-        return _handoff_failure_result(
-            result,
-            public_slug=public_slug,
-            base_path=base_path,
-            campaign_id=campaign_id,
-            started_at=started_at,
-            run_id=run_id,
-        )
-
     if detection.reuse_public_asset:
         if effective_dry_run:
             result.status = "dry_run"
-            result.public_asset_handoff_status = "reused"
-            result.public_asset_source = PUBLIC_ASSET_SOURCE_EXISTING
             if detection.backfill_ready_sibling:
-                result.ready_sibling_backfill_status = "copied"
+                _record_backfill_status(result, "copied")
             else:
-                result.ready_sibling_backfill_status = "not_needed"
+                _record_backfill_status(result, "not_needed")
             completed_at = utc_now_iso()
             summary = _build_metadata_summary(result)
             written, metadata_error_code = _persist_campaign_blog_image_generation(
@@ -588,6 +782,16 @@ def _ensure_blog_image_impl(
             )
             return result
 
+        if repo_path is None:
+            return _finalize_failure(
+                result,
+                error_code=BLOG_IMAGE_GENERATION_NOT_CONFIGURED,
+                base_path=base_path,
+                campaign_id=campaign_id,
+                started_at=started_at,
+                run_id=run_id,
+            )
+
         needs_frontmatter_patch = _is_blank(frontmatter.get("image")) or str(
             frontmatter.get("image", "")
         ).strip() != public_image_path
@@ -596,7 +800,6 @@ def _ensure_blog_image_impl(
                 _patch_frontmatter_image(source_md, public_slug)
                 result.front_matter_updated = True
             except (OSError, PublishError):
-                result.error_code = BLOG_IMAGE_GENERATION_FRONTMATTER_UPDATE_FAILED
                 return _finalize_failure(
                     result,
                     error_code=BLOG_IMAGE_GENERATION_FRONTMATTER_UPDATE_FAILED,
@@ -606,20 +809,23 @@ def _ensure_blog_image_impl(
                     run_id=run_id,
                 )
 
-        assert repo_path is not None
         public_png = _public_asset_path(repo_path, public_slug)
-        result.public_asset_handoff_status = "reused"
-        result.public_asset_source = PUBLIC_ASSET_SOURCE_EXISTING
-
         if detection.backfill_ready_sibling:
-            backfill_status = _backfill_ready_sibling_from_public(
-                public_png, ready_png_path
+            backfill_status = _backfill_active_sibling_from_public(
+                public_png, active_png_path
             )
-            result.ready_sibling_backfill_status = backfill_status
+            _record_backfill_status(result, backfill_status)
             if backfill_status == "failed":
-                result.warnings.append(WARNING_READY_SIBLING_BACKFILL_FAILED)
+                return _finalize_failure(
+                    result,
+                    error_code=BLOG_IMAGE_GENERATION_BACKFILL_FAILED,
+                    base_path=base_path,
+                    campaign_id=campaign_id,
+                    started_at=started_at,
+                    run_id=run_id,
+                )
         else:
-            result.ready_sibling_backfill_status = "not_needed"
+            _record_backfill_status(result, "not_needed")
 
         result.skip_reason = SKIP_REASON_PUBLIC_ASSET_REUSE
         return _finalize_success(
@@ -632,42 +838,6 @@ def _ensure_blog_image_impl(
         )
 
     if detection.adopt_ready_sibling:
-        if effective_dry_run:
-            result.status = "dry_run"
-            result.public_asset_handoff_status = "copied"
-            result.public_asset_source = PUBLIC_ASSET_SOURCE_READY_SIBLING
-            completed_at = utc_now_iso()
-            summary = _build_metadata_summary(result)
-            written, metadata_error_code = _persist_campaign_blog_image_generation(
-                base_path, campaign_id, summary
-            )
-            result.metadata_written = written
-            result.metadata_error_code = metadata_error_code
-            _append_run_record(
-                base_path,
-                run_id=run_id,
-                summary=summary,
-                started_at=started_at,
-                completed_at=completed_at,
-            )
-            return result
-
-        assert repo_path is not None
-        handoff = copy_public_blog_image(ready_png_path, repo_path, public_slug)
-        if handoff.status == "failed":
-            return _handoff_failure_result(
-                result,
-                public_slug=public_slug,
-                base_path=base_path,
-                campaign_id=campaign_id,
-                started_at=started_at,
-                run_id=run_id,
-            )
-
-        result.public_asset_handoff_status = handoff.status
-        result.public_asset_source = PUBLIC_ASSET_SOURCE_READY_SIBLING
-        result.ready_sibling_backfill_status = "not_needed"
-
         needs_frontmatter_patch = _is_blank(frontmatter.get("image")) or str(
             frontmatter.get("image", "")
         ).strip() != public_image_path
@@ -684,14 +854,31 @@ def _ensure_blog_image_impl(
                     started_at=started_at,
                     run_id=run_id,
                 )
-
+        _record_backfill_status(result, "not_needed")
+        if effective_dry_run:
+            result.status = "dry_run"
+            completed_at = utc_now_iso()
+            summary = _build_metadata_summary(result)
+            written, metadata_error_code = _persist_campaign_blog_image_generation(
+                base_path, campaign_id, summary
+            )
+            result.metadata_written = written
+            result.metadata_error_code = metadata_error_code
+            _append_run_record(
+                base_path,
+                run_id=run_id,
+                summary=summary,
+                started_at=started_at,
+                completed_at=completed_at,
+            )
+            return result
         return _finalize_success(
             result,
             base_path=base_path,
             campaign_id=campaign_id,
             started_at=started_at,
             run_id=run_id,
-            status="generated",
+            status="skipped",
         )
 
     if not _comfyui_generation_enabled(settings):
@@ -705,17 +892,7 @@ def _ensure_blog_image_impl(
             run_id=run_id,
         )
 
-    if load_result.config_invalid:
-        return _finalize_failure(
-            result,
-            error_code=BLOG_IMAGE_GENERATION_NOT_CONFIGURED,
-            base_path=base_path,
-            campaign_id=campaign_id,
-            started_at=started_at,
-            run_id=run_id,
-        )
-
-    if not settings.base_url:
+    if load_result.config_invalid or not settings.base_url:
         return _finalize_failure(
             result,
             error_code=BLOG_IMAGE_GENERATION_NOT_CONFIGURED,
@@ -738,8 +915,6 @@ def _ensure_blog_image_impl(
 
     if effective_dry_run:
         result.status = "dry_run"
-        result.public_asset_handoff_status = "copied"
-        result.public_asset_source = PUBLIC_ASSET_SOURCE_COMFYUI
         completed_at = utc_now_iso()
         summary = _build_metadata_summary(result)
         written, metadata_error_code = _persist_campaign_blog_image_generation(
@@ -771,7 +946,7 @@ def _ensure_blog_image_impl(
             seed=seed,
         )
     finally:
-        if owns_client and isinstance(comfy_client, ComfyUIHttpClient):
+        if owns_client and hasattr(comfy_client, "close"):
             comfy_client.close()
 
     if generation.error_code or not generation.png_bytes:
@@ -786,8 +961,8 @@ def _ensure_blog_image_impl(
         )
 
     try:
-        ready_png_path.parent.mkdir(parents=True, exist_ok=True)
-        ready_png_path.write_bytes(generation.png_bytes)
+        active_png_path.parent.mkdir(parents=True, exist_ok=True)
+        active_png_path.write_bytes(generation.png_bytes)
     except OSError:
         return _finalize_failure(
             result,
@@ -798,35 +973,9 @@ def _ensure_blog_image_impl(
             run_id=run_id,
         )
 
-    if repo_path is None:
-        return _handoff_failure_result(
-            result,
-            public_slug=public_slug,
-            base_path=base_path,
-            campaign_id=campaign_id,
-            started_at=started_at,
-            run_id=run_id,
-        )
-
-    handoff = copy_public_blog_image(ready_png_path, repo_path, public_slug)
-    if handoff.status == "failed":
-        return _handoff_failure_result(
-            result,
-            public_slug=public_slug,
-            base_path=base_path,
-            campaign_id=campaign_id,
-            started_at=started_at,
-            run_id=run_id,
-        )
-
-    result.public_asset_handoff_status = handoff.status
-    result.public_asset_source = PUBLIC_ASSET_SOURCE_COMFYUI
-    result.ready_sibling_backfill_status = "not_needed"
-
     needs_frontmatter_patch = _is_blank(frontmatter.get("image")) or str(
         frontmatter.get("image", "")
     ).strip() != public_image_path
-
     if needs_frontmatter_patch:
         try:
             _patch_frontmatter_image(source_md, public_slug)
@@ -841,6 +990,7 @@ def _ensure_blog_image_impl(
                 run_id=run_id,
             )
 
+    _record_backfill_status(result, "not_needed")
     return _finalize_success(
         result,
         base_path=base_path,
@@ -848,6 +998,158 @@ def _ensure_blog_image_impl(
         started_at=started_at,
         run_id=run_id,
         status="generated",
+    )
+
+
+def _handoff_public_blog_image_impl(
+    base_path: Path,
+    source_relative_path: str,
+    *,
+    github_pages_repo_path: str | Path | None = None,
+    public_slug_override: str | None = None,
+    campaign_id: str | None = None,
+    environ: dict[str, str] | None = None,
+    dry_run: bool | None = None,
+) -> BlogImageGenerationResult:
+    prepared = _prepare_image_context(
+        base_path,
+        source_relative_path,
+        config=None,
+        environ=environ,
+        public_slug_override=public_slug_override,
+        github_pages_repo_path=github_pages_repo_path,
+        dry_run=dry_run,
+    )
+    if prepared is None:
+        normalized = source_relative_path.replace("\\", "/").lstrip("/")
+        return BlogImageGenerationResult(
+            status="failed",
+            source_relative_path=normalized,
+            error_code=BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED,
+        )
+
+    (
+        result,
+        load_result,
+        effective_dry_run,
+        repo_path,
+        _source_md,
+        source_slug,
+        public_slug,
+        _frontmatter,
+        _body,
+        active_png_path,
+        _companion,
+    ) = prepared
+
+    started_at = utc_now_iso()
+    run_id = generate_run_id()
+    result.run_id = run_id
+
+    if repo_path is None:
+        return _handoff_failure_result(
+            result,
+            public_slug=public_slug,
+            base_path=base_path,
+            campaign_id=campaign_id,
+            started_at=started_at,
+            run_id=run_id,
+        )
+
+    public_png = _public_asset_path(repo_path, public_slug)
+    if public_png.is_file() and active_png_path.is_file():
+        try:
+            if public_png.read_bytes() == active_png_path.read_bytes():
+                result.public_asset_handoff_status = "reused"
+                result.public_asset_source = PUBLIC_ASSET_SOURCE_EXISTING
+                return _finalize_success(
+                    result,
+                    base_path=base_path,
+                    campaign_id=campaign_id,
+                    started_at=started_at,
+                    run_id=run_id,
+                    status="skipped",
+                )
+        except OSError:
+            pass
+
+    if not active_png_path.is_file():
+        if public_png.is_file():
+            backfill_status = _backfill_active_sibling_from_public(
+                public_png, active_png_path
+            )
+            _record_backfill_status(result, backfill_status)
+            if backfill_status == "failed":
+                return _handoff_failure_result(
+                    result,
+                    public_slug=public_slug,
+                    base_path=base_path,
+                    campaign_id=campaign_id,
+                    started_at=started_at,
+                    run_id=run_id,
+                )
+        else:
+            return _handoff_failure_result(
+                result,
+                public_slug=public_slug,
+                base_path=base_path,
+                campaign_id=campaign_id,
+                started_at=started_at,
+                run_id=run_id,
+            )
+
+    if effective_dry_run:
+        result.status = "dry_run"
+        result.public_asset_handoff_status = "copied"
+        result.public_asset_source = PUBLIC_ASSET_SOURCE_ACTIVE_SIBLING
+        return result
+
+    handoff = copy_public_blog_image(active_png_path, repo_path, public_slug)
+    if handoff.status == "failed":
+        return _handoff_failure_result(
+            result,
+            public_slug=public_slug,
+            base_path=base_path,
+            campaign_id=campaign_id,
+            started_at=started_at,
+            run_id=run_id,
+        )
+
+    result.public_asset_handoff_status = handoff.status
+    result.public_asset_source = PUBLIC_ASSET_SOURCE_READY_SIBLING
+    return _finalize_success(
+        result,
+        base_path=base_path,
+        campaign_id=campaign_id,
+        started_at=started_at,
+        run_id=run_id,
+        status="generated",
+    )
+
+
+def _ensure_blog_image_impl(
+    base_path: Path,
+    source_relative_path: str,
+    *,
+    config: ComfyUISettingsLoadResult | None = None,
+    client: ComfyUIClientProtocol | None = None,
+    dry_run: bool | None = None,
+    environ: dict[str, str] | None = None,
+    public_slug_override: str | None = None,
+    campaign_id: str | None = None,
+    github_pages_repo_path: str | Path | None = None,
+) -> BlogImageGenerationResult:
+    return ensure_blog_image(
+        base_path,
+        source_relative_path,
+        config=config,
+        client=client,
+        dry_run=dry_run,
+        environ=environ,
+        public_slug_override=public_slug_override,
+        campaign_id=campaign_id,
+        github_pages_repo_path=github_pages_repo_path,
+        handoff=True,
     )
 
 

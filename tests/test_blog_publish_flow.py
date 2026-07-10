@@ -30,19 +30,25 @@ from silverman_blog_linkedin.github_pages_publish import (
     run_publish,
 )
 from silverman_blog_linkedin.blog_image_generation import (
+    BLOG_IMAGE_GENERATION_BACKFILL_FAILED,
     BLOG_IMAGE_GENERATION_DISABLED,
     BLOG_IMAGE_GENERATION_FAILED,
     WARNING_READY_SIBLING_BACKFILL_FAILED,
 )
 from silverman_blog_linkedin.campaign_lifecycle import (
     ACTOR_WORKER,
+    EXECUTION_STATE_IDLE,
     FLOW_A,
     FLOW_B,
     METADATA_CAMPAIGNS_RELATIVE,
+    SOURCE_LOCATION_PROCESSED,
     STATE_BLOG_PUBLISH_PENDING,
     STATE_BLOG_PUBLISHED,
+    STATE_DERIVATIVES_GENERATED,
     STATE_DERIVATIVES_PENDING,
+    STATE_DISTRIBUTION_SCHEDULED,
     STATE_ERROR,
+    STATE_FLOW_A_COMPLETE,
     STATE_READY,
     STATE_VALIDATED,
     STATE_VALIDATION_FAILED,
@@ -74,6 +80,8 @@ PUBLIC_SLUG = "why-i-did-not-start-with-the-database"
 PUBLICATION_DATE = "2026-07-06"
 SOURCE_RELATIVE = f"blog-posts/ready/{SOURCE_SLUG}.md"
 IMAGE_RELATIVE = f"blog-posts/ready/{SOURCE_SLUG}.png"
+PROCESSED_RELATIVE = f"blog-posts/processed/{SOURCE_SLUG}.md"
+PROCESSED_IMAGE_RELATIVE = f"blog-posts/processed/{SOURCE_SLUG}.png"
 CANONICAL_CAMPAIGN_ID = f"flow-a-{PUBLICATION_DATE}-{PUBLIC_SLUG}"
 SITE_URL = "https://silverman.pro"
 TITLE = "Why I Did Not Start With the Database"
@@ -329,6 +337,187 @@ def test_idempotent_rerun_already_published_without_validation(
     assert second.blog_publish["status"] == "already_published"
     assert second.source_public_url == first.source_public_url
     assert post_path.stat().st_mtime == post_mtime
+
+
+def _processed_source_campaign(
+    editorial_base: Path,
+    public_repo: Path,
+    *,
+    state: str = STATE_DISTRIBUTION_SCHEDULED,
+) -> dict:
+    processed = editorial_base / "blog-posts" / "processed"
+    processed.mkdir(parents=True, exist_ok=True)
+    content = _canonical_frontmatter() + _canonical_body()
+    md_path = processed / f"{SOURCE_SLUG}.md"
+    png_path = processed / f"{SOURCE_SLUG}.png"
+    md_path.write_text(content, encoding="utf-8")
+    png_path.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+
+    post_body = render_expected_public_post(
+        md_path,
+        PUBLIC_SLUG,
+        date.fromisoformat(PUBLICATION_DATE),
+    )
+    public_post = public_repo / "_posts" / f"{PUBLICATION_DATE}-{PUBLIC_SLUG}.md"
+    public_image = public_repo / "assets/images" / f"{PUBLIC_SLUG}.png"
+    public_post.write_text(post_body, encoding="utf-8")
+    public_image.write_bytes(png_path.read_bytes())
+
+    source_hash = compute_source_content_sha256(content)
+    idempotency_key = build_blog_publish_idempotency_key(
+        source_slug=SOURCE_SLUG,
+        public_slug=PUBLIC_SLUG,
+        publication_date=PUBLICATION_DATE,
+        source_content_sha256=source_hash,
+    )
+    source_public_url = f"{SITE_URL}/2026/07/06/{PUBLIC_SLUG}/"
+
+    campaign = build_initial_campaign_metadata(
+        flow=FLOW_A,
+        source_slug=SOURCE_SLUG,
+        public_slug=PUBLIC_SLUG,
+        source_relative_path=PROCESSED_RELATIVE,
+        image_relative_path=PROCESSED_IMAGE_RELATIVE,
+        source_content=content,
+        publication_date=PUBLICATION_DATE,
+    )
+    campaign["source_content_sha256"] = source_hash
+    campaign["original_source_relative_path"] = SOURCE_RELATIVE
+    campaign["processed_source_relative_path"] = PROCESSED_RELATIVE
+    campaign["processed_image_relative_path"] = PROCESSED_IMAGE_RELATIVE
+    campaign["source_public_url"] = source_public_url
+    campaign["blog_publish"] = {
+        "status": "published",
+        "idempotency_key": idempotency_key,
+        "source_public_url": source_public_url,
+    }
+    campaign["source_file_status"] = {
+        "location": SOURCE_LOCATION_PROCESSED,
+        "execution_state": EXECUTION_STATE_IDLE,
+        "recovery_classification": "no_action",
+    }
+    transition_state(
+        campaign,
+        STATE_VALIDATED,
+        reason="Editorial validation passed",
+        actor=ACTOR_WORKER,
+    )
+    transition_state(
+        campaign,
+        STATE_BLOG_PUBLISH_PENDING,
+        reason="Blog publish started",
+        actor=ACTOR_WORKER,
+    )
+    transition_state(
+        campaign,
+        STATE_BLOG_PUBLISHED,
+        reason="Blog published",
+        actor=ACTOR_WORKER,
+    )
+    if state == STATE_DISTRIBUTION_SCHEDULED:
+        transition_state(
+            campaign,
+            STATE_DERIVATIVES_PENDING,
+            reason="Derivatives pending",
+            actor=ACTOR_WORKER,
+        )
+        transition_state(
+            campaign,
+            STATE_DERIVATIVES_GENERATED,
+            reason="Derivatives generated",
+            actor=ACTOR_WORKER,
+        )
+        transition_state(
+            campaign,
+            state,
+            reason="Distribution scheduled",
+            actor=ACTOR_WORKER,
+        )
+    elif state == STATE_FLOW_A_COMPLETE:
+        transition_state(
+            campaign,
+            STATE_DERIVATIVES_PENDING,
+            reason="Derivatives pending",
+            actor=ACTOR_WORKER,
+        )
+        transition_state(
+            campaign,
+            STATE_DERIVATIVES_GENERATED,
+            reason="Derivatives generated",
+            actor=ACTOR_WORKER,
+        )
+        transition_state(
+            campaign,
+            STATE_DISTRIBUTION_SCHEDULED,
+            reason="Distribution scheduled",
+            actor=ACTOR_WORKER,
+        )
+        transition_state(
+            campaign,
+            state,
+            reason="Flow A complete",
+            actor=ACTOR_WORKER,
+        )
+    write_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID, campaign)
+    return campaign
+
+
+@pytest.mark.parametrize(
+    "terminal_state",
+    [STATE_BLOG_PUBLISHED, STATE_DISTRIBUTION_SCHEDULED, STATE_FLOW_A_COMPLETE],
+)
+def test_processed_source_idempotent_publish_without_side_effects(
+    editorial_base: Path,
+    public_repo: Path,
+    terminal_state: str,
+):
+    campaign = _processed_source_campaign(
+        editorial_base, public_repo, state=terminal_state
+    )
+    assert not (editorial_base / SOURCE_RELATIVE).exists()
+
+    post_path = public_repo / "_posts" / f"{PUBLICATION_DATE}-{PUBLIC_SLUG}.md"
+    image_path = public_repo / "assets/images" / f"{PUBLIC_SLUG}.png"
+    post_mtime = post_path.stat().st_mtime
+    image_mtime = image_path.stat().st_mtime
+
+    with (
+        patch(
+            "silverman_blog_linkedin.blog_publish_flow.validate_ready_post"
+        ) as validate_mock,
+        patch(
+            "silverman_blog_linkedin.blog_publish_flow.validate_ready_post_pre_generation"
+        ) as pre_validate_mock,
+        patch(
+            "silverman_blog_linkedin.blog_image_generation.ComfyUIHttpClient"
+        ) as comfy_mock,
+        patch(
+            "silverman_blog_linkedin.blog_publish_flow.handoff_public_blog_image"
+        ) as handoff_mock,
+        patch(
+            "silverman_blog_linkedin.blog_publish_flow.run_publish"
+        ) as run_publish_mock,
+    ):
+        result = publish_blog_post(
+            editorial_base,
+            SOURCE_RELATIVE,
+            site_url=SITE_URL,
+            github_pages_repo_path=str(public_repo),
+            environ=_publish_env(editorial_base, public_repo),
+        )
+
+    validate_mock.assert_not_called()
+    pre_validate_mock.assert_not_called()
+    comfy_mock.assert_not_called()
+    handoff_mock.assert_not_called()
+    run_publish_mock.assert_not_called()
+
+    assert result.status == "completed"
+    assert result.blog_publish["status"] == "already_published"
+    assert result.campaign_id == CANONICAL_CAMPAIGN_ID
+    assert result.source_public_url == campaign["source_public_url"]
+    assert post_path.stat().st_mtime == post_mtime
+    assert image_path.stat().st_mtime == image_mtime
 
 
 def test_ready_campaign_validated_then_published(editorial_base: Path, public_repo: Path):
@@ -1287,17 +1476,11 @@ def test_publish_public_asset_backfill_warning_allows_image_step(
     finally:
         ready_dir.chmod(0o755)
 
-    assert BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED not in result.errors
-    assert WARNING_READY_SIBLING_BACKFILL_FAILED in (
-        result.blog_image_generation.get("warnings") or []
-    )
-    assert result.blog_image_generation.get("skip_reason") == "public_asset_reuse"
+    assert BLOG_IMAGE_GENERATION_BACKFILL_FAILED in result.errors
     assert result.blog_image_generation.get("ready_sibling_backfill_status") == "failed"
     assert result.status == "failed"
-    assert (
-        BLOG_PUBLISH_VALIDATION_FAILED in result.errors
-        or BLOG_PUBLISH_TARGET_EXISTS in result.errors
-    )
+    assert BLOG_IMAGE_GENERATION_BACKFILL_FAILED in result.errors
+    assert not list((public_repo / "_posts").glob("*.md"))
 
 
 def test_bridge_apply_succeeds_when_public_image_pre_handoff(

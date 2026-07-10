@@ -322,7 +322,10 @@ def complete_flow_a_source_lifecycle(
         )
 
     source_slug = ready_path.stem
-    ready_image_relative = _image_relative_path_for_source(ready_relative, source_slug)
+    ready_image_relative = (
+        campaign.get("queued_image_relative_path")
+        or _image_relative_path_for_source(ready_relative, source_slug)
+    )
     ready_image_path = base_path / ready_image_relative
     has_ready_image = ready_image_path.is_file()
 
@@ -403,6 +406,8 @@ def complete_flow_a_source_lifecycle(
     if processed_image_relative:
         campaign["processed_image_relative_path"] = processed_image_relative
         campaign["image_relative_path"] = processed_image_relative
+    if has_ready_image and ready_relative.startswith(QUEUED_SOURCE_PREFIX):
+        campaign["queued_image_relative_path"] = ready_image_relative
 
     source_status["location"] = SOURCE_LOCATION_PROCESSED
     source_status["execution_state"] = EXECUTION_STATE_IDLE

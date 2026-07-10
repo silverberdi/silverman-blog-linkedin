@@ -6,11 +6,26 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from silverman_blog_linkedin.blog_image_generation import (
+    BLOG_IMAGE_GENERATION_BACKFILL_FAILED,
+    BLOG_IMAGE_GENERATION_DISABLED,
+    BLOG_IMAGE_GENERATION_FRONTMATTER_UPDATE_FAILED,
+    BLOG_IMAGE_GENERATION_WRITE_FAILED,
+)
 from silverman_blog_linkedin.blog_publish_flow import (
+    BLOG_PUBLISH_CONTENT_HASH_CHANGED,
+    BLOG_PUBLISH_HASH_RECONCILIATION_FAILED,
+    BLOG_PUBLISH_VALIDATION_FAILED,
     DEFAULT_SITE_URL,
     BlogPublishResult,
     publish_blog_post,
 )
+from silverman_blog_linkedin.comfyui_client import (
+    BLOG_IMAGE_GENERATION_COMFYUI_FAILED,
+    BLOG_IMAGE_GENERATION_NOT_CONFIGURED,
+    BLOG_IMAGE_GENERATION_TIMEOUT,
+)
+from silverman_blog_linkedin.github_pages_publish import BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED
 from silverman_blog_linkedin.campaign_lifecycle import (
     EXECUTION_STATE_PROCESSING,
     RECOVERY_REPAIR_REQUIRED,
@@ -37,7 +52,6 @@ from silverman_blog_linkedin.flow_a_operational_queue import (
     record_flow_a_progress,
     release_flow_a_execution,
 )
-from silverman_blog_linkedin.ready_post_validation import validate_ready_post
 from silverman_blog_linkedin.editorial_calendar_plan import (
     FLOW_A_READY_BLOG_POST,
     USER_PROVIDED_APPROVED_BLOG,
@@ -293,6 +307,165 @@ def _recovery_after_failure(campaign_id: str | None, base_path: Path) -> str:
     return RECOVERY_RETRYABLE
 
 
+_COMFYUI_TRANSIENT_ERRORS = frozenset(
+    {
+        BLOG_IMAGE_GENERATION_COMFYUI_FAILED,
+        BLOG_IMAGE_GENERATION_TIMEOUT,
+        BLOG_IMAGE_GENERATION_NOT_CONFIGURED,
+    }
+)
+
+_EDITORIAL_IMAGE_REPAIR_ERRORS = frozenset(
+    {
+        BLOG_IMAGE_GENERATION_BACKFILL_FAILED,
+        BLOG_IMAGE_GENERATION_FRONTMATTER_UPDATE_FAILED,
+        BLOG_IMAGE_GENERATION_WRITE_FAILED,
+    }
+)
+
+_IMAGE_REPAIR_ERRORS = frozenset(
+    {
+        *_EDITORIAL_IMAGE_REPAIR_ERRORS,
+        BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED,
+        BLOG_PUBLISH_HASH_RECONCILIATION_FAILED,
+        CAMPAIGN_METADATA_WRITE_FAILED,
+    }
+)
+
+
+def _publish_failure_is_comfyui_transient(publish_result: BlogPublishResult) -> bool:
+    return any(code in _COMFYUI_TRANSIENT_ERRORS for code in publish_result.errors)
+
+
+def _publish_failure_is_image_repair(publish_result: BlogPublishResult) -> bool:
+    return any(code in _IMAGE_REPAIR_ERRORS for code in publish_result.errors)
+
+
+def _publish_failure_is_deterministic_validation(
+    publish_result: BlogPublishResult,
+) -> bool:
+    validation_errors = set(publish_result.validation.get("errors", []))
+    if BLOG_PUBLISH_VALIDATION_FAILED in publish_result.errors:
+        return True
+    if validation_errors.intersection(
+        {
+            BLOG_PUBLISH_VALIDATION_FAILED,
+            BLOG_PUBLISH_CONTENT_HASH_CHANGED,
+        }
+    ):
+        return True
+    return any(
+        code.startswith("ready_post_")
+        or code.startswith("frontmatter_")
+        or code.startswith("content_")
+        for code in publish_result.errors
+    )
+
+
+def _publish_failure_last_error(publish_result: BlogPublishResult) -> dict[str, Any]:
+    primary = publish_result.errors[0] if publish_result.errors else "publish_failed"
+    if primary in _COMFYUI_TRANSIENT_ERRORS:
+        category = "image_generation"
+    elif primary == BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED:
+        category = "public_asset_handoff"
+    elif (
+        primary == BLOG_PUBLISH_HASH_RECONCILIATION_FAILED
+        or BLOG_PUBLISH_HASH_RECONCILIATION_FAILED in publish_result.errors
+    ):
+        category = "source_hash_reconciliation"
+    elif primary in _EDITORIAL_IMAGE_REPAIR_ERRORS:
+        category = "editorial_image_repair"
+    elif _publish_failure_is_deterministic_validation(publish_result):
+        category = "editorial_validation"
+    else:
+        category = "transient_runtime"
+    return {
+        "category": category,
+        "error_code": primary,
+        "reason": "publish_blog_post failed",
+        "at": None,
+        "last_successful_stage": "queue_acceptance",
+        "attempt_id": None,
+    }
+
+
+def _handle_publish_blog_post_failure(
+    base_path: Path,
+    *,
+    campaign_id: str | None,
+    publish_result: BlogPublishResult,
+) -> tuple[list[str], list[str], bool]:
+    """Apply post-acceptance publish failure policy; return errors, warnings, released."""
+    item_errors = list(publish_result.errors)
+    item_warnings = list(publish_result.warnings)
+    released = False
+
+    if campaign_id and _publish_failure_is_deterministic_validation(publish_result):
+        move_result = move_queued_source_to_error(
+            base_path,
+            campaign_id=campaign_id,
+            error_code=(
+                publish_result.errors[0]
+                if publish_result.errors
+                else "editorial_validation_failed"
+            ),
+            category="editorial_validation",
+        )
+        item_errors.extend(move_result.errors)
+        item_warnings.extend(move_result.warnings)
+        item_errors.extend(
+            _metadata_persistence_failed(
+                metadata_written=move_result.metadata_written,
+                metadata_error_code=move_result.metadata_error_code,
+            )
+        )
+        if not error_move_closed_processing_claim(move_result):
+            campaign_after = read_campaign_metadata(base_path, campaign_id)
+            if campaign_after is not None:
+                after_status = normalize_source_file_status(
+                    campaign_after.get("source_file_status")
+                )
+                if after_status.get("execution_state") == EXECUTION_STATE_PROCESSING:
+                    release_result = release_flow_a_execution(
+                        base_path,
+                        campaign_id=campaign_id,
+                        recovery_classification=RECOVERY_REPAIR_REQUIRED,
+                    )
+                    item_errors.extend(release_result.errors)
+                    item_errors.extend(
+                        _metadata_persistence_failed(
+                            metadata_written=release_result.metadata_written,
+                            metadata_error_code=release_result.metadata_error_code,
+                        )
+                    )
+                    released = True
+        return list(dict.fromkeys(item_errors)), list(dict.fromkeys(item_warnings)), released
+
+    resolved_campaign = publish_result.campaign_id or campaign_id
+    if resolved_campaign:
+        if _publish_failure_is_comfyui_transient(publish_result):
+            recovery = RECOVERY_RETRYABLE
+        elif _publish_failure_is_image_repair(publish_result):
+            recovery = RECOVERY_REPAIR_REQUIRED
+        else:
+            recovery = _recovery_after_failure(resolved_campaign, base_path)
+        release_result = release_flow_a_execution(
+            base_path,
+            campaign_id=resolved_campaign,
+            recovery_classification=recovery,
+            last_error=_publish_failure_last_error(publish_result),
+        )
+        item_errors.extend(release_result.errors)
+        item_errors.extend(
+            _metadata_persistence_failed(
+                metadata_written=release_result.metadata_written,
+                metadata_error_code=release_result.metadata_error_code,
+            )
+        )
+        released = True
+    return list(dict.fromkeys(item_errors)), list(dict.fromkeys(item_warnings)), released
+
+
 def _execute_flow_a_item(
     base_path: Path,
     plan_item: EditorialCalendarItemPlan,
@@ -355,57 +528,6 @@ def _execute_flow_a_item(
             errors=list(dict.fromkeys(claim_errors)),
         )
 
-    validation = validate_ready_post(base_path, active_source, site_url=site_url)
-    if not validation.ok:
-        item_errors = list(validation.errors)
-        item_warnings = list(validation.warnings)
-        if campaign_id:
-            move_result = move_queued_source_to_error(
-                base_path,
-                campaign_id=campaign_id,
-                error_code=(
-                    validation.errors[0]
-                    if validation.errors
-                    else "editorial_validation_failed"
-                ),
-                category="editorial_validation",
-            )
-            item_errors.extend(move_result.errors)
-            item_warnings.extend(move_result.warnings)
-            item_errors.extend(
-                _metadata_persistence_failed(
-                    metadata_written=move_result.metadata_written,
-                    metadata_error_code=move_result.metadata_error_code,
-                )
-            )
-            if not error_move_closed_processing_claim(move_result):
-                campaign_after = read_campaign_metadata(base_path, campaign_id)
-                if campaign_after is not None:
-                    after_status = normalize_source_file_status(
-                        campaign_after.get("source_file_status")
-                    )
-                    if after_status.get("execution_state") == EXECUTION_STATE_PROCESSING:
-                        release_result = release_flow_a_execution(
-                            base_path,
-                            campaign_id=campaign_id,
-                            recovery_classification=RECOVERY_REPAIR_REQUIRED,
-                        )
-                        item_errors.extend(release_result.errors)
-                        item_errors.extend(
-                            _metadata_persistence_failed(
-                                metadata_written=release_result.metadata_written,
-                                metadata_error_code=release_result.metadata_error_code,
-                            )
-                        )
-        return _item_result_from_plan(
-            plan_item,
-            EXECUTION_STATUS_FAILED,
-            failed_step=FAILED_STEP_PUBLISH_BLOG,
-            queue_acceptance_status=queue_status,
-            errors=list(dict.fromkeys(item_errors)),
-            warnings=list(dict.fromkeys(item_warnings)),
-        )
-
     if campaign_id:
         progress_result = record_flow_a_progress(base_path, campaign_id=campaign_id)
         progress_errors = _progress_persistence_failed(progress_result)
@@ -428,26 +550,18 @@ def _execute_flow_a_item(
         public_slug_override=public_slug,
     )
     if not _step_succeeded(publish_result.status):
-        resolved_campaign = publish_result.campaign_id or campaign_id
-        if resolved_campaign:
-            release_flow_a_execution(
-                base_path,
-                campaign_id=resolved_campaign,
-                recovery_classification=_recovery_after_failure(resolved_campaign, base_path),
-                last_error={
-                    "category": "transient_runtime",
-                    "error_code": publish_result.errors[0] if publish_result.errors else "publish_failed",
-                    "reason": "publish_blog_post failed",
-                    "at": None,
-                    "last_successful_stage": "queue_acceptance",
-                    "attempt_id": None,
-                },
-            )
-        return _failed_item_from_step(
+        item_errors, item_warnings, _released = _handle_publish_blog_post_failure(
+            base_path,
+            campaign_id=campaign_id,
+            publish_result=publish_result,
+        )
+        return _item_result_from_plan(
             plan_item,
+            EXECUTION_STATUS_FAILED,
             failed_step=FAILED_STEP_PUBLISH_BLOG,
-            errors=list(publish_result.errors),
-            warnings=list(publish_result.warnings),
+            queue_acceptance_status=queue_status,
+            errors=item_errors,
+            warnings=item_warnings,
         )
 
     if _campaign_id_conflict(calendar_campaign, publish_result.campaign_id):

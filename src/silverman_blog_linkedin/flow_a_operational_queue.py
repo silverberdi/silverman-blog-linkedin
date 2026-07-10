@@ -947,6 +947,8 @@ def accept_flow_a_source_for_queue(
     campaign["source_slug"] = source_slug
     campaign["public_slug"] = public_slug
     campaign["source_content_sha256"] = content_hash
+    if "intake_source_content_sha256" not in campaign:
+        campaign["intake_source_content_sha256"] = content_hash
     campaign["source_file_status"] = source_status
     campaign["updated_at"] = now
 
