@@ -86,8 +86,14 @@ End-to-end flow for the first operational capability: manual blog placement thro
 | 3 | Worker | Validate paths, read source, generate variants |
 | 4 | `linkedin-posts/review/` | Worker writes LinkedIn draft files |
 | 5 | `metadata/runs/`, `metadata/campaigns/` | Worker writes run and campaign metadata |
-| 6 | `blog-posts/processed/` or `error/` | Worker moves source based on outcome |
+| 6 | `blog-posts/processed/` or `error/` | After successful Flow A through scheduling and source lifecycle, worker moves consumed sources from `ready/` to `processed/`; failures may mark `error/` per validation policy |
 | 7 | Human | Review drafts; move to `approved/`; publish manually |
+
+## Editorial source folders (Flow A)
+
+- `blog-posts/ready/` — pending operator-approved input awaiting Flow A consumption.
+- `blog-posts/processed/` — source Markdown and companion images successfully consumed by Flow A (publish → package → schedule → source lifecycle).
+- Traceability lives in `metadata/campaigns/<campaign-id>.json` (`original_source_relative_path`, `processed_source_relative_path`, and optional image paths). After successful Flow A, operators should not manually relocate processed files; re-run services by `campaign_id` when idempotent recovery is needed.
 
 ## Out of Scope in This Flow (Phase 1)
 

@@ -19,6 +19,7 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     ACTOR_WORKER,
     FLOW_A,
     FLOW_B,
+    POST_SCHEDULE_SOURCE_RESOLUTION_STATES,
     STATE_BLOG_PUBLISH_PENDING,
     STATE_BLOG_PUBLISHED,
     STATE_DERIVATIVES_GENERATED,
@@ -33,8 +34,10 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     _append_state_history,
     build_blog_publish_idempotency_key,
     compute_source_content_sha256,
+    find_campaign_by_source_path,
     generate_campaign_id,
     read_campaign_metadata,
+    resolve_campaign_source_paths,
     transition_state,
     write_campaign_metadata,
 )
@@ -227,6 +230,101 @@ class PreflightContext:
     expected_idempotency_key: str | None
     image_relative_path: str | None
     errors: tuple[str, ...]
+
+
+def _preflight_from_campaign_source(
+    base_path: Path,
+    campaign: dict[str, Any],
+    *,
+    requested_source_relative_path: str,
+) -> PreflightContext | None:
+    """Build preflight context from campaign metadata when ready copy is absent."""
+    md_relative, image_relative = resolve_campaign_source_paths(campaign)
+    if not md_relative:
+        return None
+
+    resolved = (base_path / md_relative).resolve()
+    if not resolved.is_file():
+        return None
+
+    try:
+        content = resolved.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+    source_slug = campaign.get("source_slug") or resolved.stem
+    public_slug = campaign.get("public_slug")
+    publication_date = campaign.get("publication_date")
+    content_hash = campaign.get("source_content_sha256") or compute_source_content_sha256(
+        content
+    )
+    campaign_id = campaign.get("campaign_id")
+    expected_key = None
+    if publication_date and public_slug and source_slug and content_hash:
+        try:
+            expected_key = build_blog_publish_idempotency_key(
+                source_slug=source_slug,
+                public_slug=public_slug,
+                publication_date=publication_date,
+                source_content_sha256=content_hash,
+            )
+        except Exception:
+            expected_key = None
+
+    return PreflightContext(
+        source_relative_path=requested_source_relative_path,
+        source_slug=source_slug,
+        public_slug=public_slug,
+        publication_date=publication_date,
+        source_content_sha256=content_hash,
+        campaign_id=campaign_id,
+        expected_idempotency_key=expected_key,
+        image_relative_path=image_relative,
+        errors=(),
+    )
+
+
+def _try_post_schedule_idempotent_publish(
+    base_path: Path,
+    source_relative_path: str,
+) -> BlogPublishResult | None:
+    """Return completed publish when campaign already progressed past ready source."""
+    normalized = _normalize_relative_path(source_relative_path)
+    campaign = find_campaign_by_source_path(base_path, normalized)
+    if campaign is None or campaign.get("flow") != FLOW_A:
+        return None
+
+    state = campaign.get("state")
+    if state not in (
+        STATE_BLOG_PUBLISHED,
+        *POST_SCHEDULE_SOURCE_RESOLUTION_STATES,
+        STATE_FLOW_A_COMPLETE,
+    ):
+        return None
+
+    if not campaign.get("source_public_url"):
+        return None
+
+    preflight = _preflight_from_campaign_source(
+        base_path,
+        campaign,
+        requested_source_relative_path=normalized,
+    )
+    if preflight is None:
+        return None
+
+    if state == STATE_BLOG_PUBLISHED and preflight.expected_idempotency_key:
+        if _check_idempotent_already_published(
+            campaign,
+            expected_idempotency_key=preflight.expected_idempotency_key,
+            source_content_sha256=preflight.source_content_sha256 or "",
+        ):
+            return _already_published_result(preflight, campaign)
+
+    if state in POST_SCHEDULE_SOURCE_RESOLUTION_STATES or state == STATE_FLOW_A_COMPLETE:
+        return _already_published_result(preflight, campaign)
+
+    return None
 
 
 def _preflight_inspect(
@@ -998,6 +1096,12 @@ def publish_blog_post(
         if execution_time is not None
         else datetime.now(timezone.utc)
     )
+    post_schedule_result = _try_post_schedule_idempotent_publish(
+        base_path, source_relative_path
+    )
+    if post_schedule_result is not None:
+        return post_schedule_result
+
     preflight = _preflight_inspect(
         base_path,
         source_relative_path,

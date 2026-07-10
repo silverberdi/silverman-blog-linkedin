@@ -15,17 +15,16 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     CampaignLifecycleError,
     FLOW_A,
     FLOW_B,
-    METADATA_CAMPAIGNS_RELATIVE,
     STATE_DERIVATIVES_GENERATED,
     STATE_DISTRIBUTION_COMPLETE,
     STATE_DISTRIBUTION_SCHEDULED,
     STATE_FLOW_A_COMPLETE,
+    find_campaign_by_source_path,
     normalize_scheduled_at_utc,
     read_campaign_metadata,
     transition_state,
     write_campaign_metadata,
 )
-from silverman_blog_linkedin.file_reader import normalize_relative_path
 
 DEFAULT_STAGGER_STRATEGY = "flow_a_staggered"
 DEFAULT_PUBLISH_HOUR_UTC = 14
@@ -126,23 +125,6 @@ def _distribution_id(campaign_id: str) -> str:
     return f"{campaign_id}-dist"
 
 
-def _find_campaign_by_source_path(
-    base_path: Path, source_relative_path: str
-) -> dict[str, Any] | None:
-    campaigns_dir = base_path / METADATA_CAMPAIGNS_RELATIVE
-    if not campaigns_dir.is_dir():
-        return None
-    normalized = normalize_relative_path(source_relative_path)
-    for metadata_path in campaigns_dir.glob("*.json"):
-        try:
-            data = json.loads(metadata_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if data.get("source_relative_path") == normalized:
-            return data
-    return None
-
-
 def _resolve_campaign(
     base_path: Path,
     *,
@@ -152,7 +134,7 @@ def _resolve_campaign(
     if campaign_id:
         return read_campaign_metadata(base_path, campaign_id)
     if source_relative_path:
-        return _find_campaign_by_source_path(base_path, source_relative_path)
+        return find_campaign_by_source_path(base_path, source_relative_path)
     return None
 
 
@@ -379,7 +361,33 @@ def schedule_linkedin_distribution(
         )
 
     state = campaign.get("state")
-    if state in SCHEDULE_INVALID_STATES or state not in SCHEDULE_ELIGIBLE_STATES:
+    if state in SCHEDULE_INVALID_STATES:
+        distribution = campaign.get("linkedin_distribution") or {}
+        if distribution.get("idempotency_key") and distribution.get("anchor_utc"):
+            metadata_map = _get_variant_metadata_map(campaign)
+            variant_ids_existing = sorted(distribution.get("variant_ids") or [])
+            if variant_ids_existing and all(
+                metadata_map.get(variant_id, {}).get("scheduled_at_utc")
+                for variant_id in variant_ids_existing
+            ):
+                variant_schedules = [
+                    _variant_schedule_summary(metadata_map[variant_id])
+                    for variant_id in _ordered_variant_ids(variant_ids_existing)
+                ]
+                return _completed_result(
+                    campaign,
+                    strategy=distribution.get("strategy") or resolved_strategy,
+                    anchor_utc=distribution["anchor_utc"],
+                    variant_schedules=variant_schedules,
+                    metadata_written=False,
+                )
+        return _failed_result(
+            campaign=campaign,
+            errors=[LINKEDIN_SCHEDULE_INVALID_CAMPAIGN_STATE],
+            strategy=resolved_strategy,
+        )
+
+    if state not in SCHEDULE_ELIGIBLE_STATES:
         return _failed_result(
             campaign=campaign,
             errors=[LINKEDIN_SCHEDULE_INVALID_CAMPAIGN_STATE],

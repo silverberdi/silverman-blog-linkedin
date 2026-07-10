@@ -17,7 +17,7 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     CANONICAL_VARIANT_IDS,
     FLOW_A,
     FLOW_B,
-    METADATA_CAMPAIGNS_RELATIVE,
+    POST_SCHEDULE_SOURCE_RESOLUTION_STATES,
     STATE_BLOG_PUBLISHED,
     STATE_DERIVATIVES_GENERATED,
     STATE_DERIVATIVES_PENDING,
@@ -26,7 +26,9 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     STATE_FLOW_A_COMPLETE,
     build_derivative_idempotency_key,
     compute_source_content_sha256,
+    find_campaign_by_source_path,
     read_campaign_metadata,
+    resolve_campaign_source_paths,
     transition_state,
     write_campaign_metadata,
 )
@@ -140,23 +142,6 @@ def _artifact_relative_path(campaign_id: str, variant_id: str) -> str:
     return f"{GENERATED_RELATIVE}/{campaign_id}/{variant_id}.md"
 
 
-def _find_campaign_by_source_path(
-    base_path: Path, source_relative_path: str
-) -> dict[str, Any] | None:
-    campaigns_dir = base_path / METADATA_CAMPAIGNS_RELATIVE
-    if not campaigns_dir.is_dir():
-        return None
-    normalized = normalize_relative_path(source_relative_path)
-    for metadata_path in campaigns_dir.glob("*.json"):
-        try:
-            data = json.loads(metadata_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if data.get("source_relative_path") == normalized:
-            return data
-    return None
-
-
 def _resolve_campaign(
     base_path: Path,
     *,
@@ -166,7 +151,7 @@ def _resolve_campaign(
     if campaign_id:
         return read_campaign_metadata(base_path, campaign_id)
     if source_relative_path:
-        return _find_campaign_by_source_path(base_path, source_relative_path)
+        return find_campaign_by_source_path(base_path, source_relative_path)
     return None
 
 
@@ -367,6 +352,35 @@ def _get_variant_metadata_map(campaign: dict[str, Any]) -> dict[str, dict[str, A
     }
 
 
+def _check_post_schedule_idempotent_completed(
+    campaign: dict[str, Any],
+    *,
+    variant_ids: list[str],
+    base_path: Path,
+) -> bool:
+    if campaign.get("state") not in POST_SCHEDULE_SOURCE_RESOLUTION_STATES:
+        return False
+    package = campaign.get("linkedin_package") or {}
+    if not package.get("idempotency_key") or not package.get("variant_ids"):
+        return False
+    metadata_map = _get_variant_metadata_map(campaign)
+    for variant_id in variant_ids:
+        entry = metadata_map.get(variant_id)
+        if entry is None:
+            return False
+        artifact_relative = entry.get("artifact_relative_path")
+        derivative_hash = entry.get("derivative_content_sha256")
+        if not artifact_relative or not derivative_hash:
+            return False
+        artifact_path = base_path / artifact_relative
+        if not artifact_path.is_file():
+            return False
+        on_disk_hash = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+        if on_disk_hash != derivative_hash:
+            return False
+    return True
+
+
 def _check_idempotent_completed(
     campaign: dict[str, Any],
     *,
@@ -546,7 +560,28 @@ def generate_linkedin_package(
         return _failed_result(campaign=campaign, errors=[LINKEDIN_PACKAGE_FLOW_NOT_ALLOWED])
 
     state = campaign.get("state")
-    if state in PACKAGE_INVALID_STATES or state not in PACKAGE_ELIGIBLE_STATES:
+    if state in PACKAGE_INVALID_STATES:
+        package_meta = campaign.get("linkedin_package") or {}
+        post_schedule_variants = sorted(package_meta.get("variant_ids") or [])
+        if post_schedule_variants and _check_post_schedule_idempotent_completed(
+            campaign,
+            variant_ids=post_schedule_variants,
+            base_path=base_path,
+        ):
+            metadata_map = _get_variant_metadata_map(campaign)
+            variant_entries = [
+                metadata_map[variant_id] for variant_id in post_schedule_variants
+            ]
+            return _completed_result(
+                campaign,
+                variant_entries=variant_entries,
+                metadata_written=False,
+            )
+        return _failed_result(
+            campaign=campaign, errors=[LINKEDIN_PACKAGE_INVALID_CAMPAIGN_STATE]
+        )
+
+    if state not in PACKAGE_ELIGIBLE_STATES:
         return _failed_result(
             campaign=campaign, errors=[LINKEDIN_PACKAGE_INVALID_CAMPAIGN_STATE]
         )
@@ -562,7 +597,7 @@ def generate_linkedin_package(
             campaign=campaign, errors=[LINKEDIN_PACKAGE_PUBLIC_URL_CHANGED]
         )
 
-    source_relative = campaign.get("source_relative_path")
+    source_relative, image_relative = resolve_campaign_source_paths(campaign)
     if not source_relative:
         return _failed_result(campaign=campaign, errors=[LINKEDIN_PACKAGE_SOURCE_MISSING])
 
@@ -609,6 +644,10 @@ def generate_linkedin_package(
         variant_ids=variant_ids,
         package_idempotency_key=package_idempotency_key,
         source_content_sha256=on_disk_hash,
+        base_path=base_path,
+    ) or _check_post_schedule_idempotent_completed(
+        campaign,
+        variant_ids=variant_ids,
         base_path=base_path,
     ):
         metadata_map = _get_variant_metadata_map(campaign)

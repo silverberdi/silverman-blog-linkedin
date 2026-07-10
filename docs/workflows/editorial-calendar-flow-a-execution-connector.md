@@ -20,7 +20,7 @@ See also: [editorial-calendar-orchestration.md](./editorial-calendar-orchestrati
 - Service default: `dry_run=True`
 - HTTP default: `"dry_run": true` when omitted
 - Dry-run calls the planner, evaluates eligibility, returns per-item `would_execute` decisions and `planned_flow_steps`
-- Dry-run performs **no** publish/package/schedule calls and **no** metadata, run, blog repo, or calendar writes
+- Dry-run performs **no** publish/package/schedule/**source lifecycle** calls and **no** metadata, run, blog repo, or calendar writes
 - Dry-run does **not** fabricate downstream success fields (`campaign_id`, `source_public_url`, package IDs, schedule slots)
 
 Run dry-run first; opt into real execution only with explicit `"dry_run": false`.
@@ -32,8 +32,9 @@ When `dry_run=false`, eligible due items run Flow A in strict order:
 1. `publish_blog_post`
 2. `generate_linkedin_package` (uses publish result identifiers)
 3. `schedule_linkedin_distribution` (uses package result identifiers)
+4. `complete_flow_a_source_lifecycle` (moves source `.md` and companion `.png` from `blog-posts/ready/` to `blog-posts/processed/` after scheduling succeeds)
 
-Each step uses the prior step's result object. The chain stops on the first failure and sets `failed_step` on the item.
+Each step uses the prior step's result object. Steps 1–3 stop on the first failure and set `failed_step` on the item. Step 4 runs only after scheduling succeeds; if source move fails, `execution_status` remains `executed` and `source_lifecycle_status` is `failed` with repair warnings (`flow_a_source_move_failed`).
 
 ### Eligibility
 
@@ -104,3 +105,15 @@ This capability:
 ## Recovery after partial failure
 
 If publish succeeds but package or schedule fails, campaign metadata reflects partial progress via existing services. Operators recover using the standalone endpoints (`/publish-blog-post`, `/generate-linkedin-package`, `/schedule-linkedin-distribution`) documented in their respective workflow guides.
+
+If scheduling succeeds but source lifecycle move fails (`flow_a_source_move_failed` or `flow_a_source_move_partial`), distribution scheduling metadata is preserved. Repair source files under `blog-posts/processed/` (or restore the ready copy if needed) and retry lifecycle completion by `campaign_id` via a future operator hook or by re-running the Flow A connector when the campaign is not yet skipped as `distribution_scheduled`.
+
+### Folder semantics after successful Flow A
+
+| Folder | Meaning |
+|--------|---------|
+| `blog-posts/ready/` | Pending operator-approved input not yet consumed by successful Flow A completion |
+| `blog-posts/processed/` | Source editorial files successfully consumed through scheduling and source lifecycle |
+| `blog-posts/error/` | Failed input (validation/lifecycle policy) |
+
+Campaign metadata (`metadata/campaigns/<campaign-id>.json`) is the traceability authority: `original_source_relative_path`, `processed_source_relative_path`, and optional image path fields record where files lived before and after the move. **Do not manually move processed files after successful Flow A**; use campaign metadata for audit and re-run by `campaign_id`.

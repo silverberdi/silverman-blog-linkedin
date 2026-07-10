@@ -24,6 +24,7 @@ from silverman_blog_linkedin.editorial_calendar_plan import (
     load_calendar,
     plan_editorial_calendar_due,
 )
+from silverman_blog_linkedin.flow_a_source_lifecycle import complete_flow_a_source_lifecycle
 from silverman_blog_linkedin.linkedin_distribution_schedule import (
     LinkedInDistributionScheduleResult,
     schedule_linkedin_distribution,
@@ -43,6 +44,11 @@ EXECUTION_STATUS_WOULD_EXECUTE = "would_execute"
 FAILED_STEP_PUBLISH_BLOG = "publish_blog"
 FAILED_STEP_GENERATE_LINKEDIN_PACKAGE = "generate_linkedin_package"
 FAILED_STEP_SCHEDULE_LINKEDIN_DISTRIBUTION = "schedule_linkedin_distribution"
+FAILED_STEP_COMPLETE_SOURCE_LIFECYCLE = "complete_source_lifecycle"
+
+SOURCE_LIFECYCLE_COMPLETED = "completed"
+SOURCE_LIFECYCLE_SKIPPED = "skipped"
+SOURCE_LIFECYCLE_FAILED = "failed"
 
 CALENDAR_CAMPAIGN_ID_CONFLICT = "calendar_campaign_id_conflict"
 
@@ -72,6 +78,7 @@ class EditorialCalendarFlowAItemResult:
     review_required: bool = False
     planned_flow_steps: list[str] = field(default_factory=list)
     failed_step: str | None = None
+    source_lifecycle_status: str | None = None
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -155,6 +162,7 @@ def _item_result_from_plan(
     execution_status: str,
     *,
     failed_step: str | None = None,
+    source_lifecycle_status: str | None = None,
     errors: list[str] | None = None,
     warnings: list[str] | None = None,
 ) -> EditorialCalendarFlowAItemResult:
@@ -165,6 +173,7 @@ def _item_result_from_plan(
         review_required=plan_item.review_required,
         planned_flow_steps=list(plan_item.planned_flow_steps),
         failed_step=failed_step,
+        source_lifecycle_status=source_lifecycle_status,
         errors=list(errors or plan_item.errors),
         warnings=list(warnings or plan_item.warnings),
     )
@@ -297,11 +306,51 @@ def _execute_flow_a_item(
             warnings=_merge_warnings(publish_result, package_result, schedule_result),
         )
 
+    lifecycle_campaign_id = (
+        schedule_result.campaign_id
+        or package_result.campaign_id
+        or publish_result.campaign_id
+    )
+    if not lifecycle_campaign_id:
+        return _item_result_from_plan(
+            plan_item,
+            EXECUTION_STATUS_EXECUTED,
+            source_lifecycle_status=SOURCE_LIFECYCLE_FAILED,
+            errors=["flow_a_source_campaign_not_found"],
+            warnings=_merge_warnings(publish_result, package_result, schedule_result),
+        )
+
+    lifecycle_result = complete_flow_a_source_lifecycle(
+        base_path,
+        campaign_id=lifecycle_campaign_id,
+        source_relative_path=plan_item.source_relative_path,
+    )
+    lifecycle_warnings = _merge_warnings(publish_result, package_result, schedule_result)
+    lifecycle_warnings = list(
+        dict.fromkeys([*lifecycle_warnings, *lifecycle_result.warnings])
+    )
+    lifecycle_errors = list(lifecycle_result.errors)
+    if lifecycle_result.status == SOURCE_LIFECYCLE_FAILED:
+        lifecycle_warnings = list(dict.fromkeys([*lifecycle_warnings, *lifecycle_errors]))
+        return _item_result_from_plan(
+            plan_item,
+            EXECUTION_STATUS_EXECUTED,
+            source_lifecycle_status=SOURCE_LIFECYCLE_FAILED,
+            errors=lifecycle_errors,
+            warnings=lifecycle_warnings,
+        )
+
+    source_lifecycle_status = (
+        SOURCE_LIFECYCLE_SKIPPED
+        if lifecycle_result.status == SOURCE_LIFECYCLE_SKIPPED
+        else SOURCE_LIFECYCLE_COMPLETED
+    )
     return _item_result_from_plan(
         plan_item,
         EXECUTION_STATUS_EXECUTED,
+        source_lifecycle_status=source_lifecycle_status,
         errors=[],
-        warnings=_merge_warnings(publish_result, package_result, schedule_result),
+        warnings=lifecycle_warnings,
     )
 
 

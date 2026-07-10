@@ -27,8 +27,12 @@ from silverman_blog_linkedin.editorial_calendar_flow_a_execute import (
     FAILED_STEP_GENERATE_LINKEDIN_PACKAGE,
     FAILED_STEP_PUBLISH_BLOG,
     FAILED_STEP_SCHEDULE_LINKEDIN_DISTRIBUTION,
+    SOURCE_LIFECYCLE_COMPLETED,
+    SOURCE_LIFECYCLE_FAILED,
+    SOURCE_LIFECYCLE_SKIPPED,
     execute_due_editorial_calendar_flow_a,
 )
+from silverman_blog_linkedin.flow_a_source_lifecycle import FlowASourceLifecycleResult
 from silverman_blog_linkedin.editorial_calendar_plan import (
     CALENDAR_FILE_NOT_FOUND,
     FLOW_A_PLANNED_STEPS,
@@ -181,6 +185,9 @@ def test_dry_run_does_not_call_downstream_or_write(editorial_base: Path):
         patch(
             "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution"
         ) as schedule_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle"
+        ) as lifecycle_mock,
     ):
         result = execute_due_editorial_calendar_flow_a(
             editorial_base,
@@ -191,6 +198,7 @@ def test_dry_run_does_not_call_downstream_or_write(editorial_base: Path):
     publish_mock.assert_not_called()
     package_mock.assert_not_called()
     schedule_mock.assert_not_called()
+    lifecycle_mock.assert_not_called()
     assert result.read_only is True
     assert list(campaigns_dir.glob("*.json")) == before_campaigns
     assert _calendar_hash(editorial_base) == calendar_hash
@@ -283,6 +291,13 @@ def test_real_execution_sequence_with_chained_inputs(editorial_base: Path):
             "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
             return_value=schedule_result,
         ) as schedule_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
+            return_value=FlowASourceLifecycleResult(
+                status="completed",
+                campaign_id=CONFLICT_CAMPAIGN_ID,
+            ),
+        ) as lifecycle_mock,
     ):
         result = execute_due_editorial_calendar_flow_a(
             editorial_base,
@@ -309,7 +324,13 @@ def test_real_execution_sequence_with_chained_inputs(editorial_base: Path):
         source_relative_path=None,
         strategy="stagger_48h",
     )
+    lifecycle_mock.assert_called_once_with(
+        editorial_base,
+        campaign_id=CONFLICT_CAMPAIGN_ID,
+        source_relative_path="blog-posts/ready/post.md",
+    )
     assert result.items[0].execution_status == EXECUTION_STATUS_EXECUTED
+    assert result.items[0].source_lifecycle_status == SOURCE_LIFECYCLE_COMPLETED
     assert result.read_only is False
 
 
@@ -695,3 +716,78 @@ def test_http_execute_success_shape(editorial_base: Path):
     assert body["now_utc"] == NOW_UTC
     assert body["counts"][EXECUTION_STATUS_WOULD_EXECUTE] == 1
     assert "markdown_content" not in json.dumps(body)
+
+
+def test_schedule_failure_does_not_invoke_source_lifecycle(editorial_base: Path):
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
+            return_value=_completed_publish(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
+            return_value=_completed_package(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
+            return_value=LinkedInDistributionScheduleResult(
+                status="failed",
+                campaign_id=CONFLICT_CAMPAIGN_ID,
+                errors=["linkedin_schedule_failed"],
+            ),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle"
+        ) as lifecycle_mock,
+    ):
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    lifecycle_mock.assert_not_called()
+    assert result.items[0].execution_status == EXECUTION_STATUS_FAILED
+    assert (editorial_base / "blog-posts/ready/post.md").is_file()
+
+
+def test_post_schedule_lifecycle_failure_keeps_executed_status(editorial_base: Path):
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
+            return_value=_completed_publish(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
+            return_value=_completed_package(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
+            return_value=_completed_schedule(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
+            return_value=FlowASourceLifecycleResult(
+                status="failed",
+                campaign_id=CONFLICT_CAMPAIGN_ID,
+                errors=["flow_a_source_move_failed"],
+                warnings=["repair guidance"],
+            ),
+        ),
+    ):
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    item = result.items[0]
+    assert item.execution_status == EXECUTION_STATUS_EXECUTED
+    assert item.source_lifecycle_status == SOURCE_LIFECYCLE_FAILED
+    assert "flow_a_source_move_failed" in item.errors
+    assert "repair guidance" in item.warnings
+

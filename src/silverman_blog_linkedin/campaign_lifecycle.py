@@ -7,6 +7,7 @@ import json
 import os
 import re
 from copy import deepcopy
+from silverman_blog_linkedin.file_reader import normalize_relative_path
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -69,6 +70,22 @@ SOURCE_LOCATION_READY = "ready"
 SOURCE_LOCATION_PROCESSED = "processed"
 SOURCE_LOCATION_ERROR = "error"
 
+READY_SOURCE_PREFIX = "blog-posts/ready/"
+PROCESSED_SOURCE_PREFIX = "blog-posts/processed/"
+
+PHYSICAL_MOVE_STATE_NONE = "none"
+PHYSICAL_MOVE_STATE_COMPLETED = "completed"
+PHYSICAL_MOVE_STATE_PARTIAL = "partial"
+PHYSICAL_MOVE_STATE_FAILED = "failed"
+
+POST_SCHEDULE_SOURCE_RESOLUTION_STATES = frozenset(
+    {
+        STATE_DISTRIBUTION_SCHEDULED,
+        STATE_DISTRIBUTION_COMPLETE,
+        STATE_FLOW_A_COMPLETE,
+    }
+)
+
 ACTOR_WORKER = "worker"
 ACTOR_N8N = "n8n"
 ACTOR_MANUAL = "manual"
@@ -99,7 +116,7 @@ FLOW_A_VALID_TRANSITIONS: dict[str, frozenset[str]] = {
         {STATE_DISTRIBUTION_SCHEDULED, STATE_ERROR}
     ),
     STATE_DISTRIBUTION_SCHEDULED: frozenset(
-        {STATE_DISTRIBUTION_COMPLETE, STATE_ERROR}
+        {STATE_DISTRIBUTION_COMPLETE, STATE_FLOW_A_COMPLETE, STATE_ERROR}
     ),
     STATE_DISTRIBUTION_COMPLETE: frozenset({STATE_FLOW_A_COMPLETE, STATE_ERROR}),
     STATE_FLOW_A_COMPLETE: frozenset(),
@@ -292,6 +309,8 @@ def _default_source_file_status() -> dict[str, Any]:
         "location": SOURCE_LOCATION_READY,
         "marked_processed_at": None,
         "marked_error_at": None,
+        "physical_move_completed_at": None,
+        "physical_move_state": PHYSICAL_MOVE_STATE_NONE,
     }
 
 
@@ -539,6 +558,76 @@ def write_campaign_metadata(
             written=False, error_code="campaign_metadata_write_failed"
         )
     return CampaignMetadataWriteResult(written=True)
+
+
+def _campaign_source_path_candidates(campaign: dict[str, Any]) -> list[str]:
+    """Return normalized source path fields that may identify a campaign."""
+    candidates: list[str] = []
+    for key in (
+        "source_relative_path",
+        "original_source_relative_path",
+        "processed_source_relative_path",
+    ):
+        value = campaign.get(key)
+        if isinstance(value, str) and value.strip():
+            normalized = normalize_relative_path(value)
+            if normalized not in candidates:
+                candidates.append(normalized)
+    return candidates
+
+
+def find_campaign_by_source_path(
+    base_path: Path, source_relative_path: str
+) -> dict[str, Any] | None:
+    """Load campaign metadata matching active, original, or processed source paths."""
+    campaigns_dir = base_path / METADATA_CAMPAIGNS_RELATIVE
+    if not campaigns_dir.is_dir():
+        return None
+    normalized = normalize_relative_path(source_relative_path)
+    for metadata_path in campaigns_dir.glob("*.json"):
+        try:
+            data = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if normalized in _campaign_source_path_candidates(data):
+            return data
+    return None
+
+
+def resolve_campaign_source_paths(
+    campaign: dict[str, Any],
+) -> tuple[str | None, str | None]:
+    """Resolve active Markdown and optional companion image paths for a campaign."""
+    source_status = campaign.get("source_file_status") or _default_source_file_status()
+    location = source_status.get("location", SOURCE_LOCATION_READY)
+    state = campaign.get("state")
+
+    use_processed = (
+        location == SOURCE_LOCATION_PROCESSED
+        or state in POST_SCHEDULE_SOURCE_RESOLUTION_STATES
+    )
+    if use_processed:
+        md_path = campaign.get("processed_source_relative_path") or campaign.get(
+            "source_relative_path"
+        )
+        image_path = campaign.get("processed_image_relative_path") or campaign.get(
+            "image_relative_path"
+        )
+    else:
+        md_path = campaign.get("source_relative_path")
+        image_path = campaign.get("image_relative_path")
+
+    if isinstance(md_path, str) and md_path.strip():
+        md_normalized = normalize_relative_path(md_path)
+    else:
+        md_normalized = None
+
+    if isinstance(image_path, str) and image_path.strip():
+        image_normalized = normalize_relative_path(image_path)
+    else:
+        image_normalized = None
+
+    return md_normalized, image_normalized
 
 
 def read_campaign_metadata(
