@@ -8,7 +8,10 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 READY_RELATIVE = "blog-posts/ready"
+QUEUED_RELATIVE = "blog-posts/queued"
 READY_PREFIX = f"{READY_RELATIVE}/"
+QUEUED_PREFIX = f"{QUEUED_RELATIVE}/"
+ALLOWED_SOURCE_PREFIXES = (READY_PREFIX, QUEUED_PREFIX)
 
 _WINDOWS_DRIVE_PATTERN = re.compile(r"^[A-Za-z]:[/\\]")
 
@@ -37,13 +40,14 @@ def derive_filename(relative_path: str) -> str | None:
     parts = PurePosixPath(normalized).parts
     if not parts:
         return None
-    if normalized == READY_RELATIVE:
+    if normalized in (READY_RELATIVE, QUEUED_RELATIVE):
         return None
-    if normalized.startswith(READY_PREFIX):
-        remainder = normalized[len(READY_PREFIX) :]
-        if not remainder or "/" in remainder:
-            return None
-        return remainder
+    for prefix in ALLOWED_SOURCE_PREFIXES:
+        if normalized.startswith(prefix):
+            remainder = normalized[len(prefix) :]
+            if not remainder or "/" in remainder:
+                return None
+            return remainder
     name = parts[-1]
     return name if name else None
 
@@ -68,11 +72,16 @@ def _validate_path_shape(relative_path: str) -> list[str]:
         errors.append("path_traversal")
         return errors
 
-    if not relative_path.startswith(READY_PREFIX):
+    matched_prefix = None
+    for prefix in ALLOWED_SOURCE_PREFIXES:
+        if relative_path.startswith(prefix):
+            matched_prefix = prefix
+            break
+    if matched_prefix is None:
         errors.append("path_outside_ready")
         return errors
 
-    remainder = relative_path[len(READY_PREFIX) :]
+    remainder = relative_path[len(matched_prefix) :]
     if not remainder or "/" in remainder:
         errors.append("path_not_direct_child")
         return errors
@@ -84,8 +93,24 @@ def _validate_path_shape(relative_path: str) -> list[str]:
     return errors
 
 
+def _resolve_allowed_source_path(base_path: Path, normalized: str) -> tuple[Path | None, list[str]]:
+    for relative, prefix in (
+        (READY_RELATIVE, READY_PREFIX),
+        (QUEUED_RELATIVE, QUEUED_PREFIX),
+    ):
+        if normalized.startswith(prefix):
+            parent = (base_path / relative).resolve()
+            candidate = (base_path / normalized).resolve()
+            try:
+                candidate.relative_to(parent)
+            except ValueError:
+                return None, ["path_outside_ready"]
+            return candidate, []
+    return None, ["path_outside_ready"]
+
+
 def read_blog_post_file(base_path: Path, relative_path: str) -> FileReadResult:
-    """Validate path under blog-posts/ready and read UTF-8 Markdown content."""
+    """Validate path under blog-posts/ready or queued and read UTF-8 Markdown."""
     normalized = normalize_relative_path(relative_path)
     filename = derive_filename(normalized)
 
@@ -100,17 +125,15 @@ def read_blog_post_file(base_path: Path, relative_path: str) -> FileReadResult:
             errors=path_errors,
         )
 
-    ready_dir = (base_path / READY_RELATIVE).resolve()
-    candidate = (base_path / normalized).resolve()
-
-    if not candidate.is_relative_to(ready_dir):
+    candidate, confinement_errors = _resolve_allowed_source_path(base_path, normalized)
+    if confinement_errors or candidate is None:
         return FileReadResult(
             relative_path=normalized,
             filename=filename,
             size_bytes=None,
             content_sha256=None,
             markdown_content=None,
-            errors=["path_outside_ready"],
+            errors=confinement_errors or ["path_outside_ready"],
         )
 
     if not candidate.exists():

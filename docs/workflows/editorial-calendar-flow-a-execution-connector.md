@@ -29,12 +29,34 @@ Run dry-run first; opt into real execution only with explicit `"dry_run": false`
 
 When `dry_run=false`, eligible due items run Flow A in strict order:
 
-1. `publish_blog_post`
-2. `generate_linkedin_package` (uses publish result identifiers)
-3. `schedule_linkedin_distribution` (uses package result identifiers)
-4. `complete_flow_a_source_lifecycle` (moves source `.md` and companion `.png` from `blog-posts/ready/` to `blog-posts/processed/` after scheduling succeeds)
+0. `accept_flow_a_source_for_queue` — move source from `blog-posts/ready/` to `blog-posts/queued/` (preserving filename), or resolve an already-queued campaign (`skipped_already_queued`)
+1. `claim_flow_a_execution` then full editorial validation against the queued path
+2. `publish_blog_post`
+3. `generate_linkedin_package` (uses publish result identifiers)
+4. `schedule_linkedin_distribution` (uses package result identifiers)
+5. `complete_flow_a_source_lifecycle` (moves source `.md` and companion `.png` from `blog-posts/queued/` to `blog-posts/processed/` after scheduling succeeds)
+6. `release_flow_a_execution` only on recoverable or failed non-terminal exits (idempotent `already_released` after terminal completion)
 
-Each step uses the prior step's result object. Steps 1–3 stop on the first failure and set `failed_step` on the item. Step 4 runs only after scheduling succeeds; if source move fails, `execution_status` remains `executed` and `source_lifecycle_status` is `failed` with repair warnings (`flow_a_source_move_failed`).
+Dry-run reports `would_queue_accept` per item without physical moves, claims, or fabricated queue paths.
+
+Each step uses the prior step's result object. Queue acceptance failure sets `failed_step=queue_acceptance` and stops the chain. Steps 2–4 stop on the first failure and set `failed_step` on the item. Step 5 runs only after scheduling succeeds; if source move fails, `execution_status` remains `executed` and `source_lifecycle_status` is `failed` with repair warnings (`flow_a_source_move_failed`).
+
+### Operational folders
+
+| Folder | Role |
+|--------|------|
+| `blog-posts/ready/` | Operator-approved inbox (not yet worker-accepted) |
+| `blog-posts/queued/` | Worker-accepted work awaiting or undergoing Flow A execution |
+| `blog-posts/processed/` | Successfully consumed sources after lifecycle completion |
+| `blog-posts/error/` | Terminal deterministic failures; requeue via internal service |
+
+`processing` is a logical `execution_state` on campaign metadata, not a physical folder.
+
+### Recovery classifications
+
+`source_file_status.recovery_classification` uses: `no_action`, `retryable`, `repair_required`, `requeue_required`, `manual_intervention_required`.
+
+Stale processing is detected when `now >= last_progress_at + SILVERMAN_FLOW_A_PROCESSING_STALE_SECONDS` (default 3600, minimum 60).
 
 ### Eligibility
 
@@ -48,7 +70,8 @@ Real or dry-run execution applies only when the planner reports:
 
 ### Campaign guardrails
 
-- **Pre-skip:** calendar `campaign_id` with campaign state `distribution_scheduled` or later → `skipped_existing_campaign`
+- **Pre-skip:** calendar `campaign_id` with campaign state `flow_a_complete` → `skipped_existing_campaign`
+- **Already queued:** campaigns with `source_file_status.location=queued` resume from persisted pipeline state with `queue_acceptance_status=skipped_already_queued`; the original ready file is not required
 - **Post-step conflict:** calendar `campaign_id` differs from publish/package resolved `campaign_id` → `failed` with `calendar_campaign_id_conflict`; subsequent steps are not called
 
 ## HTTP endpoint

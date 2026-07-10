@@ -67,11 +67,53 @@ FORBIDDEN_METADATA_FIELDS = frozenset(
 )
 
 SOURCE_LOCATION_READY = "ready"
+SOURCE_LOCATION_QUEUED = "queued"
 SOURCE_LOCATION_PROCESSED = "processed"
 SOURCE_LOCATION_ERROR = "error"
 
+SOURCE_LOCATIONS = frozenset(
+    {
+        SOURCE_LOCATION_READY,
+        SOURCE_LOCATION_QUEUED,
+        SOURCE_LOCATION_PROCESSED,
+        SOURCE_LOCATION_ERROR,
+    }
+)
+
+EXECUTION_STATE_IDLE = "idle"
+EXECUTION_STATE_PROCESSING = "processing"
+EXECUTION_STATE_STALE = "stale"
+
+EXECUTION_STATES = frozenset(
+    {
+        EXECUTION_STATE_IDLE,
+        EXECUTION_STATE_PROCESSING,
+        EXECUTION_STATE_STALE,
+    }
+)
+
+RECOVERY_NO_ACTION = "no_action"
+RECOVERY_RETRYABLE = "retryable"
+RECOVERY_REPAIR_REQUIRED = "repair_required"
+RECOVERY_REQUEUE_REQUIRED = "requeue_required"
+RECOVERY_MANUAL_INTERVENTION_REQUIRED = "manual_intervention_required"
+
+RECOVERY_CLASSIFICATIONS = frozenset(
+    {
+        RECOVERY_NO_ACTION,
+        RECOVERY_RETRYABLE,
+        RECOVERY_REPAIR_REQUIRED,
+        RECOVERY_REQUEUE_REQUIRED,
+        RECOVERY_MANUAL_INTERVENTION_REQUIRED,
+    }
+)
+
 READY_SOURCE_PREFIX = "blog-posts/ready/"
+QUEUED_SOURCE_PREFIX = "blog-posts/queued/"
 PROCESSED_SOURCE_PREFIX = "blog-posts/processed/"
+ERROR_SOURCE_PREFIX = "blog-posts/error/"
+
+INVALID_OPERATIONAL_TRANSITION = "invalid_operational_transition"
 
 PHYSICAL_MOVE_STATE_NONE = "none"
 PHYSICAL_MOVE_STATE_COMPLETED = "completed"
@@ -139,6 +181,13 @@ class InvalidStateTransition(CampaignLifecycleError):
 
     def __init__(self, message: str) -> None:
         super().__init__(message, error_code="invalid_state_transition")
+
+
+class InvalidOperationalTransition(CampaignLifecycleError):
+    """Raised when a physical/execution operational transition is not allowed."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, error_code=INVALID_OPERATIONAL_TRANSITION)
 
 
 @dataclass(frozen=True)
@@ -307,11 +356,77 @@ def build_schedule_idempotency_key(
 def _default_source_file_status() -> dict[str, Any]:
     return {
         "location": SOURCE_LOCATION_READY,
+        "execution_state": EXECUTION_STATE_IDLE,
+        "recovery_classification": RECOVERY_NO_ACTION,
         "marked_processed_at": None,
         "marked_error_at": None,
         "physical_move_completed_at": None,
         "physical_move_state": PHYSICAL_MOVE_STATE_NONE,
+        "execution_attempt_id": None,
+        "attempt_count": 0,
+        "processing_claimed_at": None,
+        "processing_started_at": None,
+        "last_progress_at": None,
+        "processing_lease_expires_at": None,
+        "last_error": None,
+        "last_transition_at": None,
     }
+
+
+def normalize_source_file_status(status: dict[str, Any] | None) -> dict[str, Any]:
+    """Return source_file_status with defaults for legacy campaigns."""
+    base = _default_source_file_status()
+    if not status:
+        return base
+    merged = {**base, **status}
+    location = merged.get("location")
+    if location not in SOURCE_LOCATIONS:
+        merged["location"] = SOURCE_LOCATION_READY
+    execution_state = merged.get("execution_state")
+    if execution_state not in EXECUTION_STATES:
+        merged["execution_state"] = EXECUTION_STATE_IDLE
+    recovery = merged.get("recovery_classification")
+    if recovery not in RECOVERY_CLASSIFICATIONS:
+        merged["recovery_classification"] = RECOVERY_NO_ACTION
+    return merged
+
+
+def validate_operational_transition(
+    *,
+    from_location: str,
+    from_execution: str,
+    to_location: str,
+    to_execution: str,
+) -> None:
+    """Enforce the operational transition table."""
+    if from_location not in SOURCE_LOCATIONS or to_location not in SOURCE_LOCATIONS:
+        raise InvalidOperationalTransition(
+            f"invalid location transition {from_location!r} -> {to_location!r}"
+        )
+    if from_execution not in EXECUTION_STATES or to_execution not in EXECUTION_STATES:
+        raise InvalidOperationalTransition(
+            f"invalid execution transition {from_execution!r} -> {to_execution!r}"
+        )
+
+    allowed: set[tuple[str, str, str, str]] = {
+        (SOURCE_LOCATION_READY, EXECUTION_STATE_IDLE, SOURCE_LOCATION_QUEUED, EXECUTION_STATE_IDLE),
+        (SOURCE_LOCATION_READY, EXECUTION_STATE_IDLE, SOURCE_LOCATION_ERROR, EXECUTION_STATE_IDLE),
+        (SOURCE_LOCATION_READY, EXECUTION_STATE_IDLE, SOURCE_LOCATION_READY, EXECUTION_STATE_IDLE),
+        (SOURCE_LOCATION_QUEUED, EXECUTION_STATE_IDLE, SOURCE_LOCATION_QUEUED, EXECUTION_STATE_PROCESSING),
+        (SOURCE_LOCATION_QUEUED, EXECUTION_STATE_STALE, SOURCE_LOCATION_QUEUED, EXECUTION_STATE_PROCESSING),
+        (SOURCE_LOCATION_QUEUED, EXECUTION_STATE_PROCESSING, SOURCE_LOCATION_PROCESSED, EXECUTION_STATE_IDLE),
+        (SOURCE_LOCATION_QUEUED, EXECUTION_STATE_PROCESSING, SOURCE_LOCATION_QUEUED, EXECUTION_STATE_IDLE),
+        (SOURCE_LOCATION_QUEUED, EXECUTION_STATE_PROCESSING, SOURCE_LOCATION_ERROR, EXECUTION_STATE_IDLE),
+        (SOURCE_LOCATION_QUEUED, EXECUTION_STATE_PROCESSING, SOURCE_LOCATION_QUEUED, EXECUTION_STATE_STALE),
+        (SOURCE_LOCATION_ERROR, EXECUTION_STATE_IDLE, SOURCE_LOCATION_QUEUED, EXECUTION_STATE_IDLE),
+        (SOURCE_LOCATION_PROCESSED, EXECUTION_STATE_IDLE, SOURCE_LOCATION_PROCESSED, EXECUTION_STATE_IDLE),
+    }
+    key = (from_location, from_execution, to_location, to_execution)
+    if key not in allowed:
+        raise InvalidOperationalTransition(
+            f"operational transition not allowed: location {from_location!r}->{to_location!r}, "
+            f"execution {from_execution!r}->{to_execution!r}"
+        )
 
 
 def build_initial_campaign_metadata(
@@ -324,6 +439,7 @@ def build_initial_campaign_metadata(
     source_content: bytes | str,
     publication_date: str,
     created_at: str | None = None,
+    campaign_id: str | None = None,
 ) -> dict[str, Any]:
     """Create a new Flow A campaign document without content bodies."""
     if flow not in (FLOW_A, FLOW_B):
@@ -332,7 +448,9 @@ def build_initial_campaign_metadata(
             error_code="invalid_flow",
         )
 
-    campaign_id = generate_campaign_id(flow, publication_date, public_slug)
+    resolved_campaign_id = campaign_id or generate_campaign_id(
+        flow, publication_date, public_slug
+    )
     content_sha256 = compute_source_content_sha256(source_content)
     timestamp = created_at or utc_now_iso()
     blog_publish_key = build_blog_publish_idempotency_key(
@@ -343,7 +461,7 @@ def build_initial_campaign_metadata(
     )
 
     return {
-        "campaign_id": campaign_id,
+        "campaign_id": resolved_campaign_id,
         "flow": flow,
         "state": STATE_READY,
         "created_at": timestamp,
@@ -566,7 +684,9 @@ def _campaign_source_path_candidates(campaign: dict[str, Any]) -> list[str]:
     for key in (
         "source_relative_path",
         "original_source_relative_path",
+        "queued_source_relative_path",
         "processed_source_relative_path",
+        "error_source_relative_path",
     ):
         value = campaign.get(key)
         if isinstance(value, str) and value.strip():
@@ -598,19 +718,41 @@ def resolve_campaign_source_paths(
     campaign: dict[str, Any],
 ) -> tuple[str | None, str | None]:
     """Resolve active Markdown and optional companion image paths for a campaign."""
-    source_status = campaign.get("source_file_status") or _default_source_file_status()
+    source_status = normalize_source_file_status(campaign.get("source_file_status"))
     location = source_status.get("location", SOURCE_LOCATION_READY)
+    execution_state = source_status.get("execution_state", EXECUTION_STATE_IDLE)
     state = campaign.get("state")
 
     use_processed = (
         location == SOURCE_LOCATION_PROCESSED
-        or state in POST_SCHEDULE_SOURCE_RESOLUTION_STATES
+        or (
+            state in POST_SCHEDULE_SOURCE_RESOLUTION_STATES
+            and location != SOURCE_LOCATION_QUEUED
+            and execution_state not in (EXECUTION_STATE_PROCESSING, EXECUTION_STATE_STALE)
+        )
     )
     if use_processed:
         md_path = campaign.get("processed_source_relative_path") or campaign.get(
             "source_relative_path"
         )
         image_path = campaign.get("processed_image_relative_path") or campaign.get(
+            "image_relative_path"
+        )
+    elif location == SOURCE_LOCATION_ERROR:
+        md_path = campaign.get("error_source_relative_path") or campaign.get(
+            "source_relative_path"
+        )
+        image_path = campaign.get("error_image_relative_path") or campaign.get(
+            "image_relative_path"
+        )
+    elif location == SOURCE_LOCATION_QUEUED or execution_state in (
+        EXECUTION_STATE_PROCESSING,
+        EXECUTION_STATE_STALE,
+    ):
+        md_path = campaign.get("queued_source_relative_path") or campaign.get(
+            "source_relative_path"
+        )
+        image_path = campaign.get("queued_image_relative_path") or campaign.get(
             "image_relative_path"
         )
     else:

@@ -23,41 +23,15 @@ End-to-end flow for the first operational capability: manual blog placement thro
   blog-posts/ready/
   └── my-architecture-post.md
       │
-      │  n8n trigger (manual or scheduled)
+      │  n8n trigger (manual or scheduled) — Flow A calendar connector
       ▼
-  ┌─────────┐
-  │   n8n   │
-  └────┬────┘
-       │  GET /health          (optional sanity check)
-       │
-       │  POST /process-ready  (or POST /process-file for single file)
-       ▼
-  ┌─────────────────┐
-  │  HTTP Worker    │
-  │  (Docker/local) │
-  └────────┬────────┘
-           │
-           ├──► validate folder layout under data root
-           │
-           ├──► read Markdown from blog-posts/ready/
-           │
-           ├──► generate LinkedIn variants (LLM)
-           │         ├── executive / recruiter
-           │         ├── technical leadership
-           │         └── short provocative
-           │
-           ├──► write drafts ──────────────────► linkedin-posts/review/
-           │         ├── my-architecture-post-executive.md
-           │         ├── my-architecture-post-technical.md
-           │         └── my-architecture-post-short.md
-           │
-           ├──► write metadata ────────────────► metadata/runs/
-           │                                    metadata/campaigns/
-           │
-           └──► move source file
-                    │
-                    ├── success ──────────────► blog-posts/processed/
-                    │                              my-architecture-post.md
+  blog-posts/queued/          ← worker accepts due calendar item (queue acceptance)
+  └── my-architecture-post.md
+      │
+      │  publish → package → schedule → lifecycle completion
+      ▼
+  blog-posts/processed/
+  └── my-architecture-post.md
                     │
                     └── failure ──────────────► blog-posts/error/
                                                    my-architecture-post.md
@@ -83,17 +57,20 @@ End-to-end flow for the first operational capability: manual blog placement thro
 |------|----------|--------|
 | 1 | `blog-posts/ready/` | Author places Markdown blog post |
 | 2 | n8n | Trigger workflow; call worker over HTTP |
-| 3 | Worker | Validate paths, read source, generate variants |
-| 4 | `linkedin-posts/review/` | Worker writes LinkedIn draft files |
-| 5 | `metadata/runs/`, `metadata/campaigns/` | Worker writes run and campaign metadata |
-| 6 | `blog-posts/processed/` or `error/` | After successful Flow A through scheduling and source lifecycle, worker moves consumed sources from `ready/` to `processed/`; failures may mark `error/` per validation policy |
-| 7 | Human | Review drafts; move to `approved/`; publish manually |
+| 3 | `blog-posts/queued/` | Worker queue-accepts due calendar item (ready → queued) |
+| 4 | Worker | Validate queued source, publish blog, generate package, schedule distribution |
+| 5 | `linkedin-posts/review/` | Worker writes LinkedIn draft files |
+| 6 | `metadata/runs/`, `metadata/campaigns/` | Worker writes run and campaign metadata |
+| 7 | `blog-posts/processed/` or `error/` | After scheduling, worker moves consumed sources from `queued/` to `processed/`; deterministic failures may use `error/` |
+| 8 | Human | Review drafts; move to `approved/`; publish manually |
 
 ## Editorial source folders (Flow A)
 
-- `blog-posts/ready/` — pending operator-approved input awaiting Flow A consumption.
-- `blog-posts/processed/` — source Markdown and companion images successfully consumed by Flow A (publish → package → schedule → source lifecycle).
-- Traceability lives in `metadata/campaigns/<campaign-id>.json` (`original_source_relative_path`, `processed_source_relative_path`, and optional image paths). After successful Flow A, operators should not manually relocate processed files; re-run services by `campaign_id` when idempotent recovery is needed.
+- `blog-posts/ready/` — operator-approved inbox not yet worker-accepted.
+- `blog-posts/queued/` — worker-accepted work for Flow A execution (`processing` is logical metadata only).
+- `blog-posts/processed/` — sources successfully consumed through scheduling and source lifecycle completion.
+- `blog-posts/error/` — terminal failures; requeue via internal `requeue_flow_a_source_from_error`.
+- Traceability lives in `metadata/campaigns/<campaign-id>.json` (`original_source_relative_path`, `queued_source_relative_path`, `processed_source_relative_path`, and optional image paths).
 
 ## Out of Scope in This Flow (Phase 1)
 

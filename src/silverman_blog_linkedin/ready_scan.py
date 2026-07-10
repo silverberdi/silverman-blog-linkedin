@@ -5,6 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from silverman_blog_linkedin.flow_a_hidden_artifacts import (
+    HIDDEN_ARTIFACT_REASON,
+    is_hidden_artifact_basename,
+)
+
 READY_RELATIVE = "blog-posts/ready"
 
 
@@ -61,6 +66,16 @@ def scan_ready_folder(base_path: Path) -> ScanResult:
             continue
 
         if not entry.is_file():
+            continue
+
+        if is_hidden_artifact_basename(name):
+            ignored_files.append(
+                {
+                    "filename": name,
+                    "relative_path": relative_path,
+                    "reason": HIDDEN_ARTIFACT_REASON,
+                }
+            )
             continue
 
         if not _is_md_suffix(entry):

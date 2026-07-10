@@ -1,0 +1,458 @@
+## ADDED Requirements
+
+### Requirement: Operational source lifecycle purpose
+
+The worker SHALL implement Flow A operational source lifecycle management that distinguishes operator-approved inbox input (`blog-posts/ready/`), worker-accepted executable work (`blog-posts/queued/`), logical active execution (`processing`), successful consumption (`blog-posts/processed/`), and terminal failure (`blog-posts/error/`).
+
+Physical location MUST be recorded in `source_file_status.location` with values `ready`, `queued`, `processed`, or `error`.
+
+Logical execution MUST be recorded in `source_file_status.execution_state` with values `idle`, `processing`, or `stale`.
+
+Campaign pipeline `state` (canonical spec `flow-a-lifecycle`) MUST remain a separate dimension and MUST NOT be overloaded to mean physical folder location.
+
+#### Scenario: Console-derivable operational display state
+
+- **WHEN** campaign metadata is read for an operations view
+- **THEN** display state `ready`, `queued`, `processing`, `processed`, `error`, `last_error`, `last_transition`, and `recovery_classification` can be derived from `source_file_status` and `last_error` without parsing free-form logs
+
+### Requirement: Canonical recovery classification vocabulary
+
+`source_file_status.recovery_classification` MUST use exactly these values when set:
+
+- `no_action` — no operator action required; ready to proceed or already terminal
+- `retryable` — automatic or scheduled retry expected (transient failure, stale reclaim)
+- `repair_required` — physical/metadata mismatch or partial move; operator or repair tooling must reconcile
+- `requeue_required` — terminal error state; explicit requeue needed before re-execution
+- `manual_intervention_required` — active processing claim not stale; do not double-claim
+
+Undocumented variants MUST NOT be used.
+
+#### Scenario: Recovery classification uses canonical values only
+
+- **WHEN** any operational lifecycle operation sets `recovery_classification`
+- **THEN** the value is one of the five canonical enum values and no undocumented alias is persisted
+
+### Requirement: Editorial folder semantics
+
+`blog-posts/ready/` MUST remain the operator-approved inbox for pending source input not yet accepted by the worker.
+
+`blog-posts/queued/` MUST contain source Markdown and companion images accepted for Flow A execution and not yet terminally consumed.
+
+`blog-posts/processed/` MUST contain sources successfully consumed through scheduling and source lifecycle completion.
+
+`blog-posts/error/` MUST contain sources moved per the approved error-folder policy.
+
+There MUST NOT be a physical `blog-posts/processing/` folder in this change.
+
+`blog-posts/queued/` MUST be included in expected editorial folder validation before queue operations.
+
+#### Scenario: Queued folder required before acceptance
+
+- **WHEN** queue acceptance runs and `blog-posts/queued/` is missing or not a directory
+- **THEN** acceptance fails with stable error code `editorial_folders_not_ready` and no source is moved from `ready/`
+
+### Requirement: State transition enforcement
+
+The worker MUST enforce the operational transition table:
+
+- `ready` → `queued` on successful queue acceptance (physical move, preserving editorial filename)
+- `ready` → `error` on deterministic intake validation failure when calendar-selected (physical move)
+- `ready` → `ready` when no eligible calendar item or intake not attempted (no move)
+- `queued` + `idle` → `queued` + `processing` on execution claim (metadata only)
+- `queued` + `processing` → `processed` + `idle` on successful lifecycle completion (physical move)
+- `queued` + `processing` → `queued` + `idle` on transient recoverable failure (metadata only)
+- `queued` + `processing` → `error` + `idle` on deterministic non-retryable failure before durable external side effects (physical move)
+- `queued` + `processing` → `queued` + `idle` on failure after durable external side effects (metadata only; `repair_required`)
+- `queued` + `processing` → `queued` + `stale` when inactivity threshold exceeded (metadata only)
+- `queued` + `stale` → `queued` + `processing` on reclaim (metadata only)
+- `error` + `idle` → `queued` + `idle` on requeue (physical move)
+- Invalid transitions MUST be rejected with `invalid_operational_transition`
+
+#### Scenario: Invalid ready to processed skip rejected
+
+- **WHEN** an operation attempts to move a source directly from `blog-posts/ready/` to `blog-posts/processed/` without queue acceptance
+- **THEN** the operation is rejected with `invalid_operational_transition` unless legacy compatibility repair mode is explicitly invoked for migration tooling (not default Flow A path)
+
+### Requirement: Queue acceptance entry point and persistence protocol
+
+The worker SHALL expose queue acceptance (for example `accept_flow_a_source_for_queue(base_path, *, source_relative_path, calendar_item_context)`) that moves an eligible source from `blog-posts/ready/` to `blog-posts/queued/` and records queue metadata.
+
+Queue acceptance MUST follow this protocol in order:
+
+1. Resolve calendar and campaign identity.
+2. Perform safe minimum intake checks.
+3. Prepare the intended metadata transition without persisting a false physical state.
+4. Move Markdown from `ready/` to `queued/` preserving the original editorial filename.
+5. Move the companion image if present beside the source in `ready/`.
+6. Persist campaign metadata reflecting the actual observed move results.
+7. Return `completed`, `partial`, `failed`, or `repair_required` status.
+
+The worker MUST NOT persist `source_file_status.location=queued` before the Markdown file is physically accepted into `blog-posts/queued/`.
+
+Acceptance MUST occur only when:
+
+- The source resolves under `blog-posts/ready/` and is not a hidden filesystem artifact
+- The calendar planner item is due, `selection_status=selected`, `review_required=false`, and Flow A eligible
+- Minimum intake checks pass (exists, regular file, `.md`, readable, non-empty, path confinement)
+- No blocking duplicate active campaign exists for the same identity
+- `dry_run` is `false`
+
+Markdown and companion image movement MUST be coordinated but MUST NOT be described or implemented as a transactionally atomic pair.
+
+On success, campaign metadata MUST record `queued_source_relative_path`, optional `queued_image_relative_path`, `queued_at`, `last_transition_at`, `source_file_status.location=queued`, and `execution_state=idle`.
+
+#### Scenario: Due valid source accepted and moved to queued with preserved filename
+
+- **WHEN** a due, calendar-selected Flow A item references `blog-posts/ready/02-example.md`, intake checks pass, and `dry_run=false`
+- **THEN** the Markdown exists at `blog-posts/queued/02-example.md` (same basename), no duplicate remains in `blog-posts/ready/`, campaign metadata records `queued_source_relative_path`, `source_slug` and `public_slug` are unchanged from the ready filename, and `source_file_status.location` is `queued`
+
+#### Scenario: Ready source without eligible calendar item untouched
+
+- **WHEN** a valid Markdown file exists in `blog-posts/ready/` but no eligible due calendar item references it
+- **THEN** the file remains in `blog-posts/ready/`, is not marked `queued`, and queue acceptance is not invoked for that file
+
+#### Scenario: Dry-run does not move to queued
+
+- **WHEN** `execute_due_editorial_calendar_flow_a` runs with `dry_run=true` for an eligible item
+- **THEN** the source remains in `blog-posts/ready/`, no `processing` claim is recorded, and the item result reports a would-accept decision without fabricated queue paths
+
+#### Scenario: Metadata write failure after successful Markdown move
+
+- **WHEN** Markdown is physically in `blog-posts/queued/` but campaign metadata persistence fails before recording `location=queued`
+- **THEN** `recovery_classification` is `repair_required`, metadata reconciliation can set `location=queued` from the observed physical path, and the source is not lost
+
+#### Scenario: Lost queue acceptance response is idempotent
+
+- **WHEN** queue acceptance physically succeeded but the caller retries with the same `campaign_id` and `source_content_sha256` and the queued destination already exists for that campaign
+- **THEN** acceptance returns idempotent success or `skipped_already_queued` without duplicating the campaign or overwriting content
+
+### Requirement: Queued destination collision handling
+
+When moving `ready/` → `queued/`, the worker MUST preserve the original editorial filename.
+
+If the queued destination already exists and belongs to the same campaign with the same `source_content_sha256`, acceptance MUST be treated as idempotent or already queued.
+
+If the destination exists for different content, a different campaign, or cannot be safely reconciled, queue acceptance MUST be rejected with stable error code `flow_a_queue_destination_collision`, set `recovery_classification=repair_required`, and MUST NOT overwrite unrelated content.
+
+Automatic suffix renaming (for example `<stem>-queued-<n>.md`) MUST NOT be used for `queued/` acceptance.
+
+#### Scenario: Idempotent same-campaign same-hash queued destination
+
+- **WHEN** `blog-posts/queued/02-example.md` already exists for the same `campaign_id` and `source_content_sha256` and acceptance is retried
+- **THEN** acceptance succeeds idempotently, no overwrite occurs, and `queue_acceptance_status` is `skipped_already_queued` or `completed`
+
+#### Scenario: Conflicting queued destination rejected
+
+- **WHEN** `blog-posts/queued/02-example.md` exists for a different campaign or different `source_content_sha256` and acceptance attempts to move `blog-posts/ready/02-example.md`
+- **THEN** acceptance fails with `flow_a_queue_destination_collision`, `recovery_classification` is `repair_required`, and neither file is overwritten
+
+#### Scenario: Public slug unchanged after queue acceptance
+
+- **WHEN** queue acceptance succeeds for `blog-posts/ready/01-why-architecture-matters.md`
+- **THEN** `source_slug` and `public_slug` in campaign metadata match the values derived from the original ready filename and are not altered by the physical move to `queued/`
+
+### Requirement: Processed and error destination collision handling
+
+When collision suffixes (`-processed-<n>`, `-error-<n>`) are required in `processed/` or `error/` for compatibility, the worker MUST allocate a deterministic free name without overwriting unrelated content.
+
+Physical collision suffixes MUST NOT change persisted logical `source_slug`, `public_slug`, `campaign_id`, or public URL identity.
+
+#### Scenario: Processed collision suffix preserves logical slug
+
+- **WHEN** lifecycle completion moves a source to `blog-posts/processed/02-example-processed-1.md` due to basename collision
+- **THEN** campaign metadata retains the original `source_slug` and `public_slug` derived from the editorial filename, and `processed_source_relative_path` records the actual physical path
+
+### Requirement: Execution claim and processing transition
+
+The worker SHALL expose execution claim helpers (for example `claim_flow_a_execution` and `release_flow_a_execution`) that transition `execution_state` from `idle` or `stale` to `processing` without changing physical `location` from `queued`.
+
+Claim MUST set `execution_attempt_id`, increment `attempt_count`, `processing_claimed_at`, `processing_started_at`, `last_progress_at`, and derived `processing_lease_expires_at` where `processing_lease_expires_at` equals `last_progress_at + SILVERMAN_FLOW_A_PROCESSING_STALE_SECONDS`.
+
+Claim MUST be rejected when another active claim exists and the claim is not stale per the canonical stale rule.
+
+`last_progress_at` and derived `processing_lease_expires_at` MUST be updated together at claim creation and after every completed Flow A stage boundary during execution.
+
+`SILVERMAN_FLOW_A_PROCESSING_STALE_SECONDS` MUST be validated as a positive integer with minimum 60 at configuration load; invalid values MUST fail fast with stable error code `flow_a_processing_stale_seconds_invalid`.
+
+#### Scenario: Queued source transitions to logical processing
+
+- **WHEN** Flow A real execution begins for a campaign with `source_file_status.location=queued` and `execution_state=idle`
+- **THEN** `execution_state` becomes `processing`, physical file remains under `blog-posts/queued/`, and claim metadata including `last_progress_at` is persisted
+
+#### Scenario: Dry-run does not leave processing claim
+
+- **WHEN** `execute_due_editorial_calendar_flow_a` runs with `dry_run=true`
+- **THEN** no campaign records `execution_state=processing` and no `execution_attempt_id` is written
+
+### Requirement: Claim release ownership
+
+`complete_flow_a_source_lifecycle` MUST finish the terminal operational transition by setting `source_file_status.location=processed` and `execution_state=idle`.
+
+`release_flow_a_execution` MUST be used for recoverable or failed non-terminal execution exits.
+
+If `release_flow_a_execution` is invoked after successful lifecycle completion, it MUST be idempotent and return a no-op or `already_released` result without altering terminal processed state.
+
+#### Scenario: Terminal completion closes execution claim
+
+- **WHEN** `complete_flow_a_source_lifecycle` succeeds for a campaign
+- **THEN** `source_file_status.location` is `processed`, `execution_state` is `idle`, and no active processing claim remains
+
+#### Scenario: Defensive release after completion is idempotent
+
+- **WHEN** the connector invokes `release_flow_a_execution` after successful lifecycle completion
+- **THEN** the call returns `already_released` or equivalent no-op and terminal processed state is unchanged
+
+### Requirement: Successful terminal completion from queued
+
+After successful `schedule_linkedin_distribution`, `complete_flow_a_source_lifecycle` MUST move sources from `blog-posts/queued/` to `blog-posts/processed/` (not from `ready/`).
+
+Successful completion MUST preserve existing terminal semantics including campaign `state` transition to `flow_a_complete`, path traceability fields, and idempotent skip when already processed.
+
+#### Scenario: Successful Flow A completes from queued to processed
+
+- **WHEN** Flow A executes through scheduling and lifecycle completion for a source in `blog-posts/queued/`
+- **THEN** the source and companion image (when present) exist under `blog-posts/processed/`, `processed_source_relative_path` is recorded, `source_file_status.location` is `processed`, `execution_state` is `idle`, campaign `state` is `flow_a_complete`, and existing blog publish, package, and schedule artifacts are not duplicated
+
+### Requirement: Deterministic intake failure movement policy
+
+Intake failure handling MUST follow these rules:
+
+- No calendar match: leave source in `ready/`; queue acceptance is not attempted.
+- Missing source, path traversal, out-of-confinement path, non-regular file, or unresolvable path: do not move anything; report stable intake failure.
+- Calendar-selected source failing deterministic intake or content validation before queue acceptance: MAY move to `blog-posts/error/` per approved stage policy.
+- Unsafe or nonexistent paths MUST NEVER be moved to `error/`.
+- Failure metadata MUST be persisted only when a valid campaign record can be safely identified or created.
+
+Full editorial validation MUST run at processing start against the queued source path.
+
+Deterministic editorial validation failures after queue acceptance MUST move the source to `blog-posts/error/` and record `last_error` with `category=editorial_validation`.
+
+Sources MUST NOT be silently deleted or lost on validation failure.
+
+#### Scenario: No calendar match leaves source in ready
+
+- **WHEN** a Markdown file exists in `blog-posts/ready/` but no eligible due calendar item references it
+- **THEN** the file remains in `blog-posts/ready/`, queue acceptance is not attempted, and no `error/` move occurs
+
+#### Scenario: Unsafe path is not moved to error
+
+- **WHEN** intake detects path traversal or out-of-confinement path for a calendar-selected source
+- **THEN** no file is moved, a stable intake failure is reported, and `recovery_classification` is not set on a fabricated campaign
+
+#### Scenario: Pre-acceptance deterministic validation may move to error
+
+- **WHEN** a calendar-selected ready source fails deterministic intake validation before queue acceptance
+- **THEN** the source MAY be moved to `blog-posts/error/` with failure metadata recorded on a valid campaign record
+
+#### Scenario: Post-acceptance editorial validation moves queued source to error
+
+- **WHEN** full editorial validation fails deterministically for a queued source during processing
+- **THEN** the source is moved to `blog-posts/error/`, `source_file_status.location` is `error`, and `last_error` records `category=editorial_validation`
+
+### Requirement: Post-side-effect failure policy
+
+The worker MUST separate deterministic failure handling before and after durable external Flow A side effects.
+
+Before any durable external side effect (blog publish, derivative generation, or scheduling), a deterministic non-retryable failure MUST move the source to `blog-posts/error/` when the approved pre-side-effect error-folder policy applies.
+
+After blog publish, derivative generation, or scheduling has produced durable side effects, failures MUST keep the source in `blog-posts/queued/` with `recovery_classification=repair_required` or `retryable` as appropriate.
+
+Moving a post-side-effect source to `blog-posts/error/` MUST NOT use the generic pre-side-effect deterministic-failure rule; it requires a specific safe rule outside this change's default path.
+
+Requeue from error MUST NOT erase blog publish, package, variant, scheduling, or state-history evidence.
+
+A campaign with partial side effects MUST resume idempotently rather than appear to restart as a new campaign.
+
+#### Scenario: Deterministic failure before blog publish moves to error
+
+- **WHEN** a deterministic non-retryable failure occurs before `publish_blog_post` succeeds for a queued campaign
+- **THEN** the source MAY be moved to `blog-posts/error/` with `recovery_classification` `requeue_required` or `manual_intervention_required` per error category
+
+#### Scenario: Failure after blog publish stays in queued
+
+- **WHEN** `publish_blog_post` has succeeded and a subsequent deterministic failure occurs before lifecycle completion
+- **THEN** the source remains in `blog-posts/queued/`, `blog_publish` evidence is preserved, and `recovery_classification` is `repair_required` or `retryable`
+
+#### Scenario: Failure after derivative generation stays in queued
+
+- **WHEN** derivative generation has produced durable variant records and a subsequent failure occurs
+- **THEN** the source remains in `blog-posts/queued/`, variant evidence is preserved, and retry resumes idempotently
+
+#### Scenario: Scheduling or final move failure stays repairable in queued
+
+- **WHEN** scheduling has succeeded but final move to `processed/` fails
+- **THEN** campaign `state` remains `distribution_scheduled`, source remains addressable in `queued/` or partial processed state, and `recovery_classification` is `repair_required`
+
+### Requirement: Transient runtime failure recovery
+
+Transient runtime or dependency failures after queue acceptance MUST call `release_flow_a_execution`, set `execution_state=idle`, keep `location=queued`, set `recovery_classification=retryable`, and record `last_error` with `category=transient_runtime`.
+
+Retries MUST reuse existing blog publish, derivative, and schedule idempotency keys and MUST NOT duplicate completed side effects.
+
+#### Scenario: Transient failure preserves retry state without duplicate artifacts
+
+- **WHEN** `publish_blog_post` fails with a retryable dependency error after queue acceptance and blog publish had not previously succeeded for the campaign
+- **THEN** the source remains in `blog-posts/queued/`, `execution_state` returns to `idle`, `recovery_classification` is `retryable`, and a subsequent retry does not create duplicate public blog files when publish eventually succeeds
+
+### Requirement: Partial completion and final move failure
+
+When external Flow A side effects have succeeded but final physical move to `processed/` fails, the worker MUST NOT report `flow_a_complete` or `source_lifecycle_status=completed`.
+
+The worker MUST record `physical_move_state` `partial` or `failed`, preserve scheduling metadata, set `recovery_classification=repair_required`, and keep campaign `state` at `distribution_scheduled` until lifecycle completion succeeds.
+
+#### Scenario: Move to processed failure is repairable not false success
+
+- **WHEN** scheduling succeeds but moving Markdown from `queued/` to `processed/` fails
+- **THEN** campaign `state` remains `distribution_scheduled`, `recovery_classification` is `repair_required`, and the result reports `flow_a_source_move_failed` without falsely marking Flow A complete
+
+### Requirement: Stale processing detection
+
+The worker MUST detect stale processing when `execution_state=processing` and current UTC time is greater than or equal to `last_progress_at + SILVERMAN_FLOW_A_PROCESSING_STALE_SECONDS`.
+
+`SILVERMAN_FLOW_A_PROCESSING_STALE_SECONDS` defines the allowed inactivity period, not maximum total execution duration.
+
+Stale detection MUST NOT use a `processing_lease_expires_at` value that diverges from `last_progress_at + SILVERMAN_FLOW_A_PROCESSING_STALE_SECONDS`.
+
+Stale detection MUST set `execution_state=stale` and `recovery_classification=retryable` without moving files.
+
+Reclaim after stale MUST allow idempotent resume using existing campaign evidence and completed-stage markers.
+
+#### Scenario: Stale processing detected from last_progress_at
+
+- **WHEN** campaign metadata shows `execution_state=processing`, `last_progress_at` plus configured stale seconds is in the past, and the source file exists under `blog-posts/queued/`
+- **THEN** stale classification is `retryable`, `execution_state` may transition to `stale`, and a subsequent execution reclaim does not duplicate LinkedIn schedule slots
+
+### Requirement: Idempotent re-run rules
+
+Re-running Flow A for sources in `queued`, `processing`/`stale`, partially completed, `processed`, or `error` MUST follow explicit rules:
+
+- `processed` / `flow_a_complete`: skip terminal moves; downstream idempotent skip only
+- `queued` + `idle` or `stale`: claim and resume from pipeline `state`
+- `processing` with non-stale claim: reject duplicate claim
+- `error`: require explicit requeue before execution
+- Same `campaign_id` and `source_content_sha256` MUST be preserved across retries unless operator creates a new campaign through a deliberate requeue policy
+
+#### Scenario: Re-run queued item resumes without duplicate schedule
+
+- **WHEN** Flow A is re-invoked for a campaign in `distribution_scheduled` with source in `blog-posts/queued/` and existing schedule metadata
+- **THEN** scheduling returns already-scheduled outcomes, lifecycle completion moves to `processed/` once, and no duplicate variant schedule records are created
+
+### Requirement: Requeue from error
+
+The worker SHALL expose requeue (for example `requeue_flow_a_source_from_error(base_path, *, campaign_id)`) that moves sources from `blog-posts/error/` to `blog-posts/queued/`, preserves `campaign_id`, `source_slug`, `public_slug`, and content identity fields, resets `execution_state=idle`, updates `queued_source_relative_path`, and appends operational history.
+
+Requeue MUST NOT silently create a duplicate campaign document.
+
+Requeue MUST NOT erase `blog_publish`, `variants`, scheduling metadata, or `state_history` evidence.
+
+Requeue MAY be invoked without a UI in this change.
+
+#### Scenario: Requeue preserves identity and side-effect evidence
+
+- **WHEN** `requeue_flow_a_source_from_error` succeeds for a campaign with prior blog publish evidence and `error_source_relative_path` set
+- **THEN** the source exists under `blog-posts/queued/`, the same `campaign_id` metadata file is updated, `blog_publish` and variant records remain, no second campaign file is created, and `recovery_classification` is cleared or set to `no_action`
+
+### Requirement: Coordinated Markdown and image movement
+
+Markdown and companion image moves MUST be coordinated for acceptance, completion, error, and requeue operations.
+
+Each individual same-filesystem rename MAY be atomic; the pair MUST NOT be treated as transactionally atomic.
+
+Markdown is the primary source file and MUST be moved first.
+
+Every successful and failed component move MUST be recorded.
+
+When only one member of the pair moves, `physical_move_state` MUST be `partial` and `recovery_classification` MUST be `repair_required`.
+
+No source MUST be silently lost.
+
+Missing companion image MUST NOT block Markdown-only operations; image fields remain null.
+
+#### Scenario: Partial image move detectable
+
+- **WHEN** Markdown moves from `queued/` to `processed/` but companion image move fails
+- **THEN** `physical_move_state` is `partial`, `recovery_classification` is `repair_required`, and metadata records which paths succeeded
+
+### Requirement: Hidden macOS artifact filtering
+
+Scanners and queue candidacy logic MUST ignore at minimum `.DS_Store`, files beginning with `._`, and any direct child of `blog-posts/ready/` or `blog-posts/queued/` whose basename begins with `.`.
+
+Ignored artifacts MUST NOT be treated as Markdown candidates, companion images, duplicate sources, or queue acceptance targets.
+
+#### Scenario: DS_Store ignored for queue candidacy
+
+- **WHEN** `blog-posts/ready/` contains `.DS_Store` and `._02-example.md` alongside a valid post
+- **THEN** hidden artifacts appear only in `ignored_files` with reason `hidden_artifact`, are not queue candidates, and do not cause false duplicate-source errors for the valid post
+
+### Requirement: Legacy campaign compatibility
+
+Campaigns without `queued_source_relative_path` or queue timestamps MUST remain readable.
+
+When `source_file_status.location=processed` and `processed_source_relative_path` exists, behavior MUST match pre-change idempotent semantics.
+
+When a legacy campaign has source only in `ready/` and is executed under the new worker, queue acceptance MUST run before publish.
+
+Dry-run MUST NOT write queue metadata for legacy reconciliation.
+
+#### Scenario: Legacy processed campaign unchanged
+
+- **WHEN** a campaign completed before this change has `processed_source_relative_path` and no `queued_source_relative_path`
+- **THEN** idempotent Flow A services resolve the processed path and skip moves without error
+
+### Requirement: Calendar compatibility
+
+Queue acceptance MUST be driven by editorial calendar due items with explicit `source_relative_path`; automatic folder polling scheduling MUST NOT be introduced.
+
+Queue acceptance and Flow A execution MAY occur in one connector invocation with two explicit internal stages.
+
+A queued source MUST remain executable after its original calendar due time until terminally consumed or moved to `error/`.
+
+Calendar metadata changes after queue acceptance MUST NOT cancel queued work; matching uses persisted `campaign_id` and source path chain.
+
+`calendar.json` MUST NOT be modified by this capability.
+
+#### Scenario: Queued item executable after due time passes
+
+- **WHEN** a source was queue-accepted on its due date but execution failed transiently before completion
+- **THEN** a later connector invocation may reclaim and complete Flow A without moving the source back to `ready/`
+
+### Requirement: LinkedIn publication exclusion
+
+This capability MUST NOT invoke real LinkedIn publication, enable `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`, call LinkedIn Posts API, or upload LinkedIn media.
+
+#### Scenario: Lifecycle never publishes LinkedIn
+
+- **WHEN** any operational lifecycle operation runs in real mode
+- **THEN** no LinkedIn publication API is called
+
+### Requirement: Automated test coverage requirements
+
+The implementation MUST include automated tests covering at minimum:
+
+- State transition rules and invalid transition rejection
+- Ready-to-queued acceptance preserving filename and calendar gating
+- Idempotent same-campaign/same-hash queued destination and conflicting queued destination rejection
+- Public slug unchanged after queue acceptance
+- Queued-to-processing claim transition
+- Successful queued-to-processed Flow A path
+- Already-queued connector retry behavior
+- Intake failure categories (no calendar, unsafe path, deterministic validation)
+- Post-acceptance editorial validation failure
+- Pre-side-effect and post-side-effect deterministic failure handling
+- Transient runtime failure and retry idempotency
+- Stale-processing detection from `last_progress_at` and reclaim
+- Queue-acceptance protocol reconciliation cases
+- Missing-file and mismatched-metadata recovery classifications
+- No duplicate blog artifacts, LinkedIn derivative packages, or schedule slots on retry
+- Companion-image coordinated and partial moves
+- Processed/error collision suffixes with unchanged logical slugs
+- Claim release ownership and idempotent defensive release
+- Dry-run behavior without physical moves or claims
+- Hidden macOS artifact filtering
+- Backward compatibility with legacy campaign metadata
+- Regression coverage for existing Flow A blog publish, image handoff, publish-date safety, article preview, derivative generation, and scheduling tests
+
+#### Scenario: Regression suite passes after implementation
+
+- **WHEN** the full worker test suite runs after implementing this change
+- **THEN** new operational lifecycle tests pass and existing Flow A regression tests pass without behavioral contract regression

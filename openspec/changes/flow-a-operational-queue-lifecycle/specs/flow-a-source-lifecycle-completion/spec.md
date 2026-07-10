@@ -1,0 +1,92 @@
+## MODIFIED Requirements
+
+### Requirement: Flow A source lifecycle completion entry point
+
+The worker SHALL expose a source lifecycle completion entry point (for example `complete_flow_a_source_lifecycle(base_path, *, campaign_id, source_relative_path=None)`) that physically moves Flow A editorial source files from `blog-posts/queued/` to `blog-posts/processed/` after successful distribution scheduling.
+
+When `queued_source_relative_path` is absent on legacy campaigns, the entry point MAY fall back to `blog-posts/ready/` for backward compatibility only when `source_file_status.location` is not `queued`.
+
+The entry point MUST return a structured `FlowASourceLifecycleResult` (or equivalent dataclass) serializable to JSON with at minimum: `status`, `campaign_id`, `original_source_relative_path`, `processed_source_relative_path`, `original_image_relative_path` (nullable), `processed_image_relative_path` (nullable), `queued_source_relative_path` (nullable), `source_file_status`, `errors[]`, and `warnings[]`.
+
+The entry point MUST atomically/logically finish the terminal operational transition by setting `source_file_status.location=processed` and `execution_state=idle`.
+
+The entry point MUST NOT republish the blog, alter public blog content, alter LinkedIn package text, publish to LinkedIn, enable LinkedIn publication, modify `calendar.json`, or invoke n8n.
+
+#### Scenario: Successful lifecycle completion moves Markdown from queued
+
+- **WHEN** `complete_flow_a_source_lifecycle` is called for a campaign in `distribution_scheduled` with source Markdown at `blog-posts/queued/<name>.md` and scheduling has already succeeded
+- **THEN** the Markdown file exists at `blog-posts/processed/<name>.md` (or collision suffix path when required), no duplicate remains in `blog-posts/queued/`, `execution_state` is `idle`, and the result `status` is `completed`
+
+#### Scenario: Successful lifecycle completion moves companion image when present
+
+- **WHEN** `complete_flow_a_source_lifecycle` is called and the companion PNG exists beside the queued source Markdown
+- **THEN** the PNG is moved to `blog-posts/processed/` (same basename unless collision handling applies), and `processed_image_relative_path` is recorded in the result
+
+#### Scenario: Lifecycle completion does not run before scheduling
+
+- **WHEN** `complete_flow_a_source_lifecycle` is called for a campaign whose `state` is before `distribution_scheduled`
+- **THEN** the operation returns `status: failed` with error code `flow_a_source_lifecycle_premature` and does not move files
+
+### Requirement: Campaign metadata path traceability
+
+On successful source lifecycle completion, campaign metadata MUST retain:
+
+- `original_source_relative_path` — the ready-folder path used at first Flow A processing (immutable once set)
+- `queued_source_relative_path` — the queued-folder path when queue lifecycle applied
+- `processed_source_relative_path` — the processed-folder path after move
+- `original_image_relative_path` when a companion image was present at queue or completion time
+- `processed_image_relative_path` when a companion image was moved
+- `source_content_sha256` unchanged from pre-move digest unless source bytes changed before move (move itself MUST NOT alter content hash)
+- `source_slug` and `public_slug` unchanged from editorial identity regardless of physical collision suffix in `processed_source_relative_path`
+- `source_file_status.location` `processed` with `execution_state` `idle`, `marked_processed_at` and `physical_move_completed_at` timestamps
+
+The active `source_relative_path` field MUST be updated to `processed_source_relative_path` after successful move while preserving `original_source_relative_path` and `queued_source_relative_path`.
+
+Campaign `state` MUST transition to `flow_a_complete` when lifecycle completion succeeds.
+
+#### Scenario: Metadata records original queued and processed paths
+
+- **WHEN** source lifecycle completes for a source queue-accepted from `blog-posts/ready/02-example.md` through `blog-posts/queued/02-example.md`
+- **THEN** campaign metadata includes `original_source_relative_path`, `queued_source_relative_path`, `processed_source_relative_path`, and `source_file_status.location` `processed`
+
+#### Scenario: Source identity preserved for reconciliation
+
+- **WHEN** source lifecycle completes successfully
+- **THEN** `source_content_sha256` remains available on the campaign document for idempotency and reconciliation
+
+### Requirement: Failure and partial-move behavior
+
+If Flow A fails before successful `schedule_linkedin_distribution`, source files MUST remain in `blog-posts/queued/` (when queue acceptance succeeded) or `blog-posts/ready/` (when queue acceptance did not run), and lifecycle completion MUST NOT have been invoked.
+
+If scheduling succeeded but physical move fails, the result MUST use `status: failed` with stable error code `flow_a_source_move_failed` (or `flow_a_source_move_partial` when Markdown moved but image move failed). Campaign `state` MUST remain `distribution_scheduled` until lifecycle completion succeeds. The result MUST include repair guidance in `warnings[]` without exposing secrets.
+
+The worker MUST NOT leave duplicate Markdown in both `queued/` and `processed/` without recording partial state in `source_file_status.physical_move_state`.
+
+Markdown and companion image moves during lifecycle completion MUST be coordinated but MUST NOT be treated as transactionally atomic; partial image failure MUST set `physical_move_state=partial` and `recovery_classification=repair_required`.
+
+#### Scenario: Failed Flow A before scheduling keeps source in queued
+
+- **WHEN** `schedule_linkedin_distribution` fails during Flow A execution after queue acceptance
+- **THEN** source Markdown and companion image remain in `blog-posts/queued/` and lifecycle completion is not invoked
+
+#### Scenario: Move failure after scheduling preserves schedule work
+
+- **WHEN** scheduling succeeds but moving Markdown from `queued/` to `processed/` fails
+- **THEN** campaign remains `distribution_scheduled`, scheduling metadata is unchanged, `recovery_classification` is `repair_required`, and the lifecycle result reports `flow_a_source_move_failed`
+
+### Requirement: Folder semantics
+
+`blog-posts/ready/` MUST contain only pending operator-approved input not yet accepted into the operational queue.
+
+`blog-posts/queued/` MUST contain worker-accepted sources awaiting or undergoing Flow A execution.
+
+`blog-posts/processed/` MUST contain source editorial files successfully consumed by Flow A through scheduling and lifecycle completion.
+
+`blog-posts/error/` contains failed input per operational queue error policy.
+
+Lifecycle completion MUST NOT write to `blog-posts/error/` on success.
+
+#### Scenario: Ready and queued empty after successful Flow A
+
+- **WHEN** Flow A completes through queue acceptance, scheduling, and source lifecycle for a post with Markdown and companion image
+- **THEN** those filenames are absent from `blog-posts/ready/` and `blog-posts/queued/` and present under `blog-posts/processed/`

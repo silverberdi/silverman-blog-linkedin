@@ -32,6 +32,8 @@ from silverman_blog_linkedin.github_pages_publish import (
 )
 
 READY_RELATIVE_PREFIX = "blog-posts/ready/"
+QUEUED_RELATIVE_PREFIX = "blog-posts/queued/"
+ALLOWED_VALIDATION_PREFIXES = (READY_RELATIVE_PREFIX, QUEUED_RELATIVE_PREFIX)
 IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".bmp"})
 
 # Blocking error codes
@@ -229,9 +231,13 @@ def _validate_path_and_file(
 ) -> tuple[list[str], Path | None, str | None]:
     errors: list[str] = []
     normalized = _normalize_relative_path(source_relative_path)
-    ready_dir = (base_path / "blog-posts" / "ready").resolve()
 
-    if not normalized.startswith(READY_RELATIVE_PREFIX):
+    matched_prefix = None
+    for prefix in ALLOWED_VALIDATION_PREFIXES:
+        if normalized.startswith(prefix):
+            matched_prefix = prefix
+            break
+    if matched_prefix is None:
         errors.append(READY_POST_NOT_UNDER_READY)
         return errors, None, None
 
@@ -239,9 +245,11 @@ def _validate_path_and_file(
         errors.append(READY_POST_NOT_MARKDOWN)
         return errors, None, None
 
+    folder_name = "ready" if matched_prefix == READY_RELATIVE_PREFIX else "queued"
+    parent_dir = (base_path / "blog-posts" / folder_name).resolve()
     resolved = (base_path / normalized).resolve()
     try:
-        resolved.relative_to(ready_dir)
+        resolved.relative_to(parent_dir)
     except ValueError:
         errors.append(READY_POST_NOT_UNDER_READY)
         return errors, None, None
@@ -271,19 +279,20 @@ def _validate_slugs(source_slug: str) -> tuple[list[str], str | None]:
 
 
 def _validate_image(
-    base_path: Path, source_slug: str
+    base_path: Path, source_slug: str, *, source_prefix: str = READY_RELATIVE_PREFIX
 ) -> tuple[list[str], str | None]:
     errors: list[str] = []
-    ready_dir = base_path / "blog-posts" / "ready"
-    expected_png = ready_dir / f"{source_slug}.png"
-    image_relative = f"{READY_RELATIVE_PREFIX}{source_slug}.png"
+    folder_name = "ready" if source_prefix == READY_RELATIVE_PREFIX else "queued"
+    source_dir = base_path / "blog-posts" / folder_name
+    expected_png = source_dir / f"{source_slug}.png"
+    image_relative = f"{source_prefix}{source_slug}.png"
 
     if expected_png.is_file():
         return errors, image_relative
 
     same_basename_other: list[Path] = []
-    if ready_dir.is_dir():
-        for candidate in ready_dir.iterdir():
+    if source_dir.is_dir():
+        for candidate in source_dir.iterdir():
             if not candidate.is_file():
                 continue
             if candidate.stem == source_slug and candidate.suffix.lower() != ".png":
@@ -612,6 +621,11 @@ def validate_ready_post(
         return result
 
     result.source_slug = source_slug
+    source_prefix = (
+        QUEUED_RELATIVE_PREFIX
+        if normalized_path.startswith(QUEUED_RELATIVE_PREFIX)
+        else READY_RELATIVE_PREFIX
+    )
 
     slug_errors, public_slug = _validate_slugs(source_slug)
     result.errors.extend(slug_errors)
@@ -629,7 +643,9 @@ def validate_ready_post(
     fm_errors, frontmatter, body = _parse_frontmatter(content)
     result.errors.extend(fm_errors)
 
-    image_errors, image_relative_path = _validate_image(base_path, source_slug)
+    image_errors, image_relative_path = _validate_image(
+        base_path, source_slug, source_prefix=source_prefix
+    )
     result.errors.extend(image_errors)
     if image_relative_path:
         result.image_relative_path = image_relative_path
@@ -715,7 +731,7 @@ def validate_ready_post(
                     public_slug=public_slug,
                     source_relative_path=normalized_path,
                     image_relative_path=image_relative_path
-                    or f"{READY_RELATIVE_PREFIX}{source_slug}.png",
+                    or f"{source_prefix}{source_slug}.png",
                     source_content=content,
                     publication_date=publication_date,
                     source_public_url=source_public_url,

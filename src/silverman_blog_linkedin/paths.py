@@ -7,6 +7,7 @@ from pathlib import Path
 
 EXPECTED_FOLDERS: tuple[str, ...] = (
     "blog-posts/ready",
+    "blog-posts/queued",
     "blog-posts/processed",
     "blog-posts/error",
     "linkedin-posts/review",

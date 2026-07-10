@@ -9,12 +9,16 @@ from typing import Any
 
 from silverman_blog_linkedin.campaign_lifecycle import (
     ACTOR_WORKER,
+    EXECUTION_STATE_IDLE,
     PHYSICAL_MOVE_STATE_COMPLETED,
     PHYSICAL_MOVE_STATE_FAILED,
     PHYSICAL_MOVE_STATE_PARTIAL,
     PROCESSED_SOURCE_PREFIX,
+    QUEUED_SOURCE_PREFIX,
     READY_SOURCE_PREFIX,
     SOURCE_LOCATION_PROCESSED,
+    SOURCE_LOCATION_QUEUED,
+    normalize_source_file_status,
     STATE_DISTRIBUTION_COMPLETE,
     STATE_DISTRIBUTION_SCHEDULED,
     STATE_FLOW_A_COMPLETE,
@@ -33,6 +37,7 @@ FLOW_A_SOURCE_LIFECYCLE_PREMATURE = "flow_a_source_lifecycle_premature"
 FLOW_A_SOURCE_MOVE_COLLISION_EXHAUSTED = "flow_a_source_move_collision_exhausted"
 FLOW_A_SOURCE_CAMPAIGN_NOT_FOUND = "flow_a_source_campaign_not_found"
 FLOW_A_SOURCE_READY_MISSING = "flow_a_source_ready_missing"
+FLOW_A_SOURCE_QUEUED_MISSING = "flow_a_source_queued_missing"
 
 LIFECYCLE_COMPLETION_ELIGIBLE_STATES = frozenset(
     {
@@ -187,29 +192,56 @@ def _move_source_file(source_path: Path, target_path: Path) -> None:
         shutil.move(str(source_path), str(target_path))
 
 
-def _resolve_ready_source_path(
+def _resolve_active_source_path(
     campaign: dict[str, Any],
     source_relative_path: str | None,
 ) -> str | None:
+    """Resolve queued source path, with legacy ready/ fallback for pre-queue campaigns."""
+    source_status = normalize_source_file_status(campaign.get("source_file_status"))
+    location = source_status.get("location")
+
+    if location == SOURCE_LOCATION_QUEUED or campaign.get("queued_source_relative_path"):
+        queued = campaign.get("queued_source_relative_path")
+        if isinstance(queued, str) and queued.strip():
+            return normalize_relative_path(queued)
+        active, _image = resolve_campaign_source_paths(campaign)
+        if active and active.startswith(QUEUED_SOURCE_PREFIX):
+            return active
+
     if source_relative_path:
         normalized = normalize_relative_path(source_relative_path)
+        if normalized.startswith(QUEUED_SOURCE_PREFIX):
+            return normalized
         if normalized.startswith(READY_SOURCE_PREFIX):
             return normalized
+
     original = campaign.get("original_source_relative_path")
     if isinstance(original, str) and original.strip():
-        return normalize_relative_path(original)
+        normalized = normalize_relative_path(original)
+        if normalized.startswith(QUEUED_SOURCE_PREFIX) or normalized.startswith(
+            READY_SOURCE_PREFIX
+        ):
+            return normalized
+
     active, _image = resolve_campaign_source_paths(campaign)
-    if active and active.startswith(READY_SOURCE_PREFIX):
+    if active and (
+        active.startswith(QUEUED_SOURCE_PREFIX) or active.startswith(READY_SOURCE_PREFIX)
+    ):
         return active
+
     source_relative = campaign.get("source_relative_path")
     if isinstance(source_relative, str) and source_relative.strip():
         normalized = normalize_relative_path(source_relative)
-        if normalized.startswith(READY_SOURCE_PREFIX):
+        if normalized.startswith(QUEUED_SOURCE_PREFIX) or normalized.startswith(
+            READY_SOURCE_PREFIX
+        ):
             return normalized
     return None
 
 
-def _ready_image_relative_path(source_slug: str) -> str:
+def _image_relative_path_for_source(source_relative: str, source_slug: str) -> str:
+    if source_relative.startswith(QUEUED_SOURCE_PREFIX):
+        return f"{QUEUED_SOURCE_PREFIX}{source_slug}.png"
     return f"{READY_SOURCE_PREFIX}{source_slug}.png"
 
 
@@ -268,24 +300,29 @@ def complete_flow_a_source_lifecycle(
             errors=[FLOW_A_SOURCE_LIFECYCLE_PREMATURE],
         )
 
-    ready_relative = _resolve_ready_source_path(campaign, source_relative_path)
+    ready_relative = _resolve_active_source_path(campaign, source_relative_path)
     if ready_relative is None:
         return _failed_result(
             campaign=campaign,
-            errors=[FLOW_A_SOURCE_READY_MISSING, FLOW_A_SOURCE_MOVE_FAILED],
+            errors=[FLOW_A_SOURCE_QUEUED_MISSING, FLOW_A_SOURCE_MOVE_FAILED],
             warnings=[REPAIR_MOVE_FAILED_WARNING],
         )
 
     ready_path = (base_path / ready_relative).resolve()
     if not ready_path.is_file():
+        missing_code = (
+            FLOW_A_SOURCE_QUEUED_MISSING
+            if ready_relative.startswith(QUEUED_SOURCE_PREFIX)
+            else FLOW_A_SOURCE_READY_MISSING
+        )
         return _failed_result(
             campaign=campaign,
-            errors=[FLOW_A_SOURCE_READY_MISSING, FLOW_A_SOURCE_MOVE_FAILED],
+            errors=[missing_code, FLOW_A_SOURCE_MOVE_FAILED],
             warnings=[REPAIR_MOVE_FAILED_WARNING],
         )
 
     source_slug = ready_path.stem
-    ready_image_relative = _ready_image_relative_path(source_slug)
+    ready_image_relative = _image_relative_path_for_source(ready_relative, source_slug)
     ready_image_path = base_path / ready_image_relative
     has_ready_image = ready_image_path.is_file()
 
@@ -368,6 +405,7 @@ def complete_flow_a_source_lifecycle(
         campaign["image_relative_path"] = processed_image_relative
 
     source_status["location"] = SOURCE_LOCATION_PROCESSED
+    source_status["execution_state"] = EXECUTION_STATE_IDLE
     source_status["marked_processed_at"] = now
     source_status["physical_move_completed_at"] = now
     source_status["physical_move_state"] = PHYSICAL_MOVE_STATE_COMPLETED

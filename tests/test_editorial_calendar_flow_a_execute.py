@@ -13,8 +13,18 @@ from fastapi.testclient import TestClient
 
 from silverman_blog_linkedin.blog_publish_flow import BlogPublishResult
 from silverman_blog_linkedin.campaign_lifecycle import (
+    CampaignMetadataWriteResult,
     STATE_BLOG_PUBLISHED,
     STATE_DISTRIBUTION_SCHEDULED,
+    EXECUTION_STATE_IDLE,
+    EXECUTION_STATE_PROCESSING,
+    PHYSICAL_MOVE_STATE_FAILED,
+    PHYSICAL_MOVE_STATE_PARTIAL,
+    RECOVERY_REPAIR_REQUIRED,
+    RECOVERY_RETRYABLE,
+    SOURCE_LOCATION_ERROR,
+    SOURCE_LOCATION_QUEUED,
+    read_campaign_metadata,
 )
 from silverman_blog_linkedin.editorial_calendar_flow_a_execute import (
     CALENDAR_CAMPAIGN_ID_CONFLICT,
@@ -24,13 +34,30 @@ from silverman_blog_linkedin.editorial_calendar_flow_a_execute import (
     EXECUTION_STATUS_SKIPPED_NOT_FLOW_A,
     EXECUTION_STATUS_SKIPPED_REVIEW_REQUIRED,
     EXECUTION_STATUS_WOULD_EXECUTE,
+    FAILED_STEP_COMPLETE_SOURCE_LIFECYCLE,
     FAILED_STEP_GENERATE_LINKEDIN_PACKAGE,
     FAILED_STEP_PUBLISH_BLOG,
+    FAILED_STEP_QUEUE_ACCEPTANCE,
     FAILED_STEP_SCHEDULE_LINKEDIN_DISTRIBUTION,
     SOURCE_LIFECYCLE_COMPLETED,
     SOURCE_LIFECYCLE_FAILED,
     SOURCE_LIFECYCLE_SKIPPED,
     execute_due_editorial_calendar_flow_a,
+)
+from silverman_blog_linkedin.flow_a_operational_queue import (
+    CAMPAIGN_METADATA_WRITE_FAILED,
+    QUEUE_ACCEPTANCE_COMPLETED,
+    QUEUE_ACCEPTANCE_PARTIAL,
+    QUEUE_ACCEPTANCE_REPAIR_REQUIRED,
+    accept_flow_a_source_for_queue,
+    claim_flow_a_execution,
+    release_flow_a_execution,
+)
+from silverman_blog_linkedin.flow_a_source_moves import (
+    CoordinatedMoveResult,
+    ComponentMoveResult,
+    DestinationFolder,
+    coordinated_source_move,
 )
 from silverman_blog_linkedin.flow_a_source_lifecycle import FlowASourceLifecycleResult
 from silverman_blog_linkedin.editorial_calendar_plan import (
@@ -42,6 +69,7 @@ from silverman_blog_linkedin.linkedin_distribution_schedule import (
 )
 from silverman_blog_linkedin.linkedin_package_flow import LinkedInPackageResult
 from silverman_blog_linkedin.main import create_app
+from silverman_blog_linkedin.ready_post_validation import ReadyPostValidationResult
 from tests.conftest import auth_header, create_full_layout, make_settings
 
 NOW_UTC = "2026-07-09T20:00:00Z"
@@ -49,6 +77,30 @@ FUTURE_UTC = "2026-12-01T14:00:00Z"
 PAST_UTC = "2026-07-01T14:00:00Z"
 CAMPAIGN_ID = "flow-a-2026-07-01-example"
 CONFLICT_CAMPAIGN_ID = "flow-a-2026-07-06-different-slug"
+QUEUED_POST_RELATIVE = "blog-posts/queued/post.md"
+
+
+@pytest.fixture(autouse=True)
+def _stub_editorial_validation(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass full editorial validation in connector chaining tests."""
+
+    def _validation_ok(
+        base_path: Path,
+        source_relative_path: str,
+        *,
+        site_url: str = "https://silverman.pro",
+    ) -> ReadyPostValidationResult:
+        return ReadyPostValidationResult(
+            ok=True,
+            source_relative_path=source_relative_path,
+            campaign_id=CONFLICT_CAMPAIGN_ID,
+            state=STATE_BLOG_PUBLISHED,
+        )
+
+    monkeypatch.setattr(
+        "silverman_blog_linkedin.editorial_calendar_flow_a_execute.validate_ready_post",
+        _validation_ok,
+    )
 
 
 def _write_calendar(base: Path, payload: dict) -> Path:
@@ -74,7 +126,7 @@ def _flow_a_item(
     due_at_utc: str = PAST_UTC,
     source_relative_path: str | None = "blog-posts/ready/post.md",
     source_selection_mode: str | None = None,
-    campaign_id: str | None = None,
+    campaign_id: str | None = CONFLICT_CAMPAIGN_ID,
     public_slug: str | None = None,
     site_url: str | None = None,
     strategy: str | None = None,
@@ -158,6 +210,19 @@ def _write_distribution_scheduled_campaign(
         ),
         encoding="utf-8",
     )
+
+
+def _ensure_ready_planner_gate(editorial_base: Path) -> None:
+    """Keep a ready-folder copy so the calendar planner can resolve due items."""
+    ready = editorial_base / "blog-posts" / "ready"
+    queued = editorial_base / QUEUED_POST_RELATIVE
+    ready.mkdir(parents=True, exist_ok=True)
+    if queued.is_file():
+        (ready / "post.md").write_text(
+            queued.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+    elif not (ready / "post.md").is_file():
+        (ready / "post.md").write_text("# Sample\n", encoding="utf-8")
 
 
 @pytest.fixture
@@ -257,6 +322,7 @@ def test_due_flow_a_item_dry_run_would_execute(editorial_base: Path):
     assert len(result.items) == 1
     item = result.items[0]
     assert item.execution_status == EXECUTION_STATUS_WOULD_EXECUTE
+    assert item.would_queue_accept is True
     assert item.planned_flow_steps == list(FLOW_A_PLANNED_STEPS)
 
 
@@ -307,7 +373,7 @@ def test_real_execution_sequence_with_chained_inputs(editorial_base: Path):
 
     publish_mock.assert_called_once_with(
         editorial_base,
-        "blog-posts/ready/post.md",
+        QUEUED_POST_RELATIVE,
         site_url="https://silverman.pro",
         public_slug_override="sample-post",
     )
@@ -327,7 +393,7 @@ def test_real_execution_sequence_with_chained_inputs(editorial_base: Path):
     lifecycle_mock.assert_called_once_with(
         editorial_base,
         campaign_id=CONFLICT_CAMPAIGN_ID,
-        source_relative_path="blog-posts/ready/post.md",
+        source_relative_path=QUEUED_POST_RELATIVE,
     )
     assert result.items[0].execution_status == EXECUTION_STATUS_EXECUTED
     assert result.items[0].source_lifecycle_status == SOURCE_LIFECYCLE_COMPLETED
@@ -500,8 +566,18 @@ def test_package_campaign_id_conflict_stops_schedule(editorial_base: Path):
     assert CALENDAR_CAMPAIGN_ID_CONFLICT in item.errors
 
 
-def test_existing_distribution_scheduled_campaign_skipped(editorial_base: Path):
-    _write_distribution_scheduled_campaign(editorial_base, CAMPAIGN_ID)
+def test_existing_flow_a_complete_campaign_skipped(editorial_base: Path):
+    metadata_path = editorial_base / "metadata" / "campaigns" / f"{CAMPAIGN_ID}.json"
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "campaign_id": CAMPAIGN_ID,
+                "state": "flow_a_complete",
+            }
+        ),
+        encoding="utf-8",
+    )
     _write_calendar(
         editorial_base,
         _base_calendar(items=[_flow_a_item(campaign_id=CAMPAIGN_ID)]),
@@ -750,7 +826,8 @@ def test_schedule_failure_does_not_invoke_source_lifecycle(editorial_base: Path)
 
     lifecycle_mock.assert_not_called()
     assert result.items[0].execution_status == EXECUTION_STATUS_FAILED
-    assert (editorial_base / "blog-posts/ready/post.md").is_file()
+    assert (editorial_base / QUEUED_POST_RELATIVE).is_file()
+    assert not (editorial_base / "blog-posts/ready/post.md").exists()
 
 
 def test_post_schedule_lifecycle_failure_keeps_executed_status(editorial_base: Path):
@@ -790,4 +867,605 @@ def test_post_schedule_lifecycle_failure_keeps_executed_status(editorial_base: P
     assert item.source_lifecycle_status == SOURCE_LIFECYCLE_FAILED
     assert "flow_a_source_move_failed" in item.errors
     assert "repair guidance" in item.warnings
+
+
+def test_post_schedule_lifecycle_failure_persists_repair_metadata(editorial_base: Path):
+    _write_calendar(
+        editorial_base,
+        _base_calendar(items=[_flow_a_item(campaign_id=CONFLICT_CAMPAIGN_ID)]),
+    )
+    accept_flow_a_source_for_queue(
+        editorial_base,
+        source_relative_path="blog-posts/ready/post.md",
+        calendar_item={
+            "campaign_id": CONFLICT_CAMPAIGN_ID,
+            "due_at_utc": PAST_UTC,
+        },
+    )
+    campaign = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
+    assert campaign is not None
+    campaign["state"] = STATE_DISTRIBUTION_SCHEDULED
+    campaign["linkedin_distribution"] = {
+        "strategy": "stagger_48h",
+        "status": "completed",
+    }
+    from silverman_blog_linkedin.campaign_lifecycle import write_campaign_metadata
+
+    write_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID, campaign)
+    _ensure_ready_planner_gate(editorial_base)
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
+            return_value=_completed_publish(campaign_id=CONFLICT_CAMPAIGN_ID),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
+            return_value=_completed_package(campaign_id=CONFLICT_CAMPAIGN_ID),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
+            return_value=_completed_schedule(campaign_id=CONFLICT_CAMPAIGN_ID),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
+            return_value=FlowASourceLifecycleResult(
+                status="failed",
+                campaign_id=CONFLICT_CAMPAIGN_ID,
+                errors=["flow_a_source_move_failed"],
+            ),
+        ),
+    ):
+        execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    campaign = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
+    assert campaign is not None
+    assert campaign["state"] == STATE_DISTRIBUTION_SCHEDULED
+    assert campaign.get("linkedin_distribution") is not None
+    assert campaign["source_file_status"]["recovery_classification"] == RECOVERY_REPAIR_REQUIRED
+    assert campaign["source_file_status"]["execution_state"] == EXECUTION_STATE_IDLE
+    assert campaign["source_file_status"]["location"] == SOURCE_LOCATION_QUEUED
+
+
+def test_partial_queue_acceptance_blocks_publish(editorial_base: Path):
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.accept_flow_a_source_for_queue",
+            return_value=type(
+                "QueueResult",
+                (),
+                {
+                    "status": QUEUE_ACCEPTANCE_REPAIR_REQUIRED,
+                    "queue_acceptance_status": QUEUE_ACCEPTANCE_PARTIAL,
+                    "campaign_id": CONFLICT_CAMPAIGN_ID,
+                    "queued_source_relative_path": QUEUED_POST_RELATIVE,
+                    "metadata_written": True,
+                    "metadata_error_code": None,
+                    "errors": ["image_move_failed"],
+                    "warnings": [],
+                },
+            )(),
+        ) as queue_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post"
+        ) as publish_mock,
+    ):
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    queue_mock.assert_called_once()
+    publish_mock.assert_not_called()
+    item = result.items[0]
+    assert item.execution_status == EXECUTION_STATUS_FAILED
+    assert item.failed_step == FAILED_STEP_QUEUE_ACCEPTANCE
+    assert item.queue_acceptance_status == QUEUE_ACCEPTANCE_PARTIAL
+
+
+def test_already_queued_transient_retry_resumes_flow(editorial_base: Path):
+    accept_flow_a_source_for_queue(
+        editorial_base,
+        source_relative_path="blog-posts/ready/post.md",
+        calendar_item={
+            "campaign_id": CONFLICT_CAMPAIGN_ID,
+            "due_at_utc": PAST_UTC,
+        },
+    )
+    claim_flow_a_execution(editorial_base, campaign_id=CONFLICT_CAMPAIGN_ID)
+    release_flow_a_execution(
+        editorial_base,
+        campaign_id=CONFLICT_CAMPAIGN_ID,
+        recovery_classification=RECOVERY_RETRYABLE,
+    )
+    _write_calendar(
+        editorial_base,
+        _base_calendar(items=[_flow_a_item(campaign_id=CONFLICT_CAMPAIGN_ID)]),
+    )
+    _ensure_ready_planner_gate(editorial_base)
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
+            return_value=_completed_publish(campaign_id=CONFLICT_CAMPAIGN_ID),
+        ) as publish_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
+            return_value=_completed_package(campaign_id=CONFLICT_CAMPAIGN_ID),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
+            return_value=_completed_schedule(campaign_id=CONFLICT_CAMPAIGN_ID),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
+            return_value=FlowASourceLifecycleResult(
+                status="completed",
+                campaign_id=CONFLICT_CAMPAIGN_ID,
+            ),
+        ),
+    ):
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    publish_mock.assert_called_once()
+    assert result.items[0].execution_status == EXECUTION_STATUS_EXECUTED
+
+
+def test_stale_reclaim_through_connector(editorial_base: Path):
+    accept_flow_a_source_for_queue(
+        editorial_base,
+        source_relative_path="blog-posts/ready/post.md",
+        calendar_item={
+            "campaign_id": CONFLICT_CAMPAIGN_ID,
+            "due_at_utc": PAST_UTC,
+        },
+    )
+    claim_flow_a_execution(editorial_base, campaign_id=CONFLICT_CAMPAIGN_ID)
+    campaign = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
+    assert campaign is not None
+    status = campaign["source_file_status"]
+    status["execution_state"] = "stale"
+    status["last_progress_at"] = "2020-01-01T00:00:00Z"
+    campaign["source_file_status"] = status
+    from silverman_blog_linkedin.campaign_lifecycle import write_campaign_metadata
+
+    write_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID, campaign)
+    _write_calendar(
+        editorial_base,
+        _base_calendar(items=[_flow_a_item(campaign_id=CONFLICT_CAMPAIGN_ID)]),
+    )
+    _ensure_ready_planner_gate(editorial_base)
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
+            return_value=_completed_publish(campaign_id=CONFLICT_CAMPAIGN_ID),
+        ) as publish_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
+            return_value=_completed_package(campaign_id=CONFLICT_CAMPAIGN_ID),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
+            return_value=_completed_schedule(campaign_id=CONFLICT_CAMPAIGN_ID),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
+            return_value=FlowASourceLifecycleResult(
+                status="completed",
+                campaign_id=CONFLICT_CAMPAIGN_ID,
+            ),
+        ),
+    ):
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    publish_mock.assert_called_once()
+    assert result.items[0].execution_status == EXECUTION_STATUS_EXECUTED
+
+
+def test_distribution_scheduled_lifecycle_only_repair(editorial_base: Path):
+    _write_distribution_scheduled_campaign(editorial_base, CONFLICT_CAMPAIGN_ID)
+    queued = editorial_base / "blog-posts" / "queued"
+    queued.mkdir(parents=True, exist_ok=True)
+    (queued / "post.md").write_text("# Sample\n", encoding="utf-8")
+    campaign = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
+    assert campaign is not None
+    campaign["queued_source_relative_path"] = QUEUED_POST_RELATIVE
+    campaign["source_relative_path"] = QUEUED_POST_RELATIVE
+    campaign["source_file_status"] = {
+        "location": SOURCE_LOCATION_QUEUED,
+        "execution_state": EXECUTION_STATE_IDLE,
+        "recovery_classification": RECOVERY_REPAIR_REQUIRED,
+    }
+    from silverman_blog_linkedin.campaign_lifecycle import write_campaign_metadata
+
+    write_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID, campaign)
+    _write_calendar(
+        editorial_base,
+        _base_calendar(items=[_flow_a_item(campaign_id=CONFLICT_CAMPAIGN_ID)]),
+    )
+    _ensure_ready_planner_gate(editorial_base)
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
+            return_value=_completed_publish(campaign_id=CONFLICT_CAMPAIGN_ID),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
+            return_value=_completed_package(campaign_id=CONFLICT_CAMPAIGN_ID),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
+            return_value=_completed_schedule(campaign_id=CONFLICT_CAMPAIGN_ID),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
+            return_value=FlowASourceLifecycleResult(
+                status="completed",
+                campaign_id=CONFLICT_CAMPAIGN_ID,
+            ),
+        ) as lifecycle_mock,
+    ):
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    lifecycle_mock.assert_called_once()
+    updated = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
+    assert updated is not None
+    assert updated["state"] == STATE_DISTRIBUTION_SCHEDULED
+    assert result.items[0].execution_status == EXECUTION_STATUS_EXECUTED
+
+
+def test_post_publish_failure_stays_queued_with_retryable(editorial_base: Path):
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+
+    with patch(
+        "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
+        return_value=BlogPublishResult(
+            status="failed",
+            source_relative_path=QUEUED_POST_RELATIVE,
+            campaign_id=CONFLICT_CAMPAIGN_ID,
+            errors=["blog_publish_failed"],
+        ),
+    ):
+        execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    campaign = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
+    assert campaign is not None
+    assert campaign["source_file_status"]["location"] == SOURCE_LOCATION_QUEUED
+    assert campaign["source_file_status"]["recovery_classification"] == RECOVERY_RETRYABLE
+    assert (editorial_base / QUEUED_POST_RELATIVE).is_file()
+
+
+def test_post_package_failure_stays_queued_with_repair_required(editorial_base: Path):
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+    accept_flow_a_source_for_queue(
+        editorial_base,
+        source_relative_path="blog-posts/ready/post.md",
+        calendar_item={
+            "campaign_id": CONFLICT_CAMPAIGN_ID,
+            "due_at_utc": PAST_UTC,
+        },
+    )
+    campaign = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
+    assert campaign is not None
+    campaign["state"] = STATE_BLOG_PUBLISHED
+    from silverman_blog_linkedin.campaign_lifecycle import write_campaign_metadata
+
+    write_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID, campaign)
+    _ensure_ready_planner_gate(editorial_base)
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
+            return_value=_completed_publish(campaign_id=CONFLICT_CAMPAIGN_ID),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
+            return_value=LinkedInPackageResult(
+                status="failed",
+                campaign_id=CONFLICT_CAMPAIGN_ID,
+                errors=["linkedin_package_failed"],
+            ),
+        ),
+    ):
+        execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    campaign = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
+    assert campaign is not None
+    assert campaign["source_file_status"]["location"] == SOURCE_LOCATION_QUEUED
+    assert campaign["source_file_status"]["recovery_classification"] == RECOVERY_REPAIR_REQUIRED
+    assert (editorial_base / QUEUED_POST_RELATIVE).is_file()
+
+
+def test_retry_idempotency_no_duplicate_side_effect_records(editorial_base: Path):
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+
+    publish_result = _completed_publish(campaign_id=CONFLICT_CAMPAIGN_ID)
+    package_result = _completed_package(campaign_id=CONFLICT_CAMPAIGN_ID)
+    schedule_result = _completed_schedule(campaign_id=CONFLICT_CAMPAIGN_ID)
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
+            return_value=publish_result,
+        ) as publish_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
+            return_value=package_result,
+        ) as package_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
+            return_value=schedule_result,
+        ) as schedule_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
+            return_value=FlowASourceLifecycleResult(
+                status="completed",
+                campaign_id=CONFLICT_CAMPAIGN_ID,
+            ),
+        ),
+    ):
+        first = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    from silverman_blog_linkedin.campaign_lifecycle import (
+        STATE_FLOW_A_COMPLETE,
+        write_campaign_metadata,
+    )
+
+    completed_campaign = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
+    assert completed_campaign is not None
+    completed_campaign["state"] = STATE_FLOW_A_COMPLETE
+    write_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID, completed_campaign)
+    _ensure_ready_planner_gate(editorial_base)
+    second = execute_due_editorial_calendar_flow_a(
+        editorial_base,
+        now_utc=NOW_UTC,
+        dry_run=False,
+    )
+
+    assert publish_mock.call_count == 1
+    assert package_mock.call_count == 1
+    assert schedule_mock.call_count == 1
+    assert first.items[0].execution_status == EXECUTION_STATUS_EXECUTED
+    assert second.items[0].execution_status == EXECUTION_STATUS_SKIPPED_EXISTING_CAMPAIGN
+
+
+def test_queue_acceptance_metadata_write_failure_blocks_connector(editorial_base: Path):
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.accept_flow_a_source_for_queue",
+            return_value=type(
+                "QueueResult",
+                (),
+                {
+                    "status": QUEUE_ACCEPTANCE_REPAIR_REQUIRED,
+                    "queue_acceptance_status": "completed",
+                    "campaign_id": CONFLICT_CAMPAIGN_ID,
+                    "queued_source_relative_path": QUEUED_POST_RELATIVE,
+                    "metadata_written": False,
+                    "metadata_error_code": CAMPAIGN_METADATA_WRITE_FAILED,
+                    "errors": [CAMPAIGN_METADATA_WRITE_FAILED],
+                    "warnings": [],
+                },
+            )(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post"
+        ) as publish_mock,
+    ):
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    publish_mock.assert_not_called()
+    item = result.items[0]
+    assert item.execution_status == EXECUTION_STATUS_FAILED
+    assert item.failed_step == FAILED_STEP_QUEUE_ACCEPTANCE
+    assert CAMPAIGN_METADATA_WRITE_FAILED in item.errors
+
+
+def _validation_failure(monkeypatch: pytest.MonkeyPatch, errors: list[str] | None = None) -> None:
+    monkeypatch.setattr(
+        "silverman_blog_linkedin.editorial_calendar_flow_a_execute.validate_ready_post",
+        lambda base_path, source_relative_path, **kwargs: ReadyPostValidationResult(
+            ok=False,
+            source_relative_path=source_relative_path,
+            errors=errors or ["editorial_validation_failed"],
+        ),
+    )
+
+
+def test_validation_failure_completed_error_move_no_release(editorial_base: Path, monkeypatch):
+    _validation_failure(monkeypatch, ["missing_frontmatter"])
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+
+    with patch(
+        "silverman_blog_linkedin.editorial_calendar_flow_a_execute.release_flow_a_execution"
+    ) as release_mock:
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    release_mock.assert_not_called()
+    item = result.items[0]
+    assert item.execution_status == EXECUTION_STATUS_FAILED
+    assert item.failed_step == FAILED_STEP_PUBLISH_BLOG
+    assert "missing_frontmatter" in item.errors
+    campaign = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
+    assert campaign is not None
+    assert campaign["source_file_status"]["location"] == SOURCE_LOCATION_ERROR
+    assert campaign["source_file_status"]["execution_state"] == EXECUTION_STATE_IDLE
+
+
+def test_validation_failure_partial_error_move_surfaces_repair(editorial_base: Path, monkeypatch):
+    _validation_failure(monkeypatch)
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+
+    def _partial_error_move(base_path, **kwargs):
+        if kwargs.get("destination_folder") != DestinationFolder.ERROR:
+            return coordinated_source_move(base_path, **kwargs)
+        error_md = base_path / "blog-posts" / "error" / "post.md"
+        error_md.parent.mkdir(parents=True, exist_ok=True)
+        error_md.write_text("# Sample\n", encoding="utf-8")
+        return CoordinatedMoveResult(
+            status="partial",
+            physical_move_state=PHYSICAL_MOVE_STATE_PARTIAL,
+            markdown=ComponentMoveResult(
+                source_path=QUEUED_POST_RELATIVE,
+                destination_path="blog-posts/error/post.md",
+                status="completed",
+            ),
+            image=ComponentMoveResult(
+                source_path="blog-posts/queued/post.png",
+                destination_path=None,
+                status="failed",
+                error_code="image_move_failed",
+            ),
+            destination_markdown_relative="blog-posts/error/post.md",
+            errors=["image_move_failed"],
+        )
+
+    with (
+        patch(
+            "silverman_blog_linkedin.flow_a_operational_queue.coordinated_source_move",
+            side_effect=_partial_error_move,
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.release_flow_a_execution"
+        ) as release_mock,
+    ):
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    release_mock.assert_not_called()
+    item = result.items[0]
+    assert item.execution_status == EXECUTION_STATUS_FAILED
+    assert "editorial_validation_failed" in item.errors
+    assert "image_move_failed" in item.errors
+    campaign = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
+    assert campaign is not None
+    assert campaign["source_file_status"]["location"] == SOURCE_LOCATION_ERROR
+    assert campaign["source_file_status"]["recovery_classification"] == RECOVERY_REPAIR_REQUIRED
+
+
+def test_validation_failure_failed_error_move_releases_once(editorial_base: Path, monkeypatch):
+    _validation_failure(monkeypatch)
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+
+    def _failed_error_move(base_path, **kwargs):
+        if kwargs.get("destination_folder") != DestinationFolder.ERROR:
+            return coordinated_source_move(base_path, **kwargs)
+        return CoordinatedMoveResult(
+            status="failed",
+            physical_move_state=PHYSICAL_MOVE_STATE_FAILED,
+            markdown=ComponentMoveResult(
+                source_path=QUEUED_POST_RELATIVE,
+                destination_path=None,
+                status="failed",
+                error_code="markdown_move_failed",
+            ),
+            errors=["markdown_move_failed"],
+        )
+
+    with patch(
+        "silverman_blog_linkedin.flow_a_operational_queue.coordinated_source_move",
+        side_effect=_failed_error_move,
+    ):
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    item = result.items[0]
+    assert item.execution_status == EXECUTION_STATUS_FAILED
+    assert "markdown_move_failed" in item.errors
+    campaign = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
+    assert campaign is not None
+    assert campaign["source_file_status"]["location"] == SOURCE_LOCATION_QUEUED
+    assert campaign["source_file_status"]["execution_state"] == EXECUTION_STATE_IDLE
+    assert campaign["source_file_status"]["recovery_classification"] == RECOVERY_REPAIR_REQUIRED
+
+
+def test_validation_failure_error_move_metadata_write_failure_reported(
+    editorial_base: Path, monkeypatch
+):
+    _validation_failure(monkeypatch)
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+    real_write = __import__(
+        "silverman_blog_linkedin.flow_a_operational_queue",
+        fromlist=["write_campaign_metadata"],
+    ).write_campaign_metadata
+    error_move_attempts = {"count": 0}
+
+    def _write_side_effect(base_path, campaign_id, campaign):
+        if campaign.get("source_file_status", {}).get("marked_error_at"):
+            error_move_attempts["count"] += 1
+            return CampaignMetadataWriteResult(
+                written=False,
+                error_code=CAMPAIGN_METADATA_WRITE_FAILED,
+            )
+        return real_write(base_path, campaign_id, campaign)
+
+    with (
+        patch(
+            "silverman_blog_linkedin.flow_a_operational_queue.write_campaign_metadata",
+            side_effect=_write_side_effect,
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.release_flow_a_execution"
+        ) as release_mock,
+    ):
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    assert error_move_attempts["count"] >= 1
+    release_mock.assert_called_once()
+    item = result.items[0]
+    assert CAMPAIGN_METADATA_WRITE_FAILED in item.errors
+    assert item.execution_status == EXECUTION_STATUS_FAILED
 

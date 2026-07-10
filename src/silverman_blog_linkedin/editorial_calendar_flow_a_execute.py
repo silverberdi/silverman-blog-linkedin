@@ -12,11 +12,32 @@ from silverman_blog_linkedin.blog_publish_flow import (
     publish_blog_post,
 )
 from silverman_blog_linkedin.campaign_lifecycle import (
+    EXECUTION_STATE_PROCESSING,
+    RECOVERY_REPAIR_REQUIRED,
+    RECOVERY_RETRYABLE,
+    SOURCE_LOCATION_QUEUED,
+    STATE_BLOG_PUBLISHED,
     STATE_DISTRIBUTION_COMPLETE,
     STATE_DISTRIBUTION_SCHEDULED,
     STATE_FLOW_A_COMPLETE,
+    normalize_source_file_status,
     read_campaign_metadata,
 )
+from silverman_blog_linkedin.flow_a_operational_queue import (
+    CAMPAIGN_METADATA_WRITE_FAILED,
+    QUEUE_ACCEPTANCE_COMPLETED,
+    QUEUE_ACCEPTANCE_FAILED,
+    QUEUE_ACCEPTANCE_PARTIAL,
+    QUEUE_ACCEPTANCE_REPAIR_REQUIRED,
+    QUEUE_ACCEPTANCE_SKIPPED_ALREADY_QUEUED,
+    accept_flow_a_source_for_queue,
+    claim_flow_a_execution,
+    error_move_closed_processing_claim,
+    move_queued_source_to_error,
+    record_flow_a_progress,
+    release_flow_a_execution,
+)
+from silverman_blog_linkedin.ready_post_validation import validate_ready_post
 from silverman_blog_linkedin.editorial_calendar_plan import (
     FLOW_A_READY_BLOG_POST,
     USER_PROVIDED_APPROVED_BLOG,
@@ -41,6 +62,7 @@ EXECUTION_STATUS_SKIPPED_REVIEW_REQUIRED = "skipped_review_required"
 EXECUTION_STATUS_FAILED = "failed"
 EXECUTION_STATUS_WOULD_EXECUTE = "would_execute"
 
+FAILED_STEP_QUEUE_ACCEPTANCE = "queue_acceptance"
 FAILED_STEP_PUBLISH_BLOG = "publish_blog"
 FAILED_STEP_GENERATE_LINKEDIN_PACKAGE = "generate_linkedin_package"
 FAILED_STEP_SCHEDULE_LINKEDIN_DISTRIBUTION = "schedule_linkedin_distribution"
@@ -78,6 +100,8 @@ class EditorialCalendarFlowAItemResult:
     review_required: bool = False
     planned_flow_steps: list[str] = field(default_factory=list)
     failed_step: str | None = None
+    queue_acceptance_status: str | None = None
+    would_queue_accept: bool = False
     source_lifecycle_status: str | None = None
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -128,7 +152,7 @@ def _should_skip_existing_campaign(
     campaign = read_campaign_metadata(base_path, campaign_id.strip())
     if campaign is None:
         return False
-    return campaign.get("state") in POST_DISTRIBUTION_SCHEDULED_STATES
+    return campaign.get("state") == STATE_FLOW_A_COMPLETE
 
 
 def _calendar_item_lookup(calendar: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -162,6 +186,8 @@ def _item_result_from_plan(
     execution_status: str,
     *,
     failed_step: str | None = None,
+    queue_acceptance_status: str | None = None,
+    would_queue_accept: bool = False,
     source_lifecycle_status: str | None = None,
     errors: list[str] | None = None,
     warnings: list[str] | None = None,
@@ -173,6 +199,8 @@ def _item_result_from_plan(
         review_required=plan_item.review_required,
         planned_flow_steps=list(plan_item.planned_flow_steps),
         failed_step=failed_step,
+        queue_acceptance_status=queue_acceptance_status,
+        would_queue_accept=would_queue_accept,
         source_lifecycle_status=source_lifecycle_status,
         errors=list(errors or plan_item.errors),
         warnings=list(warnings or plan_item.warnings),
@@ -226,6 +254,45 @@ def _failed_item_from_step(
     )
 
 
+def _queue_acceptance_succeeded(status: str, *, metadata_written: bool = True) -> bool:
+    if not metadata_written:
+        return False
+    return status in (
+        QUEUE_ACCEPTANCE_COMPLETED,
+        QUEUE_ACCEPTANCE_SKIPPED_ALREADY_QUEUED,
+    )
+
+
+def _metadata_persistence_failed(
+    *,
+    metadata_written: bool,
+    metadata_error_code: str | None,
+) -> list[str]:
+    if metadata_written:
+        return []
+    return [metadata_error_code or CAMPAIGN_METADATA_WRITE_FAILED]
+
+
+def _progress_persistence_failed(progress_result) -> list[str]:
+    if progress_result is None or progress_result.status != "failed":
+        return []
+    if progress_result.errors:
+        return list(progress_result.errors)
+    return [progress_result.metadata_error_code or CAMPAIGN_METADATA_WRITE_FAILED]
+
+
+def _recovery_after_failure(campaign_id: str | None, base_path: Path) -> str:
+    if not campaign_id:
+        return RECOVERY_RETRYABLE
+    campaign = read_campaign_metadata(base_path, campaign_id)
+    if campaign is None:
+        return RECOVERY_RETRYABLE
+    state = campaign.get("state")
+    if state in (STATE_BLOG_PUBLISHED, STATE_DISTRIBUTION_SCHEDULED, STATE_DISTRIBUTION_COMPLETE):
+        return RECOVERY_REPAIR_REQUIRED
+    return RECOVERY_RETRYABLE
+
+
 def _execute_flow_a_item(
     base_path: Path,
     plan_item: EditorialCalendarItemPlan,
@@ -239,13 +306,143 @@ def _execute_flow_a_item(
     topic_theme = _optional_calendar_str(calendar_item, "topic_theme")
     strategy = _optional_calendar_str(calendar_item, "strategy")
 
+    queue_result = accept_flow_a_source_for_queue(
+        base_path,
+        source_relative_path=plan_item.source_relative_path,
+        calendar_item=calendar_item,
+        dry_run=False,
+    )
+    queue_status = queue_result.queue_acceptance_status
+    if not _queue_acceptance_succeeded(
+        queue_result.status,
+        metadata_written=queue_result.metadata_written,
+    ):
+        queue_errors = list(queue_result.errors)
+        queue_errors.extend(
+            _metadata_persistence_failed(
+                metadata_written=queue_result.metadata_written,
+                metadata_error_code=queue_result.metadata_error_code,
+            )
+        )
+        return _item_result_from_plan(
+            plan_item,
+            EXECUTION_STATUS_FAILED,
+            failed_step=FAILED_STEP_QUEUE_ACCEPTANCE,
+            queue_acceptance_status=queue_status,
+            errors=list(dict.fromkeys(queue_errors)),
+            warnings=list(queue_result.warnings),
+        )
+
+    active_source = queue_result.queued_source_relative_path or plan_item.source_relative_path
+    campaign_id = queue_result.campaign_id
+
+    claim_result = claim_flow_a_execution(base_path, campaign_id=campaign_id) if campaign_id else None
+    if claim_result and (
+        claim_result.status == "failed" or not claim_result.metadata_written
+    ):
+        claim_errors = list(claim_result.errors)
+        claim_errors.extend(
+            _metadata_persistence_failed(
+                metadata_written=claim_result.metadata_written,
+                metadata_error_code=claim_result.metadata_error_code,
+            )
+        )
+        return _item_result_from_plan(
+            plan_item,
+            EXECUTION_STATUS_FAILED,
+            failed_step=FAILED_STEP_QUEUE_ACCEPTANCE,
+            queue_acceptance_status=queue_status,
+            errors=list(dict.fromkeys(claim_errors)),
+        )
+
+    validation = validate_ready_post(base_path, active_source, site_url=site_url)
+    if not validation.ok:
+        item_errors = list(validation.errors)
+        item_warnings = list(validation.warnings)
+        if campaign_id:
+            move_result = move_queued_source_to_error(
+                base_path,
+                campaign_id=campaign_id,
+                error_code=(
+                    validation.errors[0]
+                    if validation.errors
+                    else "editorial_validation_failed"
+                ),
+                category="editorial_validation",
+            )
+            item_errors.extend(move_result.errors)
+            item_warnings.extend(move_result.warnings)
+            item_errors.extend(
+                _metadata_persistence_failed(
+                    metadata_written=move_result.metadata_written,
+                    metadata_error_code=move_result.metadata_error_code,
+                )
+            )
+            if not error_move_closed_processing_claim(move_result):
+                campaign_after = read_campaign_metadata(base_path, campaign_id)
+                if campaign_after is not None:
+                    after_status = normalize_source_file_status(
+                        campaign_after.get("source_file_status")
+                    )
+                    if after_status.get("execution_state") == EXECUTION_STATE_PROCESSING:
+                        release_result = release_flow_a_execution(
+                            base_path,
+                            campaign_id=campaign_id,
+                            recovery_classification=RECOVERY_REPAIR_REQUIRED,
+                        )
+                        item_errors.extend(release_result.errors)
+                        item_errors.extend(
+                            _metadata_persistence_failed(
+                                metadata_written=release_result.metadata_written,
+                                metadata_error_code=release_result.metadata_error_code,
+                            )
+                        )
+        return _item_result_from_plan(
+            plan_item,
+            EXECUTION_STATUS_FAILED,
+            failed_step=FAILED_STEP_PUBLISH_BLOG,
+            queue_acceptance_status=queue_status,
+            errors=list(dict.fromkeys(item_errors)),
+            warnings=list(dict.fromkeys(item_warnings)),
+        )
+
+    if campaign_id:
+        progress_result = record_flow_a_progress(base_path, campaign_id=campaign_id)
+        progress_errors = _progress_persistence_failed(progress_result)
+        if progress_errors:
+            release_flow_a_execution(
+                base_path,
+                campaign_id=campaign_id,
+                recovery_classification=RECOVERY_RETRYABLE,
+            )
+            return _failed_item_from_step(
+                plan_item,
+                failed_step=FAILED_STEP_PUBLISH_BLOG,
+                errors=progress_errors,
+            )
+
     publish_result = publish_blog_post(
         base_path,
-        plan_item.source_relative_path,
+        active_source,
         site_url=site_url,
         public_slug_override=public_slug,
     )
     if not _step_succeeded(publish_result.status):
+        resolved_campaign = publish_result.campaign_id or campaign_id
+        if resolved_campaign:
+            release_flow_a_execution(
+                base_path,
+                campaign_id=resolved_campaign,
+                recovery_classification=_recovery_after_failure(resolved_campaign, base_path),
+                last_error={
+                    "category": "transient_runtime",
+                    "error_code": publish_result.errors[0] if publish_result.errors else "publish_failed",
+                    "reason": "publish_blog_post failed",
+                    "at": None,
+                    "last_successful_stage": "queue_acceptance",
+                    "attempt_id": None,
+                },
+            )
         return _failed_item_from_step(
             plan_item,
             failed_step=FAILED_STEP_PUBLISH_BLOG,
@@ -254,12 +451,35 @@ def _execute_flow_a_item(
         )
 
     if _campaign_id_conflict(calendar_campaign, publish_result.campaign_id):
+        if campaign_id:
+            release_flow_a_execution(
+                base_path,
+                campaign_id=campaign_id,
+                recovery_classification=RECOVERY_REPAIR_REQUIRED,
+            )
         return _failed_item_from_step(
             plan_item,
             failed_step=FAILED_STEP_PUBLISH_BLOG,
             errors=[CALENDAR_CAMPAIGN_ID_CONFLICT],
             warnings=list(publish_result.warnings),
         )
+
+    resolved_campaign = publish_result.campaign_id or campaign_id
+    if resolved_campaign:
+        progress_result = record_flow_a_progress(base_path, campaign_id=resolved_campaign)
+        progress_errors = _progress_persistence_failed(progress_result)
+        if progress_errors:
+            release_flow_a_execution(
+                base_path,
+                campaign_id=resolved_campaign,
+                recovery_classification=_recovery_after_failure(resolved_campaign, base_path),
+            )
+            return _failed_item_from_step(
+                plan_item,
+                failed_step=FAILED_STEP_PUBLISH_BLOG,
+                errors=progress_errors,
+                warnings=_merge_warnings(publish_result),
+            )
 
     package_result = generate_linkedin_package(
         base_path,
@@ -273,6 +493,12 @@ def _execute_flow_a_item(
         topic_theme=topic_theme,
     )
     if not _step_succeeded(package_result.status):
+        if resolved_campaign:
+            release_flow_a_execution(
+                base_path,
+                campaign_id=resolved_campaign,
+                recovery_classification=_recovery_after_failure(resolved_campaign, base_path),
+            )
         return _failed_item_from_step(
             plan_item,
             failed_step=FAILED_STEP_GENERATE_LINKEDIN_PACKAGE,
@@ -281,12 +507,34 @@ def _execute_flow_a_item(
         )
 
     if _campaign_id_conflict(calendar_campaign, package_result.campaign_id):
+        if resolved_campaign:
+            release_flow_a_execution(
+                base_path,
+                campaign_id=campaign_id or resolved_campaign,
+                recovery_classification=RECOVERY_REPAIR_REQUIRED,
+            )
         return _failed_item_from_step(
             plan_item,
             failed_step=FAILED_STEP_GENERATE_LINKEDIN_PACKAGE,
             errors=[CALENDAR_CAMPAIGN_ID_CONFLICT],
             warnings=_merge_warnings(publish_result, package_result),
         )
+
+    if resolved_campaign:
+        progress_result = record_flow_a_progress(base_path, campaign_id=resolved_campaign)
+        progress_errors = _progress_persistence_failed(progress_result)
+        if progress_errors:
+            release_flow_a_execution(
+                base_path,
+                campaign_id=resolved_campaign,
+                recovery_classification=_recovery_after_failure(resolved_campaign, base_path),
+            )
+            return _failed_item_from_step(
+                plan_item,
+                failed_step=FAILED_STEP_GENERATE_LINKEDIN_PACKAGE,
+                errors=progress_errors,
+                warnings=_merge_warnings(publish_result, package_result),
+            )
 
     schedule_result = schedule_linkedin_distribution(
         base_path,
@@ -299,6 +547,12 @@ def _execute_flow_a_item(
         strategy=strategy,
     )
     if not _step_succeeded(schedule_result.status):
+        if resolved_campaign:
+            release_flow_a_execution(
+                base_path,
+                campaign_id=resolved_campaign,
+                recovery_classification=RECOVERY_REPAIR_REQUIRED,
+            )
         return _failed_item_from_step(
             plan_item,
             failed_step=FAILED_STEP_SCHEDULE_LINKEDIN_DISTRIBUTION,
@@ -306,15 +560,33 @@ def _execute_flow_a_item(
             warnings=_merge_warnings(publish_result, package_result, schedule_result),
         )
 
+    if resolved_campaign:
+        progress_result = record_flow_a_progress(base_path, campaign_id=resolved_campaign)
+        progress_errors = _progress_persistence_failed(progress_result)
+        if progress_errors:
+            release_flow_a_execution(
+                base_path,
+                campaign_id=resolved_campaign,
+                recovery_classification=RECOVERY_REPAIR_REQUIRED,
+            )
+            return _failed_item_from_step(
+                plan_item,
+                failed_step=FAILED_STEP_SCHEDULE_LINKEDIN_DISTRIBUTION,
+                errors=progress_errors,
+                warnings=_merge_warnings(publish_result, package_result, schedule_result),
+            )
+
     lifecycle_campaign_id = (
         schedule_result.campaign_id
         or package_result.campaign_id
         or publish_result.campaign_id
+        or campaign_id
     )
     if not lifecycle_campaign_id:
         return _item_result_from_plan(
             plan_item,
             EXECUTION_STATUS_EXECUTED,
+            queue_acceptance_status=queue_status,
             source_lifecycle_status=SOURCE_LIFECYCLE_FAILED,
             errors=["flow_a_source_campaign_not_found"],
             warnings=_merge_warnings(publish_result, package_result, schedule_result),
@@ -323,22 +595,35 @@ def _execute_flow_a_item(
     lifecycle_result = complete_flow_a_source_lifecycle(
         base_path,
         campaign_id=lifecycle_campaign_id,
-        source_relative_path=plan_item.source_relative_path,
+        source_relative_path=active_source,
     )
     lifecycle_warnings = _merge_warnings(publish_result, package_result, schedule_result)
     lifecycle_warnings = list(
         dict.fromkeys([*lifecycle_warnings, *lifecycle_result.warnings])
     )
     lifecycle_errors = list(lifecycle_result.errors)
+
     if lifecycle_result.status == SOURCE_LIFECYCLE_FAILED:
+        if lifecycle_campaign_id:
+            release_flow_a_execution(
+                base_path,
+                campaign_id=lifecycle_campaign_id,
+                recovery_classification=RECOVERY_REPAIR_REQUIRED,
+            )
         lifecycle_warnings = list(dict.fromkeys([*lifecycle_warnings, *lifecycle_errors]))
         return _item_result_from_plan(
             plan_item,
             EXECUTION_STATUS_EXECUTED,
+            failed_step=FAILED_STEP_COMPLETE_SOURCE_LIFECYCLE,
+            queue_acceptance_status=queue_status,
             source_lifecycle_status=SOURCE_LIFECYCLE_FAILED,
             errors=lifecycle_errors,
             warnings=lifecycle_warnings,
         )
+
+    if lifecycle_campaign_id:
+        record_flow_a_progress(base_path, campaign_id=lifecycle_campaign_id)
+        release_flow_a_execution(base_path, campaign_id=lifecycle_campaign_id)
 
     source_lifecycle_status = (
         SOURCE_LIFECYCLE_SKIPPED
@@ -348,6 +633,7 @@ def _execute_flow_a_item(
     return _item_result_from_plan(
         plan_item,
         EXECUTION_STATUS_EXECUTED,
+        queue_acceptance_status=queue_status,
         source_lifecycle_status=source_lifecycle_status,
         errors=[],
         warnings=lifecycle_warnings,
@@ -435,7 +721,23 @@ def execute_due_editorial_calendar_flow_a(
         eligible_processed += 1
 
         if dry_run:
-            result = _item_result_from_plan(plan_item, EXECUTION_STATUS_WOULD_EXECUTE)
+            would_accept = False
+            queue_status = None
+            if plan_item.source_relative_path:
+                preview = accept_flow_a_source_for_queue(
+                    base_path,
+                    source_relative_path=plan_item.source_relative_path,
+                    calendar_item=calendar_item,
+                    dry_run=True,
+                )
+                would_accept = preview.would_queue_accept
+                queue_status = preview.queue_acceptance_status
+            result = _item_result_from_plan(
+                plan_item,
+                EXECUTION_STATUS_WOULD_EXECUTE,
+                queue_acceptance_status=queue_status,
+                would_queue_accept=would_accept,
+            )
             item_results.append(result)
             _increment_count(counts, EXECUTION_STATUS_WOULD_EXECUTE)
             continue

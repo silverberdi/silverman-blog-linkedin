@@ -57,6 +57,7 @@ from silverman_blog_linkedin.github_pages_publish import (
 from silverman_blog_linkedin.ready_post_validation import (
     CAMPAIGN_CONTENT_HASH_CHANGED,
     CONTENT_CONTAINS_TODO,
+    QUEUED_RELATIVE_PREFIX,
     READY_RELATIVE_PREFIX,
     validate_ready_post,
 )
@@ -335,9 +336,15 @@ def _preflight_inspect(
 ) -> PreflightContext:
     normalized = _normalize_relative_path(source_relative_path)
     errors: list[str] = []
-    ready_dir = (base_path / "blog-posts" / "ready").resolve()
 
-    if not normalized.startswith(READY_RELATIVE_PREFIX):
+    allowed_prefixes = (READY_RELATIVE_PREFIX, QUEUED_RELATIVE_PREFIX)
+    matched_prefix = None
+    for prefix in allowed_prefixes:
+        if normalized.startswith(prefix):
+            matched_prefix = prefix
+            break
+
+    if matched_prefix is None:
         errors.append(BLOG_PUBLISH_SOURCE_NOT_READY)
         return PreflightContext(
             source_relative_path=normalized,
@@ -365,9 +372,11 @@ def _preflight_inspect(
             errors=tuple(errors),
         )
 
+    folder_name = "ready" if matched_prefix == READY_RELATIVE_PREFIX else "queued"
+    source_dir = (base_path / "blog-posts" / folder_name).resolve()
     resolved = (base_path / normalized).resolve()
     try:
-        resolved.relative_to(ready_dir)
+        resolved.relative_to(source_dir)
     except ValueError:
         errors.append(BLOG_PUBLISH_SOURCE_NOT_READY)
         return PreflightContext(
@@ -409,7 +418,7 @@ def _preflight_inspect(
             source_content_sha256=None,
             campaign_id=None,
             expected_idempotency_key=None,
-            image_relative_path=f"{READY_RELATIVE_PREFIX}{source_slug}.png",
+            image_relative_path=f"{matched_prefix}{source_slug}.png",
             errors=tuple(errors),
         )
 
@@ -425,7 +434,7 @@ def _preflight_inspect(
             source_content_sha256=None,
             campaign_id=None,
             expected_idempotency_key=None,
-            image_relative_path=f"{READY_RELATIVE_PREFIX}{source_slug}.png",
+            image_relative_path=f"{matched_prefix}{source_slug}.png",
             errors=tuple(errors),
         )
 
@@ -461,7 +470,7 @@ def _preflight_inspect(
         source_content_sha256=content_hash,
         campaign_id=campaign_id,
         expected_idempotency_key=expected_key,
-        image_relative_path=f"{READY_RELATIVE_PREFIX}{source_slug}.png",
+        image_relative_path=f"{matched_prefix}{source_slug}.png",
         errors=tuple(errors),
     )
 

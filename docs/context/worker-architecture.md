@@ -34,6 +34,7 @@ The worker should be configurable through environment variables (exact names to 
 | Base paths | Root data directory (container: `/data/silverman-blog-linkedin`) |
 | OpenAI / LLM | API key, model, timeout |
 | Processing | Batch limits, retry behavior |
+| Flow A stale detection | `SILVERMAN_FLOW_A_PROCESSING_STALE_SECONDS` — positive integer, default `3600`, minimum `60`; fail-fast on invalid value (`flow_a_processing_stale_seconds_invalid`) |
 | Logging | Log level, structured output |
 
 The worker must **not** expose secrets in HTTP responses or logs at info level.
@@ -45,6 +46,7 @@ Expected editorial layout under the configured root:
 ```
 blog-posts/
   ready/        ← input: Markdown blog posts (manual placement)
+  queued/       ← worker-accepted Flow A work (create on deploy; no auto-migration)
   processed/    ← success: moved after successful processing
   error/        ← failure: moved when processing fails
 
