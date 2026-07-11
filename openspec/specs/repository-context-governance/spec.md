@@ -254,12 +254,17 @@ The repository MUST split mixed workflow responsibilities from `docs/workflows/p
 
 ### Requirement: Executable script scope boundary
 
-Context governance changes MUST NOT modify executable defaults, logic, or expected-commit behavior in `scripts/flow_a_readiness.py`. Documentation, comments, and help text MAY be corrected. Stale hardcoded revision defaults MUST be documented as a separate follow-up change.
+Context governance changes MUST NOT modify executable defaults, logic, or expected-commit behavior in `scripts/flow_a_readiness.py`. Documentation, comments, and help text MAY be corrected. Updates to `DEFAULT_EXPECTED_COMMITS` MUST be performed only via a dedicated OpenSpec change scoped to Flow A readiness defaults (for example `correct-stale-flow-a-readiness-defaults`), not incidental context-alignment work.
 
-#### Scenario: Readiness script defaults reviewed
+#### Scenario: Readiness script defaults reviewed during context governance
 
-- **WHEN** this change is applied
-- **THEN** `scripts/flow_a_readiness.py` executable behavior is unchanged and any stale `DEFAULT_EXPECTED_COMMITS` are recorded as known divergence in `docs/CURRENT-STATE.md`
+- **WHEN** a context-governance-only change is applied
+- **THEN** `scripts/flow_a_readiness.py` executable defaults and expected-commit behavior are unchanged
+
+#### Scenario: Readiness defaults updated by dedicated change
+
+- **WHEN** change `correct-stale-flow-a-readiness-defaults` is applied and synced
+- **THEN** `DEFAULT_EXPECTED_COMMITS` reflects the documented operational baseline, the known-divergence row for stale defaults is removed from `docs/CURRENT-STATE.md`, and operator docs describe the new milestones
 
 ### Requirement: Anti-pattern prevention in canonical context
 
