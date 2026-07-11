@@ -172,7 +172,7 @@ python3 scripts/flow_a_readiness.py \
   --phase all
 ```
 
-**Phase 0 (required gate):** git HEAD / `origin/main`, expected commits (`79f5345`, `962ba2f`, `53708eb` by default), required Flow A files, worker `GET /health` and `GET /openapi.json` with paths `/health`, `/process-ready`, `/publish-blog-post`, `/generate-linkedin-package`, `/schedule-linkedin-distribution`, Flow A workflow export `"active": false`.
+**Phase 0 (required gate):** git HEAD / `origin/main`, expected commits by default (`88cd5bc` Flow A calendar completion, `96519c3` guarded Git publication, `9dba064` live-site confirmation — override with repeatable `--expected-commit`), required Flow A files, worker `GET /health` and `GET /openapi.json` with paths `/health`, `/process-ready`, `/publish-blog-post`, `/generate-linkedin-package`, `/schedule-linkedin-distribution`, Flow A workflow export `"active": false`.
 
 **Phase 1:** non-destructive `POST /process-ready` when API key is configured (never prints the key).
 

@@ -110,11 +110,9 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 
 Do not describe any single layer as "Flow A complete" without qualification. See [GLOSSARY.md](GLOSSARY.md).
 
-## Known spec↔implementation / tooling divergences
+## Flow A readiness defaults
 
-| Item | Notes | Resolution |
-|------|-------|------------|
-| `scripts/flow_a_readiness.py` `DEFAULT_EXPECTED_COMMITS` | Hardcoded `79f5345`, `962ba2f`, `53708eb` — stale vs current baseline `88cd5bc` | Separate OpenSpec change to update executable defaults (out of scope for context alignment) |
+`scripts/flow_a_readiness.py` `DEFAULT_EXPECTED_COMMITS` (`88cd5bc`, `96519c3`, `9dba064`) gates validated operational capabilities via ancestry checks — not the same as **`last_verified_baseline`** (`615091c` @ `2026-07-11T07:45:00Z` above), which is a point-in-time verification snapshot. Neither is a permanent runtime requirement; use `--expected-commit` to override defaults for forks or bisect.
 
 ## Related documents
 

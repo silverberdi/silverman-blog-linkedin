@@ -14,7 +14,11 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-DEFAULT_EXPECTED_COMMITS = ("79f5345", "962ba2f", "53708eb")
+# Operational capability milestones for Phase 0 ancestry checks (not last_verified_baseline).
+# 88cd5bc — Flow A calendar completion archived (core operational validation floor)
+# 96519c3 — Guarded blog Git publication automation (US-001)
+# 9dba064 — Live-site confirmation and Git reconciliation (US-002)
+DEFAULT_EXPECTED_COMMITS = ("88cd5bc", "96519c3", "9dba064")
 
 REQUIRED_FLOW_A_FILES = (
     "n8n/workflows/silverman-blog-linkedin-flow-a-publish.json",
@@ -783,7 +787,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--expected-commit",
         action="append",
         dest="expected_commits",
-        help="Expected commit reachable from HEAD (repeatable). Defaults to Flow A baseline trio.",
+        help="Expected commit reachable from HEAD (repeatable). Replaces DEFAULT_EXPECTED_COMMITS entirely.",
     )
     parser.add_argument(
         "--phase",

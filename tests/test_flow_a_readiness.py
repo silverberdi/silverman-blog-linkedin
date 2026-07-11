@@ -26,10 +26,49 @@ def load_readiness_module():
 
 far = load_readiness_module()
 
+DOCUMENTED_OPERATIONAL_MILESTONES = ("88cd5bc", "96519c3", "9dba064")
+
 
 @pytest.fixture
 def repo_path() -> Path:
     return REPO_ROOT
+
+
+def test_default_expected_commits_match_documented_operational_milestones() -> None:
+    assert far.DEFAULT_EXPECTED_COMMITS == DOCUMENTED_OPERATIONAL_MILESTONES
+
+
+def test_expected_commit_override_replaces_defaults(repo_path: Path) -> None:
+    head = far.git_rev_parse(repo_path, "HEAD")
+    assert head is not None
+
+    report = far.ReadinessReport()
+
+    def fake_http(method: str, url: str, **kwargs):
+        if url.endswith("/health"):
+            return 200, b'{"status":"healthy"}'
+        if url.endswith("/openapi.json"):
+            paths = {p: {} for p in far.REQUIRED_OPENAPI_PATHS}
+            return 200, json.dumps({"paths": paths}).encode()
+        return None, "unreachable"
+
+    override = [head[:7]]
+    with patch.object(far, "http_request", side_effect=fake_http):
+        with patch.object(far, "list_running_containers", return_value=[]):
+            far.run_phase0(
+                report,
+                repo_path=repo_path,
+                worker_base_url="http://localhost:8000",
+                n8n_base_url=None,
+                expected_commits=override,
+            )
+
+    commits = next(c for c in report.checks if c.id == "expected_commits")
+    assert commits.status == far.CheckStatus.PASS
+    assert override[0] in commits.message
+    for default_sha in far.DEFAULT_EXPECTED_COMMITS:
+        if default_sha != override[0]:
+            assert default_sha not in commits.message
 
 
 def test_repo_current_and_required_files_pass(repo_path: Path) -> None:
@@ -230,7 +269,7 @@ def test_health_unhealthy_fails() -> None:
             repo_path=REPO_ROOT,
             worker_base_url="http://localhost:8000",
             n8n_base_url=None,
-            expected_commits=["79f5345"],
+            expected_commits=["88cd5bc"],
         )
 
     health = next(c for c in report.checks if c.id == "worker_health")
