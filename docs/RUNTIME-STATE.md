@@ -6,7 +6,7 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 ## Snapshot
 
-**`verified_at_utc`:** `2026-07-10T00:00:00Z`  
+**`verified_at_utc`:** `2026-07-10T00:00:00Z`
 **Evidence source:** Operator smoke on Ubuntu server `192.168.0.194`; worker diagnostic scripts; n8n import verification
 
 | Fact | Value | Evidence |

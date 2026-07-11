@@ -2,8 +2,8 @@
 
 Deploy the `silverman-blog-linkedin` HTTP worker on the Ubuntu server (`silverman@192.168.0.194`) as an **isolated Docker Compose project**. This deployment does **not** modify `local-ai-stack` (n8n, postgres, minio, qdrant, portainer, backup-runner, auto-ingest-runner, n8n-gateway).
 
-**Status and live flags:** [CURRENT-STATE.md](../CURRENT-STATE.md), [RUNTIME-STATE.md](../RUNTIME-STATE.md).  
-**Build identity:** Image built with `BUILD_REVISION` from git HEAD at deploy time (not `SILVERMAN_BUILD_REVISION`).  
+**Status and live flags:** [CURRENT-STATE.md](../CURRENT-STATE.md), [RUNTIME-STATE.md](../RUNTIME-STATE.md).
+**Build identity:** Image built with `BUILD_REVISION` from git HEAD at deploy time (not `SILVERMAN_BUILD_REVISION`).
 **Site published/live:** Worker handoff writes to `/public-blog`; operator must **manually** `git commit` and `git push` the GitHub Pages repo.
 
 For local development on Mac, use `docker-compose.example.yml` instead.

@@ -2,7 +2,7 @@
 
 Canonical project status for `silverman-blog-linkedin`. Authority rules: [CONTEXT-AUTHORITY.md](CONTEXT-AUTHORITY.md). Terminology: [GLOSSARY.md](GLOSSARY.md). Live flags: [RUNTIME-STATE.md](RUNTIME-STATE.md).
 
-**`last_verified_at_utc`:** `2026-07-10T00:00:00Z`  
+**`last_verified_at_utc`:** `2026-07-10T00:00:00Z`
 **Last verified baseline revision:** `88cd5bc` (verification timestamp above — **not** a permanent runtime requirement)
 
 ## Purpose
