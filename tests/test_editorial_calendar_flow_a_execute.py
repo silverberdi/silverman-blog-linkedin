@@ -245,8 +245,29 @@ def _write_flow_a_complete_campaign(
                     "recovery_classification": "no_action",
                 },
                 "blog_publish": {"status": "completed"},
-                "linkedin_package": {"status": "completed"},
-                "linkedin_distribution": {"status": "completed"},
+                "linkedin_package": {
+                    "package_id": f"pkg-{campaign_id}",
+                    "package_status": "generated",
+                    "variant_ids": ["executive", "technical"],
+                },
+                "linkedin_distribution": {
+                    "distribution_id": f"dist-{campaign_id}",
+                    "strategy": "stagger_48h",
+                    "anchor_utc": "2026-07-10T10:00:00Z",
+                    "variant_ids": ["executive", "technical"],
+                },
+                "variants": [
+                    {
+                        "variant": "executive",
+                        "scheduled_at_utc": "2026-07-10T10:00:00Z",
+                        "publish_state": "pending",
+                    },
+                    {
+                        "variant": "technical",
+                        "scheduled_at_utc": "2026-07-12T10:00:00Z",
+                        "publish_state": "pending",
+                    },
+                ],
             }
         ),
         encoding="utf-8",
@@ -677,6 +698,8 @@ def test_flow_a_complete_campaign_reconciles_without_side_effects(editorial_base
     completed = calendar["items"][0]
     assert completed["status"] == "completed"
     assert completed["notes"] == "Keep this note intact."
+    assert completed["flow_a_completion"]["linkedin_package_status"] == "completed"
+    assert completed["flow_a_completion"]["linkedin_distribution_status"] == "completed"
     assert result.read_only is False
 
 

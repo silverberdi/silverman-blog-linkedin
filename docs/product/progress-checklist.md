@@ -59,28 +59,28 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated
   - [x] Backlog item closed
 
-- [ ] **BL-003 — Correct LinkedIn Status Summary in the Editorial Calendar**
+- [-] **BL-003 — Correct LinkedIn Status Summary in the Editorial Calendar**
   - Business outcome: The calendar accurately reflects package and scheduling status for completed campaigns.
-  - [ ] **US-006**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+  - [-] **US-006**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
     - [ ] Story accepted
-  - [ ] **US-007**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+  - [-] **US-007**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
     - [ ] Story accepted
-  - [ ] **US-008**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+  - [-] **US-008**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
     - [ ] Story accepted
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated

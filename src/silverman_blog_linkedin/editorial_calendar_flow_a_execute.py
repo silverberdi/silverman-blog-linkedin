@@ -66,6 +66,7 @@ from silverman_blog_linkedin.editorial_calendar_plan import (
     EditorialCalendarItemPlan,
     calendar_fingerprint,
     complete_flow_a_calendar_item,
+    derive_flow_a_linkedin_completion_statuses,
     load_calendar,
     plan_editorial_calendar_due,
     save_calendar_atomic,
@@ -288,15 +289,8 @@ def _build_completion_facts_from_campaign(
     completed_at_utc: str | None = None,
 ) -> dict[str, Any]:
     blog_publish = campaign.get("blog_publish") if isinstance(campaign.get("blog_publish"), dict) else {}
-    linkedin_package = (
-        campaign.get("linkedin_package")
-        if isinstance(campaign.get("linkedin_package"), dict)
-        else {}
-    )
-    linkedin_distribution = (
-        campaign.get("linkedin_distribution")
-        if isinstance(campaign.get("linkedin_distribution"), dict)
-        else {}
+    linkedin_package_status, linkedin_distribution_status = (
+        derive_flow_a_linkedin_completion_statuses(campaign)
     )
     processed_path = _processed_source_relative_path_from_campaign(campaign)
     return {
@@ -309,8 +303,8 @@ def _build_completion_facts_from_campaign(
             "source_lifecycle_status": source_lifecycle_status,
             "blog_publish_status": blog_publish.get("status"),
             "public_url": campaign.get("source_public_url"),
-            "linkedin_package_status": linkedin_package.get("status"),
-            "linkedin_distribution_status": linkedin_distribution.get("status"),
+            "linkedin_package_status": linkedin_package_status,
+            "linkedin_distribution_status": linkedin_distribution_status,
         },
     }
 

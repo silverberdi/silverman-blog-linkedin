@@ -107,11 +107,13 @@ As a content operator, I want to show the actual package-generation status, so t
 
 **Acceptance criteria**
 
-- [ ] Show the actual package-generation status.
-- [ ] Show the actual distribution-scheduling status.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Show the actual package-generation status.
+- [x] Show the actual distribution-scheduling status.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
+
+**Validated:** 2026-07-11 — unit tests: `derive_flow_a_linkedin_completion_statuses`, reconcile-close persists non-null `linkedin_package_status` / `linkedin_distribution_status` from realistic campaign metadata (`package_status: generated`, `distribution_id`). Legacy `completed` rows with null summaries not auto-repaired via HTTP.
 
 ### US-007 — Correct LinkedIn Status Summary in the Editorial Calendar: Story 2
 
@@ -121,11 +123,13 @@ As a content operator, I want to keep completed campaign facts immutable, so tha
 
 **Acceptance criteria**
 
-- [ ] Keep completed campaign facts immutable.
-- [ ] Preserve reconciliation idempotency.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Keep completed campaign facts immutable.
+- [x] Preserve reconciliation idempotency.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
+
+**Validated:** 2026-07-11 — unit tests: conflicting non-null LinkedIn summaries return `calendar_completion_facts_conflict`; equivalent completed items skip calendar write; null-summary repair allowed only when other fields match.
 
 ### US-008 — Correct LinkedIn Status Summary in the Editorial Calendar: Story 3
 
@@ -135,10 +139,12 @@ As a content operator, I want to avoid changing unrelated campaign or calendar d
 
 **Acceptance criteria**
 
-- [ ] Avoid changing unrelated campaign or calendar data.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Avoid changing unrelated campaign or calendar data.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
+
+**Validated:** 2026-07-11 — unit tests: reconcile-close preserves `notes`; repair updates only null LinkedIn summary fields; no publish/package/schedule/lifecycle side effects on reconciliation.
 
 ## BL-004 — Activate Flow A Orchestration in n8n
 

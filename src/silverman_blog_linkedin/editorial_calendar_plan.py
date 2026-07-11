@@ -13,6 +13,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from silverman_blog_linkedin.campaign_lifecycle import (
+    STATE_DERIVATIVES_GENERATED,
+    STATE_DISTRIBUTION_COMPLETE,
+    STATE_DISTRIBUTION_SCHEDULED,
+    STATE_FLOW_A_COMPLETE,
+)
 from silverman_blog_linkedin.file_reader import normalize_relative_path
 from silverman_blog_linkedin.run_metadata import utc_now_iso
 
@@ -50,6 +56,30 @@ FLOW_A_COMPLETION_SUMMARY_KEYS: frozenset[str] = frozenset(
         "public_url",
         "linkedin_package_status",
         "linkedin_distribution_status",
+    }
+)
+
+FLOW_A_LINKEDIN_SUMMARY_KEYS: frozenset[str] = frozenset(
+    {
+        "linkedin_package_status",
+        "linkedin_distribution_status",
+    }
+)
+
+_PACKAGE_COMPLETED_STATES: frozenset[str] = frozenset(
+    {
+        STATE_DERIVATIVES_GENERATED,
+        STATE_DISTRIBUTION_SCHEDULED,
+        STATE_DISTRIBUTION_COMPLETE,
+        STATE_FLOW_A_COMPLETE,
+    }
+)
+
+_DISTRIBUTION_COMPLETED_STATES: frozenset[str] = frozenset(
+    {
+        STATE_DISTRIBUTION_SCHEDULED,
+        STATE_DISTRIBUTION_COMPLETE,
+        STATE_FLOW_A_COMPLETE,
     }
 )
 
@@ -400,6 +430,56 @@ def validate_calendar_document(calendar: dict[str, Any]) -> list[str]:
     return list(dict.fromkeys(errors))
 
 
+def derive_flow_a_linkedin_completion_statuses(
+    campaign: dict[str, Any],
+) -> tuple[str | None, str | None]:
+    """Derive calendar LinkedIn summary statuses from canonical campaign metadata."""
+    linkedin_package = (
+        campaign.get("linkedin_package")
+        if isinstance(campaign.get("linkedin_package"), dict)
+        else {}
+    )
+    linkedin_distribution = (
+        campaign.get("linkedin_distribution")
+        if isinstance(campaign.get("linkedin_distribution"), dict)
+        else {}
+    )
+    state = campaign.get("state")
+
+    package_status: str | None = None
+    package_meta_status = linkedin_package.get("package_status")
+    if package_meta_status == "generated":
+        package_status = "completed"
+    elif package_meta_status == "failed":
+        package_status = "failed"
+    elif state in _PACKAGE_COMPLETED_STATES and linkedin_package.get("package_id"):
+        package_status = "completed"
+
+    distribution_status: str | None = None
+    if state in _DISTRIBUTION_COMPLETED_STATES and linkedin_distribution.get(
+        "distribution_id"
+    ):
+        distribution_status = "completed"
+    elif _variants_show_scheduling_complete(campaign.get("variants")):
+        distribution_status = "completed"
+
+    return package_status, distribution_status
+
+
+def _variants_show_scheduling_complete(variants: Any) -> bool:
+    if not isinstance(variants, list) or not variants:
+        return False
+    for entry in variants:
+        if not isinstance(entry, dict):
+            return False
+        scheduled_at = entry.get("scheduled_at_utc")
+        if not isinstance(scheduled_at, str) or not scheduled_at.strip():
+            return False
+        if entry.get("publish_state") != "pending":
+            return False
+    return True
+
+
 def _flow_a_completion_equivalent(
     left: dict[str, Any] | None,
     right: dict[str, Any] | None,
@@ -407,6 +487,53 @@ def _flow_a_completion_equivalent(
     left_norm = {k: left.get(k) for k in sorted(FLOW_A_COMPLETION_SUMMARY_KEYS)} if isinstance(left, dict) else {}
     right_norm = {k: right.get(k) for k in sorted(FLOW_A_COMPLETION_SUMMARY_KEYS)} if isinstance(right, dict) else {}
     return left_norm == right_norm
+
+
+def _flow_a_completion_non_linkedin_equivalent(
+    left: dict[str, Any] | None,
+    right: dict[str, Any] | None,
+) -> bool:
+    other_keys = FLOW_A_COMPLETION_SUMMARY_KEYS - FLOW_A_LINKEDIN_SUMMARY_KEYS
+    left_norm = {k: left.get(k) for k in sorted(other_keys)} if isinstance(left, dict) else {}
+    right_norm = {k: right.get(k) for k in sorted(other_keys)} if isinstance(right, dict) else {}
+    return left_norm == right_norm
+
+
+def _flow_a_completion_linkedin_summary_repair_only(
+    left: dict[str, Any] | None,
+    right: dict[str, Any] | None,
+) -> bool:
+    if not _flow_a_completion_non_linkedin_equivalent(left, right):
+        return False
+    left_norm = left if isinstance(left, dict) else {}
+    right_norm = right if isinstance(right, dict) else {}
+    needs_repair = False
+    for key in FLOW_A_LINKEDIN_SUMMARY_KEYS:
+        stored = left_norm.get(key)
+        derived = right_norm.get(key)
+        if stored is not None and stored != derived:
+            return False
+        if stored is None and derived is not None:
+            needs_repair = True
+    return needs_repair
+
+
+def _canonical_completion_facts_linkedin_summary_repair(
+    item: dict[str, Any],
+    completion_facts: dict[str, Any],
+) -> bool:
+    if str(item.get("status", "")) != "completed":
+        return False
+    for key in ("campaign_id", "processed_source_relative_path"):
+        expected = completion_facts.get(key)
+        if expected is None:
+            continue
+        if str(item.get(key, "")) != str(expected):
+            return False
+    return _flow_a_completion_linkedin_summary_repair_only(
+        item.get("flow_a_completion"),
+        completion_facts.get("flow_a_completion"),
+    )
 
 
 def _canonical_completion_facts_equivalent(
@@ -436,6 +563,8 @@ def _canonical_completion_facts_conflict(
     if str(item.get("status", "")) != "completed":
         return False
     if _canonical_completion_facts_equivalent(item, completion_facts):
+        return False
+    if _canonical_completion_facts_linkedin_summary_repair(item, completion_facts):
         return False
     for key in ("campaign_id", "processed_source_relative_path"):
         expected = completion_facts.get(key)

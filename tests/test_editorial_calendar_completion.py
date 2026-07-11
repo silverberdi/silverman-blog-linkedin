@@ -8,6 +8,11 @@ from unittest.mock import patch
 
 import pytest
 
+from silverman_blog_linkedin.campaign_lifecycle import (
+    STATE_DISTRIBUTION_SCHEDULED,
+    STATE_DERIVATIVES_GENERATED,
+    STATE_FLOW_A_COMPLETE,
+)
 from silverman_blog_linkedin.editorial_calendar_plan import (
     CALENDAR_COMPLETION_CONCURRENT_UPDATE,
     CALENDAR_COMPLETION_FACTS_CONFLICT,
@@ -16,6 +21,7 @@ from silverman_blog_linkedin.editorial_calendar_plan import (
     CALENDAR_SCHEMA_INVALID,
     calendar_fingerprint,
     complete_flow_a_calendar_item,
+    derive_flow_a_linkedin_completion_statuses,
     load_calendar,
     save_calendar_atomic,
     validate_calendar_document,
@@ -259,6 +265,112 @@ def test_concurrent_update_detected_when_calendar_changed_before_replace(editori
     reloaded = json.loads(path.read_text(encoding="utf-8"))
     assert reloaded["items"][1]["title"] == "Externally modified title"
     assert reloaded["items"][0]["status"] == "scheduled"
+
+
+def test_derive_linkedin_statuses_from_generated_package(editorial_base: Path):
+    package_status, distribution_status = derive_flow_a_linkedin_completion_statuses(
+        {
+            "state": STATE_DERIVATIVES_GENERATED,
+            "linkedin_package": {
+                "package_id": "pkg-example",
+                "package_status": "generated",
+            },
+        }
+    )
+    assert package_status == "completed"
+    assert distribution_status is None
+
+
+def test_derive_linkedin_statuses_from_distribution_metadata(editorial_base: Path):
+    package_status, distribution_status = derive_flow_a_linkedin_completion_statuses(
+        {
+            "state": STATE_FLOW_A_COMPLETE,
+            "linkedin_package": {
+                "package_id": "pkg-example",
+                "package_status": "generated",
+            },
+            "linkedin_distribution": {
+                "distribution_id": "dist-example",
+                "strategy": "stagger_48h",
+            },
+        }
+    )
+    assert package_status == "completed"
+    assert distribution_status == "completed"
+
+
+def test_derive_linkedin_statuses_from_variant_schedule_evidence(editorial_base: Path):
+    package_status, distribution_status = derive_flow_a_linkedin_completion_statuses(
+        {
+            "state": STATE_DISTRIBUTION_SCHEDULED,
+            "variants": [
+                {
+                    "variant": "executive",
+                    "scheduled_at_utc": "2026-07-10T10:00:00Z",
+                    "publish_state": "pending",
+                }
+            ],
+        }
+    )
+    assert package_status is None
+    assert distribution_status == "completed"
+
+
+def test_derive_linkedin_statuses_before_package_and_schedule(editorial_base: Path):
+    package_status, distribution_status = derive_flow_a_linkedin_completion_statuses(
+        {"state": "blog_published"}
+    )
+    assert package_status is None
+    assert distribution_status is None
+
+
+def test_complete_flow_a_calendar_item_repairs_null_linkedin_summaries(editorial_base: Path):
+    flow_a_completion = _completion_facts()["flow_a_completion"]
+    flow_a_completion["linkedin_package_status"] = None
+    flow_a_completion["linkedin_distribution_status"] = None
+    item = _flow_a_item(status="completed")
+    item.update(
+        {
+            "campaign_id": CAMPAIGN_ID,
+            "completed_at_utc": "2026-07-10T12:00:00Z",
+            "processed_source_relative_path": "blog-posts/processed/post.md",
+            "flow_a_completion": flow_a_completion,
+        }
+    )
+    calendar = _base_calendar(items=[item])
+    result = complete_flow_a_calendar_item(
+        calendar,
+        item_id="due-flow-a",
+        completion_facts=_completion_facts(),
+    )
+    assert result.requires_persist is True
+    assert result.skipped_already_completed is False
+    assert result.error_code is None
+    repaired = result.calendar["items"][0]["flow_a_completion"]
+    assert repaired["linkedin_package_status"] == "completed"
+    assert repaired["linkedin_distribution_status"] == "completed"
+
+
+def test_conflicting_non_null_linkedin_summaries_return_conflict(editorial_base: Path):
+    flow_a_completion = _completion_facts()["flow_a_completion"]
+    flow_a_completion["linkedin_package_status"] = "failed"
+    item = _flow_a_item(status="completed")
+    item.update(
+        {
+            "campaign_id": CAMPAIGN_ID,
+            "completed_at_utc": "2026-07-10T12:00:00Z",
+            "processed_source_relative_path": "blog-posts/processed/post.md",
+            "flow_a_completion": flow_a_completion,
+        }
+    )
+    calendar = _base_calendar(items=[item])
+    result = complete_flow_a_calendar_item(
+        calendar,
+        item_id="due-flow-a",
+        completion_facts=_completion_facts(),
+    )
+    assert result.error_code == CALENDAR_COMPLETION_FACTS_CONFLICT
+    assert result.requires_persist is False
 
 
 def test_concurrent_update_does_not_leave_shared_temp_file(editorial_base: Path):
