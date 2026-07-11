@@ -193,7 +193,8 @@ When **both** `SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED=true` and request opt-in `
 - Environment enablement alone does **not** trigger Git publication.
 - Scoped staging: only `_posts/YYYY-MM-DD-<public-slug>.md` and `assets/images/<public-slug>.png`.
 - Handoff success with Git failure returns overall `status: partial` (not `failed`).
-- US-002 (remote reconciliation, live-site confirmation) remains deferred.
+- Git publication includes `git fetch` and fast-forward-only reconciliation before push; non-fast-forward divergence returns `blog_git_publication_remote_diverged`.
+- Optional live-site confirmation: when **both** `SILVERMAN_BLOG_LIVE_SITE_CONFIRMATION_ENABLED=true` and request opt-in `live_site_confirmation: true` are set after successful Git push, the worker HTTP-probes publish-confirmed `source_public_url` and records `blog_live_site_publication` metadata. Push success with probe failure returns overall `status: partial`.
 
 ### Deploy key prerequisite (operator)
 
@@ -212,6 +213,10 @@ Verify `git --version` succeeds inside the built worker container after deploy.
 | `SILVERMAN_BLOG_GIT_PUBLICATION_BRANCH` | No | `main` | Target branch |
 | `SILVERMAN_BLOG_GIT_PUBLICATION_REMOTE` | No | `origin` | Target remote |
 | `SILVERMAN_BLOG_GIT_COMMIT_MESSAGE_TEMPLATE` | No | `Add blog post: {public_slug} ({campaign_id})` | Commit message template |
+| `SILVERMAN_BLOG_LIVE_SITE_CONFIRMATION_ENABLED` | No | `false` | Master enablement for HTTP live-site probe after Git push |
+| `SILVERMAN_BLOG_LIVE_SITE_PROBE_TIMEOUT_SECONDS` | No | `10` | Per-attempt probe timeout |
+| `SILVERMAN_BLOG_LIVE_SITE_PROBE_MAX_ATTEMPTS` | No | `5` | Probe retry budget |
+| `SILVERMAN_BLOG_LIVE_SITE_PROBE_RETRY_DELAY_SECONDS` | No | `2` | Delay between probe attempts |
 
 ## JSON output
 

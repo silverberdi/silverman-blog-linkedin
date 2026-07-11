@@ -20,7 +20,7 @@
 | Remote `origin/main` advanced | **PASS** — `a227814` → `53d0a26` |
 | `commit_sha` in response/metadata | **PASS** — `53d0a26f872df8879686c6f78314e79d3d265202` |
 | Repeat request idempotency | **PASS** — `blog_git_publication.status: already_published`, remote unchanged |
-| Scoped artifacts only | **PASS** — `_posts/2026-07-11-us001-git-smoke-validation.md`, `assets/images/us001-git-smoke-validation.png` |
+| Scoped artifacts only | **PASS** — post + image paths only; no unrelated files staged |
 | Partial after handoff (pre-fix failures) | **Observed** — `status: partial` with `blog_git_publication_commit_failed` / `blog_git_publication_push_failed` while `blog_publish` preserved |
 
 ## Operational fixes discovered during validation
@@ -29,10 +29,16 @@
 2. `openssh-client` package required for `GIT_SSH_COMMAND`
 3. Push-only path records `commit_sha` for idempotent reruns
 
-## Cleanup note
+## Post-validation cleanup (completed)
 
-Validation used an isolated smoke post (`us001-git-smoke-validation`). Operator may revert commit `53d0a26` on `silverberdi.github.io` if the smoke post should not remain on the public site.
+Validation used an isolated smoke post (not editorial content). After evidence was recorded:
+
+- Public site: removal commit `b128c57` on `silverberdi.github.io` (2026-07-11)
+- Editorial mount: smoke ready sources removed
+- Campaign metadata: `flow-a-2026-07-11-us001-git-smoke-validation` removed
+
+Smoke validation posts MUST NOT remain on `silverman.pro`.
 
 ## US-002 / BL-001
 
-Not claimed. Live-site reachability and remote reconciliation remain deferred (US-002).
+US-001 acceptance criteria demonstrated with real remote push evidence. US-002 live-site confirmation validated separately; see [phase3-us002-live-site-confirmation-validation-2026-07-11.md](phase3-us002-live-site-confirmation-validation-2026-07-11.md). BL-001 closed when both are demonstrated.

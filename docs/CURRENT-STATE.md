@@ -2,8 +2,8 @@
 
 Canonical project status for `silverman-blog-linkedin`. Authority rules: [CONTEXT-AUTHORITY.md](CONTEXT-AUTHORITY.md). Terminology: [GLOSSARY.md](GLOSSARY.md). Live flags: [RUNTIME-STATE.md](RUNTIME-STATE.md).
 
-**`last_verified_at_utc`:** `2026-07-11T07:00:00Z`
-**Last verified baseline revision:** `88cd5bc` (verification timestamp above — **not** a permanent runtime requirement)
+**`last_verified_at_utc`:** `2026-07-11T07:45:00Z`
+**Last verified baseline revision:** `615091c` (verification timestamp above — **not** a permanent runtime requirement)
 
 ## Purpose
 
@@ -22,8 +22,8 @@ n8n (orchestrator, HTTP only) → Worker (FastAPI) → Editorial dirs + public b
                               ComfyUI (optional images), DeepSeek (LLM)
 ```
 
-- **27** canonical OpenSpec specs (strict validation passing at last baseline)
-- **850** automated tests at last baseline
+- **30** canonical OpenSpec specs (strict validation passing at last baseline)
+- **882** automated tests at last baseline
 - Worker deployed at `http://192.168.0.194:8010` (see [RUNTIME-STATE.md](RUNTIME-STATE.md))
 - Editorial base: `/data/silverman-blog-linkedin` (container); public GitHub Pages checkout: `/public-blog`
 
@@ -70,8 +70,8 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 - `POST /publish-blog-post` idempotency: `already_published` with no metadata side effects
 ## Operationally validated (recent)
 
-- Guarded Git commit/push after blog handoff with per-request `git_publication: true` (US-001) — controlled smoke on `192.168.0.194` with real remote push to `origin/main` (`commit_sha` `53d0a26…`); see [phase3-us001-git-publication-validation-2026-07-11.md](operations/phase3-us001-git-publication-validation-2026-07-11.md)
-- Live-site HTTP confirmation after Git push with per-request `live_site_confirmation: true` (US-002) — controlled smoke on `192.168.0.194`; `blog_live_site_publication.status: confirmed` at `https://silverman.pro/2026/07/11/us002-live-site-smoke-validation/`; see [phase3-us002-live-site-confirmation-validation-2026-07-11.md](operations/phase3-us002-live-site-confirmation-validation-2026-07-11.md)
+- Guarded Git commit/push after blog handoff with per-request `git_publication: true` (US-001) — operationally validated on `192.168.0.194` with real remote push to `origin/main`; smoke artifacts removed from public site and editorial mount; see [phase3-us001-git-publication-validation-2026-07-11.md](operations/phase3-us001-git-publication-validation-2026-07-11.md)
+- Live-site HTTP confirmation after Git push with per-request `live_site_confirmation: true` (US-002) — operationally validated on `192.168.0.194` (`blog_live_site_publication.status: confirmed`, HTTP 200 + slug marker during validation window); smoke artifacts removed; see [phase3-us002-live-site-confirmation-validation-2026-07-11.md](operations/phase3-us002-live-site-confirmation-validation-2026-07-11.md)
 - Calendar reconciliation: stale item `scheduled` → `completed` via authoritative `campaign_id` without repeating pipeline
 - Worker smoke and n8n import confirmed; n8n workflow remains **inactive** (import ≠ unattended automation)
 

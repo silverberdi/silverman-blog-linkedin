@@ -22,20 +22,18 @@
 
 | Check | Result |
 |-------|--------|
-| First publish (`git_publication: true`, `live_site_confirmation: true`) | **Partial** — `blog_git_publication.status: pushed`, `blog_live_site_publication.status: failed` (`blog_live_site_confirmation_unreachable`, HTTP `404`, 5 attempts) — GitHub Pages propagation lag |
+| First publish (`git_publication: true`, `live_site_confirmation: true`) | **Partial** — push succeeded; probe failed (`blog_live_site_confirmation_unreachable`, HTTP `404`, 5 attempts) — GitHub Pages propagation lag |
 | Remote `origin/main` advanced | **PASS** — commit `5908147893fca76a6af798b36d84440ee2edab98` |
 | Second publish after propagation | **PASS** — `status: completed`, `blog_live_site_publication.status: confirmed`, HTTP `200`, `attempts: 1` |
 | Idempotent rerun | **PASS** — `blog_git_publication.status: already_published`, `blog_live_site_publication.status: already_confirmed` |
-| `public_slug` in probed page body | **PASS** — `us002-live-site-smoke-validation` present at `https://silverman.pro/2026/07/11/us002-live-site-smoke-validation/` |
-| Campaign metadata evidence | **PASS** — `blog_git_publication` + `blog_live_site_publication` on `flow-a-2026-07-11-us002-live-site-smoke-validation` |
+| `public_slug` in probed page body | **PASS** — slug marker present at probed canonical URL during validation window |
+| Campaign metadata evidence | **PASS** — `blog_git_publication` + `blog_live_site_publication` recorded during smoke |
 
 ## Probe evidence (confirmed run)
 
 | Field | Value |
 |-------|--------|
-| `source_public_url` | `https://silverman.pro/2026/07/11/us002-live-site-smoke-validation/` |
 | `http_status` | `200` |
-| `final_url` | `https://silverman.pro/2026/07/11/us002-live-site-smoke-validation/` |
 | `attempts` | `1` |
 | `commit_sha` | `5908147893fca76a6af798b36d84440ee2edab98` |
 | `confirmed_at` | `2026-07-11T06:56:35Z` |
@@ -47,10 +45,16 @@
 3. **User-Agent:** Live probe uses `User-Agent: silverman-blog-linkedin-live-site-probe/1.0`; some CDN paths return `403` without it.
 4. **Remote reconciliation / duplicate-artifact guards:** Implemented and covered by unit tests; not exercised in this smoke (no divergent remote or cross-campaign collision scenario).
 
-## Cleanup note
+## Post-validation cleanup (completed)
 
-Validation used an isolated smoke post (`us002-live-site-smoke-validation`). Operator may revert commit `5908147` on `silverberdi.github.io` if the smoke post should not remain on the public site.
+Validation used an isolated smoke post (not editorial content). After evidence was recorded:
+
+- Public site: removal commit `558c1c3` on `silverberdi.github.io` (2026-07-11); US-001 smoke removed in `b128c57` the same day
+- Editorial mount: smoke ready sources removed
+- Campaign metadata: `flow-a-2026-07-11-us002-live-site-smoke-validation` removed
+
+Smoke validation posts MUST NOT remain on `silverman.pro`.
 
 ## BL-001 / US-002
 
-US-002 acceptance criteria demonstrated with real HTTP evidence on `silverman.pro`. BL-001 business outcome (automated path from checkout to confirmed live site) is satisfied when combined with US-001.
+US-002 acceptance criteria demonstrated with real HTTP evidence on `silverman.pro` during the validation window. BL-001 business outcome (automated path from checkout to confirmed live site) is satisfied when combined with US-001.
