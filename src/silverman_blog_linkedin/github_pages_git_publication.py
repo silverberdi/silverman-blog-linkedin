@@ -274,6 +274,20 @@ def _failed_git_result(
     )
 
 
+def _ensure_safe_git_repository(
+    runner: GitRunner,
+    repo_path: Path,
+    *,
+    timeout: float,
+) -> None:
+    """Trust mounted public checkout ownership when worker user differs from host."""
+    runner.run(
+        repo_path,
+        ["config", "--global", "--add", "safe.directory", str(repo_path)],
+        timeout=timeout,
+    )
+
+
 def publish_blog_git_publication(
     base_path: Path,
     repo_path: Path,
@@ -336,6 +350,9 @@ def publish_blog_git_publication(
 
     timeout = float(config.timeout_seconds)
 
+    if not isinstance(git_runner, FakeGitRunner):
+        _ensure_safe_git_repository(git_runner, repo_path, timeout=timeout)
+
     add_result = git_runner.run(
         repo_path,
         ["add", "--", post_relative, image_relative],
@@ -366,6 +383,12 @@ def publish_blog_git_publication(
     if not _paths_have_changes(git_runner, repo_path, staged_paths, timeout=timeout):
         if prior is not None:
             return _already_published_result(prior, staged_paths=staged_paths)
+        rev_parse = git_runner.run(
+            repo_path,
+            ["rev-parse", "HEAD"],
+            timeout=timeout,
+        )
+        commit_sha = rev_parse.stdout.strip() if rev_parse.returncode == 0 else None
         push_only = git_runner.run(
             repo_path,
             ["push", config.remote, config.branch],
@@ -382,7 +405,7 @@ def publish_blog_git_publication(
                 staged_paths=staged_paths,
                 remote=config.remote,
                 branch=config.branch,
-                commit_sha=prior.get("commit_sha") if prior else None,
+                commit_sha=commit_sha,
                 include_recovery=True,
             )
         pushed_at = utc_now_iso()
@@ -390,6 +413,7 @@ def publish_blog_git_publication(
         blog_git_publication.update(
             {
                 "status": "pushed",
+                "commit_sha": commit_sha,
                 "remote": config.remote,
                 "branch": config.branch,
                 "staged_paths": staged_paths,

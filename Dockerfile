@@ -10,9 +10,12 @@ COPY src ./src
 COPY prompts ./prompts
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git \
+    && apt-get install -y --no-install-recommends git openssh-client \
     && rm -rf /var/lib/apt/lists/* \
-    && git --version
+    && git --version \
+    && git config --system safe.directory '*' \
+    && git config --system user.email 'silverman-blog-linkedin-worker@users.noreply.local' \
+    && git config --system user.name 'silverman-blog-linkedin-worker'
 
 RUN pip install --no-cache-dir .
 
