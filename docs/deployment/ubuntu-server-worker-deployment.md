@@ -48,6 +48,7 @@ Edit `.env` on the server and set:
 - Optional: `DEEPSEEK_MODEL`, `DEEPSEEK_TIMEOUT_SECONDS`, `DEEPSEEK_MAX_OUTPUT_TOKENS`
 - Optional (ComfyUI blog images): `SILVERMAN_COMFYUI_IMAGE_ENABLED` (default `false`), `SILVERMAN_COMFYUI_BASE_URL`, `SILVERMAN_COMFYUI_API_PREFIX`, `SILVERMAN_COMFYUI_API_KEY`, `SILVERMAN_COMFYUI_AUTH_HEADER_NAME`, `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD`, `SILVERMAN_COMFYUI_WORKFLOW_PATH`, `SILVERMAN_COMFYUI_TIMEOUT_SECONDS`, `SILVERMAN_COMFYUI_IMAGE_WIDTH`, `SILVERMAN_COMFYUI_IMAGE_HEIGHT`, `SILVERMAN_COMFYUI_DRY_RUN` — see README ComfyUI section. **Comfy Cloud:** `SILVERMAN_COMFYUI_AUTH_HEADER_NAME=X-API-Key` (raw key, not Bearer), optional `SILVERMAN_COMFYUI_EXTRA_DATA_API_KEY_FIELD=api_key_comfy_org` for Partner Nodes; `Authorization: Bearer` only for hosted APIs that document Bearer auth
 - Optional (Flow A publish): `SILVERMAN_PUBLIC_BLOG_REPO_PATH` — host path to the `silverberdi.github.io` checkout (default `/home/silverman/silverberdi.github.io`); used by compose to mount `/public-blog`
+- Optional (Git publication): `SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED` (default `false`), `SILVERMAN_BLOG_GIT_PUBLICATION_BRANCH` (default `main`), `SILVERMAN_BLOG_GIT_PUBLICATION_REMOTE` (default `origin`), `SILVERMAN_BLOG_GIT_COMMIT_MESSAGE_TEMPLATE` — guarded commit/push after blog handoff when the request includes `git_publication: true`; see [blog-publishing-bridge.md](../workflows/blog-publishing-bridge.md)
 - Optional: `SILVERMAN_SITE_URL` — canonical public site URL (default `https://silverman.pro`)
 
 ### 1a. Prepare public GitHub Pages repo checkout (Flow A publish)
@@ -62,6 +63,18 @@ git clone git@github.com:silverberdi/silverberdi.github.io.git /home/silverman/s
 The checkout must contain `_posts/` and `assets/images/`. `deploy-worker.sh` verifies this before `docker compose up` and fails with remediation if missing. Set `SKIP_PUBLIC_BLOG_REPO_CHECK=1` only when deploying without Flow A publishing.
 
 The worker container receives `SILVERMAN_GITHUB_PAGES_REPO_PATH=/public-blog` from compose. Without this mount, `POST /publish-blog-post` fails with `blog_publish_public_repo_not_configured` even when n8n validation passes — that error indicates a worker deployment/configuration issue, not an n8n failure.
+
+### Git publication prerequisites (optional)
+
+Automatic Git publication is **disabled by default**. When enabling `SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED=true`:
+
+1. The worker Docker image includes the `git` binary (`git --version` must succeed in the built container).
+2. Configure a repository-scoped GitHub deploy key for `silverberdi.github.io` with push access to the target branch.
+3. Mount the private key read-only from the worker secrets directory into the container (never commit key material to git).
+4. Configure Git/SSH in the container to use the mounted key (for example via `GIT_SSH_COMMAND`).
+5. Run controlled validation with `git_publication: true` on `POST /publish-blog-post` or calendar execution before relying on automation.
+
+Do not store keys, tokens, or credential file contents in HTTP responses, campaign metadata, logs, or versioned documentation examples.
 
 ### 2. Deploy
 

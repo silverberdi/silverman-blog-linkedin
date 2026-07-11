@@ -1648,3 +1648,152 @@ def test_published_post_supports_available_article_preview_metadata(
     assert preview.public_image_url == f"{SITE_URL}/assets/images/{PUBLIC_SLUG}.png"
     assert preview.article_title == TITLE
     assert preview.public_url == result.source_public_url
+
+
+def _git_enabled_env(editorial_base: Path, repo_path: Path) -> dict[str, str]:
+    env = _publish_env(editorial_base, repo_path)
+    env["SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED"] = "true"
+    return env
+
+
+def _git_success_runner():
+    from silverman_blog_linkedin.github_pages_git_publication import (
+        FakeGitRunner,
+        GitCommandResult,
+    )
+
+    post_relative = f"_posts/{PUBLICATION_DATE}-{PUBLIC_SLUG}.md"
+    image_relative = f"assets/images/{PUBLIC_SLUG}.png"
+    runner = FakeGitRunner()
+    for relative in (post_relative, image_relative):
+        runner.results[("diff", "--quiet", "--", relative)] = GitCommandResult(
+            returncode=1, stdout="", stderr=""
+        )
+        runner.results[("diff", "--cached", "--quiet", "--", relative)] = GitCommandResult(
+            returncode=1, stdout="", stderr=""
+        )
+    return runner
+
+
+def test_publish_with_git_publication_success(
+    editorial_base: Path, public_repo: Path
+) -> None:
+    _validated_campaign(editorial_base)
+    result = publish_blog_post(
+        editorial_base,
+        SOURCE_RELATIVE,
+        site_url=SITE_URL,
+        github_pages_repo_path=str(public_repo),
+        environ=_git_enabled_env(editorial_base, public_repo),
+        git_publication=True,
+        git_runner=_git_success_runner(),
+    )
+    assert result.status == "completed"
+    assert result.blog_git_publication["status"] == "pushed"
+    assert result.blog_publish["status"] == "published"
+
+
+def test_publish_git_push_failure_returns_partial(
+    editorial_base: Path, public_repo: Path
+) -> None:
+    from silverman_blog_linkedin.github_pages_git_publication import (
+        BLOG_GIT_PUBLICATION_PUSH_FAILED,
+        GitCommandResult,
+    )
+
+    _validated_campaign(editorial_base)
+    runner = _git_success_runner()
+    runner.results[("push", "origin", "main")] = GitCommandResult(
+        returncode=1, stdout="", stderr="rejected"
+    )
+    result = publish_blog_post(
+        editorial_base,
+        SOURCE_RELATIVE,
+        site_url=SITE_URL,
+        github_pages_repo_path=str(public_repo),
+        environ=_git_enabled_env(editorial_base, public_repo),
+        git_publication=True,
+        git_runner=runner,
+    )
+    assert result.status == "partial"
+    assert result.blog_publish["status"] == "published"
+    assert BLOG_GIT_PUBLICATION_PUSH_FAILED in result.errors
+    assert result.blog_git_publication["status"] == "failed"
+
+
+def test_publish_git_disabled_with_opt_in_fails_before_handoff(
+    editorial_base: Path, public_repo: Path
+) -> None:
+    from silverman_blog_linkedin.github_pages_git_publication import (
+        BLOG_GIT_PUBLICATION_DISABLED,
+    )
+
+    _validated_campaign(editorial_base)
+    result = publish_blog_post(
+        editorial_base,
+        SOURCE_RELATIVE,
+        site_url=SITE_URL,
+        github_pages_repo_path=str(public_repo),
+        environ=_publish_env(editorial_base, public_repo),
+        git_publication=True,
+    )
+    assert result.status == "failed"
+    assert BLOG_GIT_PUBLICATION_DISABLED in result.errors
+    assert not list((public_repo / "_posts").glob("*.md"))
+
+
+def test_http_git_publication_opt_in(
+    editorial_base: Path, public_repo: Path, monkeypatch
+) -> None:
+    from unittest.mock import patch
+
+    create_full_layout(editorial_base)
+    _validated_campaign(editorial_base)
+    _write_post(editorial_base)
+    monkeypatch.setenv("SILVERMAN_GITHUB_PAGES_REPO_PATH", str(public_repo))
+    monkeypatch.setenv("SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED", "true")
+
+    client = TestClient(create_app(make_settings(editorial_base)))
+    with patch(
+        "silverman_blog_linkedin.blog_publish_flow.publish_blog_git_publication"
+    ) as git_publish:
+        from silverman_blog_linkedin.github_pages_git_publication import GitPublicationResult
+
+        git_publish.return_value = GitPublicationResult(
+            status="completed",
+            blog_git_publication={"status": "pushed", "commit_sha": "abc123"},
+        )
+        response = client.post(
+            "/publish-blog-post",
+            headers=auth_header(),
+            json={
+                "source_relative_path": SOURCE_RELATIVE,
+                "git_publication": True,
+            },
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["blog_git_publication"]["status"] == "pushed"
+
+
+def test_http_environment_only_enablement_without_opt_in(
+    editorial_base: Path, public_repo: Path, monkeypatch
+) -> None:
+    create_full_layout(editorial_base)
+    _validated_campaign(editorial_base)
+    _write_post(editorial_base)
+    monkeypatch.setenv("SILVERMAN_GITHUB_PAGES_REPO_PATH", str(public_repo))
+    monkeypatch.setenv("SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED", "true")
+
+    client = TestClient(create_app(make_settings(editorial_base)))
+    response = client.post(
+        "/publish-blog-post",
+        headers=auth_header(),
+        json={"source_relative_path": SOURCE_RELATIVE},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "completed"
+    assert body.get("blog_git_publication") in ({}, None) or not body.get(
+        "blog_git_publication", {}
+    ).get("status") == "pushed"

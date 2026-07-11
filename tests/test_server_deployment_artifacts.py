@@ -53,6 +53,14 @@ def test_compose_file_exists() -> None:
     assert COMPOSE_PATH.is_file()
 
 
+def test_dockerfile_installs_git_binary() -> None:
+    dockerfile = REPO_ROOT / "Dockerfile"
+    content = dockerfile.read_text(encoding="utf-8")
+    assert "apt-get install" in content
+    assert "git" in content
+    assert "git --version" in content
+
+
 def test_compose_port_mapping(compose_text: str) -> None:
     assert '"8010:8000"' in compose_text or "8010:8000" in compose_text
 

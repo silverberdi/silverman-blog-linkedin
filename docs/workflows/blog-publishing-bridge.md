@@ -171,9 +171,9 @@ Checklist:
 - Ensure the worker process user can write to `assets/images/` (readable copied files use mode `0644`).
 - Retry after fixing permissions; existing valid PNGs are reused without duplicate ComfyUI generation.
 
-## Manual git commit and push
+## Manual git commit and push (fallback)
 
-After a successful `--apply`:
+When automatic Git publication is disabled or not opted in, commit and push manually after a successful handoff:
 
 ```bash
 cd "$SILVERMAN_GITHUB_PAGES_REPO_PATH"
@@ -184,7 +184,34 @@ git commit -m "Add blog post: why-i-did-not-start-with-the-database"
 git push origin main
 ```
 
-GitHub Pages rebuilds from the pushed commit. The helper does not automate any git operations.
+GitHub Pages rebuilds from the pushed commit. The CLI helper does not automate git operations.
+
+## Automatic Git publication (worker)
+
+When **both** `SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED=true` and request opt-in `git_publication: true` are set, the worker may commit and push only the two publication artifact paths after successful blog handoff (`POST /publish-blog-post` or calendar `POST /editorial-calendar/execute-flow-a-due`).
+
+- Environment enablement alone does **not** trigger Git publication.
+- Scoped staging: only `_posts/YYYY-MM-DD-<public-slug>.md` and `assets/images/<public-slug>.png`.
+- Handoff success with Git failure returns overall `status: partial` (not `failed`).
+- US-002 (remote reconciliation, live-site confirmation) remains deferred.
+
+### Deploy key prerequisite (operator)
+
+1. Create a repository-scoped GitHub deploy key for `silverberdi.github.io` with write access for push.
+2. Store the private key only on the server (for example under the worker secrets directory).
+3. Mount the key read-only into the worker container and configure SSH for Git (for example `GIT_SSH_COMMAND` with the mounted key path).
+4. Do not commit keys, tokens, or credential contents to git, docs, HTTP responses, or campaign metadata.
+
+Verify `git --version` succeeds inside the built worker container after deploy.
+
+### Git publication environment variables
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED` | No | `false` | Master enablement (fail closed) |
+| `SILVERMAN_BLOG_GIT_PUBLICATION_BRANCH` | No | `main` | Target branch |
+| `SILVERMAN_BLOG_GIT_PUBLICATION_REMOTE` | No | `origin` | Target remote |
+| `SILVERMAN_BLOG_GIT_COMMIT_MESSAGE_TEMPLATE` | No | `Add blog post: {public_slug} ({campaign_id})` | Commit message template |
 
 ## JSON output
 

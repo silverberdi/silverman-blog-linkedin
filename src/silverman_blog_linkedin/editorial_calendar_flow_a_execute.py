@@ -138,6 +138,8 @@ class EditorialCalendarFlowAItemResult:
     would_queue_accept: bool = False
     source_lifecycle_status: str | None = None
     calendar_update_status: str | None = None
+    publish_status: str | None = None
+    blog_git_publication: dict[str, Any] | None = None
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -575,6 +577,8 @@ def _apply_post_execution_calendar_completion(
                 would_queue_accept=item_result.would_queue_accept,
                 source_lifecycle_status=item_result.source_lifecycle_status,
                 calendar_update_status=CALENDAR_UPDATE_FAILED,
+                publish_status=item_result.publish_status,
+                blog_git_publication=item_result.blog_git_publication,
                 errors=list(dict.fromkeys([*item_result.errors, *calendar_errors])),
                 warnings=item_result.warnings,
             ),
@@ -595,6 +599,8 @@ def _apply_post_execution_calendar_completion(
             would_queue_accept=item_result.would_queue_accept,
             source_lifecycle_status=item_result.source_lifecycle_status,
             calendar_update_status=calendar_update_status,
+            publish_status=item_result.publish_status,
+            blog_git_publication=item_result.blog_git_publication,
             errors=item_result.errors,
             warnings=item_result.warnings,
         ),
@@ -618,6 +624,8 @@ def _with_calendar_not_applicable(
         would_queue_accept=item_result.would_queue_accept,
         source_lifecycle_status=item_result.source_lifecycle_status,
         calendar_update_status=CALENDAR_UPDATE_NOT_APPLICABLE,
+        publish_status=item_result.publish_status,
+        blog_git_publication=item_result.blog_git_publication,
         errors=item_result.errors,
         warnings=item_result.warnings,
     )
@@ -659,6 +667,8 @@ def _item_result_from_plan(
     source_lifecycle_status: str | None = None,
     calendar_update_status: str | None = None,
     source_relative_path: str | None = None,
+    publish_status: str | None = None,
+    blog_git_publication: dict[str, Any] | None = None,
     errors: list[str] | None = None,
     warnings: list[str] | None = None,
 ) -> EditorialCalendarFlowAItemResult:
@@ -675,13 +685,15 @@ def _item_result_from_plan(
         would_queue_accept=would_queue_accept,
         source_lifecycle_status=source_lifecycle_status,
         calendar_update_status=calendar_update_status,
+        publish_status=publish_status,
+        blog_git_publication=blog_git_publication,
         errors=list(errors if errors is not None else plan_item.errors),
         warnings=list(warnings or plan_item.warnings),
     )
 
 
 def _step_succeeded(status: str) -> bool:
-    return status == "completed"
+    return status in {"completed", "partial"}
 
 
 def _campaign_id_conflict(
@@ -929,6 +941,8 @@ def _execute_flow_a_item(
     base_path: Path,
     plan_item: EditorialCalendarItemPlan,
     calendar_item: dict[str, Any] | None,
+    *,
+    git_publication: bool = False,
 ) -> tuple[EditorialCalendarFlowAItemResult, str | None]:
     assert plan_item.source_relative_path is not None
 
@@ -1016,6 +1030,16 @@ def _execute_flow_a_item(
         active_source,
         site_url=site_url,
         public_slug_override=public_slug,
+        git_publication=git_publication,
+    )
+    publish_status = publish_result.status
+    publish_git_meta = (
+        dict(publish_result.blog_git_publication)
+        if publish_result.blog_git_publication
+        else None
+    )
+    publish_partial_errors = (
+        list(publish_result.errors) if publish_result.status == "partial" else []
     )
     if not _step_succeeded(publish_result.status):
         item_errors, item_warnings, _released = _handle_publish_blog_post_failure(
@@ -1248,7 +1272,9 @@ def _execute_flow_a_item(
             EXECUTION_STATUS_EXECUTED,
             queue_acceptance_status=queue_status,
             source_lifecycle_status=source_lifecycle_status,
-            errors=[],
+            publish_status=publish_status,
+            blog_git_publication=publish_git_meta,
+            errors=publish_partial_errors,
             warnings=lifecycle_warnings,
         ),
         lifecycle_campaign_id,
@@ -1303,6 +1329,7 @@ def execute_due_editorial_calendar_flow_a(
     now_utc: str | None = None,
     dry_run: bool = True,
     limit: int | None = None,
+    git_publication: bool = False,
 ) -> EditorialCalendarFlowAExecutionResult:
     """Plan due calendar items and simulate or execute Flow A for eligible entries."""
     plan = plan_editorial_calendar_due(base_path, now_utc=now_utc)
@@ -1391,7 +1418,10 @@ def execute_due_editorial_calendar_flow_a(
             continue
 
         item_result, resolved_campaign_id = _execute_flow_a_item(
-            base_path, plan_item, calendar_item
+            base_path,
+            plan_item,
+            calendar_item,
+            git_publication=git_publication,
         )
         item_result, calendar_persisted = _apply_post_execution_calendar_completion(
             base_path,

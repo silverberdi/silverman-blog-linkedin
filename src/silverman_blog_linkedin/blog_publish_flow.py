@@ -42,6 +42,14 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     transition_state,
     write_campaign_metadata,
 )
+from silverman_blog_linkedin.github_pages_git_publication import (
+    BLOG_GIT_PUBLICATION_ARTIFACTS_MISSING,
+    BLOG_GIT_PUBLICATION_DISABLED,
+    GitRunner,
+    merge_git_publication_into_publish_result,
+    publish_blog_git_publication,
+)
+from silverman_blog_linkedin.github_pages_git_config import load_git_publication_settings
 from silverman_blog_linkedin.github_pages_publish import (
     BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED,
     DEFAULT_SITE_URL,
@@ -197,6 +205,7 @@ class BlogPublishResult:
     warnings: list[str] = field(default_factory=list)
     validation: dict[str, Any] = field(default_factory=dict)
     blog_publish: dict[str, Any] = field(default_factory=dict)
+    blog_git_publication: dict[str, Any] = field(default_factory=dict)
     blog_image_generation: dict[str, Any] = field(default_factory=dict)
     metadata_written: bool = False
     metadata_error_code: str | None = None
@@ -1069,6 +1078,71 @@ def _reconcile_existing_publication(
     return result
 
 
+def _handoff_succeeded_for_git(blog_publish: dict[str, Any]) -> bool:
+    return blog_publish.get("status") in {"published", "already_published", "reconciled"}
+
+
+def _apply_git_publication_if_requested(
+    base_path: Path,
+    result: BlogPublishResult,
+    *,
+    git_publication: bool,
+    github_pages_repo_path: str | None,
+    environ: dict[str, str] | None,
+    git_runner: GitRunner | None = None,
+) -> BlogPublishResult:
+    if not git_publication:
+        return result
+
+    handoff_succeeded = (
+        result.status == "completed" and _handoff_succeeded_for_git(result.blog_publish)
+    )
+    if not handoff_succeeded:
+        return result
+
+    if not result.campaign_id or not result.public_slug or not result.publication_date:
+        return result
+
+    env = _build_environ(base_path, DEFAULT_SITE_URL, github_pages_repo_path, environ)
+    try:
+        config = load_config(env)
+        validate_repo_layout(config.repo_path)
+    except PublishError:
+        result.errors = list(
+            dict.fromkeys([*result.errors, BLOG_GIT_PUBLICATION_ARTIFACTS_MISSING])
+        )
+        result.status = "partial"
+        result.blog_git_publication = {
+            "status": "failed",
+            "error_code": BLOG_GIT_PUBLICATION_ARTIFACTS_MISSING,
+        }
+        return result
+
+    campaign = read_campaign_metadata(base_path, result.campaign_id)
+    if campaign is None:
+        return result
+
+    git_result = publish_blog_git_publication(
+        base_path,
+        config.repo_path,
+        campaign_id=result.campaign_id,
+        campaign=campaign,
+        public_slug=result.public_slug,
+        publication_date=result.publication_date,
+        blog_publish=dict(result.blog_publish),
+        runner=git_runner,
+        environ=environ,
+    )
+    merge_git_publication_into_publish_result(
+        result,
+        git_result,
+        handoff_succeeded=True,
+    )
+    if git_result.blog_git_publication:
+        result.blog_git_publication = dict(git_result.blog_git_publication)
+    return result
+
+
 def _build_environ(
     base_path: Path,
     site_url: str,
@@ -1158,6 +1232,8 @@ def publish_blog_post(
     environ: dict[str, str] | None = None,
     comfyui_client: ComfyUIClientProtocol | None = None,
     execution_time: datetime | None = None,
+    git_publication: bool = False,
+    git_runner: GitRunner | None = None,
 ) -> BlogPublishResult:
     """Orchestrate Flow A blog publishing for one ready post."""
     publish_execution_time = (
@@ -1169,7 +1245,14 @@ def publish_blog_post(
         base_path, source_relative_path
     )
     if post_schedule_result is not None:
-        return post_schedule_result
+        return _apply_git_publication_if_requested(
+            base_path,
+            post_schedule_result,
+            git_publication=git_publication,
+            github_pages_repo_path=github_pages_repo_path,
+            environ=environ,
+            git_runner=git_runner,
+        )
 
     preflight = _preflight_inspect(
         base_path,
@@ -1179,6 +1262,9 @@ def publish_blog_post(
 
     if preflight.errors:
         return _failed_result(preflight, errors=list(preflight.errors))
+
+    if git_publication and not load_git_publication_settings(environ).publication_enabled:
+        return _failed_result(preflight, errors=[BLOG_GIT_PUBLICATION_DISABLED])
 
     assert preflight.source_slug is not None
     assert preflight.public_slug is not None
@@ -1192,7 +1278,14 @@ def publish_blog_post(
             expected_idempotency_key=preflight.expected_idempotency_key,
             source_content_sha256=preflight.source_content_sha256,
         ):
-            return _already_published_result(preflight, campaign)
+            return _apply_git_publication_if_requested(
+                base_path,
+                _already_published_result(preflight, campaign),
+                git_publication=git_publication,
+                github_pages_repo_path=github_pages_repo_path,
+                environ=environ,
+                git_runner=git_runner,
+            )
 
         pre_validation_error = _check_campaign_eligible_for_publish(
             campaign,
@@ -1550,7 +1643,14 @@ def publish_blog_post(
         execution_time=publish_execution_time,
     )
     if reconciliation_result is not None:
-        return reconciliation_result
+        return _apply_git_publication_if_requested(
+            base_path,
+            reconciliation_result,
+            git_publication=git_publication,
+            github_pages_repo_path=github_pages_repo_path,
+            environ=environ,
+            git_runner=git_runner,
+        )
 
     if campaign.get("state") == STATE_ERROR:
         return _failed_result(
@@ -1638,7 +1738,14 @@ def publish_blog_post(
                 execution_time=publish_execution_time,
             )
             if overwrite_reconciliation is not None:
-                return overwrite_reconciliation
+                return _apply_git_publication_if_requested(
+                    base_path,
+                    overwrite_reconciliation,
+                    git_publication=git_publication,
+                    github_pages_repo_path=github_pages_repo_path,
+                    environ=environ,
+                    git_runner=git_runner,
+                )
 
         blog_publish = dict(campaign.get("blog_publish") or {})
         blog_publish.update({"status": "failed", "error_code": error_code})
@@ -1734,4 +1841,11 @@ def publish_blog_post(
     )
     if not metadata_written:
         result.status = "failed"
-    return result
+    return _apply_git_publication_if_requested(
+        base_path,
+        result,
+        git_publication=git_publication,
+        github_pages_repo_path=github_pages_repo_path,
+        environ=environ,
+        git_runner=git_runner,
+    )

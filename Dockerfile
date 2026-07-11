@@ -9,6 +9,11 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 COPY prompts ./prompts
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/* \
+    && git --version
+
 RUN pip install --no-cache-dir .
 
 ENV PORT=8000

@@ -37,7 +37,7 @@ Key endpoints include `GET /health`, Flow A (`POST /publish-blog-post`, `/genera
 | Flow A validation and lifecycle | Worker |
 | Image generation | Worker → ComfyUI |
 | Public checkout file writes | Worker (handoff only) |
-| Git review / commit / push | Human operator (site published/live) |
+| Git commit / push (guarded) | Worker when enabled **and** request opts in (`git_publication: true`); manual fallback documented |
 | LinkedIn package generation | Worker |
 | LinkedIn schedule metadata | Worker |
 | LinkedIn real API publish | Worker when explicitly enabled (not operationally validated) |
@@ -72,13 +72,14 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 
 ## Implemented but not operationally validated
 
+- Guarded Git commit/push after blog handoff (`SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED=false` at last baseline; requires deploy key and controlled validation for US-001)
 - LinkedIn real API publication (`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=false` at last baseline)
-- Fully unattended Flow A (n8n scheduling inactive; manual Git push required for site live)
+- Fully unattended Flow A (n8n scheduling inactive; Git publication not yet validated on server)
 - OAuth LinkedIn token refresh in production
 
 ## Manual steps (by design)
 
-- Git commit and push to GitHub Pages after worker blog handoff
+- Git commit and push to GitHub Pages when automatic Git publication is disabled or not opted in (manual fallback after worker handoff)
 - LinkedIn draft review and manual publish (Flow B path) or guarded API publish when enabled
 - n8n workflow activation when operator chooses unattended orchestration
 - Editorial source placement in `blog-posts/ready/`
@@ -88,7 +89,7 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 - Flow B automation beyond draft generation orchestration
 - Dairector content paths
 - Operator review UI for LinkedIn publication
-- Automatic Git commit/push from worker
+- US-002 remote Git reconciliation and live-site confirmation
 
 ## Completion layers (qualified)
 
@@ -97,10 +98,11 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 | Flow A core worker pipeline | Operationally validated |
 | Campaign `flow_a_complete` | Validated for test post |
 | Blog handoff to public checkout | Validated |
-| Site published/live | Manual step validated separately |
+| Git commit/push to remote (US-001) | Implemented; not operationally validated |
+| Site published/live | Manual step validated separately; automatic path pending US-001 validation |
 | LinkedIn package/scheduling | Validated |
 | LinkedIn API publication | Implemented; not operationally validated |
-| Fully unattended Flow A | Not achieved (n8n inactive, manual Git) |
+| Fully unattended Flow A | Not achieved (n8n inactive; Git publication not validated) |
 
 Do not describe any single layer as "Flow A complete" without qualification. See [GLOSSARY.md](GLOSSARY.md).
 

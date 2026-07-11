@@ -436,6 +436,7 @@ def test_real_execution_sequence_with_chained_inputs(editorial_base: Path):
         QUEUED_POST_RELATIVE,
         site_url="https://silverman.pro",
         public_slug_override="sample-post",
+        git_publication=False,
     )
     package_mock.assert_called_once_with(
         editorial_base,
@@ -2046,3 +2047,154 @@ def test_dry_run_reconciliation_preview_stays_read_only(editorial_base: Path):
     assert result.items[0].execution_status == EXECUTION_STATUS_RECONCILED
     assert result.items[0].calendar_update_status == CALENDAR_UPDATE_RECONCILED
     assert _calendar_hash(editorial_base) == calendar_hash
+
+
+def test_calendar_git_publication_opt_in_passthrough(editorial_base: Path) -> None:
+    _write_calendar(
+        editorial_base,
+        _base_calendar(
+            items=[
+                _flow_a_item(
+                    site_url="https://silverman.pro",
+                    public_slug="sample-post",
+                )
+            ]
+        ),
+    )
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post"
+        ) as publish_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
+            return_value=_completed_package(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
+            return_value=_completed_schedule(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
+            return_value=FlowASourceLifecycleResult(
+                status=SOURCE_LIFECYCLE_COMPLETED,
+                campaign_id=CONFLICT_CAMPAIGN_ID,
+                errors=[],
+                warnings=[],
+            ),
+        ),
+    ):
+        publish_mock.return_value = BlogPublishResult(
+            status="completed",
+            source_relative_path=QUEUED_POST_RELATIVE,
+            campaign_id=CONFLICT_CAMPAIGN_ID,
+            blog_publish={"status": "published"},
+            blog_git_publication={"status": "pushed", "commit_sha": "abc"},
+        )
+        execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+            limit=1,
+            git_publication=True,
+        )
+
+    publish_mock.assert_called_once()
+    assert publish_mock.call_args.kwargs.get("git_publication") is True
+
+
+def test_calendar_environment_only_without_opt_in(editorial_base: Path) -> None:
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post"
+        ) as publish_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
+            return_value=_completed_package(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
+            return_value=_completed_schedule(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
+            return_value=FlowASourceLifecycleResult(
+                status=SOURCE_LIFECYCLE_COMPLETED,
+                campaign_id=CONFLICT_CAMPAIGN_ID,
+                errors=[],
+                warnings=[],
+            ),
+        ),
+    ):
+        publish_mock.return_value = BlogPublishResult(
+            status="completed",
+            source_relative_path=QUEUED_POST_RELATIVE,
+            campaign_id=CONFLICT_CAMPAIGN_ID,
+            blog_publish={"status": "published"},
+        )
+        execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+            limit=1,
+            git_publication=False,
+        )
+
+    publish_mock.assert_called_once()
+    assert publish_mock.call_args.kwargs.get("git_publication") is False
+
+
+def test_calendar_partial_publish_surfaces_git_errors(editorial_base: Path) -> None:
+    from silverman_blog_linkedin.github_pages_git_publication import (
+        BLOG_GIT_PUBLICATION_PUSH_FAILED,
+    )
+
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post"
+        ) as publish_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
+            return_value=_completed_package(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
+            return_value=_completed_schedule(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
+            return_value=FlowASourceLifecycleResult(
+                status=SOURCE_LIFECYCLE_COMPLETED,
+                campaign_id=CONFLICT_CAMPAIGN_ID,
+                errors=[],
+                warnings=[],
+            ),
+        ),
+    ):
+        publish_mock.return_value = BlogPublishResult(
+            status="partial",
+            source_relative_path=QUEUED_POST_RELATIVE,
+            campaign_id=CONFLICT_CAMPAIGN_ID,
+            blog_publish={"status": "published"},
+            blog_git_publication={
+                "status": "failed",
+                "error_code": BLOG_GIT_PUBLICATION_PUSH_FAILED,
+            },
+            errors=[BLOG_GIT_PUBLICATION_PUSH_FAILED],
+        )
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+            limit=1,
+            git_publication=True,
+        )
+
+    item = result.items[0]
+    assert item.publish_status == "partial"
+    assert item.blog_git_publication is not None
+    assert BLOG_GIT_PUBLICATION_PUSH_FAILED in item.errors
