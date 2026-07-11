@@ -1797,3 +1797,138 @@ def test_http_environment_only_enablement_without_opt_in(
     assert body.get("blog_git_publication") in ({}, None) or not body.get(
         "blog_git_publication", {}
     ).get("status") == "pushed"
+
+
+def test_http_live_site_confirmation_opt_in(
+    editorial_base: Path, public_repo: Path, monkeypatch
+) -> None:
+    from unittest.mock import patch
+
+    from silverman_blog_linkedin.blog_live_site_confirmation import (
+        LiveSiteConfirmationResult,
+    )
+
+    create_full_layout(editorial_base)
+    _validated_campaign(editorial_base)
+    _write_post(editorial_base)
+    monkeypatch.setenv("SILVERMAN_GITHUB_PAGES_REPO_PATH", str(public_repo))
+    monkeypatch.setenv("SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED", "true")
+    monkeypatch.setenv("SILVERMAN_BLOG_LIVE_SITE_CONFIRMATION_ENABLED", "true")
+
+    client = TestClient(create_app(make_settings(editorial_base)))
+    with (
+        patch(
+            "silverman_blog_linkedin.blog_publish_flow.publish_blog_git_publication"
+        ) as git_publish,
+        patch(
+            "silverman_blog_linkedin.blog_publish_flow.confirm_blog_live_site_publication"
+        ) as live_confirm,
+    ):
+        from silverman_blog_linkedin.github_pages_git_publication import GitPublicationResult
+
+        git_publish.return_value = GitPublicationResult(
+            status="completed",
+            blog_git_publication={"status": "pushed", "commit_sha": "abc123"},
+        )
+        live_confirm.return_value = LiveSiteConfirmationResult(
+            status="completed",
+            blog_live_site_publication={
+                "status": "confirmed",
+                "source_public_url": "https://silverman.pro/2026-07-06/slug/",
+                "http_status": 200,
+            },
+        )
+        response = client.post(
+            "/publish-blog-post",
+            headers=auth_header(),
+            json={
+                "source_relative_path": SOURCE_RELATIVE,
+                "git_publication": True,
+                "live_site_confirmation": True,
+            },
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["blog_live_site_publication"]["status"] == "confirmed"
+
+
+def test_http_live_site_confirmation_disabled_guard(
+    editorial_base: Path, public_repo: Path, monkeypatch
+) -> None:
+    from silverman_blog_linkedin.blog_live_site_confirmation import (
+        BLOG_LIVE_SITE_CONFIRMATION_DISABLED,
+    )
+
+    create_full_layout(editorial_base)
+    _validated_campaign(editorial_base)
+    _write_post(editorial_base)
+    monkeypatch.setenv("SILVERMAN_GITHUB_PAGES_REPO_PATH", str(public_repo))
+
+    client = TestClient(create_app(make_settings(editorial_base)))
+    response = client.post(
+        "/publish-blog-post",
+        headers=auth_header(),
+        json={
+            "source_relative_path": SOURCE_RELATIVE,
+            "live_site_confirmation": True,
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "failed"
+    assert BLOG_LIVE_SITE_CONFIRMATION_DISABLED in body["errors"]
+
+
+def test_http_partial_when_probe_fails_after_push(
+    editorial_base: Path, public_repo: Path, monkeypatch
+) -> None:
+    from unittest.mock import patch
+
+    from silverman_blog_linkedin.blog_live_site_confirmation import (
+        BLOG_LIVE_SITE_CONFIRMATION_UNREACHABLE,
+        LiveSiteConfirmationResult,
+    )
+
+    create_full_layout(editorial_base)
+    _validated_campaign(editorial_base)
+    _write_post(editorial_base)
+    monkeypatch.setenv("SILVERMAN_GITHUB_PAGES_REPO_PATH", str(public_repo))
+    monkeypatch.setenv("SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED", "true")
+    monkeypatch.setenv("SILVERMAN_BLOG_LIVE_SITE_CONFIRMATION_ENABLED", "true")
+
+    client = TestClient(create_app(make_settings(editorial_base)))
+    with (
+        patch(
+            "silverman_blog_linkedin.blog_publish_flow.publish_blog_git_publication"
+        ) as git_publish,
+        patch(
+            "silverman_blog_linkedin.blog_publish_flow.confirm_blog_live_site_publication"
+        ) as live_confirm,
+    ):
+        from silverman_blog_linkedin.github_pages_git_publication import GitPublicationResult
+
+        git_publish.return_value = GitPublicationResult(
+            status="completed",
+            blog_git_publication={"status": "pushed", "commit_sha": "abc123"},
+        )
+        live_confirm.return_value = LiveSiteConfirmationResult(
+            status="failed",
+            blog_live_site_publication={
+                "status": "failed",
+                "error_code": BLOG_LIVE_SITE_CONFIRMATION_UNREACHABLE,
+            },
+            errors=[BLOG_LIVE_SITE_CONFIRMATION_UNREACHABLE],
+        )
+        response = client.post(
+            "/publish-blog-post",
+            headers=auth_header(),
+            json={
+                "source_relative_path": SOURCE_RELATIVE,
+                "git_publication": True,
+                "live_site_confirmation": True,
+            },
+        )
+    body = response.json()
+    assert body["status"] == "partial"
+    assert body["blog_git_publication"]["status"] == "pushed"
+    assert BLOG_LIVE_SITE_CONFIRMATION_UNREACHABLE in body["errors"]

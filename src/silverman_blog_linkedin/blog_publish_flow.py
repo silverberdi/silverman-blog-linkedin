@@ -42,6 +42,16 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     transition_state,
     write_campaign_metadata,
 )
+from silverman_blog_linkedin.blog_live_site_confirmation import (
+    BLOG_LIVE_SITE_CONFIRMATION_DISABLED,
+    BLOG_LIVE_SITE_CONFIRMATION_GIT_REQUIRED,
+    HttpProbeClient,
+    merge_live_site_confirmation_into_publish_result,
+    confirm_blog_live_site_publication,
+)
+from silverman_blog_linkedin.blog_live_site_confirmation_config import (
+    load_live_site_confirmation_settings,
+)
 from silverman_blog_linkedin.github_pages_git_publication import (
     BLOG_GIT_PUBLICATION_ARTIFACTS_MISSING,
     BLOG_GIT_PUBLICATION_DISABLED,
@@ -206,6 +216,7 @@ class BlogPublishResult:
     validation: dict[str, Any] = field(default_factory=dict)
     blog_publish: dict[str, Any] = field(default_factory=dict)
     blog_git_publication: dict[str, Any] = field(default_factory=dict)
+    blog_live_site_publication: dict[str, Any] = field(default_factory=dict)
     blog_image_generation: dict[str, Any] = field(default_factory=dict)
     metadata_written: bool = False
     metadata_error_code: str | None = None
@@ -1143,6 +1154,109 @@ def _apply_git_publication_if_requested(
     return result
 
 
+def _git_push_succeeded(blog_git_publication: dict[str, Any]) -> bool:
+    return blog_git_publication.get("status") in {"pushed", "already_published"}
+
+
+def _apply_live_site_confirmation_if_requested(
+    base_path: Path,
+    result: BlogPublishResult,
+    *,
+    live_site_confirmation: bool,
+    site_url: str,
+    environ: dict[str, str] | None,
+    http_client: HttpProbeClient | None = None,
+) -> BlogPublishResult:
+    if not live_site_confirmation:
+        return result
+
+    if not result.campaign_id or not result.public_slug or not result.source_public_url:
+        result.errors = list(
+            dict.fromkeys([*result.errors, BLOG_LIVE_SITE_CONFIRMATION_GIT_REQUIRED])
+        )
+        result.blog_live_site_publication = {
+            "status": "failed",
+            "error_code": BLOG_LIVE_SITE_CONFIRMATION_GIT_REQUIRED,
+        }
+        if result.status == "completed":
+            result.status = "failed"
+        return result
+
+    git_push_succeeded = _git_push_succeeded(result.blog_git_publication)
+    if not git_push_succeeded:
+        campaign = read_campaign_metadata(base_path, result.campaign_id)
+        if campaign is not None:
+            prior_git = campaign.get("blog_git_publication") or {}
+            git_push_succeeded = _git_push_succeeded(prior_git)
+            if git_push_succeeded and not result.blog_git_publication:
+                result.blog_git_publication = dict(prior_git)
+
+    if not git_push_succeeded:
+        result.errors = list(
+            dict.fromkeys([*result.errors, BLOG_LIVE_SITE_CONFIRMATION_GIT_REQUIRED])
+        )
+        result.blog_live_site_publication = {
+            "status": "failed",
+            "error_code": BLOG_LIVE_SITE_CONFIRMATION_GIT_REQUIRED,
+        }
+        if result.status == "completed":
+            result.status = "failed"
+        return result
+
+    campaign = read_campaign_metadata(base_path, result.campaign_id)
+    if campaign is None:
+        return result
+
+    live_result = confirm_blog_live_site_publication(
+        base_path,
+        campaign_id=result.campaign_id,
+        campaign=campaign,
+        source_public_url=result.source_public_url,
+        public_slug=result.public_slug,
+        blog_git_publication=dict(result.blog_git_publication),
+        environ=environ,
+        http_client=http_client,
+    )
+    merge_live_site_confirmation_into_publish_result(
+        result,
+        live_result,
+        git_push_succeeded=_git_push_succeeded(result.blog_git_publication),
+    )
+    if live_result.blog_live_site_publication:
+        result.blog_live_site_publication = dict(live_result.blog_live_site_publication)
+    return result
+
+
+def _apply_post_handoff_publication_layers(
+    base_path: Path,
+    result: BlogPublishResult,
+    *,
+    git_publication: bool,
+    live_site_confirmation: bool,
+    site_url: str,
+    github_pages_repo_path: str | None,
+    environ: dict[str, str] | None,
+    git_runner: GitRunner | None = None,
+    http_client: HttpProbeClient | None = None,
+) -> BlogPublishResult:
+    result = _apply_git_publication_if_requested(
+        base_path,
+        result,
+        git_publication=git_publication,
+        github_pages_repo_path=github_pages_repo_path,
+        environ=environ,
+        git_runner=git_runner,
+    )
+    return _apply_live_site_confirmation_if_requested(
+        base_path,
+        result,
+        live_site_confirmation=live_site_confirmation,
+        site_url=site_url,
+        environ=environ,
+        http_client=http_client,
+    )
+
+
 def _build_environ(
     base_path: Path,
     site_url: str,
@@ -1233,7 +1347,9 @@ def publish_blog_post(
     comfyui_client: ComfyUIClientProtocol | None = None,
     execution_time: datetime | None = None,
     git_publication: bool = False,
+    live_site_confirmation: bool = False,
     git_runner: GitRunner | None = None,
+    http_client: HttpProbeClient | None = None,
 ) -> BlogPublishResult:
     """Orchestrate Flow A blog publishing for one ready post."""
     publish_execution_time = (
@@ -1245,13 +1361,16 @@ def publish_blog_post(
         base_path, source_relative_path
     )
     if post_schedule_result is not None:
-        return _apply_git_publication_if_requested(
+        return _apply_post_handoff_publication_layers(
             base_path,
             post_schedule_result,
             git_publication=git_publication,
+            live_site_confirmation=live_site_confirmation,
+            site_url=site_url,
             github_pages_repo_path=github_pages_repo_path,
             environ=environ,
             git_runner=git_runner,
+            http_client=http_client,
         )
 
     preflight = _preflight_inspect(
@@ -1266,6 +1385,11 @@ def publish_blog_post(
     if git_publication and not load_git_publication_settings(environ).publication_enabled:
         return _failed_result(preflight, errors=[BLOG_GIT_PUBLICATION_DISABLED])
 
+    if live_site_confirmation and not load_live_site_confirmation_settings(
+        environ
+    ).confirmation_enabled:
+        return _failed_result(preflight, errors=[BLOG_LIVE_SITE_CONFIRMATION_DISABLED])
+
     assert preflight.source_slug is not None
     assert preflight.public_slug is not None
     assert preflight.source_content_sha256 is not None
@@ -1278,13 +1402,16 @@ def publish_blog_post(
             expected_idempotency_key=preflight.expected_idempotency_key,
             source_content_sha256=preflight.source_content_sha256,
         ):
-            return _apply_git_publication_if_requested(
+            return _apply_post_handoff_publication_layers(
                 base_path,
                 _already_published_result(preflight, campaign),
                 git_publication=git_publication,
+                live_site_confirmation=live_site_confirmation,
+                site_url=site_url,
                 github_pages_repo_path=github_pages_repo_path,
                 environ=environ,
                 git_runner=git_runner,
+                http_client=http_client,
             )
 
         pre_validation_error = _check_campaign_eligible_for_publish(
@@ -1643,13 +1770,16 @@ def publish_blog_post(
         execution_time=publish_execution_time,
     )
     if reconciliation_result is not None:
-        return _apply_git_publication_if_requested(
+        return _apply_post_handoff_publication_layers(
             base_path,
             reconciliation_result,
             git_publication=git_publication,
+            live_site_confirmation=live_site_confirmation,
+            site_url=site_url,
             github_pages_repo_path=github_pages_repo_path,
             environ=environ,
             git_runner=git_runner,
+            http_client=http_client,
         )
 
     if campaign.get("state") == STATE_ERROR:
@@ -1738,13 +1868,16 @@ def publish_blog_post(
                 execution_time=publish_execution_time,
             )
             if overwrite_reconciliation is not None:
-                return _apply_git_publication_if_requested(
+                return _apply_post_handoff_publication_layers(
                     base_path,
                     overwrite_reconciliation,
                     git_publication=git_publication,
+                    live_site_confirmation=live_site_confirmation,
+                    site_url=site_url,
                     github_pages_repo_path=github_pages_repo_path,
                     environ=environ,
                     git_runner=git_runner,
+                    http_client=http_client,
                 )
 
         blog_publish = dict(campaign.get("blog_publish") or {})
@@ -1841,11 +1974,14 @@ def publish_blog_post(
     )
     if not metadata_written:
         result.status = "failed"
-    return _apply_git_publication_if_requested(
+    return _apply_post_handoff_publication_layers(
         base_path,
         result,
         git_publication=git_publication,
+        live_site_confirmation=live_site_confirmation,
+        site_url=site_url,
         github_pages_repo_path=github_pages_repo_path,
         environ=environ,
         git_runner=git_runner,
+        http_client=http_client,
     )

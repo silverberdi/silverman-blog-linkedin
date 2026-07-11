@@ -23,6 +23,8 @@ BLOG_GIT_PUBLICATION_DISABLED = "blog_git_publication_disabled"
 BLOG_GIT_PUBLICATION_ARTIFACTS_MISSING = "blog_git_publication_artifacts_missing"
 BLOG_GIT_PUBLICATION_COMMIT_FAILED = "blog_git_publication_commit_failed"
 BLOG_GIT_PUBLICATION_PUSH_FAILED = "blog_git_publication_push_failed"
+BLOG_GIT_PUBLICATION_REMOTE_DIVERGED = "blog_git_publication_remote_diverged"
+BLOG_GIT_PUBLICATION_DUPLICATE_ARTIFACTS = "blog_git_publication_duplicate_artifacts"
 BLOG_GIT_PUBLICATION_FLOW_B_NOT_ALLOWED = "blog_git_publication_flow_b_not_allowed"
 BLOG_GIT_PUBLICATION_GIT_UNAVAILABLE = "blog_git_publication_git_unavailable"
 BLOG_GIT_PUBLICATION_TIMEOUT = "blog_git_publication_timeout"
@@ -81,6 +83,18 @@ class FakeGitRunner:
             return self.results[key]
         if args and args[0] == "rev-parse" and "HEAD" in args:
             return GitCommandResult(returncode=0, stdout="abc123def456\n", stderr="")
+        if args and args[0] == "rev-parse" and args[-1].endswith("/main"):
+            return GitCommandResult(returncode=0, stdout="abc123def456\n", stderr="")
+        if args and args[0] == "fetch":
+            return self.default_result
+        if args and args[0] == "pull" and "--ff-only" in args:
+            return self.default_result
+        if args and args[0] == "merge-base" and "--is-ancestor" in args:
+            return self.default_result
+        if args and args[0] == "status" and "--porcelain" in args:
+            return GitCommandResult(returncode=0, stdout="", stderr="")
+        if args and args[0] == "cat-file" and "-e" in args:
+            return GitCommandResult(returncode=1, stdout="", stderr="")
         if args and args[0] == "diff" and "--quiet" in args:
             return GitCommandResult(returncode=0, stdout="", stderr="")
         return self.default_result
@@ -181,6 +195,202 @@ def _format_commit_message(
         campaign_id=campaign_id,
         publication_date=publication_date,
     )
+
+
+_CAMPAIGN_ID_IN_COMMIT = re.compile(r"\((flow-[ab]-[^)]+)\)")
+
+
+def _git_rev_parse(
+    runner: GitRunner,
+    repo_path: Path,
+    ref: str,
+    *,
+    timeout: float,
+) -> str | None:
+    result = runner.run(repo_path, ["rev-parse", ref], timeout=timeout)
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip()
+
+
+def _is_git_ancestor(
+    runner: GitRunner,
+    repo_path: Path,
+    ancestor: str,
+    descendant: str,
+    *,
+    timeout: float,
+) -> bool:
+    result = runner.run(
+        repo_path,
+        ["merge-base", "--is-ancestor", ancestor, descendant],
+        timeout=timeout,
+    )
+    return result.returncode == 0
+
+
+def _has_unrelated_dirty_files(
+    runner: GitRunner,
+    repo_path: Path,
+    staged_paths: list[str],
+    *,
+    timeout: float,
+) -> bool:
+    result = runner.run(repo_path, ["status", "--porcelain"], timeout=timeout)
+    if result.returncode != 0:
+        return True
+    staged_set = set(staged_paths)
+    for line in result.stdout.splitlines():
+        if len(line) < 4:
+            continue
+        path = line[3:].strip()
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1].strip()
+        if path not in staged_set:
+            return True
+    return False
+
+
+def _fetch_and_reconcile_remote(
+    runner: GitRunner,
+    repo_path: Path,
+    config: GitPublicationSettings,
+    staged_paths: list[str],
+    *,
+    timeout: float,
+    fetch_timeout: float,
+) -> GitPublicationResult | None:
+    """Fetch and fast-forward reconcile when behind remote. Returns failure or None."""
+    remote = config.remote
+    branch = config.branch
+    tracking_ref = f"{remote}/{branch}"
+
+    fetch_result = runner.run(
+        repo_path,
+        ["fetch", remote],
+        timeout=fetch_timeout,
+    )
+    if fetch_result.returncode != 0:
+        logger.warning(
+            "git fetch failed: %s",
+            _sanitize_git_message(fetch_result.stderr),
+        )
+        return _failed_git_result(
+            error_code=BLOG_GIT_PUBLICATION_PUSH_FAILED,
+            staged_paths=staged_paths,
+            remote=remote,
+            branch=branch,
+            include_recovery=True,
+        )
+
+    local_sha = _git_rev_parse(runner, repo_path, "HEAD", timeout=timeout)
+    remote_sha = _git_rev_parse(runner, repo_path, tracking_ref, timeout=timeout)
+    if not local_sha:
+        return _failed_git_result(
+            error_code=BLOG_GIT_PUBLICATION_COMMIT_FAILED,
+            staged_paths=staged_paths,
+            remote=remote,
+            branch=branch,
+            include_recovery=True,
+        )
+    if not remote_sha:
+        return None
+
+    if local_sha == remote_sha:
+        return None
+
+    if _is_git_ancestor(runner, repo_path, local_sha, remote_sha, timeout=timeout):
+        if _has_unrelated_dirty_files(
+            runner, repo_path, staged_paths, timeout=timeout
+        ):
+            return _failed_git_result(
+                error_code=BLOG_GIT_PUBLICATION_REMOTE_DIVERGED,
+                staged_paths=staged_paths,
+                remote=remote,
+                branch=branch,
+                include_recovery=True,
+            )
+        pull_result = runner.run(
+            repo_path,
+            ["pull", "--ff-only", remote, branch],
+            timeout=timeout,
+        )
+        if pull_result.returncode != 0:
+            logger.warning(
+                "git pull --ff-only failed: %s",
+                _sanitize_git_message(pull_result.stderr),
+            )
+            return _failed_git_result(
+                error_code=BLOG_GIT_PUBLICATION_REMOTE_DIVERGED,
+                staged_paths=staged_paths,
+                remote=remote,
+                branch=branch,
+                include_recovery=True,
+            )
+        return None
+
+    if _is_git_ancestor(runner, repo_path, remote_sha, local_sha, timeout=timeout):
+        return None
+
+    return _failed_git_result(
+        error_code=BLOG_GIT_PUBLICATION_REMOTE_DIVERGED,
+        staged_paths=staged_paths,
+        remote=remote,
+        branch=branch,
+        include_recovery=True,
+    )
+
+
+def _extract_campaign_id_from_commit_message(message: str) -> str | None:
+    match = _CAMPAIGN_ID_IN_COMMIT.search(message)
+    if match:
+        return match.group(1)
+    return None
+
+
+def _path_exists_on_remote(
+    runner: GitRunner,
+    repo_path: Path,
+    tracking_ref: str,
+    relative_path: str,
+    *,
+    timeout: float,
+) -> bool:
+    result = runner.run(
+        repo_path,
+        ["cat-file", "-e", f"{tracking_ref}:{relative_path}"],
+        timeout=timeout,
+    )
+    return result.returncode == 0
+
+
+def _check_duplicate_artifacts(
+    runner: GitRunner,
+    repo_path: Path,
+    config: GitPublicationSettings,
+    staged_paths: list[str],
+    *,
+    campaign_id: str,
+    timeout: float,
+) -> str | None:
+    """Return error code when cross-campaign collision detected."""
+    tracking_ref = f"{config.remote}/{config.branch}"
+    for relative_path in staged_paths:
+        if not _path_exists_on_remote(
+            runner, repo_path, tracking_ref, relative_path, timeout=timeout
+        ):
+            continue
+        log_result = runner.run(
+            repo_path,
+            ["log", "-1", "--format=%B", tracking_ref, "--", relative_path],
+            timeout=timeout,
+        )
+        if log_result.returncode != 0:
+            continue
+        owner_campaign = _extract_campaign_id_from_commit_message(log_result.stdout)
+        if owner_campaign and owner_campaign != campaign_id:
+            return BLOG_GIT_PUBLICATION_DUPLICATE_ARTIFACTS
+    return None
 
 
 def _paths_have_changes(
@@ -349,6 +559,7 @@ def publish_blog_git_publication(
         return _already_published_result(prior, staged_paths=staged_paths)
 
     timeout = float(config.timeout_seconds)
+    fetch_timeout = float(config.fetch_timeout_seconds)
 
     if not isinstance(git_runner, FakeGitRunner):
         _ensure_safe_git_repository(git_runner, repo_path, timeout=timeout)
@@ -389,6 +600,16 @@ def publish_blog_git_publication(
             timeout=timeout,
         )
         commit_sha = rev_parse.stdout.strip() if rev_parse.returncode == 0 else None
+        reconcile_error = _fetch_and_reconcile_remote(
+            git_runner,
+            repo_path,
+            config,
+            staged_paths,
+            timeout=timeout,
+            fetch_timeout=fetch_timeout,
+        )
+        if reconcile_error is not None:
+            return reconcile_error
         push_only = git_runner.run(
             repo_path,
             ["push", config.remote, config.branch],
@@ -431,6 +652,23 @@ def publish_blog_git_publication(
             metadata_error_code=metadata_error_code,
         )
 
+    duplicate_error = _check_duplicate_artifacts(
+        git_runner,
+        repo_path,
+        config,
+        staged_paths,
+        campaign_id=campaign_id,
+        timeout=timeout,
+    )
+    if duplicate_error is not None:
+        return _failed_git_result(
+            error_code=duplicate_error,
+            staged_paths=staged_paths,
+            remote=config.remote,
+            branch=config.branch,
+            include_recovery=True,
+        )
+
     commit_message = _format_commit_message(
         config.commit_message_template,
         public_slug=public_slug,
@@ -471,6 +709,17 @@ def publish_blog_git_publication(
         )
     commit_sha = rev_parse.stdout.strip()
     committed_at = utc_now_iso()
+
+    reconcile_error = _fetch_and_reconcile_remote(
+        git_runner,
+        repo_path,
+        config,
+        staged_paths,
+        timeout=timeout,
+        fetch_timeout=fetch_timeout,
+    )
+    if reconcile_error is not None:
+        return reconcile_error
 
     push_result = git_runner.run(
         repo_path,

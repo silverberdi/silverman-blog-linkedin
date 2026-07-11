@@ -32,9 +32,11 @@ Traceability authority: `metadata/campaigns/<campaign-id>.json`.
 | Term | Definition |
 |------|------------|
 | **Blog handoff** / **blog files written** | Worker wrote Jekyll files to the public checkout mount (`/public-blog`) |
-| **Site published/live** | Human Git commit and push; GitHub Pages deployed (e.g. `https://silverman.pro/...`) |
+| **Blog Git publication** | Worker `git commit` / `git push` when enabled and opted in (`git_publication: true`); evidence in campaign `blog_git_publication` |
+| **Live-site confirmation** | Worker HTTP probe of `source_public_url` after successful Git push when enabled and opted in (`live_site_confirmation: true`); evidence in campaign `blog_live_site_publication` |
+| **Site published/live** | Public HTTP reachability — recorded by `blog_live_site_publication.status` `confirmed` (or operator manual verification); Git push alone is not sufficient |
 
-Worker handoff ≠ site published/live.
+Worker handoff ≠ blog Git publication ≠ live-site confirmation. Git push alone ≠ site published/live.
 
 ## LinkedIn publication states
 

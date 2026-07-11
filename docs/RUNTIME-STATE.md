@@ -6,19 +6,21 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 ## Snapshot
 
-**`verified_at_utc`:** `2026-07-11T06:22:00Z`
-**Evidence source:** US-001 Git publication smoke (`run-us001-git-publication-smoke.sh`); deploy verification on Ubuntu server `192.168.0.194`
+**`verified_at_utc`:** `2026-07-11T07:00:00Z`
+**Evidence source:** US-002 live-site confirmation smoke (`run-us002-live-site-confirmation-smoke.sh`); US-001 Git publication smoke; deploy verification on Ubuntu server `192.168.0.194`
 
 | Fact | Value | Evidence |
 |------|-------|----------|
 | Worker URL | `http://192.168.0.194:8010` | Deploy + health check |
-| `BUILD_REVISION` | `unknown` (target-layout deploy used timestamp fallback) | Re-verify after git-based deploy from Mac |
+| `BUILD_REVISION` | `1783752289` (timestamp fallback; server target layout has no `.git`) | Deploy output 2026-07-11 |
 | Editorial mount | `/data/silverman-blog-linkedin` | `deploy-worker.sh` compose |
 | Public blog mount | `/public-blog` → host `/home/silverman/silverberdi.github.io` | Deploy verification |
 | n8n Flow A workflow | Imported, **inactive** | `import-flow-a-n8n-workflow.sh`, workflow id `silvermanFlowAPublish01` |
-| `SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED` | `true` | Server `.env` during US-001 validation window |
+| `SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED` | `true` | Server `.env` during validation window |
+| `SILVERMAN_BLOG_LIVE_SITE_CONFIRMATION_ENABLED` | `true` | Server `.env` during US-002 validation window |
 | `GIT_SSH_COMMAND` | Set (deploy key + known_hosts paths) | Server `.env`; container env present |
-| Git publication US-001 | Validated with real push | Remote `origin/main` `53d0a26…`; smoke `OVERALL: PASS` |
+| Git publication US-001 | Validated with real push | Remote `origin/main`; smoke `OVERALL: PASS` |
+| Live-site confirmation US-002 | Validated with HTTP 200 + slug marker | `blog_live_site_publication.status: confirmed`; [phase3-us002 report](operations/phase3-us002-live-site-confirmation-validation-2026-07-11.md) |
 | `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` | `false` | Server `.env` (not logged here) |
 | ComfyUI image generation | Enabled during Flow A validation smoke | Operator confirmation; exact env names only |
 | LinkedIn API real publish | Not validated in production | Guard flag false |
@@ -28,10 +30,10 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 | Fact | Status |
 |------|--------|
-| Current `BUILD_REVISION` on server if redeployed from git checkout | `unknown` — re-verify after deploy |
+| Current `BUILD_REVISION` if redeployed from git checkout on Mac | `unknown` — server uses timestamp fallback |
 | DeepSeek API quota / rate limits | `unknown` |
 | ComfyUI availability right now | `unknown` — check before image-dependent publish |
-| US-002 live-site reachability after Git push | `deferred` |
+| Remote divergence / duplicate-artifact Git guards under real collision | `unknown` — code + unit tests only; not exercised in smoke |
 
 ## Secrets
 

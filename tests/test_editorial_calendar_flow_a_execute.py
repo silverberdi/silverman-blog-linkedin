@@ -437,6 +437,7 @@ def test_real_execution_sequence_with_chained_inputs(editorial_base: Path):
         site_url="https://silverman.pro",
         public_slug_override="sample-post",
         git_publication=False,
+        live_site_confirmation=False,
     )
     package_mock.assert_called_once_with(
         editorial_base,
@@ -2198,3 +2199,110 @@ def test_calendar_partial_publish_surfaces_git_errors(editorial_base: Path) -> N
     assert item.publish_status == "partial"
     assert item.blog_git_publication is not None
     assert BLOG_GIT_PUBLICATION_PUSH_FAILED in item.errors
+
+
+def test_calendar_live_site_confirmation_passthrough(editorial_base: Path) -> None:
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post"
+        ) as publish_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
+            return_value=_completed_package(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
+            return_value=_completed_schedule(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
+            return_value=FlowASourceLifecycleResult(
+                status=SOURCE_LIFECYCLE_COMPLETED,
+                campaign_id=CONFLICT_CAMPAIGN_ID,
+                errors=[],
+                warnings=[],
+            ),
+        ),
+    ):
+        publish_mock.return_value = BlogPublishResult(
+            status="completed",
+            source_relative_path=QUEUED_POST_RELATIVE,
+            campaign_id=CONFLICT_CAMPAIGN_ID,
+            blog_publish={"status": "published"},
+            blog_git_publication={"status": "pushed", "commit_sha": "abc"},
+            blog_live_site_publication={"status": "confirmed", "http_status": 200},
+        )
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+            limit=1,
+            git_publication=True,
+            live_site_confirmation=True,
+        )
+
+    publish_mock.assert_called_once()
+    assert publish_mock.call_args.kwargs.get("live_site_confirmation") is True
+    item = result.items[0]
+    assert item.blog_live_site_publication is not None
+    assert item.blog_live_site_publication["status"] == "confirmed"
+
+
+def test_calendar_partial_live_site_confirmation_surfaces_errors(
+    editorial_base: Path,
+) -> None:
+    from silverman_blog_linkedin.blog_live_site_confirmation import (
+        BLOG_LIVE_SITE_CONFIRMATION_UNREACHABLE,
+    )
+
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post"
+        ) as publish_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
+            return_value=_completed_package(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
+            return_value=_completed_schedule(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
+            return_value=FlowASourceLifecycleResult(
+                status=SOURCE_LIFECYCLE_COMPLETED,
+                campaign_id=CONFLICT_CAMPAIGN_ID,
+                errors=[],
+                warnings=[],
+            ),
+        ),
+    ):
+        publish_mock.return_value = BlogPublishResult(
+            status="partial",
+            source_relative_path=QUEUED_POST_RELATIVE,
+            campaign_id=CONFLICT_CAMPAIGN_ID,
+            blog_publish={"status": "published"},
+            blog_git_publication={"status": "pushed", "commit_sha": "abc"},
+            blog_live_site_publication={
+                "status": "failed",
+                "error_code": BLOG_LIVE_SITE_CONFIRMATION_UNREACHABLE,
+            },
+            errors=[BLOG_LIVE_SITE_CONFIRMATION_UNREACHABLE],
+        )
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+            limit=1,
+            git_publication=True,
+            live_site_confirmation=True,
+        )
+
+    item = result.items[0]
+    assert item.publish_status == "partial"
+    assert item.blog_live_site_publication is not None
+    assert BLOG_LIVE_SITE_CONFIRMATION_UNREACHABLE in item.errors

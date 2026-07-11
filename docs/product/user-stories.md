@@ -31,12 +31,12 @@ As a content operator, I want to confirm that the content becomes available on t
 
 **Acceptance criteria**
 
-- [ ] Confirm that the content becomes available on the live site.
-- [ ] Prevent duplicate commits and duplicate publication attempts.
-- [ ] Handle remote divergence and publication conflicts safely.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Confirm that the content becomes available on the live site.
+- [x] Prevent duplicate commits and duplicate publication attempts.
+- [x] Handle remote divergence and publication conflicts safely.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ## BL-002 — Validate the First Real LinkedIn Publication
 

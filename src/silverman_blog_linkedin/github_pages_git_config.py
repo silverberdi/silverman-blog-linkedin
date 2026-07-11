@@ -10,11 +10,13 @@ ENV_PUBLICATION_BRANCH = "SILVERMAN_BLOG_GIT_PUBLICATION_BRANCH"
 ENV_PUBLICATION_REMOTE = "SILVERMAN_BLOG_GIT_PUBLICATION_REMOTE"
 ENV_COMMIT_MESSAGE_TEMPLATE = "SILVERMAN_BLOG_GIT_COMMIT_MESSAGE_TEMPLATE"
 ENV_TIMEOUT_SECONDS = "SILVERMAN_BLOG_GIT_PUBLICATION_TIMEOUT_SECONDS"
+ENV_FETCH_TIMEOUT_SECONDS = "SILVERMAN_BLOG_GIT_FETCH_TIMEOUT_SECONDS"
 
 DEFAULT_BRANCH = "main"
 DEFAULT_REMOTE = "origin"
 DEFAULT_COMMIT_MESSAGE_TEMPLATE = "Add blog post: {public_slug} ({campaign_id})"
 DEFAULT_TIMEOUT_SECONDS = 120
+DEFAULT_FETCH_TIMEOUT_SECONDS = 30
 
 
 @dataclass(frozen=True)
@@ -24,6 +26,7 @@ class GitPublicationSettings:
     remote: str
     commit_message_template: str
     timeout_seconds: int
+    fetch_timeout_seconds: int
 
 
 def _parse_bool(raw: str) -> bool:
@@ -56,10 +59,15 @@ def load_git_publication_settings(
         env.get(ENV_TIMEOUT_SECONDS, str(DEFAULT_TIMEOUT_SECONDS)),
         DEFAULT_TIMEOUT_SECONDS,
     )
+    fetch_timeout_seconds = _parse_positive_int(
+        env.get(ENV_FETCH_TIMEOUT_SECONDS, str(DEFAULT_FETCH_TIMEOUT_SECONDS)),
+        DEFAULT_FETCH_TIMEOUT_SECONDS,
+    )
     return GitPublicationSettings(
         publication_enabled=publication_enabled,
         branch=branch,
         remote=remote,
         commit_message_template=commit_message_template,
         timeout_seconds=timeout_seconds,
+        fetch_timeout_seconds=fetch_timeout_seconds,
     )

@@ -12,25 +12,25 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 ## P1 — Complete Flow A Operationally
 
-- [ ] **BL-001 — Automate Live Blog Publication**
+- [x] **BL-001 — Automate Live Blog Publication**
   - Business outcome: Flow A can move a validated post from the public checkout to the live site without manual Git intervention.
-  - [ ] **US-001**
+  - [x] **US-001**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
     - [x] Business outcome demonstrated
     - [x] Acceptance criteria validated
     - [x] Story accepted
-  - [ ] **US-002**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+  - [x] **US-002**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated
+  - [x] Backlog item closed
 
 - [ ] **BL-002 — Validate the First Real LinkedIn Publication**
   - Business outcome: One LinkedIn variant is published successfully, traceably, and without duplicate side effects.

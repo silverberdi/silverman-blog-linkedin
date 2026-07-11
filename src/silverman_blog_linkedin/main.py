@@ -415,6 +415,7 @@ class PublishBlogPostRequest(BaseModel):
     site_url: str | None = None
     public_slug: str | None = None
     git_publication: bool = False
+    live_site_confirmation: bool = False
 
     @field_validator("source_relative_path")
     @classmethod
@@ -470,6 +471,7 @@ class ExecuteEditorialCalendarFlowADueRequest(BaseModel):
     dry_run: bool = True
     limit: int | None = None
     git_publication: bool = False
+    live_site_confirmation: bool = False
 
     @field_validator("now_utc")
     @classmethod
@@ -1590,6 +1592,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             github_pages_repo_path=github_pages_repo_path,
             environ=os.environ,
             git_publication=body.git_publication,
+            live_site_confirmation=body.live_site_confirmation,
         )
         logger.info(
             "publish-blog-post status=%s campaign_id=%s state=%s source_relative_path=%s",
@@ -1637,6 +1640,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             dry_run=body.dry_run,
             limit=body.limit,
             git_publication=body.git_publication,
+            live_site_confirmation=body.live_site_confirmation,
         )
         logger.info(
             "editorial-calendar/execute-flow-a-due status=%s dry_run=%s items=%s counts=%s",

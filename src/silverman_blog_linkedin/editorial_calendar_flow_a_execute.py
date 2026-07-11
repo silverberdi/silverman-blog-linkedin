@@ -140,6 +140,7 @@ class EditorialCalendarFlowAItemResult:
     calendar_update_status: str | None = None
     publish_status: str | None = None
     blog_git_publication: dict[str, Any] | None = None
+    blog_live_site_publication: dict[str, Any] | None = None
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -579,6 +580,7 @@ def _apply_post_execution_calendar_completion(
                 calendar_update_status=CALENDAR_UPDATE_FAILED,
                 publish_status=item_result.publish_status,
                 blog_git_publication=item_result.blog_git_publication,
+                blog_live_site_publication=item_result.blog_live_site_publication,
                 errors=list(dict.fromkeys([*item_result.errors, *calendar_errors])),
                 warnings=item_result.warnings,
             ),
@@ -601,6 +603,7 @@ def _apply_post_execution_calendar_completion(
             calendar_update_status=calendar_update_status,
             publish_status=item_result.publish_status,
             blog_git_publication=item_result.blog_git_publication,
+            blog_live_site_publication=item_result.blog_live_site_publication,
             errors=item_result.errors,
             warnings=item_result.warnings,
         ),
@@ -626,6 +629,7 @@ def _with_calendar_not_applicable(
         calendar_update_status=CALENDAR_UPDATE_NOT_APPLICABLE,
         publish_status=item_result.publish_status,
         blog_git_publication=item_result.blog_git_publication,
+        blog_live_site_publication=item_result.blog_live_site_publication,
         errors=item_result.errors,
         warnings=item_result.warnings,
     )
@@ -669,6 +673,7 @@ def _item_result_from_plan(
     source_relative_path: str | None = None,
     publish_status: str | None = None,
     blog_git_publication: dict[str, Any] | None = None,
+    blog_live_site_publication: dict[str, Any] | None = None,
     errors: list[str] | None = None,
     warnings: list[str] | None = None,
 ) -> EditorialCalendarFlowAItemResult:
@@ -687,6 +692,7 @@ def _item_result_from_plan(
         calendar_update_status=calendar_update_status,
         publish_status=publish_status,
         blog_git_publication=blog_git_publication,
+        blog_live_site_publication=blog_live_site_publication,
         errors=list(errors if errors is not None else plan_item.errors),
         warnings=list(warnings or plan_item.warnings),
     )
@@ -943,6 +949,7 @@ def _execute_flow_a_item(
     calendar_item: dict[str, Any] | None,
     *,
     git_publication: bool = False,
+    live_site_confirmation: bool = False,
 ) -> tuple[EditorialCalendarFlowAItemResult, str | None]:
     assert plan_item.source_relative_path is not None
 
@@ -1031,11 +1038,17 @@ def _execute_flow_a_item(
         site_url=site_url,
         public_slug_override=public_slug,
         git_publication=git_publication,
+        live_site_confirmation=live_site_confirmation,
     )
     publish_status = publish_result.status
     publish_git_meta = (
         dict(publish_result.blog_git_publication)
         if publish_result.blog_git_publication
+        else None
+    )
+    publish_live_meta = (
+        dict(publish_result.blog_live_site_publication)
+        if publish_result.blog_live_site_publication
         else None
     )
     publish_partial_errors = (
@@ -1274,6 +1287,7 @@ def _execute_flow_a_item(
             source_lifecycle_status=source_lifecycle_status,
             publish_status=publish_status,
             blog_git_publication=publish_git_meta,
+            blog_live_site_publication=publish_live_meta,
             errors=publish_partial_errors,
             warnings=lifecycle_warnings,
         ),
@@ -1330,6 +1344,7 @@ def execute_due_editorial_calendar_flow_a(
     dry_run: bool = True,
     limit: int | None = None,
     git_publication: bool = False,
+    live_site_confirmation: bool = False,
 ) -> EditorialCalendarFlowAExecutionResult:
     """Plan due calendar items and simulate or execute Flow A for eligible entries."""
     plan = plan_editorial_calendar_due(base_path, now_utc=now_utc)
@@ -1422,6 +1437,7 @@ def execute_due_editorial_calendar_flow_a(
             plan_item,
             calendar_item,
             git_publication=git_publication,
+            live_site_confirmation=live_site_confirmation,
         )
         item_result, calendar_persisted = _apply_post_execution_calendar_completion(
             base_path,

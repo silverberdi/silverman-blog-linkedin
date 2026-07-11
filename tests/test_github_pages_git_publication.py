@@ -47,6 +47,7 @@ def _git_enabled_settings() -> GitPublicationSettings:
         remote="origin",
         commit_message_template="Add blog post: {public_slug} ({campaign_id})",
         timeout_seconds=120,
+        fetch_timeout_seconds=30,
     )
 
 
@@ -179,6 +180,7 @@ def test_disabled_guard_returns_error_without_git_calls(
             remote="origin",
             commit_message_template="Add blog post: {public_slug} ({campaign_id})",
             timeout_seconds=120,
+            fetch_timeout_seconds=30,
         ),
         runner=runner,
     )
@@ -250,7 +252,11 @@ def test_scoped_staging_and_successful_push(
     add_calls = [call for call in runner.calls if call[1][:2] == ["add", "--"]]
     assert len(add_calls) == 1
     assert add_calls[0][1][2:] == [POST_RELATIVE, IMAGE_RELATIVE]
-    assert ("push", "origin", "main") in [tuple(call[1]) for call in runner.calls]
+    call_args = [tuple(call[1]) for call in runner.calls]
+    fetch_index = next(i for i, args in enumerate(call_args) if args[0] == "fetch")
+    push_index = next(i for i, args in enumerate(call_args) if args[0] == "push")
+    assert fetch_index < push_index
+    assert ("push", "origin", "main") in call_args
 
     stored = read_campaign_metadata(editorial_base, CAMPAIGN_ID)
     assert stored is not None
@@ -333,3 +339,97 @@ def test_idempotent_already_published_without_new_commit(
     assert result.blog_git_publication["commit_sha"] == "deadbeef"
     assert not any(call[1][0] == "commit" for call in runner.calls)
     assert not any(call[1][0] == "push" for call in runner.calls)
+
+
+def test_fetch_and_ff_only_pull_when_behind_remote(
+    editorial_base: Path, public_repo: Path
+) -> None:
+    campaign = _campaign(editorial_base)
+    runner = _success_runner()
+    runner.results[("rev-parse", "origin/main")] = GitCommandResult(
+        returncode=0, stdout="remote999\n", stderr=""
+    )
+    runner.results[("merge-base", "--is-ancestor", "abc123def456", "remote999")] = (
+        GitCommandResult(returncode=0, stdout="", stderr="")
+    )
+    result = publish_blog_git_publication(
+        editorial_base,
+        public_repo,
+        campaign_id=CAMPAIGN_ID,
+        campaign=campaign,
+        public_slug=PUBLIC_SLUG,
+        publication_date=PUBLICATION_DATE,
+        blog_publish=campaign["blog_publish"],
+        settings=_git_enabled_settings(),
+        runner=runner,
+    )
+    assert result.status == "completed"
+    pull_calls = [call for call in runner.calls if call[1][:3] == ["pull", "--ff-only", "origin"]]
+    assert len(pull_calls) == 1
+
+
+def test_remote_divergence_returns_partial_error(
+    editorial_base: Path, public_repo: Path
+) -> None:
+    from silverman_blog_linkedin.github_pages_git_publication import (
+        BLOG_GIT_PUBLICATION_REMOTE_DIVERGED,
+    )
+
+    campaign = _campaign(editorial_base)
+    runner = _success_runner()
+    runner.results[("rev-parse", "origin/main")] = GitCommandResult(
+        returncode=0, stdout="remote999\n", stderr=""
+    )
+    runner.results[("merge-base", "--is-ancestor", "abc123def456", "remote999")] = (
+        GitCommandResult(returncode=1, stdout="", stderr="")
+    )
+    runner.results[("merge-base", "--is-ancestor", "remote999", "abc123def456")] = (
+        GitCommandResult(returncode=1, stdout="", stderr="")
+    )
+    result = publish_blog_git_publication(
+        editorial_base,
+        public_repo,
+        campaign_id=CAMPAIGN_ID,
+        campaign=campaign,
+        public_slug=PUBLIC_SLUG,
+        publication_date=PUBLICATION_DATE,
+        blog_publish=campaign["blog_publish"],
+        settings=_git_enabled_settings(),
+        runner=runner,
+    )
+    assert result.status == "failed"
+    assert BLOG_GIT_PUBLICATION_REMOTE_DIVERGED in result.errors
+    assert not any(call[1][0] == "push" for call in runner.calls)
+
+
+def test_duplicate_artifacts_blocked(editorial_base: Path, public_repo: Path) -> None:
+    from silverman_blog_linkedin.github_pages_git_publication import (
+        BLOG_GIT_PUBLICATION_DUPLICATE_ARTIFACTS,
+    )
+
+    campaign = _campaign(editorial_base)
+    runner = _success_runner()
+    runner.results[("cat-file", "-e", f"origin/main:{POST_RELATIVE}")] = GitCommandResult(
+        returncode=0, stdout="", stderr=""
+    )
+    runner.results[("log", "-1", "--format=%B", "origin/main", "--", POST_RELATIVE)] = (
+        GitCommandResult(
+            returncode=0,
+            stdout="Add blog post: other (flow-a-2026-01-01-other-post)\n",
+            stderr="",
+        )
+    )
+    result = publish_blog_git_publication(
+        editorial_base,
+        public_repo,
+        campaign_id=CAMPAIGN_ID,
+        campaign=campaign,
+        public_slug=PUBLIC_SLUG,
+        publication_date=PUBLICATION_DATE,
+        blog_publish=campaign["blog_publish"],
+        settings=_git_enabled_settings(),
+        runner=runner,
+    )
+    assert result.status == "failed"
+    assert BLOG_GIT_PUBLICATION_DUPLICATE_ARTIFACTS in result.errors
+    assert not any(call[1][0] == "commit" for call in runner.calls)
