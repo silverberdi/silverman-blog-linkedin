@@ -44,6 +44,9 @@ Use a dedicated **HTTP worker service** (this repository) for file processing an
 
 ## Related Documents
 
+- [docs/CURRENT-STATE.md](../CURRENT-STATE.md) — operational status
+- [docs/CONTEXT-AUTHORITY.md](../CONTEXT-AUTHORITY.md) — authority hierarchy
+- [docs/GLOSSARY.md](../GLOSSARY.md) — terminology
 - `docs/context/n8n-integration-context.md`
 - `docs/context/worker-architecture.md`
 - ADR-0003 (local dev, container deploy)

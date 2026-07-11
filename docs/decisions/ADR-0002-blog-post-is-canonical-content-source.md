@@ -44,5 +44,8 @@ For each blog post, the system should eventually produce at least three LinkedIn
 
 ## Related Documents
 
+- [docs/CURRENT-STATE.md](../CURRENT-STATE.md)
+- [docs/CONTEXT-AUTHORITY.md](../CONTEXT-AUTHORITY.md)
+- [docs/GLOSSARY.md](../GLOSSARY.md)
 - `docs/context/editorial-operating-model.md`
 - `docs/context/openai-content-generation-context.md`

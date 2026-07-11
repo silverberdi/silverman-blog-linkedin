@@ -5,48 +5,44 @@ alwaysApply: true
 
 # silverman-blog-linkedin
 
-## Project Purpose
+## Canonical context (read first)
 
-Local HTTP worker service for the `silverman-blog-linkedin` content automation system. n8n orchestrates; the worker performs controlled file processing and LinkedIn draft generation from Markdown blog posts.
+- [docs/CURRENT-STATE.md](docs/CURRENT-STATE.md) — implemented / validated / manual / deferred
+- [docs/CONTEXT-AUTHORITY.md](docs/CONTEXT-AUTHORITY.md) — authority hierarchy and conflict rules
+- [docs/GLOSSARY.md](docs/GLOSSARY.md) — Flow A completion layers, handoff vs publication
 
-Business context: support Silverio Bernal's positioning as a Solutions Architect—short-term goal attracting recruiters/C-level for remote senior roles (~USD 7k/month); long-term recognition in AI, architecture, digital transformation, agility, governance, and technology efficiency.
+## Purpose
 
-## Architecture Constraints
+HTTP worker for blog-to-LinkedIn automation. n8n orchestrates over HTTP only; worker owns file I/O, validation, generation, metadata, and lifecycle moves. Business context: Solutions Architect positioning for senior remote roles and long-term technical leadership recognition.
 
-- **n8n calls worker over HTTP only** — HTTP Request nodes; never n8n Execute Command (see ADR-0001).
-- **Worker owns** file I/O, path validation, content generation, metadata writes, and moving files between `ready` / `processed` / `error`.
-- **Expected endpoints:** `GET /health`, `POST /process-ready`, `POST /process-file` (implement only when the corresponding OpenSpec change is approved).
-- **Configurable via environment variables**; never expose secrets in HTTP responses.
-- **Validate expected folders** before processing.
-- **Develop locally on Mac**; **deploy as Docker container** on Linux server (`192.168.0.194`, mount `/data/silverman-blog-linkedin`). Do not assume development on the server.
+## Critical guardrails
 
-## Editorial Rules
+- **n8n → worker HTTP only** — never n8n Execute Command (ADR-0001)
+- **OpenSpec before code** — no application changes without an approved change
+- **No secrets** in HTTP responses or docs
+- **Qualified Flow A language** — never bare "Flow A complete"; see GLOSSARY completion layers (`flow_a_complete` = campaign lifecycle only)
+- **Blog handoff ≠ site published/live**; **LinkedIn implemented ≠ API validated**; **n8n imported ≠ unattended**
+- **Develop on Mac**; **deploy Docker** on `192.168.0.194` (`/data/silverman-blog-linkedin`)
 
-- **Blog post is canonical**; LinkedIn posts are generated distribution assets (ADR-0002).
-- Generate at least three variants per post: executive/recruiter, technical leadership, short provocative.
-- English primary; practical, senior, executive-friendly tone.
-- Forbidden: news commentary, tool comparisons, unsupported personal stories.
-- **Dairector is out of scope for phase 1.**
+## Worker scope (summary)
 
-## Editorial Folder Layout
+Endpoints span health, Flow A (publish/package/schedule/calendar), LinkedIn publication (guarded), and draft generation. See CURRENT-STATE and `openspec/specs/` — not a Phase 1-only `/health` → `process-file` ladder.
 
-```
-blog-posts/{ready,processed,error}/
-linkedin-posts/{review,approved,published}/
-metadata/{runs,campaigns,backups}/
-prompts/
-```
+## Editorial rules
 
-## OpenSpec Discipline
+Blog post is canonical (ADR-0002). LinkedIn posts are distribution assets. English, senior, practical tone. Dairector out of scope. Folder layout: `blog-posts/{ready,queued,processed,error}/`, `linkedin-posts/{review,approved,published}/`, `metadata/{runs,campaigns,backups}/`, `prompts/`.
 
-- **Do not implement application code without an approved OpenSpec change.**
-- Changes represent coherent capabilities—not one change per tiny file.
-- Bootstrap context lives in `docs/context/`, ADRs in `docs/decisions/`, flows in `docs/workflows/`.
-- Proposal/tasks/spec files are created through OpenSpec workflow when a change starts. Use Cursor commands installed in this repository: `/opsx-propose`, `/opsx-explore`, `/opsx-apply`, `/opsx-sync`, `/opsx-archive`.
-- Phasing: foundation (`/health`) → process-ready → process-file → n8n integration → GitHub publish → LinkedIn publish (see `docs/context/backlog-and-phasing.md`).
+## Engineering workflow
 
-## Before Implementing
+1. `/opsx-propose` → review/approve
+2. `/opsx-apply` → implement tasks
+3. `/opsx-verify` → validate before commit
+4. Commit → `/opsx-sync` → `/opsx-archive`
 
-1. Read relevant context docs and ADRs.
-2. Confirm an OpenSpec change exists, is approved, and matches the requested work.
-3. Do not add FastAPI routes, Dockerfiles, or n8n workflows outside the active change scope.
+Archived changes are historical only. Update CURRENT-STATE (and RUNTIME-STATE when live flags change) when capability or topology changes.
+
+## Before implementing
+
+1. Read CURRENT-STATE, relevant ADRs, and canonical specs.
+2. Confirm an approved OpenSpec change matches the work.
+3. Do not add routes, Docker, or n8n workflows outside the active change scope.

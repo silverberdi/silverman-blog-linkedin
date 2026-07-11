@@ -1,8 +1,10 @@
 # OpenAI Content Generation Context
 
+> **Historical bootstrap** (2026-07-10) — Filename retained for compatibility. The worker uses **DeepSeek**, not OpenAI. Canonical spec: `openspec/specs/deepseek-linkedin-draft-generation/`. Status: [CURRENT-STATE.md](../CURRENT-STATE.md).
+
 ## Role in the System
 
-The worker uses an LLM (expected: OpenAI API) to transform Markdown blog posts into LinkedIn draft variants. Generation is **downstream of canonical blog content**—the model rewrites and reframes; it does not replace editorial ownership of the original article.
+The worker uses **DeepSeek** (via `DEEPSEEK_*` env vars) to transform Markdown blog posts into LinkedIn draft variants. Generation is **downstream of canonical blog content**—the model rewrites and reframes; it does not replace editorial ownership of the original article.
 
 ## Expected Generation Behavior
 

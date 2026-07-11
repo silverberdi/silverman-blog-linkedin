@@ -1,6 +1,8 @@
 # LinkedIn publication prerequisites
 
-Flow A Core stops at `distribution_scheduled` with per-variant `publish_state: pending`. This document covers the **follow-up** LinkedIn publication slice: queue → safety delay → publish-due. It is separate from Flow A Core PASS semantics.
+Flow A Core stops at `distribution_scheduled` with per-variant `publish_state: pending`. This document covers the **follow-up** LinkedIn publication slice: queue → safety delay → publish-due.
+
+**Implementation vs validation:** Worker endpoints (`/queue-linkedin-publication`, `/publish-linkedin-due-variants`, `/cancel-linkedin-publication`) are **implemented** and guarded by `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` (default `false`). Real LinkedIn API publication is **not operationally validated** in production at last baseline — see [CURRENT-STATE.md](../CURRENT-STATE.md).
 
 Public site prerequisites for LinkedIn app configuration:
 

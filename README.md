@@ -1,8 +1,21 @@
 # silverman-blog-linkedin worker
 
-Local HTTP worker for the **silverman-blog-linkedin** content automation system. n8n orchestrates workflows; this service performs bounded file processing and health checks over HTTP (see ADR-0001).
+Local HTTP worker for the **silverman-blog-linkedin** content automation system. n8n orchestrates workflows; this service performs bounded file processing over HTTP (see ADR-0001).
 
-Current capabilities: configuration, editorial folder validation, `GET /health`, authenticated `POST /process-ready` (read-only scan of Markdown candidates in `blog-posts/ready/`), authenticated `POST /process-file` (read one Markdown blog post by `relative_path`), authenticated `POST /write-linkedin-draft` (persist one LinkedIn review draft from client-supplied content), and authenticated `POST /generate-linkedin-draft` (generate one LinkedIn review draft from blog Markdown via DeepSeek).
+## Project status
+
+Canonical documentation (read before proposing or implementing changes):
+
+| Document | Purpose |
+|----------|---------|
+| [docs/CURRENT-STATE.md](docs/CURRENT-STATE.md) | Implemented / validated / manual / deferred roadmap |
+| [docs/CONTEXT-AUTHORITY.md](docs/CONTEXT-AUTHORITY.md) | Authority hierarchy and conflict rules |
+| [docs/GLOSSARY.md](docs/GLOSSARY.md) | Terminology (`flow_a_complete`, handoff vs published, etc.) |
+| [docs/RUNTIME-STATE.md](docs/RUNTIME-STATE.md) | Volatile live flags (consult when deployment state matters) |
+
+**Capability summary (last verified `2026-07-10`):** Flow A core (publish → package → schedule → lifecycle) operationally validated; ComfyUI image generation validated; blog **handoff** to public checkout validated; site **published/live** requires manual Git commit/push; LinkedIn package/scheduling implemented; LinkedIn real API publication **not** operationally validated (`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=false`); n8n Flow A workflow **imported but inactive** (not unattended automation). Deployed worker uses `BUILD_REVISION` (git SHA at image build) — not `SILVERMAN_BUILD_REVISION`. Last verified baseline `88cd5bc` is a point-in-time snapshot, not a permanent expected commit.
+
+**Endpoints (summary):** `GET /health`; Flow A (`POST /publish-blog-post`, `/generate-linkedin-package`, `/schedule-linkedin-distribution`, calendar connector); LinkedIn publication (`/queue-linkedin-publication`, `/publish-linkedin-due-variants`, `/cancel-linkedin-publication`); draft path (`POST /process-ready`, `/process-file`, `/generate-linkedin-draft`, `/write-linkedin-draft`). See README sections below and `openspec/specs/` for contracts.
 
 ## Requirements
 
@@ -181,7 +194,7 @@ python scripts/flow_a_readiness.py \
 | 3 | Manual Flow A n8n execution (manual trigger only; workflow stays inactive in export) |
 | 4 | Idempotent rerun verification (operator checklist) |
 
-Phases 1–4 are blocked until Phase 0 passes (use `--force` for debugging only). Default expected commits: `79f5345`, `962ba2f`, `53708eb` (override with repeatable `--expected-commit`).
+Phases 1–4 are blocked until Phase 0 passes (use `--force` for debugging only). Override expected commits with repeatable `--expected-commit` (defaults in script may lag current baseline — see [docs/CURRENT-STATE.md](docs/CURRENT-STATE.md)).
 
 `deploy/server/smoke-worker.sh` remains a complementary minimal post-deploy check; `deploy/server/verify-worker-deploy.sh` retries worker `/health` and `/openapi.json` after container recreate, then confirms Flow A OpenAPI endpoints and public blog repo mount (`/public-blog` with `_posts/` and `assets/images/`); `deploy/server/import-flow-a-n8n-workflow.sh` imports the Flow A workflow into the real n8n container (not the nginx gateway) with stable id `silvermanFlowAPublish01`; **`deploy/server/run-flow-a-worker-smoke.sh` is the deterministic Flow A diagnostic gate** — it calls `GET /health`, then `POST /publish-blog-post`, `POST /generate-linkedin-package`, and `POST /schedule-linkedin-distribution` directly against the worker (no n8n UI) and prints campaign metadata after each step; use it to isolate worker vs n8n vs provider failures before any manual n8n run; `deploy/server/collect-flow-a-smoke-evidence.sh` collects read-only post-smoke evidence on the Ubuntu server (worker OpenAPI, public blog repo readiness, editorial artifacts under the editorial workspace, public blog artifacts under the GitHub Pages repo checkout, n8n workflow inactive + 26 nodes) without fragile ad-hoc SSH heredocs; `scripts/flow_a_readiness.py` is the Flow A pre-smoke gate. Phase 0 may report `n8n_workflow_import` as **pending** when import cannot be confirmed over HTTP alone — a successful `import-flow-a-n8n-workflow.sh` run on the Ubuntu server satisfies manual import verification evidence. Run deploy on the **Ubuntu server** so port `8010` is updated — running `deploy-worker.sh` from Mac only syncs locally. Use **repo layout** (`./deploy/server/deploy-worker.sh`) from a checkout, or **target layout** (`/home/silverman/silverman-blog-linkedin-worker/deploy-worker.sh`) when rebuilding from the synced server directory. If Phase 0 reports a stale worker, rebuild on the server with `DEPLOY_FORCE_REBUILD=1 ./deploy-worker.sh` (target layout) or `DEPLOY_FORCE_REBUILD=1 ./deploy/server/deploy-worker.sh` (repo layout), then `verify-worker-deploy.sh` — the readiness script does not deploy or restart automatically.
 
@@ -779,7 +792,8 @@ See [docs/workflows/blog-publishing-bridge.md](docs/workflows/blog-publishing-br
 
 ## Project context
 
-- Architecture and phasing: `docs/context/`
+- **Canonical status:** [docs/CURRENT-STATE.md](docs/CURRENT-STATE.md), [docs/CONTEXT-AUTHORITY.md](docs/CONTEXT-AUTHORITY.md), [docs/GLOSSARY.md](docs/GLOSSARY.md)
+- Bootstrap history: `docs/context/` (bannered where superseded)
 - ADRs: `docs/decisions/`
-- OpenSpec changes: `openspec/changes/`
-- Editorial canon (blog rules, LinkedIn package, distribution): `content-strategy/silverman-editorial-system.md`
+- OpenSpec: `openspec/specs/`, `openspec/changes/`
+- Editorial canon: `content-strategy/silverman-editorial-system.md`

@@ -2,6 +2,8 @@
 
 Operator workflow for preparing one editorial blog post pair from `blog-posts/ready/` into a local checkout of [silverberdi.github.io](https://github.com/silverberdi/silverberdi.github.io) for publication at [silverman.pro](https://silverman.pro).
 
+**Terminology:** Worker `POST /publish-blog-post` performs **blog handoff** (writes to public checkout). This CLI and manual Git steps achieve **site published/live**. See [GLOSSARY.md](../GLOSSARY.md).
+
 This is a **CLI helper only**. It is not an HTTP worker endpoint and does not use n8n Execute Command. It does not run `git commit` or `git push`, move sources out of `ready/`, or publish to LinkedIn.
 
 ## Input convention

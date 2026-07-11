@@ -3,38 +3,52 @@ schema: spec-driven
 context: |
   Repository: silverman-blog-linkedin.
 
-  This repository will contain a local HTTP worker service for blog-to-LinkedIn
-  content automation. n8n runs on a Linux server and must call the worker over
-  HTTP only. n8n Execute Command must not be used.
+  HTTP worker for blog-to-LinkedIn content automation. n8n orchestrates over HTTP only
+  (never Execute Command — ADR-0001). Post-Flow-A-core: publish, package, schedule,
+  calendar reconciliation, ComfyUI images, blog handoff, LinkedIn package metadata.
 
-  Development happens locally on Mac using Cursor and OpenSpec. Deployment happens
-  later as a Docker container on the Linux server.
+  Authority (see docs/CONTEXT-AUTHORITY.md):
+  - Canonical specs (openspec/specs/) = normative requirements
+  - Implementation/tests = evidence; neither silently overrides discrepancies
+  - Record divergences in docs/CURRENT-STATE.md; resolve via new OpenSpec change
+  - Archived changes (openspec/changes/archive/) = historical only — not active requirements
 
-  Server host folder: /home/silverman/compartido_mac/silverman-blog-linkedin
-  Container-mounted folder: /data/silverman-blog-linkedin
+  Canonical context paths (explicit — do not inject all docs/context/ or all workflows):
+  - docs/CURRENT-STATE.md — status, roadmap, completion layers, divergences
+  - docs/CONTEXT-AUTHORITY.md — hierarchy and conflict rules
+  - docs/GLOSSARY.md — terminology (flow_a_complete, handoff vs published, etc.)
+  - docs/decisions/ADR-000*.md — accepted ADRs
+  - openspec/specs/ — canonical behavioral specs
+  Consult docs/RUNTIME-STATE.md only when live operational flags matter.
 
-  Blog posts are canonical content. LinkedIn posts are generated distribution assets.
+  Distinctions (anti-patterns):
+  - flow_a_complete = campaign lifecycle state, not product complete
+  - Blog handoff to /public-blog ≠ site published/live (manual Git push)
+  - LinkedIn package/scheduling implemented ≠ LinkedIn API operationally validated
+  - n8n workflow imported ≠ unattended production automation (currently inactive)
 
-  Phase 1 excludes Dairector, automatic LinkedIn publishing, GitHub publishing,
-  and OpenAI processing until the relevant change.
+  Development: Mac + Cursor + OpenSpec. Deployment: Docker on 192.168.0.194:8010,
+  editorial mount /data/silverman-blog-linkedin, public blog /public-blog.
 
-  Endpoint sequence: foundation GET /health, then POST /process-ready, then
-  POST /process-file, then n8n integration workflows.
-
-  The worker must validate expected folder paths before processing, must not
-  expose secrets in responses, must be configurable through environment variables,
-  and must return structured JSON suitable for n8n branching.
-
-  Extended context: docs/context/, ADRs in docs/decisions/, flows in docs/workflows/.
+  Engineering lifecycle: /opsx-propose → approve → /opsx-apply → /opsx-verify →
+  commit → /opsx-sync → /opsx-archive. Use hyphenated slash commands only.
 
 rules:
   proposal:
     - Include explicit goals and non-goals sections.
-    - Explain why a dedicated HTTP worker is used instead of n8n Execute Command.
-    - Keep scope small and aligned with a single coherent capability per change.
+    - Consult docs/CURRENT-STATE.md when operational status or completion layers matter.
+    - Explain why HTTP worker instead of n8n Execute Command when relevant.
+    - Do not cite archived OpenSpec changes as active requirements.
+    - Keep scope to one coherent capability per change.
   design:
-    - Describe the HTTP boundary, configuration, path validation, Docker deployment direction, and security considerations.
-    - Do not design future endpoints unless they are explicitly in scope for the change.
+    - Describe HTTP boundary, configuration, path validation, deployment, security.
+    - Align with CURRENT-STATE for implemented vs manual vs deferred capabilities.
+    - Do not design endpoints outside approved change scope.
   tasks:
-    - Include validation steps and tests appropriate to the change scope.
-    - Do not include tasks for out-of-scope features (Dairector, auto-publish, GitHub sync, Execute Command).
+    - Include validation steps and tests appropriate to change scope.
+    - When capability status, topology, activation, or completion criteria change,
+      include task to update docs/CURRENT-STATE.md (and RUNTIME-STATE.md if live flags change).
+    - Docs-only changes may skip full pytest unless tasks require otherwise.
+  specs:
+    - Delta specs must be traceable to implementation or tests when behavioral.
+    - Use GLOSSARY terms precisely; avoid unqualified "Flow A complete" language.

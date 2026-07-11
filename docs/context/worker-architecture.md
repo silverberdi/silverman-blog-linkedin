@@ -1,98 +1,85 @@
 # Worker Architecture
 
+Canonical status: [CURRENT-STATE.md](../CURRENT-STATE.md). Terminology: [GLOSSARY.md](../GLOSSARY.md). Specs: `openspec/specs/`.
+
 ## System Pattern
 
 ```
 ┌─────────┐     HTTP      ┌──────────────────┐     file I/O     ┌─────────────────┐
 │   n8n   │ ────────────► │  HTTP worker     │ ───────────────► │  Editorial dirs │
-│ (orch.) │               │  (this repo)     │                  │  blog, linkedin │
+│ (orch.) │               │  (this repo)     │                  │  + /public-blog │
 └─────────┘               └──────────────────┘                  │  metadata       │
                                                                   └─────────────────┘
 ```
 
-- **n8n** orchestrates: scheduling, triggers, HTTP calls, future workflow branching.
-- **Worker** owns: folder validation, reading Markdown blog posts, content generation, writing LinkedIn drafts, metadata persistence, and moving source files to `processed/` or `error/`.
+- **n8n** orchestrates: scheduling, triggers, HTTP calls, workflow branching.
+- **Worker** owns: folder validation, Flow A pipeline, draft generation, metadata, lifecycle moves, public checkout handoff.
 
-The worker should be small, explicit, and operationally safe. It does not replace n8n; it executes the bounded processing steps n8n requests.
+The worker does not replace n8n; it executes bounded processing steps n8n requests over HTTP only (ADR-0001).
 
-## Expected Endpoints
+## Endpoints (current)
 
-| Method | Path | Purpose | Phase |
-|--------|------|---------|-------|
-| GET | `/health` | Liveness/readiness for n8n and ops checks | Foundation |
-| POST | `/process-ready` | Process all Markdown files in `blog-posts/ready/` | Process-ready |
-| POST | `/process-file` | Process a single named file in `blog-posts/ready/` | Process-file |
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/health` | Liveness/readiness |
+| POST | `/process-ready` | Scan `blog-posts/ready/` (read-only inventory) |
+| POST | `/process-file` | Read one ready Markdown file |
+| POST | `/write-linkedin-draft` | Persist client-supplied draft |
+| POST | `/generate-linkedin-draft` | DeepSeek single-variant generation |
+| POST | `/publish-blog-post` | Flow A blog handoff to public checkout |
+| POST | `/generate-linkedin-package` | Flow A multi-variant package |
+| POST | `/schedule-linkedin-distribution` | Flow A stagger scheduling |
+| POST | `/queue-linkedin-publication` | Authorize variant for publish window |
+| POST | `/publish-linkedin-due-variants` | Guarded LinkedIn API publish |
+| POST | `/cancel-linkedin-publication` | Cancel queued variant |
+| POST | `/editorial-calendar/plan-due` | Calendar planning |
+| GET | `/editorial-calendar/status` | Calendar status |
+| POST | `/editorial-calendar/execute-flow-a-due` | Flow A calendar connector |
+| GET | `/linkedin/oauth/*` | OAuth helper endpoints |
 
-Endpoint implementation follows approved OpenSpec changes; do not add endpoints outside that workflow.
+New endpoints require an approved OpenSpec change. Full contracts: `openspec/specs/`.
+
+## Flow A scope
+
+Queue acceptance (`ready` → `queued`), publish, package, schedule, lifecycle (`flow_a_complete`), reconciliation, and idempotency. See [flow-a-target-flow.md](../workflows/flow-a-target-flow.md).
 
 ## Environment Variables
 
-The worker should be configurable through environment variables (exact names to be defined in the foundation change). Expected categories:
-
 | Category | Examples |
 |----------|----------|
-| Base paths | Root data directory (container: `/data/silverman-blog-linkedin`) |
-| OpenAI / LLM | API key, model, timeout |
-| Processing | Batch limits, retry behavior |
-| Flow A stale detection | `SILVERMAN_FLOW_A_PROCESSING_STALE_SECONDS` — positive integer, default `3600`, minimum `60`; fail-fast on invalid value (`flow_a_processing_stale_seconds_invalid`) |
-| Logging | Log level, structured output |
+| Base paths | `SILVERMAN_BLOG_LINKEDIN_BASE_PATH`, `SILVERMAN_GITHUB_PAGES_REPO_PATH` |
+| Auth | `SILVERMAN_BLOG_LINKEDIN_API_KEY` |
+| LLM | `DEEPSEEK_*` (not OpenAI) |
+| ComfyUI | `SILVERMAN_COMFYUI_*` |
+| LinkedIn publication | `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`, token/URN |
+| Flow A stale detection | `SILVERMAN_FLOW_A_PROCESSING_STALE_SECONDS` |
+| Build | `BUILD_REVISION` at image build time |
 
-The worker must **not** expose secrets in HTTP responses or logs at info level.
+The worker must **not** expose secrets in HTTP responses or info-level logs.
 
 ## Folder Contracts
 
-Expected editorial layout under the configured root:
-
 ```
-blog-posts/
-  ready/        ← input: Markdown blog posts (manual placement)
-  queued/       ← worker-accepted Flow A work (create on deploy; no auto-migration)
-  processed/    ← success: moved after successful processing
-  error/        ← failure: moved when processing fails
-
-linkedin-posts/
-  review/       ← output: generated drafts awaiting human review
-  approved/     ← human-approved drafts
-  published/    ← published drafts (future tracking)
-
-metadata/
-  runs/         ← per-run processing metadata
-  campaigns/    ← campaign-level metadata
-  backups/      ← reserved for future use
-
-prompts/        ← prompt templates for content generation
+blog-posts/{ready,queued,processed,error}/
+linkedin-posts/{review,approved,published,generated}/
+metadata/{runs,campaigns,backups}/
+prompts/
+editorial-calendar/
 ```
 
 ## Path Validation
 
-Before processing, the worker must:
+Verify configured root and expected subdirectories before processing. Fail safely with structured JSON errors — no secret leakage.
 
-1. Verify the configured root path exists and is readable/writable as required.
-2. Verify expected subdirectories exist (or create them only if an OpenSpec change explicitly allows auto-creation).
-3. Reject or fail safely when paths are misconfigured rather than writing to unexpected locations.
-
-Path validation failures should return clear HTTP error responses without leaking internal secrets or full filesystem maps.
-
-## Error Handling Expectations
+## Error Handling
 
 | Scenario | Expected behavior |
 |----------|-------------------|
-| Single file parse/generation failure | Move file to `blog-posts/error/`, record error in run metadata, continue batch if applicable |
-| Missing folders | Fail fast with descriptive HTTP response; do not partial-write |
-| LLM/API failure | Retry policy as defined in spec; on exhaustion, move source to `error/` |
-| Invalid request body | 4xx with validation message |
+| Single file failure (Flow B path) | Metadata + structured errors; Flow A uses `error/` + campaign state |
+| Missing folders | Degraded `/health` or failed run with clear codes |
+| LLM/API failure | Structured error codes; no secret in response |
+| Invalid request | HTTP 422 with validation detail |
 
-Responses should be structured JSON suitable for n8n branching (success flag, counts, file names, error summaries).
+## Metadata
 
-## Metadata Expectations
-
-Each processing run should write metadata to `metadata/runs/` including at minimum:
-
-- Run identifier and timestamp
-- Trigger source (e.g., `/process-ready`, `/process-file`)
-- Input files processed
-- Output files generated
-- Success/failure per file
-- Error messages where applicable
-
-Campaign metadata in `metadata/campaigns/` links blog posts, generated LinkedIn variants, and optional campaign labels for future analytics and publishing workflows.
+`metadata/runs/` per HTTP call; `metadata/campaigns/` is traceability authority for Flow A lifecycle.

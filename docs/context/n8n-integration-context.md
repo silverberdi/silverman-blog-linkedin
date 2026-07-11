@@ -1,67 +1,47 @@
 # n8n Integration Context
 
+Status: [CURRENT-STATE.md](../CURRENT-STATE.md). Live n8n state: [RUNTIME-STATE.md](../RUNTIME-STATE.md).
+
 ## Why Execute Command Is Not Used
 
-n8n Execute Command runs arbitrary shell commands on the host where n8n executes. That capability:
-
-- Expands the attack surface if workflows are compromised or misconfigured
-- Blurs accountability between orchestration and implementation
-- Makes behavior harder to test, version, and review in isolation
-- Increases operational risk on a shared Linux server
-
-**Decision:** Do not enable n8n Execute Command for this system. Use a dedicated HTTP worker instead. See ADR-0001.
+n8n Execute Command runs arbitrary shell commands on the host. **Decision:** Use HTTP worker only. See ADR-0001.
 
 ## n8n as Orchestrator
 
 n8n responsibilities:
 
-- Detect or schedule when processing should run
+- Trigger processing (manual, cron, or calendar-driven when activated)
 - Call worker HTTP endpoints
-- Branch on worker JSON responses (success, partial failure, errors)
-- Future: notify on completion, trigger review reminders, coordinate publish workflows
+- Branch on worker JSON responses
 
-n8n does **not**:
+n8n does **not** own filesystem generation logic, shell-based processing, or LLM calls directly.
 
-- Read/write editorial Markdown directly for generation logic
-- Invoke shell scripts for core processing
-- Hold business logic for LinkedIn variant generation
+## Implemented vs imported vs active
+
+| State | Meaning at last baseline |
+|-------|--------------------------|
+| **Implemented** | Worker endpoints and workflow JSON exist in repo |
+| **Imported** | Flow A workflow present in n8n (`silvermanFlowAPublish01`) |
+| **Tested** | Manual execution and worker smoke validated |
+| **Active** | **No** — workflow export keeps `active: false`; not unattended automation |
+
+Draft-generation workflow (`silverman-blog-linkedin-draft-generation.json`) is a separate Flow B–adjacent path.
 
 ## Worker Integration: HTTP Request Nodes Only
 
-All worker integration must use n8n **HTTP Request** nodes:
+| Workflow | Primary HTTP calls |
+|----------|-------------------|
+| Flow A publish | `GET /health`, `POST /publish-blog-post`, `/generate-linkedin-package`, `/schedule-linkedin-distribution` |
+| Draft generation | `GET /health`, `POST /process-ready`, `/process-file`, `/generate-linkedin-draft` |
+| Calendar connector | `POST /editorial-calendar/execute-flow-a-due` |
 
-| Workflow action | HTTP call |
-|-----------------|-----------|
-| Health check | `GET /health` |
-| Process all ready posts | `POST /process-ready` |
-| Process one file | `POST /process-file` |
+Import scripts: `deploy/server/import-flow-a-n8n-workflow.sh`. Readiness gate: `scripts/flow_a_readiness.py`.
 
-Request bodies, headers, and authentication (if added later) must be configured explicitly in the workflow. Do not use Execute Command, SSH nodes, or custom command runners as substitutes for worker endpoints.
+## Workflows in repository
 
-## Future Workflows
-
-### Manual workflow (Phase 4 target)
-
-1. Manual trigger (or webhook) in n8n
-2. Optional: verify worker health (`GET /health`)
-3. `POST /process-ready`
-4. Parse response; notify or log counts
-5. Human reviews output in `linkedin-posts/review/`
-
-### Scheduled workflow (Phase 4 target)
-
-1. Cron trigger (e.g., daily or on interval)
-2. `GET /health` — skip or alert if unhealthy
-3. `POST /process-ready`
-4. Record summary (future: write to n8n data store or external log)
-
-Importable n8n workflow JSON will be delivered in the **n8n integration** OpenSpec change, not during bootstrap.
+- `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json` — Flow A (26 nodes, inactive in export)
+- `n8n/workflows/silverman-blog-linkedin-draft-generation.json` — single-draft review path
 
 ## Development and Testing
 
-During local development, n8n on the server may call:
-
-- A worker running locally (if network allows), or
-- A worker running in a dev container on the server
-
-Workflow design should keep the worker base URL configurable (environment variable or n8n credential) so the same workflow exports work across dev and production.
+Keep worker base URL configurable in n8n Set Configuration nodes. Server default: `http://192.168.0.194:8010` or `http://localhost:8010` from host.

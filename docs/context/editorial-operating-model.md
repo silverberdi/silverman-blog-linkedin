@@ -1,5 +1,7 @@
 # Editorial Operating Model
 
+Terminology: [GLOSSARY.md](../GLOSSARY.md). Flow A vs Flow B: [flow-a-target-flow.md](../workflows/flow-a-target-flow.md), [linkedin-draft-review-flow.md](../workflows/linkedin-draft-review-flow.md).
+
 ## Canonical Content Rule
 
 **The blog post is the canonical content source.**
@@ -58,21 +60,21 @@ For each blog post, the worker should eventually generate **at least three** Lin
 
 All variants must remain faithful to the blog post. They differ in emphasis and length, not in factual basis.
 
-## Review and Approval Flow
+## Review and Approval Flow (Flow B–adjacent)
 
 ```
 blog-posts/ready/
         │
-        ▼  (worker processing)
+        ▼  (worker draft generation or Flow A package)
 linkedin-posts/review/
         │
         ▼  (human review)
 linkedin-posts/approved/
         │
-        ▼  (manual or future automated publish)
+        ▼  (manual publish or future guarded API)
 linkedin-posts/published/
 ```
 
-Phase 1 stops at **review**. A human reviews drafts in `linkedin-posts/review/`, moves acceptable drafts to `approved/`, and publishes manually. Automatic publishing is a future phase.
+> **Historical note:** Early Phase 1 language described stopping at review only. Flow A now automates publish/package/schedule with human Git and LinkedIn publish remaining manual. See [CURRENT-STATE.md](../CURRENT-STATE.md) completion layers.
 
-Campaign and run metadata in `metadata/campaigns/` and `metadata/runs/` support traceability: which blog post produced which variants, when processing ran, and what outcomes occurred.
+Flow A automatic path does not replace human review for Flow B drafts in `review/`. Campaign metadata in `metadata/campaigns/` is traceability authority for Flow A lifecycle.

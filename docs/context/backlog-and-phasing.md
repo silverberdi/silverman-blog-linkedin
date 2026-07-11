@@ -1,5 +1,7 @@
 # Backlog and Phasing
 
+> **Historical bootstrap** (2026-07-10) — Phase ladder below reflects early planning. **Current roadmap and completion layers:** [CURRENT-STATE.md](../CURRENT-STATE.md).
+
 OpenSpec changes must represent **coherent capabilities**, not one change per tiny file. Implementation starts only after a change is proposed, reviewed, validated, and approved.
 
 ## Phase 0: Context Bootstrap (current)
@@ -103,4 +105,4 @@ Phases 5 and 6 may be proposed independently after phase 2+ stability; they are 
 
 - Do not implement before an approved change.
 - Do not split foundation into dozens of micro-changes.
-- Proposal, design, tasks, and specs are created through the OpenSpec workflow (`/opsx:propose`, `/opsx:apply`) when each phase starts.
+- Proposal, design, tasks, and specs are created through the OpenSpec workflow (`/opsx-propose`, `/opsx-apply`) when each phase starts.

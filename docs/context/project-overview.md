@@ -1,5 +1,7 @@
 # Project Overview
 
+> **Historical bootstrap** (2026-07-10) — Superseded by [CURRENT-STATE.md](../CURRENT-STATE.md) for current status and roadmap. Retained for rationale and audience context.
+
 ## Repository
 
 **silverman-blog-linkedin**
@@ -58,4 +60,4 @@ The first operational capability:
 - n8n Execute Command
 - Application code implementation (until an approved OpenSpec change authorizes it)
 
-Future phases may add publishing, additional content sources, and richer n8n workflows. Those are documented in `backlog-and-phasing.md`.
+Future phases may add publishing, additional content sources, and richer n8n workflows. **Current roadmap:** [CURRENT-STATE.md](../CURRENT-STATE.md).

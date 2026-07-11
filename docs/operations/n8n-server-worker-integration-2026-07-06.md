@@ -1,5 +1,7 @@
 # n8n Server Worker Integration — 2026-07-06
 
+> **Historical operations record** (2026-07-06) — Point-in-time server integration notes. **Current status:** [CURRENT-STATE.md](../CURRENT-STATE.md) and [RUNTIME-STATE.md](../RUNTIME-STATE.md). Authority: [CONTEXT-AUTHORITY.md](../CONTEXT-AUTHORITY.md).
+
 ## Purpose
 
 Record the operational changes applied on the Ubuntu server to make the real n8n instance call the deployed `silverman-blog-linkedin` worker.

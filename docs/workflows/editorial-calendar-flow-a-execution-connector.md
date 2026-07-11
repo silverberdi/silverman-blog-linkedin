@@ -1,5 +1,7 @@
 # Editorial calendar Flow A execution connector
 
+Status: [CURRENT-STATE.md](../CURRENT-STATE.md). Folder semantics: [flow-a-target-flow.md](flow-a-target-flow.md). Terminology: [GLOSSARY.md](../GLOSSARY.md).
+
 This workflow documents **staged rollout step 2**: the Flow A execution connector for due editorial calendar items. It chains internal worker services (publish → package → schedule) after read-only planning.
 
 It does **not** activate n8n, cron, systemd timers, queue-slot scheduling, every-X-days source selection, or LinkedIn real publication.

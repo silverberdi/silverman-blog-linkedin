@@ -1,5 +1,7 @@
 # Editorial calendar orchestration (planning foundation)
 
+Status: [CURRENT-STATE.md](../CURRENT-STATE.md). Flow A automation: [flow-a-target-flow.md](flow-a-target-flow.md). Terminology: [GLOSSARY.md](../GLOSSARY.md).
+
 This workflow documents **staged rollout step 1 only**: the read-only editorial calendar planner. It does **not** activate n8n, cron, systemd timers, or automatic publish/package/schedule/LinkedIn publication.
 
 ## Calendar vs campaign scheduling

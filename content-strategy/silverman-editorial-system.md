@@ -2,7 +2,9 @@
 
 Operational editorial canon for the `silverman-blog-linkedin` content automation system. This document is the single source of truth for blog writing rules, LinkedIn derivative package rules, distribution strategy, Flow A vs Flow B policy, and consumption rules for future worker validation, prompt assembly, and scheduling logic.
 
-**Umbrella reference:** `flow-a-automatic-blog-linkedin-publishing-roadmap` (active). This artifact implements the editorial requirements that umbrella child change 1 deferred.
+**Umbrella reference (archived):** `openspec/changes/archive/2026-07-07-flow-a-automatic-blog-linkedin-publishing-roadmap/` — historical evidence only, not active requirements. **Current status:** [docs/CURRENT-STATE.md](../docs/CURRENT-STATE.md). **Authority:** [docs/CONTEXT-AUTHORITY.md](../docs/CONTEXT-AUTHORITY.md).
+
+**Flow A vs Flow B approval:** Flow A automates publish/package/schedule with campaign lifecycle completion; human Git push and LinkedIn API publish remain operator-gated. Flow B is the human draft review path (`review` → `approved` → `published`). See [GLOSSARY.md](../docs/GLOSSARY.md).
 
 ---
 
@@ -18,10 +20,10 @@ This canon defines enforceable editorial policy for:
 
 | In scope | Out of scope (this document only) |
 |----------|-----------------------------------|
-| Rules, anchors, examples | Worker runtime loading |
-| Validation / prompt / scheduling consumption map | HTTP endpoints, n8n workflows |
-| Flow A vs Flow B policy encoding | Flow B generation implementation |
-| Anti-AI and redundancy rules | LinkedIn API publishing |
+| Rules, anchors, examples | Runtime capability status (see CURRENT-STATE) |
+| Validation / prompt / scheduling consumption map | HTTP endpoint implementation detail |
+| Flow A vs Flow B policy encoding | Flow B generation automation beyond policy |
+| Anti-AI and redundancy rules | LinkedIn API operational validation |
 
 Blog post is canonical (ADR-0002). LinkedIn posts are derivative distribution assets. The worker remains the filesystem and LLM boundary; n8n orchestrates over HTTP only (ADR-0001).
 
