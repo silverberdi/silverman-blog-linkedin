@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Guarded automated Git commit and push for the public GitHub Pages repository checkout after successful blog handoff. Complements `github-pages-blog-publishing` (file preparation and bridge apply) by optionally committing and pushing scoped publication artifacts (`_posts/` and `assets/images/`) when explicitly enabled and opted in per request. US-001 scope only — no live-site confirmation, remote divergence reconciliation, or fetch/pull/rebase (deferred to US-002).
+Guarded automated Git commit and push for the public GitHub Pages repository checkout after successful blog handoff. Complements `github-pages-blog-publishing` (file preparation and bridge apply) by optionally committing and pushing scoped publication artifacts (`_posts/` and `assets/images/`) when explicitly enabled and opted in per request. Includes remote reconciliation (fetch and fast-forward-only pull) and duplicate prevention. Live-site HTTP confirmation is owned by `blog-live-site-confirmation`.
 
 ## Requirements
 
@@ -132,7 +132,7 @@ Commit messages MUST NOT embed secrets or full post body content.
 
 ### Requirement: Push to configured remote branch
 
-After a successful local commit (or when there is nothing new to commit per US-001 idempotency rules), the worker MUST push to the configured remote and branch.
+After a successful local commit (or when there is nothing new to commit per idempotency rules), the worker MUST push to the configured remote and branch.
 
 Default remote MUST be `origin`.
 
@@ -140,15 +140,17 @@ Default branch MUST be configurable via `SILVERMAN_BLOG_GIT_PUBLICATION_BRANCH` 
 
 The worker MUST NOT force-push.
 
-The worker MUST NOT run `git pull`, `git fetch`, rebase, or merge as part of this capability (deferred to US-002).
+Before push, the worker MUST run `git fetch <remote>` and reconcile the local branch with the remote tracking branch using fast-forward-only rules per the **Remote reconciliation before push** requirement in this spec.
 
 Push failures after successful handoff MUST return overall publish `status: partial` with stable error code `blog_git_publication_push_failed` and a safe, actionable message without secrets.
 
 Push failures before successful handoff MUST return overall publish `status: failed`.
 
+Remote divergence that cannot be resolved via fast-forward-only pull MUST return overall publish `status: partial` with stable error code `blog_git_publication_remote_diverged` after successful handoff.
+
 #### Scenario: Successful push to default branch
 
-- **WHEN** local commit succeeds, remote `origin` and branch `main` are configured, and push succeeds
+- **WHEN** local commit succeeds, fetch completes, branch is reconciled or already up to date, remote `origin` and branch `main` are configured, and push succeeds
 - **THEN** Git publication returns overall `status: completed` with `blog_git_publication.status` `pushed` and records remote branch metadata
 
 #### Scenario: Push failure after handoff is partial
@@ -156,12 +158,22 @@ Push failures before successful handoff MUST return overall publish `status: fai
 - **WHEN** blog handoff succeeded, `git_publication` was requested, and `git push` fails
 - **THEN** the worker returns overall `status: partial`, `blog_publish` preserves successful handoff evidence, `blog_git_publication.status` is `failed` with `blog_git_publication_push_failed`, and the response states files were written but remote Git publication did not complete
 
-#### Scenario: No fetch or pull before push
+#### Scenario: Fetch before push
 
 - **WHEN** Git publication runs against a public checkout
-- **THEN** the worker does not invoke `git fetch`, `git pull`, rebase, or merge before `git push`
+- **THEN** the worker invokes `git fetch` for the configured remote before `git push`
 
-### Requirement: US-001 Git publication idempotency
+#### Scenario: Fast-forward pull when behind remote
+
+- **WHEN** after fetch the local branch is behind `origin/main`, the working tree has no conflicts for ff-only merge, and unrelated dirty files are not affected
+- **THEN** the worker runs `git pull --ff-only` and proceeds to push
+
+#### Scenario: Non-fast-forward divergence fails closed
+
+- **WHEN** after fetch the local and remote branches have diverged and fast-forward-only reconciliation is not possible
+- **THEN** the worker returns overall `status: partial` with `blog_git_publication_remote_diverged` after successful handoff and does not force-push
+
+### Requirement: Git publication idempotency and duplicate prevention
 
 When campaign metadata records successful Git publication (`blog_git_publication.status` `pushed`) for the same `blog_publish.idempotency_key` with matching `commit_sha` and scoped artifact paths, and the working tree has no changes for those paths, a repeat Git publication request MUST:
 
@@ -172,7 +184,9 @@ When campaign metadata records successful Git publication (`blog_git_publication
 
 When scoped artifact paths match the last successful Git publication metadata and `git diff` shows no changes for those paths, the worker MUST return `already_published` without creating an empty commit.
 
-US-002 owns remote-history divergence reconciliation, equivalent commits after amend or rebase, cross-campaign duplicate detection, automatic fetch/pull/merge/rebase, GitHub Pages deployment confirmation, and live URL reachability.
+Before creating a new commit, the worker MUST detect cross-campaign duplicate publication attempts: when scoped artifact paths already exist on the remote tracking branch at a commit not attributable to the same campaign (per commit message `campaign_id` or matching blob content), Git publication MUST fail with `blog_git_publication_duplicate_artifacts` without overwriting remote content.
+
+When remote history contains equivalent content for scoped paths from a prior successful push for the same campaign, the worker MUST return `already_published` without a duplicate commit.
 
 #### Scenario: Repeat request after successful push
 
@@ -188,6 +202,31 @@ US-002 owns remote-history divergence reconciliation, equivalent commits after a
 
 - **WHEN** a repeat request finds matching successful `blog_git_publication` evidence
 - **THEN** campaign metadata retains the prior `commit_sha`, `remote`, `branch`, and `pushed` status
+
+#### Scenario: Cross-campaign path collision blocked
+
+- **WHEN** scoped artifact paths already exist on the remote branch for a different `campaign_id` and local content would collide
+- **THEN** Git publication fails with `blog_git_publication_duplicate_artifacts` and does not push
+
+### Requirement: Remote reconciliation before push
+
+Git publication MUST run `git fetch` for the configured remote before attempting `git push`.
+
+After fetch, when the local branch is behind the remote tracking branch and `git merge-base --is-ancestor` confirms fast-forward is possible without touching unrelated dirty files, the worker MUST run `git pull --ff-only` for the configured remote and branch.
+
+When fast-forward reconciliation is not possible, or unrelated unstaged changes would be at risk, the worker MUST NOT run merge or rebase and MUST fail with `blog_git_publication_remote_diverged` when handoff already succeeded.
+
+Fetch timeout MUST be configurable via `SILVERMAN_BLOG_GIT_FETCH_TIMEOUT_SECONDS` with a sensible default.
+
+#### Scenario: Behind remote fast-forward succeeds
+
+- **WHEN** fetch shows local `main` is behind `origin/main` by commits that do not modify the scoped artifact paths and ff-only pull succeeds
+- **THEN** Git publication proceeds to commit (if needed) and push
+
+#### Scenario: Diverged history fails closed
+
+- **WHEN** fetch shows local and remote branches have diverged
+- **THEN** Git publication returns `blog_git_publication_remote_diverged` without force-push
 
 ### Requirement: Git publication prerequisites
 
@@ -261,29 +300,11 @@ When handoff succeeds but Git commit or push fails, overall response `status` MU
 - **WHEN** Git publication fails after successful handoff
 - **THEN** response `status` is `partial`, `errors[]` includes the stable Git error code, `blog_publish` reflects successful handoff, and the response states remote Git publication did not complete
 
-### Requirement: Git publication non-goals for US-002 deferral
-
-This capability MUST NOT verify that GitHub Pages deployed or that `source_public_url` is HTTP-reachable.
-
-This capability MUST NOT implement remote divergence detection, automatic pull/rebase, or conflict resolution.
-
-This capability MUST NOT implement cross-campaign duplicate commit prevention beyond the US-001 idempotency requirement in this spec.
-
-#### Scenario: No live URL probe
-
-- **WHEN** Git publication push succeeds
-- **THEN** the worker does not perform HTTP requests to `source_public_url` or GitHub Pages status endpoints
-
-#### Scenario: Non-fast-forward push fails closed
-
-- **WHEN** `git push` is rejected because the remote branch advanced after successful handoff
-- **THEN** the worker returns overall `status: partial` with `blog_git_publication_push_failed` and does not attempt fetch/pull/rebase (deferred to US-002)
-
 ### Requirement: Git publication automated tests
 
 The repository SHALL include automated tests for Git publication using injectable Git subprocess fakes or temporary repositories.
 
-Tests MUST cover: disabled guard, environment-only enablement does not publish, controlled staging scope, successful commit and push, push failure after handoff returns partial, missing artifacts, `already_published` idempotency, unrelated dirty files untouched, and Flow B rejection.
+Tests MUST cover: disabled guard, environment-only enablement does not publish, controlled staging scope, successful commit and push, fetch before push, fast-forward pull when behind, remote divergence failure, duplicate artifact detection, push failure after handoff returns partial, missing artifacts, `already_published` idempotency, unrelated dirty files untouched, and Flow B rejection.
 
 Tests MUST NOT require real network access or live GitHub credentials.
 
@@ -306,3 +327,8 @@ Tests MUST NOT require real network access or live GitHub credentials.
 
 - **WHEN** tests simulate a prior successful push for the same campaign idempotency evidence
 - **THEN** tests verify no new commit or push occurs and `already_published` is returned
+
+#### Scenario: Fetch before push test
+
+- **WHEN** tests run Git publication with a successful handoff
+- **THEN** tests verify `git fetch` is invoked before `git push`
