@@ -1,0 +1,279 @@
+"""Tests for Flow A calendar completion persistence."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from silverman_blog_linkedin.editorial_calendar_plan import (
+    CALENDAR_COMPLETION_CONCURRENT_UPDATE,
+    CALENDAR_COMPLETION_FACTS_CONFLICT,
+    CALENDAR_COMPLETION_WRITE_FAILED,
+    CALENDAR_ITEM_NOT_FOUND,
+    CALENDAR_SCHEMA_INVALID,
+    calendar_fingerprint,
+    complete_flow_a_calendar_item,
+    load_calendar,
+    save_calendar_atomic,
+    validate_calendar_document,
+)
+from tests.conftest import create_full_layout
+from tests.test_editorial_calendar_flow_a_execute import (
+    CAMPAIGN_ID,
+    NOW_UTC,
+    PAST_UTC,
+    _base_calendar,
+    _flow_a_item,
+    _write_calendar,
+    _write_flow_a_complete_campaign,
+)
+
+
+@pytest.fixture
+def editorial_base(tmp_path: Path) -> Path:
+    base = tmp_path / "editorial"
+    create_full_layout(base)
+    ready = base / "blog-posts" / "ready"
+    (ready / "post.md").write_text("# Sample\n", encoding="utf-8")
+    return base
+
+
+def _completion_facts(**overrides) -> dict:
+    facts = {
+        "campaign_id": CAMPAIGN_ID,
+        "completed_at_utc": "2026-07-10T12:00:00Z",
+        "processed_source_relative_path": "blog-posts/processed/post.md",
+        "flow_a_completion": {
+            "campaign_state": "flow_a_complete",
+            "execution_status": "executed",
+            "source_lifecycle_status": "completed",
+            "blog_publish_status": "completed",
+            "public_url": "https://silverman.pro/post",
+            "linkedin_package_status": "completed",
+            "linkedin_distribution_status": "completed",
+        },
+    }
+    facts.update(overrides)
+    return facts
+
+
+def test_save_calendar_atomic_updates_timestamp_and_preserves_other_items(editorial_base: Path):
+    _write_calendar(
+        editorial_base,
+        _base_calendar(
+            items=[
+                _flow_a_item(item_id="due-flow-a"),
+                _flow_a_item(item_id="other-item", due_at_utc="2026-12-01T14:00:00Z"),
+            ]
+        ),
+    )
+    calendar, _ = load_calendar(editorial_base)
+    assert calendar is not None
+    original_other = json.loads(json.dumps(calendar["items"][1]))
+
+    calendar["items"][0]["status"] = "completed"
+    errors = save_calendar_atomic(editorial_base, calendar)
+    assert errors == []
+
+    reloaded, load_errors = load_calendar(editorial_base)
+    assert load_errors == []
+    assert reloaded is not None
+    assert reloaded["updated_at_utc"] != "2026-07-09T20:00:00Z"
+    assert reloaded["items"][1] == original_other
+
+
+def test_save_calendar_atomic_failure_leaves_original_intact(editorial_base: Path):
+    path = _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+    original = path.read_text(encoding="utf-8")
+    invalid = _base_calendar(items=[_flow_a_item()])
+    invalid["items"][0]["completed_at_utc"] = "not-a-timestamp"
+
+    errors = save_calendar_atomic(editorial_base, invalid)
+    assert CALENDAR_SCHEMA_INVALID in errors
+    assert path.read_text(encoding="utf-8") == original
+
+
+def test_complete_flow_a_calendar_item_sets_fields_and_preserves_notes(editorial_base: Path):
+    calendar = _base_calendar(
+        items=[
+            _flow_a_item(
+                notes="Immutable operator note.",
+                source_relative_path="blog-posts/ready/post.md",
+            )
+        ]
+    )
+    result = complete_flow_a_calendar_item(
+        calendar,
+        item_id="due-flow-a",
+        completion_facts=_completion_facts(),
+    )
+    assert result.requires_persist is True
+    item = result.calendar["items"][0]
+    assert item["status"] == "completed"
+    assert item["source_relative_path"] == "blog-posts/ready/post.md"
+    assert item["notes"] == "Immutable operator note."
+    assert item["campaign_id"] == CAMPAIGN_ID
+    assert item["processed_source_relative_path"] == "blog-posts/processed/post.md"
+
+
+def test_complete_flow_a_calendar_item_missing_item(editorial_base: Path):
+    calendar = _base_calendar(items=[_flow_a_item()])
+    result = complete_flow_a_calendar_item(
+        calendar,
+        item_id="missing",
+        completion_facts=_completion_facts(),
+    )
+    assert result.error_code == CALENDAR_ITEM_NOT_FOUND
+    assert result.requires_persist is False
+
+
+def test_completed_item_optional_fields_load(editorial_base: Path):
+    item = _flow_a_item(status="completed")
+    item.update(
+        {
+            "completed_at_utc": "2026-07-10T12:00:00Z",
+            "processed_source_relative_path": "blog-posts/processed/post.md",
+            "flow_a_completion": _completion_facts()["flow_a_completion"],
+        }
+    )
+    _write_calendar(editorial_base, _base_calendar(items=[item]))
+    calendar, errors = load_calendar(editorial_base)
+    assert errors == []
+    assert calendar is not None
+
+
+def test_invalid_completed_at_utc_rejected(editorial_base: Path):
+    item = _flow_a_item(status="completed")
+    item["completed_at_utc"] = "2026-07-10T12:00:00"
+    _write_calendar(editorial_base, _base_calendar(items=[item]))
+    calendar, errors = load_calendar(editorial_base)
+    assert calendar is None
+    assert CALENDAR_SCHEMA_INVALID in errors
+
+
+def test_equivalent_completed_item_is_no_op(editorial_base: Path):
+    item = _flow_a_item(status="completed")
+    item.update(
+        {
+            "campaign_id": CAMPAIGN_ID,
+            "completed_at_utc": "2026-07-10T12:00:00Z",
+            "processed_source_relative_path": "blog-posts/processed/post.md",
+            "flow_a_completion": _completion_facts()["flow_a_completion"],
+        }
+    )
+    calendar = _base_calendar(items=[item])
+    result = complete_flow_a_calendar_item(
+        calendar,
+        item_id="due-flow-a",
+        completion_facts=_completion_facts(),
+    )
+    assert result.requires_persist is False
+    assert result.skipped_already_completed is True
+
+
+def test_conflicting_terminal_facts_return_conflict(editorial_base: Path):
+    item = _flow_a_item(status="completed")
+    item.update(
+        {
+            "campaign_id": CAMPAIGN_ID,
+            "completed_at_utc": "2026-07-10T12:00:00Z",
+            "processed_source_relative_path": "blog-posts/processed/other.md",
+            "flow_a_completion": _completion_facts()["flow_a_completion"],
+        }
+    )
+    calendar = _base_calendar(items=[item])
+    result = complete_flow_a_calendar_item(
+        calendar,
+        item_id="due-flow-a",
+        completion_facts=_completion_facts(),
+    )
+    assert result.error_code == CALENDAR_COMPLETION_FACTS_CONFLICT
+    assert result.requires_persist is False
+
+
+def test_duplicate_item_ids_rejected(editorial_base: Path):
+    calendar = _base_calendar(items=[_flow_a_item(), _flow_a_item(item_id="due-flow-a")])
+    assert CALENDAR_SCHEMA_INVALID in validate_calendar_document(calendar)
+
+
+def test_atomic_write_oserror_preserves_original(editorial_base: Path):
+    path = _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+    original = path.read_text(encoding="utf-8")
+    calendar, _ = load_calendar(editorial_base)
+    assert calendar is not None
+    with patch(
+        "silverman_blog_linkedin.editorial_calendar_plan.os.replace",
+        side_effect=OSError("replace failed"),
+    ):
+        errors = save_calendar_atomic(
+            editorial_base,
+            calendar,
+            expected_fingerprint=calendar_fingerprint(editorial_base),
+        )
+    assert errors == [CALENDAR_COMPLETION_WRITE_FAILED]
+    assert path.read_text(encoding="utf-8") == original
+
+
+def test_save_calendar_atomic_succeeds_when_fingerprint_unchanged(editorial_base: Path):
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+    calendar, _ = load_calendar(editorial_base)
+    assert calendar is not None
+    fingerprint = calendar_fingerprint(editorial_base)
+    calendar["items"][0]["status"] = "completed"
+    errors = save_calendar_atomic(
+        editorial_base,
+        calendar,
+        expected_fingerprint=fingerprint,
+    )
+    assert errors == []
+
+
+def test_concurrent_update_detected_when_calendar_changed_before_replace(editorial_base: Path):
+    path = _write_calendar(
+        editorial_base,
+        _base_calendar(
+            items=[
+                _flow_a_item(),
+                _flow_a_item(item_id="other-item", due_at_utc="2026-12-01T14:00:00Z"),
+            ]
+        ),
+    )
+    calendar, _ = load_calendar(editorial_base)
+    assert calendar is not None
+    fingerprint = calendar_fingerprint(editorial_base)
+    calendar["items"][0]["status"] = "completed"
+
+    external = json.loads(path.read_text(encoding="utf-8"))
+    external["items"][1]["title"] = "Externally modified title"
+    path.write_text(json.dumps(external, indent=2) + "\n", encoding="utf-8")
+
+    errors = save_calendar_atomic(
+        editorial_base,
+        calendar,
+        expected_fingerprint=fingerprint,
+    )
+    assert errors == [CALENDAR_COMPLETION_CONCURRENT_UPDATE]
+    reloaded = json.loads(path.read_text(encoding="utf-8"))
+    assert reloaded["items"][1]["title"] == "Externally modified title"
+    assert reloaded["items"][0]["status"] == "scheduled"
+
+
+def test_concurrent_update_does_not_leave_shared_temp_file(editorial_base: Path):
+    path = _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+    calendar, _ = load_calendar(editorial_base)
+    assert calendar is not None
+    fingerprint = calendar_fingerprint(editorial_base)
+    calendar["items"][0]["status"] = "completed"
+    path.write_text(path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+
+    errors = save_calendar_atomic(
+        editorial_base,
+        calendar,
+        expected_fingerprint=fingerprint,
+    )
+    assert errors == [CALENDAR_COMPLETION_CONCURRENT_UPDATE]
+    temp_files = list(path.parent.glob(f".{path.name}.*.tmp"))
+    assert temp_files == []

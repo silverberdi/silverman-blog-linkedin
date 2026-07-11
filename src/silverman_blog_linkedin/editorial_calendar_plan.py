@@ -1,9 +1,12 @@
-"""Read-only editorial calendar due-item planning."""
+"""Editorial calendar due-item planning and Flow A completion persistence."""
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import re
+import uuid
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -32,6 +35,31 @@ CALENDAR_ITEM_OVERDUE_BUT_PLANNED = "calendar_item_overdue_but_planned"
 CALENDAR_SOURCE_FOLDER_NOT_ALLOWED = "calendar_source_folder_not_allowed"
 CALENDAR_SOURCE_PATH_INVALID = "calendar_source_path_invalid"
 CALENDAR_SOURCE_NOT_FOUND = "calendar_source_not_found"
+CALENDAR_ITEM_NOT_FOUND = "calendar_item_not_found"
+CALENDAR_COMPLETION_WRITE_FAILED = "calendar_completion_write_failed"
+CALENDAR_COMPLETION_CONCURRENT_UPDATE = "calendar_completion_concurrent_update"
+CALENDAR_COMPLETION_CAMPAIGN_UNRESOLVED = "calendar_completion_campaign_unresolved"
+CALENDAR_COMPLETION_FACTS_CONFLICT = "calendar_completion_facts_conflict"
+
+FLOW_A_COMPLETION_SUMMARY_KEYS: frozenset[str] = frozenset(
+    {
+        "campaign_state",
+        "execution_status",
+        "source_lifecycle_status",
+        "blog_publish_status",
+        "public_url",
+        "linkedin_package_status",
+        "linkedin_distribution_status",
+    }
+)
+
+FLOW_A_COMPLETION_PARENT_FIELD_KEYS: frozenset[str] = frozenset(
+    {
+        "campaign_id",
+        "processed_source_relative_path",
+        "completed_at_utc",
+    }
+)
 
 ALLOWED_STATUSES: frozenset[str] = frozenset(
     {
@@ -115,6 +143,14 @@ class EditorialCalendarPlanResult:
 
 
 @dataclass
+class FlowACalendarItemCompletionResult:
+    calendar: dict[str, Any]
+    requires_persist: bool
+    error_code: str | None = None
+    skipped_already_completed: bool = False
+
+
+@dataclass
 class EditorialCalendarStatusResult:
     status: str
     calendar_path: str
@@ -130,6 +166,34 @@ class EditorialCalendarStatusResult:
 
 def _calendar_path(base_path: Path) -> Path:
     return base_path / CALENDAR_RELATIVE_PATH
+
+
+def calendar_file_content_fingerprint(path: Path) -> str | None:
+    """Return SHA-256 hex digest of raw on-disk calendar bytes, or None if absent."""
+    if not path.is_file():
+        return None
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def calendar_fingerprint(base_path: Path) -> str | None:
+    """Return SHA-256 fingerprint of the current calendar.json, or None if absent."""
+    return calendar_file_content_fingerprint(_calendar_path(base_path))
+
+
+def _fsync_parent_directory(path: Path) -> None:
+    try:
+        dir_fd = os.open(str(path.parent), os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(dir_fd)
+    except OSError:
+        pass
+    finally:
+        os.close(dir_fd)
 
 
 def _parse_utc_timestamp(value: str) -> datetime:
@@ -206,11 +270,12 @@ def _source_folder_allowed(source_folder: str) -> bool:
 def _validate_iso_utc_field(value: Any, field_name: str) -> list[str]:
     if not isinstance(value, str) or not value.strip():
         return [CALENDAR_SCHEMA_INVALID]
-    try:
-        _parse_utc_timestamp(value)
-    except ValueError:
+    stripped = value.strip()
+    if not UTC_ISO_PATTERN.match(stripped):
         return [CALENDAR_SCHEMA_INVALID]
-    if not UTC_ISO_PATTERN.match(_format_utc_timestamp(_parse_utc_timestamp(value))):
+    try:
+        _parse_utc_timestamp(stripped)
+    except ValueError:
         return [CALENDAR_SCHEMA_INVALID]
     return []
 
@@ -269,7 +334,274 @@ def _validate_calendar_item(item: Any, seen_ids: set[str]) -> list[str]:
     if has_path and _is_absolute_or_traversal(str(source_relative_path)):
         errors.append(CALENDAR_SCHEMA_INVALID)
 
+    completed_at_utc = item.get("completed_at_utc")
+    if completed_at_utc is not None:
+        errors.extend(_validate_iso_utc_field(completed_at_utc, "completed_at_utc"))
+
+    processed_source_relative_path = item.get("processed_source_relative_path")
+    if processed_source_relative_path is not None:
+        if not isinstance(processed_source_relative_path, str) or not processed_source_relative_path.strip():
+            errors.append(CALENDAR_SCHEMA_INVALID)
+        else:
+            normalized_processed = normalize_relative_path(processed_source_relative_path)
+            if (
+                _is_absolute_or_traversal(normalized_processed)
+                or not normalized_processed.endswith(".md")
+            ):
+                errors.append(CALENDAR_SCHEMA_INVALID)
+
+    flow_a_completion = item.get("flow_a_completion")
+    if flow_a_completion is not None:
+        errors.extend(_validate_flow_a_completion_object(flow_a_completion))
+
     return errors
+
+
+def _validate_flow_a_completion_object(value: Any) -> list[str]:
+    if not isinstance(value, dict):
+        return [CALENDAR_SCHEMA_INVALID]
+    errors: list[str] = []
+    for forbidden_key in FLOW_A_COMPLETION_PARENT_FIELD_KEYS:
+        if forbidden_key in value:
+            errors.append(CALENDAR_SCHEMA_INVALID)
+    for key in value:
+        if key not in FLOW_A_COMPLETION_SUMMARY_KEYS:
+            errors.append(CALENDAR_SCHEMA_INVALID)
+    return errors
+
+
+def validate_calendar_document(calendar: dict[str, Any]) -> list[str]:
+    """Validate an in-memory calendar document using the same rules as load_calendar."""
+    if not isinstance(calendar, dict):
+        return [CALENDAR_SCHEMA_INVALID]
+
+    errors: list[str] = []
+    for field_name in CALENDAR_TOP_LEVEL_FIELDS:
+        if field_name not in calendar:
+            errors.append(CALENDAR_SCHEMA_INVALID)
+
+    if errors:
+        return errors
+
+    errors.extend(
+        _validate_iso_utc_field(calendar.get("updated_at_utc"), "updated_at_utc")
+    )
+
+    items = calendar.get("items")
+    if not isinstance(items, list):
+        return [CALENDAR_SCHEMA_INVALID]
+
+    seen_ids: set[str] = set()
+    for item in items:
+        item_errors = _validate_calendar_item(item, seen_ids)
+        if item_errors:
+            errors.extend(item_errors)
+
+    return list(dict.fromkeys(errors))
+
+
+def _flow_a_completion_equivalent(
+    left: dict[str, Any] | None,
+    right: dict[str, Any] | None,
+) -> bool:
+    left_norm = {k: left.get(k) for k in sorted(FLOW_A_COMPLETION_SUMMARY_KEYS)} if isinstance(left, dict) else {}
+    right_norm = {k: right.get(k) for k in sorted(FLOW_A_COMPLETION_SUMMARY_KEYS)} if isinstance(right, dict) else {}
+    return left_norm == right_norm
+
+
+def _canonical_completion_facts_equivalent(
+    item: dict[str, Any],
+    completion_facts: dict[str, Any],
+) -> bool:
+    if str(item.get("status", "")) != "completed":
+        return False
+    for key in ("campaign_id", "processed_source_relative_path"):
+        expected = completion_facts.get(key)
+        if expected is None:
+            continue
+        if str(item.get(key, "")) != str(expected):
+            return False
+    if not _flow_a_completion_equivalent(
+        item.get("flow_a_completion"),
+        completion_facts.get("flow_a_completion"),
+    ):
+        return False
+    return True
+
+
+def _canonical_completion_facts_conflict(
+    item: dict[str, Any],
+    completion_facts: dict[str, Any],
+) -> bool:
+    if str(item.get("status", "")) != "completed":
+        return False
+    if _canonical_completion_facts_equivalent(item, completion_facts):
+        return False
+    for key in ("campaign_id", "processed_source_relative_path"):
+        expected = completion_facts.get(key)
+        if expected is None:
+            continue
+        if str(item.get(key, "")) != str(expected):
+            return True
+    if not _flow_a_completion_equivalent(
+        item.get("flow_a_completion"),
+        completion_facts.get("flow_a_completion"),
+    ):
+        return True
+    return False
+
+
+def complete_flow_a_calendar_item(
+    calendar: dict[str, Any],
+    *,
+    item_id: str,
+    completion_facts: dict[str, Any],
+) -> FlowACalendarItemCompletionResult:
+    """Return an updated calendar and whether persistence is required."""
+    updated = deepcopy(calendar)
+    items = updated.get("items")
+    if not isinstance(items, list):
+        return FlowACalendarItemCompletionResult(
+            calendar=calendar,
+            requires_persist=False,
+            error_code=CALENDAR_SCHEMA_INVALID,
+        )
+
+    target_index: int | None = None
+    for index, item in enumerate(items):
+        if isinstance(item, dict) and str(item.get("item_id", "")) == item_id:
+            target_index = index
+            break
+
+    if target_index is None:
+        return FlowACalendarItemCompletionResult(
+            calendar=calendar,
+            requires_persist=False,
+            error_code=CALENDAR_ITEM_NOT_FOUND,
+        )
+
+    target = items[target_index]
+    if not isinstance(target, dict):
+        return FlowACalendarItemCompletionResult(
+            calendar=calendar,
+            requires_persist=False,
+            error_code=CALENDAR_SCHEMA_INVALID,
+        )
+
+    if _canonical_completion_facts_equivalent(target, completion_facts):
+        return FlowACalendarItemCompletionResult(
+            calendar=calendar,
+            requires_persist=False,
+            skipped_already_completed=True,
+        )
+
+    if _canonical_completion_facts_conflict(target, completion_facts):
+        return FlowACalendarItemCompletionResult(
+            calendar=calendar,
+            requires_persist=False,
+            error_code=CALENDAR_COMPLETION_FACTS_CONFLICT,
+        )
+
+    mutated = deepcopy(target)
+    mutated["status"] = "completed"
+
+    if "campaign_id" in completion_facts and completion_facts["campaign_id"] is not None:
+        mutated["campaign_id"] = completion_facts["campaign_id"]
+
+    if str(target.get("status", "")) != "completed":
+        completed_at_utc = completion_facts.get("completed_at_utc")
+        if isinstance(completed_at_utc, str) and completed_at_utc.strip():
+            mutated["completed_at_utc"] = completed_at_utc.strip()
+    elif isinstance(target.get("completed_at_utc"), str):
+        mutated["completed_at_utc"] = target["completed_at_utc"]
+
+    processed_path = completion_facts.get("processed_source_relative_path")
+    if isinstance(processed_path, str) and processed_path.strip():
+        mutated["processed_source_relative_path"] = normalize_relative_path(processed_path)
+
+    flow_a_completion = completion_facts.get("flow_a_completion")
+    if isinstance(flow_a_completion, dict):
+        mutated["flow_a_completion"] = {
+            key: flow_a_completion[key]
+            for key in FLOW_A_COMPLETION_SUMMARY_KEYS
+            if key in flow_a_completion
+        }
+
+    items[target_index] = mutated
+    return FlowACalendarItemCompletionResult(
+        calendar=updated,
+        requires_persist=True,
+    )
+
+
+def save_calendar_atomic(
+    base_path: Path,
+    calendar: dict[str, Any],
+    *,
+    expected_fingerprint: str | None = None,
+) -> list[str]:
+    """Persist calendar.json with validate-then-temp-write-then-replace semantics."""
+    validation_errors = validate_calendar_document(calendar)
+    if validation_errors:
+        return validation_errors
+
+    path = _calendar_path(base_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    payload = deepcopy(calendar)
+    payload["updated_at_utc"] = utc_now_iso()
+
+    if path.is_file():
+        current_fingerprint = calendar_file_content_fingerprint(path)
+        if expected_fingerprint is None:
+            expected_fingerprint = current_fingerprint
+        if (
+            expected_fingerprint is None
+            or current_fingerprint is None
+            or current_fingerprint != expected_fingerprint
+        ):
+            return [CALENDAR_COMPLETION_CONCURRENT_UPDATE]
+
+    original_mode: int | None = None
+    if path.is_file():
+        try:
+            original_mode = path.stat().st_mode
+        except OSError:
+            original_mode = None
+
+    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
+    replaced = False
+    try:
+        encoded = json.dumps(payload, indent=2) + "\n"
+        with open(tmp_path, "w", encoding="utf-8") as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+
+        if path.is_file() and expected_fingerprint is not None:
+            pre_replace_fingerprint = calendar_file_content_fingerprint(path)
+            if pre_replace_fingerprint != expected_fingerprint:
+                return [CALENDAR_COMPLETION_CONCURRENT_UPDATE]
+
+        os.replace(tmp_path, path)
+        replaced = True
+
+        if original_mode is not None:
+            try:
+                os.chmod(path, original_mode)
+            except OSError:
+                pass
+        _fsync_parent_directory(path)
+    except OSError:
+        return [CALENDAR_COMPLETION_WRITE_FAILED]
+    finally:
+        if not replaced and tmp_path.is_file():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+
+    return []
 
 
 def load_calendar(base_path: Path) -> tuple[dict[str, Any] | None, list[str]]:
@@ -287,28 +619,9 @@ def load_calendar(base_path: Path) -> tuple[dict[str, Any] | None, list[str]]:
     if not isinstance(data, dict):
         return None, [CALENDAR_SCHEMA_INVALID]
 
-    errors: list[str] = []
-    for field_name in CALENDAR_TOP_LEVEL_FIELDS:
-        if field_name not in data:
-            errors.append(CALENDAR_SCHEMA_INVALID)
-
+    errors = validate_calendar_document(data)
     if errors:
         return None, errors
-
-    errors.extend(_validate_iso_utc_field(data.get("updated_at_utc"), "updated_at_utc"))
-
-    items = data.get("items")
-    if not isinstance(items, list):
-        return None, [CALENDAR_SCHEMA_INVALID]
-
-    seen_ids: set[str] = set()
-    for item in items:
-        item_errors = _validate_calendar_item(item, seen_ids)
-        if item_errors:
-            errors.extend(item_errors)
-
-    if errors:
-        return None, list(dict.fromkeys(errors))
 
     return data, []
 

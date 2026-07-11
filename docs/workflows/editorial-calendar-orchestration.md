@@ -157,3 +157,9 @@ curl -sS -X POST "http://localhost:8010/editorial-calendar/plan-due" \
 ```
 
 Verify `/health` reports `editorial-calendar` with `exists` and `is_directory` true after folder bootstrap, even when `calendar.json` is absent.
+
+## Completed item exclusion
+
+Items with `status=completed` are excluded from due planning **before** source existence validation. They are not selected, do not invoke `resolve_source_document`, and do not produce `calendar_source_not_found`.
+
+Terminal `status=completed` is written by the Flow A execution connector after campaign `flow_a_complete` and processed source lifecycle, or via authoritative `campaign_id` reconciliation when the campaign is already complete. The planner remains read-only.

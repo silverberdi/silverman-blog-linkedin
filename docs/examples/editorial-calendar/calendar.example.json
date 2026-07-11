@@ -15,6 +15,31 @@
       "topic_theme": "systems-design"
     },
     {
+      "item_id": "sample-completed-flow-a",
+      "title": "Bounded context is not a folder",
+      "status": "completed",
+      "due_at_utc": "2026-07-01T14:00:00Z",
+      "source_folder": "blog-posts/ready",
+      "source_relative_path": "blog-posts/ready/04-a-bounded-context-is-not-a-folder.md",
+      "flow_type": "flow_a_ready_blog_post",
+      "content_mode": "user_provided_approved_blog",
+      "target_audience": "executive-recruiter",
+      "topic_theme": "domain-driven-design",
+      "campaign_id": "flow-a-2026-07-10-a-bounded-context-is-not-a-folder",
+      "completed_at_utc": "2026-07-10T18:30:00Z",
+      "processed_source_relative_path": "blog-posts/processed/04-a-bounded-context-is-not-a-folder.md",
+      "notes": "Example completed item; notes are never mutated by completion or reconciliation.",
+      "flow_a_completion": {
+        "campaign_state": "flow_a_complete",
+        "execution_status": "reconciled",
+        "source_lifecycle_status": "completed",
+        "blog_publish_status": "completed",
+        "public_url": "https://silverman.pro/a-bounded-context-is-not-a-folder",
+        "linkedin_package_status": "completed",
+        "linkedin_distribution_status": "completed"
+      }
+    },
+    {
       "item_id": "sample-scheduled-flow-a",
       "title": "Why I did not start with the database",
       "status": "scheduled",

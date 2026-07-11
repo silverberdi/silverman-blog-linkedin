@@ -20,6 +20,7 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     CampaignMetadataWriteResult,
     STATE_BLOG_PUBLISHED,
     STATE_DISTRIBUTION_SCHEDULED,
+    STATE_FLOW_A_COMPLETE,
     EXECUTION_STATE_IDLE,
     EXECUTION_STATE_PROCESSING,
     PHYSICAL_MOVE_STATE_FAILED,
@@ -27,13 +28,21 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     RECOVERY_REPAIR_REQUIRED,
     RECOVERY_RETRYABLE,
     SOURCE_LOCATION_ERROR,
+    SOURCE_LOCATION_PROCESSED,
     SOURCE_LOCATION_QUEUED,
     read_campaign_metadata,
+    read_campaign_metadata as _read_campaign_metadata_from_disk,
+    write_campaign_metadata,
 )
 from silverman_blog_linkedin.editorial_calendar_flow_a_execute import (
     CALENDAR_CAMPAIGN_ID_CONFLICT,
+    CALENDAR_UPDATE_COMPLETED,
+    CALENDAR_UPDATE_FAILED,
+    CALENDAR_UPDATE_RECONCILED,
+    CALENDAR_UPDATE_SKIPPED_ALREADY_COMPLETED,
     EXECUTION_STATUS_EXECUTED,
     EXECUTION_STATUS_FAILED,
+    EXECUTION_STATUS_RECONCILED,
     EXECUTION_STATUS_SKIPPED_EXISTING_CAMPAIGN,
     EXECUTION_STATUS_SKIPPED_NOT_FLOW_A,
     EXECUTION_STATUS_SKIPPED_REVIEW_REQUIRED,
@@ -65,8 +74,16 @@ from silverman_blog_linkedin.flow_a_source_moves import (
 )
 from silverman_blog_linkedin.flow_a_source_lifecycle import FlowASourceLifecycleResult
 from silverman_blog_linkedin.editorial_calendar_plan import (
+    CALENDAR_COMPLETION_CAMPAIGN_UNRESOLVED,
+    CALENDAR_COMPLETION_CONCURRENT_UPDATE,
+    CALENDAR_COMPLETION_FACTS_CONFLICT,
+    CALENDAR_COMPLETION_WRITE_FAILED,
     CALENDAR_FILE_NOT_FOUND,
+    CALENDAR_SOURCE_NOT_FOUND,
+    EditorialCalendarPlanResult,
     FLOW_A_PLANNED_STEPS,
+    build_item_plan,
+    plan_editorial_calendar_due,
 )
 from silverman_blog_linkedin.linkedin_distribution_schedule import (
     LinkedInDistributionScheduleResult,
@@ -117,6 +134,7 @@ def _flow_a_item(
     public_slug: str | None = None,
     site_url: str | None = None,
     strategy: str | None = None,
+    notes: str | None = None,
 ) -> dict:
     item: dict = {
         "item_id": item_id,
@@ -141,6 +159,8 @@ def _flow_a_item(
         item["site_url"] = site_url
     if strategy is not None:
         item["strategy"] = strategy
+    if notes is not None:
+        item["notes"] = notes
     return item
 
 
@@ -193,6 +213,40 @@ def _write_distribution_scheduled_campaign(
             {
                 "campaign_id": campaign_id,
                 "state": STATE_DISTRIBUTION_SCHEDULED,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_flow_a_complete_campaign(
+    base: Path,
+    campaign_id: str,
+    *,
+    source_relative_path: str = "blog-posts/ready/post.md",
+    processed_source_relative_path: str = "blog-posts/processed/post.md",
+    public_slug: str = "example",
+    source_public_url: str = "https://silverman.pro/example",
+) -> None:
+    metadata_path = base / "metadata" / "campaigns" / f"{campaign_id}.json"
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "campaign_id": campaign_id,
+                "state": STATE_FLOW_A_COMPLETE,
+                "public_slug": public_slug,
+                "source_relative_path": source_relative_path,
+                "processed_source_relative_path": processed_source_relative_path,
+                "source_public_url": source_public_url,
+                "source_file_status": {
+                    "location": SOURCE_LOCATION_PROCESSED,
+                    "execution_state": EXECUTION_STATE_IDLE,
+                    "recovery_classification": "no_action",
+                },
+                "blog_publish": {"status": "completed"},
+                "linkedin_package": {"status": "completed"},
+                "linkedin_distribution": {"status": "completed"},
             }
         ),
         encoding="utf-8",
@@ -331,6 +385,28 @@ def test_real_execution_sequence_with_chained_inputs(editorial_base: Path):
     package_result = _completed_package()
     schedule_result = _completed_schedule()
 
+    def _lifecycle_and_complete_campaign(base_path, campaign_id, source_relative_path):
+        campaign = read_campaign_metadata(base_path, campaign_id)
+        if campaign is not None:
+            campaign = dict(campaign)
+            campaign["state"] = STATE_FLOW_A_COMPLETE
+            campaign["processed_source_relative_path"] = "blog-posts/processed/post.md"
+            campaign["public_slug"] = "sample-post"
+            campaign["source_file_status"] = {
+                "location": SOURCE_LOCATION_PROCESSED,
+                "execution_state": EXECUTION_STATE_IDLE,
+                "recovery_classification": "no_action",
+            }
+            campaign["blog_publish"] = {"status": "completed"}
+            campaign["linkedin_package"] = {"status": "completed"}
+            campaign["linkedin_distribution"] = {"status": "completed"}
+            write_campaign_metadata(base_path, campaign_id, campaign)
+        return FlowASourceLifecycleResult(
+            status="completed",
+            campaign_id=campaign_id,
+            processed_source_relative_path="blog-posts/processed/post.md",
+        )
+
     with (
         patch(
             "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
@@ -346,10 +422,7 @@ def test_real_execution_sequence_with_chained_inputs(editorial_base: Path):
         ) as schedule_mock,
         patch(
             "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
-            return_value=FlowASourceLifecycleResult(
-                status="completed",
-                campaign_id=CONFLICT_CAMPAIGN_ID,
-            ),
+            side_effect=_lifecycle_and_complete_campaign,
         ) as lifecycle_mock,
     ):
         result = execute_due_editorial_calendar_flow_a(
@@ -384,6 +457,7 @@ def test_real_execution_sequence_with_chained_inputs(editorial_base: Path):
     )
     assert result.items[0].execution_status == EXECUTION_STATUS_EXECUTED
     assert result.items[0].source_lifecycle_status == SOURCE_LIFECYCLE_COMPLETED
+    assert result.items[0].calendar_update_status == CALENDAR_UPDATE_COMPLETED
     assert result.read_only is False
 
 
@@ -418,6 +492,7 @@ def test_publish_failure_stops_package_and_schedule(editorial_base: Path):
     item = result.items[0]
     assert item.execution_status == EXECUTION_STATUS_FAILED
     assert item.failed_step == FAILED_STEP_PUBLISH_BLOG
+    assert result.read_only is True
 
 
 def test_package_failure_stops_schedule(editorial_base: Path):
@@ -553,21 +628,18 @@ def test_package_campaign_id_conflict_stops_schedule(editorial_base: Path):
     assert CALENDAR_CAMPAIGN_ID_CONFLICT in item.errors
 
 
-def test_existing_flow_a_complete_campaign_skipped(editorial_base: Path):
-    metadata_path = editorial_base / "metadata" / "campaigns" / f"{CAMPAIGN_ID}.json"
-    metadata_path.parent.mkdir(parents=True, exist_ok=True)
-    metadata_path.write_text(
-        json.dumps(
-            {
-                "campaign_id": CAMPAIGN_ID,
-                "state": "flow_a_complete",
-            }
-        ),
-        encoding="utf-8",
-    )
+def test_flow_a_complete_campaign_reconciles_without_side_effects(editorial_base: Path):
+    _write_flow_a_complete_campaign(editorial_base, CAMPAIGN_ID)
     _write_calendar(
         editorial_base,
-        _base_calendar(items=[_flow_a_item(campaign_id=CAMPAIGN_ID)]),
+        _base_calendar(
+            items=[
+                _flow_a_item(
+                    campaign_id=CAMPAIGN_ID,
+                    notes="Keep this note intact.",
+                )
+            ]
+        ),
     )
 
     with (
@@ -580,6 +652,9 @@ def test_existing_flow_a_complete_campaign_skipped(editorial_base: Path):
         patch(
             "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution"
         ) as schedule_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle"
+        ) as lifecycle_mock,
     ):
         result = execute_due_editorial_calendar_flow_a(
             editorial_base,
@@ -590,7 +665,17 @@ def test_existing_flow_a_complete_campaign_skipped(editorial_base: Path):
     publish_mock.assert_not_called()
     package_mock.assert_not_called()
     schedule_mock.assert_not_called()
-    assert result.items[0].execution_status == EXECUTION_STATUS_SKIPPED_EXISTING_CAMPAIGN
+    lifecycle_mock.assert_not_called()
+    item = result.items[0]
+    assert item.execution_status == EXECUTION_STATUS_RECONCILED
+    assert item.calendar_update_status == CALENDAR_UPDATE_RECONCILED
+    calendar = json.loads(
+        (editorial_base / "editorial-calendar" / "calendar.json").read_text(encoding="utf-8")
+    )
+    completed = calendar["items"][0]
+    assert completed["status"] == "completed"
+    assert completed["notes"] == "Keep this note intact."
+    assert result.read_only is False
 
 
 def test_review_required_item_skipped(editorial_base: Path):
@@ -666,9 +751,30 @@ def test_limit_caps_processed_items(editorial_base: Path):
     assert result.counts[EXECUTION_STATUS_WOULD_EXECUTE] == 1
 
 
-def test_real_execution_does_not_modify_calendar(editorial_base: Path):
-    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
-    calendar_hash = _calendar_hash(editorial_base)
+def test_real_execution_marks_calendar_item_completed(editorial_base: Path):
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item(notes="Operator note.")]))
+
+    def _lifecycle_and_complete_campaign(base_path, campaign_id, source_relative_path):
+        campaign = read_campaign_metadata(base_path, campaign_id)
+        if campaign is not None:
+            campaign = dict(campaign)
+            campaign["state"] = STATE_FLOW_A_COMPLETE
+            campaign["processed_source_relative_path"] = "blog-posts/processed/post.md"
+            campaign["source_public_url"] = "https://silverman.pro/post"
+            campaign["source_file_status"] = {
+                "location": SOURCE_LOCATION_PROCESSED,
+                "execution_state": EXECUTION_STATE_IDLE,
+                "recovery_classification": "no_action",
+            }
+            campaign["blog_publish"] = {"status": "completed"}
+            campaign["linkedin_package"] = {"status": "completed"}
+            campaign["linkedin_distribution"] = {"status": "completed"}
+            write_campaign_metadata(base_path, campaign_id, campaign)
+        return FlowASourceLifecycleResult(
+            status="completed",
+            campaign_id=campaign_id,
+            processed_source_relative_path="blog-posts/processed/post.md",
+        )
 
     with (
         patch(
@@ -683,14 +789,26 @@ def test_real_execution_does_not_modify_calendar(editorial_base: Path):
             "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
             return_value=_completed_schedule(),
         ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
+            side_effect=_lifecycle_and_complete_campaign,
+        ),
     ):
-        execute_due_editorial_calendar_flow_a(
+        result = execute_due_editorial_calendar_flow_a(
             editorial_base,
             now_utc=NOW_UTC,
             dry_run=False,
         )
 
-    assert _calendar_hash(editorial_base) == calendar_hash
+    assert result.items[0].execution_status == EXECUTION_STATUS_EXECUTED
+    assert result.items[0].calendar_update_status == CALENDAR_UPDATE_COMPLETED
+    calendar = json.loads(
+        (editorial_base / "editorial-calendar" / "calendar.json").read_text(encoding="utf-8")
+    )
+    item = calendar["items"][0]
+    assert item["status"] == "completed"
+    assert item["notes"] == "Operator note."
+    assert item["processed_source_relative_path"] == "blog-posts/processed/post.md"
 
 
 def test_no_linkedin_publication_import_or_call():
@@ -876,46 +994,38 @@ def test_post_schedule_lifecycle_failure_persists_repair_metadata(editorial_base
         "strategy": "stagger_48h",
         "status": "completed",
     }
-    from silverman_blog_linkedin.campaign_lifecycle import write_campaign_metadata
-
     write_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID, campaign)
     _ensure_ready_planner_gate(editorial_base)
 
     with (
         patch(
-            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
-            return_value=_completed_publish(campaign_id=CONFLICT_CAMPAIGN_ID),
-        ),
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post"
+        ) as publish_mock,
         patch(
-            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
-            return_value=_completed_package(campaign_id=CONFLICT_CAMPAIGN_ID),
-        ),
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package"
+        ) as package_mock,
         patch(
-            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
-            return_value=_completed_schedule(campaign_id=CONFLICT_CAMPAIGN_ID),
-        ),
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution"
+        ) as schedule_mock,
         patch(
-            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
-            return_value=FlowASourceLifecycleResult(
-                status="failed",
-                campaign_id=CONFLICT_CAMPAIGN_ID,
-                errors=["flow_a_source_move_failed"],
-            ),
-        ),
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle"
+        ) as lifecycle_mock,
     ):
-        execute_due_editorial_calendar_flow_a(
+        result = execute_due_editorial_calendar_flow_a(
             editorial_base,
             now_utc=NOW_UTC,
             dry_run=False,
         )
 
+    publish_mock.assert_not_called()
+    package_mock.assert_not_called()
+    schedule_mock.assert_not_called()
+    lifecycle_mock.assert_not_called()
+    assert result.items[0].execution_status == EXECUTION_STATUS_SKIPPED_EXISTING_CAMPAIGN
     campaign = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
     assert campaign is not None
     assert campaign["state"] == STATE_DISTRIBUTION_SCHEDULED
     assert campaign.get("linkedin_distribution") is not None
-    assert campaign["source_file_status"]["recovery_classification"] == RECOVERY_REPAIR_REQUIRED
-    assert campaign["source_file_status"]["execution_state"] == EXECUTION_STATE_IDLE
-    assert campaign["source_file_status"]["location"] == SOURCE_LOCATION_QUEUED
 
 
 def test_partial_queue_acceptance_blocks_publish(editorial_base: Path):
@@ -1065,7 +1175,7 @@ def test_stale_reclaim_through_connector(editorial_base: Path):
     assert result.items[0].execution_status == EXECUTION_STATUS_EXECUTED
 
 
-def test_distribution_scheduled_lifecycle_only_repair(editorial_base: Path):
+def test_distribution_scheduled_campaign_skips_without_lifecycle(editorial_base: Path):
     _write_distribution_scheduled_campaign(editorial_base, CONFLICT_CAMPAIGN_ID)
     queued = editorial_base / "blog-posts" / "queued"
     queued.mkdir(parents=True, exist_ok=True)
@@ -1079,8 +1189,6 @@ def test_distribution_scheduled_lifecycle_only_repair(editorial_base: Path):
         "execution_state": EXECUTION_STATE_IDLE,
         "recovery_classification": RECOVERY_REPAIR_REQUIRED,
     }
-    from silverman_blog_linkedin.campaign_lifecycle import write_campaign_metadata
-
     write_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID, campaign)
     _write_calendar(
         editorial_base,
@@ -1090,23 +1198,16 @@ def test_distribution_scheduled_lifecycle_only_repair(editorial_base: Path):
 
     with (
         patch(
-            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
-            return_value=_completed_publish(campaign_id=CONFLICT_CAMPAIGN_ID),
-        ),
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post"
+        ) as publish_mock,
         patch(
-            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
-            return_value=_completed_package(campaign_id=CONFLICT_CAMPAIGN_ID),
-        ),
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package"
+        ) as package_mock,
         patch(
-            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
-            return_value=_completed_schedule(campaign_id=CONFLICT_CAMPAIGN_ID),
-        ),
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution"
+        ) as schedule_mock,
         patch(
-            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
-            return_value=FlowASourceLifecycleResult(
-                status="completed",
-                campaign_id=CONFLICT_CAMPAIGN_ID,
-            ),
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle"
         ) as lifecycle_mock,
     ):
         result = execute_due_editorial_calendar_flow_a(
@@ -1115,11 +1216,11 @@ def test_distribution_scheduled_lifecycle_only_repair(editorial_base: Path):
             dry_run=False,
         )
 
-    lifecycle_mock.assert_called_once()
-    updated = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
-    assert updated is not None
-    assert updated["state"] == STATE_DISTRIBUTION_SCHEDULED
-    assert result.items[0].execution_status == EXECUTION_STATUS_EXECUTED
+    publish_mock.assert_not_called()
+    package_mock.assert_not_called()
+    schedule_mock.assert_not_called()
+    lifecycle_mock.assert_not_called()
+    assert result.items[0].execution_status == EXECUTION_STATUS_SKIPPED_EXISTING_CAMPAIGN
 
 
 def test_post_publish_failure_stays_queued_with_retryable(editorial_base: Path):
@@ -1226,15 +1327,31 @@ def test_retry_idempotency_no_duplicate_side_effect_records(editorial_base: Path
             dry_run=False,
         )
 
-    from silverman_blog_linkedin.campaign_lifecycle import (
-        STATE_FLOW_A_COMPLETE,
-        write_campaign_metadata,
-    )
-
     completed_campaign = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
     assert completed_campaign is not None
+    completed_campaign = dict(completed_campaign)
     completed_campaign["state"] = STATE_FLOW_A_COMPLETE
+    completed_campaign["processed_source_relative_path"] = "blog-posts/processed/post.md"
+    completed_campaign["source_public_url"] = "https://silverman.pro/post"
+    completed_campaign["source_file_status"] = {
+        "location": SOURCE_LOCATION_PROCESSED,
+        "execution_state": EXECUTION_STATE_IDLE,
+        "recovery_classification": "no_action",
+    }
+    completed_campaign["blog_publish"] = {"status": "completed"}
+    completed_campaign["linkedin_package"] = {"status": "completed"}
+    completed_campaign["linkedin_distribution"] = {"status": "completed"}
     write_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID, completed_campaign)
+    calendar = json.loads(
+        (editorial_base / "editorial-calendar" / "calendar.json").read_text(encoding="utf-8")
+    )
+    calendar["items"][0]["status"] = "scheduled"
+    calendar["items"][0].pop("completed_at_utc", None)
+    calendar["items"][0].pop("processed_source_relative_path", None)
+    calendar["items"][0].pop("flow_a_completion", None)
+    (editorial_base / "editorial-calendar" / "calendar.json").write_text(
+        json.dumps(calendar, indent=2), encoding="utf-8"
+    )
     _ensure_ready_planner_gate(editorial_base)
     second = execute_due_editorial_calendar_flow_a(
         editorial_base,
@@ -1246,7 +1363,8 @@ def test_retry_idempotency_no_duplicate_side_effect_records(editorial_base: Path
     assert package_mock.call_count == 1
     assert schedule_mock.call_count == 1
     assert first.items[0].execution_status == EXECUTION_STATUS_EXECUTED
-    assert second.items[0].execution_status == EXECUTION_STATUS_SKIPPED_EXISTING_CAMPAIGN
+    assert second.items[0].execution_status == EXECUTION_STATUS_RECONCILED
+    assert second.items[0].calendar_update_status == CALENDAR_UPDATE_RECONCILED
 
 
 def test_queue_acceptance_metadata_write_failure_blocks_connector(editorial_base: Path):
@@ -1467,3 +1585,464 @@ def test_validation_failure_error_move_metadata_write_failure_reported(
     assert CAMPAIGN_METADATA_WRITE_FAILED in item.errors
     assert item.execution_status == EXECUTION_STATUS_FAILED
 
+
+def test_reconciliation_before_missing_source_when_ready_file_gone(editorial_base: Path):
+    _write_flow_a_complete_campaign(editorial_base, CAMPAIGN_ID)
+    (editorial_base / "blog-posts" / "ready" / "post.md").unlink()
+    _write_calendar(
+        editorial_base,
+        _base_calendar(items=[_flow_a_item(campaign_id=CAMPAIGN_ID)]),
+    )
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post"
+        ) as publish_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package"
+        ) as package_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution"
+        ) as schedule_mock,
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle"
+        ) as lifecycle_mock,
+    ):
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    publish_mock.assert_not_called()
+    package_mock.assert_not_called()
+    schedule_mock.assert_not_called()
+    lifecycle_mock.assert_not_called()
+    item = result.items[0]
+    assert item.execution_status == EXECUTION_STATUS_RECONCILED
+    assert CALENDAR_SOURCE_NOT_FOUND not in item.errors
+
+
+def test_completed_calendar_item_excluded_from_planner(editorial_base: Path):
+    item = _flow_a_item(status="completed")
+    item.update(
+        {
+            "campaign_id": CAMPAIGN_ID,
+            "completed_at_utc": "2026-07-10T12:00:00Z",
+            "processed_source_relative_path": "blog-posts/processed/post.md",
+        }
+    )
+    _write_calendar(editorial_base, _base_calendar(items=[item]))
+    (editorial_base / "blog-posts" / "ready" / "post.md").unlink()
+
+    result = plan_editorial_calendar_due(editorial_base, now_utc=NOW_UTC)
+    assert result.status == "no_due_items"
+    assert result.due_items == []
+
+
+def test_genuine_missing_source_without_completed_campaign(editorial_base: Path):
+    (editorial_base / "blog-posts" / "ready" / "post.md").unlink()
+    _write_calendar(
+        editorial_base,
+        _base_calendar(items=[_flow_a_item(campaign_id=CAMPAIGN_ID)]),
+    )
+
+    result = execute_due_editorial_calendar_flow_a(
+        editorial_base,
+        now_utc=NOW_UTC,
+        dry_run=False,
+    )
+    item = result.items[0]
+    assert item.execution_status == EXECUTION_STATUS_SKIPPED_NOT_FLOW_A
+    assert CALENDAR_SOURCE_NOT_FOUND in item.errors
+    assert CALENDAR_COMPLETION_CAMPAIGN_UNRESOLVED not in item.errors
+
+
+def test_legacy_source_path_fallback_single_match_with_missing_ready(editorial_base: Path):
+    _write_flow_a_complete_campaign(editorial_base, CAMPAIGN_ID)
+    (editorial_base / "blog-posts" / "ready" / "post.md").unlink()
+    _write_calendar(
+        editorial_base,
+        _base_calendar(items=[_flow_a_item(campaign_id=None)]),
+    )
+
+    result = execute_due_editorial_calendar_flow_a(
+        editorial_base,
+        now_utc=NOW_UTC,
+        dry_run=False,
+    )
+    assert result.items[0].execution_status == EXECUTION_STATUS_RECONCILED
+    calendar = json.loads(
+        (editorial_base / "editorial-calendar" / "calendar.json").read_text(encoding="utf-8")
+    )
+    assert calendar["items"][0]["status"] == "completed"
+
+
+def test_legacy_source_path_fallback_single_match(editorial_base: Path):
+    _write_flow_a_complete_campaign(editorial_base, CAMPAIGN_ID)
+    _write_calendar(
+        editorial_base,
+        _base_calendar(items=[_flow_a_item(campaign_id=None)]),
+    )
+
+    result = execute_due_editorial_calendar_flow_a(
+        editorial_base,
+        now_utc=NOW_UTC,
+        dry_run=False,
+    )
+    assert result.items[0].execution_status == EXECUTION_STATUS_RECONCILED
+
+
+def test_legacy_fallback_zero_matches_returns_unresolved(editorial_base: Path):
+    (editorial_base / "blog-posts" / "ready" / "post.md").unlink()
+    _write_calendar(
+        editorial_base,
+        _base_calendar(items=[_flow_a_item(campaign_id=None)]),
+    )
+
+    result = execute_due_editorial_calendar_flow_a(
+        editorial_base,
+        now_utc=NOW_UTC,
+        dry_run=False,
+    )
+    assert CALENDAR_COMPLETION_CAMPAIGN_UNRESOLVED in result.items[0].errors
+    assert CALENDAR_SOURCE_NOT_FOUND not in result.items[0].errors
+    assert result.read_only is True
+    calendar = json.loads(
+        (editorial_base / "editorial-calendar" / "calendar.json").read_text(encoding="utf-8")
+    )
+    assert calendar["items"][0]["status"] == "scheduled"
+
+
+def test_legacy_fallback_multiple_matches_returns_unresolved(editorial_base: Path):
+    _write_flow_a_complete_campaign(editorial_base, CAMPAIGN_ID)
+    _write_flow_a_complete_campaign(
+        editorial_base,
+        "flow-a-2026-07-02-second-example",
+        source_relative_path="blog-posts/ready/post.md",
+        processed_source_relative_path="blog-posts/processed/post-2.md",
+        public_slug="second-example",
+    )
+    _write_calendar(
+        editorial_base,
+        _base_calendar(items=[_flow_a_item(campaign_id=None)]),
+    )
+    calendar_before = (
+        editorial_base / "editorial-calendar" / "calendar.json"
+    ).read_text(encoding="utf-8")
+
+    result = execute_due_editorial_calendar_flow_a(
+        editorial_base,
+        now_utc=NOW_UTC,
+        dry_run=False,
+    )
+    assert CALENDAR_COMPLETION_CAMPAIGN_UNRESOLVED in result.items[0].errors
+    assert result.items[0].execution_status == EXECUTION_STATUS_FAILED
+    assert result.read_only is True
+    assert (
+        editorial_base / "editorial-calendar" / "calendar.json"
+    ).read_text(encoding="utf-8") == calendar_before
+
+
+def test_equivalent_completed_item_skips_calendar_write(editorial_base: Path):
+    from silverman_blog_linkedin.editorial_calendar_flow_a_execute import (
+        _try_reconcile_flow_a_calendar_item,
+    )
+    from silverman_blog_linkedin.editorial_calendar_plan import build_item_plan, load_calendar
+
+    _write_flow_a_complete_campaign(editorial_base, CAMPAIGN_ID)
+    calendar_item = _flow_a_item(campaign_id=CAMPAIGN_ID, status="completed", notes="Keep.")
+    calendar_item.update(
+        {
+            "completed_at_utc": "2026-07-10T12:00:00Z",
+            "processed_source_relative_path": "blog-posts/processed/post.md",
+            "flow_a_completion": {
+                "campaign_state": STATE_FLOW_A_COMPLETE,
+                "execution_status": EXECUTION_STATUS_RECONCILED,
+                "source_lifecycle_status": SOURCE_LIFECYCLE_COMPLETED,
+                "blog_publish_status": "completed",
+                "public_url": "https://silverman.pro/example",
+                "linkedin_package_status": "completed",
+                "linkedin_distribution_status": "completed",
+            },
+        }
+    )
+    calendar = _base_calendar(items=[calendar_item])
+    _write_calendar(editorial_base, calendar)
+    calendar_hash = _calendar_hash(editorial_base)
+    plan_item = build_item_plan(calendar_item, calendar_item["source_relative_path"], "selected", [])
+
+    first, first_persisted = _try_reconcile_flow_a_calendar_item(
+        editorial_base,
+        calendar=calendar,
+        calendar_item=calendar_item,
+        plan_item=plan_item,
+        dry_run=False,
+    )
+    reloaded, _ = load_calendar(editorial_base)
+    assert reloaded is not None
+    second, second_persisted = _try_reconcile_flow_a_calendar_item(
+        editorial_base,
+        calendar=reloaded,
+        calendar_item=reloaded["items"][0],
+        plan_item=plan_item,
+        dry_run=False,
+    )
+
+    assert first is not None
+    assert second is not None
+    assert first_persisted is False
+    assert second_persisted is False
+    assert first.calendar_update_status == CALENDAR_UPDATE_SKIPPED_ALREADY_COMPLETED
+    assert second.calendar_update_status == CALENDAR_UPDATE_SKIPPED_ALREADY_COMPLETED
+    assert _calendar_hash(editorial_base) == calendar_hash
+
+
+def test_calendar_write_failure_returns_partial(editorial_base: Path):
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+
+    def _lifecycle_and_complete_campaign(base_path, campaign_id, source_relative_path):
+        campaign = read_campaign_metadata(base_path, campaign_id)
+        if campaign is not None:
+            campaign = dict(campaign)
+            campaign["state"] = STATE_FLOW_A_COMPLETE
+            campaign["processed_source_relative_path"] = "blog-posts/processed/post.md"
+            campaign["source_file_status"] = {
+                "location": SOURCE_LOCATION_PROCESSED,
+                "execution_state": EXECUTION_STATE_IDLE,
+                "recovery_classification": "no_action",
+            }
+            campaign["blog_publish"] = {"status": "completed"}
+            campaign["linkedin_package"] = {"status": "completed"}
+            campaign["linkedin_distribution"] = {"status": "completed"}
+            write_campaign_metadata(base_path, campaign_id, campaign)
+        return FlowASourceLifecycleResult(
+            status="completed",
+            campaign_id=campaign_id,
+            processed_source_relative_path="blog-posts/processed/post.md",
+        )
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
+            return_value=_completed_publish(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
+            return_value=_completed_package(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
+            return_value=_completed_schedule(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
+            side_effect=_lifecycle_and_complete_campaign,
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.save_calendar_atomic",
+            return_value=[CALENDAR_COMPLETION_WRITE_FAILED],
+        ),
+    ):
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    assert result.status == "partial"
+    assert result.items[0].calendar_update_status == CALENDAR_UPDATE_FAILED
+    assert CALENDAR_COMPLETION_WRITE_FAILED in result.items[0].errors
+    assert result.read_only is True
+
+
+def test_flow_a_success_with_concurrent_calendar_update_returns_partial(editorial_base: Path):
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+
+    def _lifecycle_and_complete_campaign(base_path, campaign_id, source_relative_path):
+        campaign = read_campaign_metadata(base_path, campaign_id)
+        if campaign is not None:
+            campaign = dict(campaign)
+            campaign["state"] = STATE_FLOW_A_COMPLETE
+            campaign["processed_source_relative_path"] = "blog-posts/processed/post.md"
+            campaign["source_file_status"] = {
+                "location": SOURCE_LOCATION_PROCESSED,
+                "execution_state": EXECUTION_STATE_IDLE,
+                "recovery_classification": "no_action",
+            }
+            campaign["blog_publish"] = {"status": "completed"}
+            campaign["linkedin_package"] = {"status": "completed"}
+            campaign["linkedin_distribution"] = {"status": "completed"}
+            write_campaign_metadata(base_path, campaign_id, campaign)
+        return FlowASourceLifecycleResult(
+            status="completed",
+            campaign_id=campaign_id,
+            processed_source_relative_path="blog-posts/processed/post.md",
+        )
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
+            return_value=_completed_publish(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.generate_linkedin_package",
+            return_value=_completed_package(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.schedule_linkedin_distribution",
+            return_value=_completed_schedule(),
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.complete_flow_a_source_lifecycle",
+            side_effect=_lifecycle_and_complete_campaign,
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.save_calendar_atomic",
+            return_value=[CALENDAR_COMPLETION_CONCURRENT_UPDATE],
+        ),
+    ):
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    assert result.status == "partial"
+    assert result.items[0].execution_status == EXECUTION_STATUS_EXECUTED
+    assert result.items[0].calendar_update_status == CALENDAR_UPDATE_FAILED
+    assert CALENDAR_COMPLETION_CONCURRENT_UPDATE in result.items[0].errors
+    assert result.read_only is True
+    campaign = read_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID)
+    assert campaign is not None
+    assert campaign["state"] == STATE_FLOW_A_COMPLETE
+
+
+def test_retry_after_concurrent_update_reconciles_without_republication(editorial_base: Path):
+    _write_flow_a_complete_campaign(editorial_base, CAMPAIGN_ID)
+    _write_calendar(
+        editorial_base,
+        _base_calendar(items=[_flow_a_item(campaign_id=CAMPAIGN_ID)]),
+    )
+    (editorial_base / "blog-posts" / "ready" / "post.md").unlink()
+
+    with patch(
+        "silverman_blog_linkedin.editorial_calendar_flow_a_execute.save_calendar_atomic",
+        return_value=[CALENDAR_COMPLETION_CONCURRENT_UPDATE],
+    ):
+        first = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+    assert first.items[0].execution_status == EXECUTION_STATUS_FAILED
+    assert first.items[0].calendar_update_status == CALENDAR_UPDATE_FAILED
+    assert CALENDAR_COMPLETION_CONCURRENT_UPDATE in first.items[0].errors
+
+    publish_mock = patch(
+        "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post",
+        return_value=_completed_publish(),
+    )
+    with publish_mock as mocked_publish:
+        second = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+    assert second.items[0].execution_status == EXECUTION_STATUS_RECONCILED
+    assert second.items[0].calendar_update_status == CALENDAR_UPDATE_RECONCILED
+    mocked_publish.assert_not_called()
+    calendar = json.loads(
+        (editorial_base / "editorial-calendar" / "calendar.json").read_text(encoding="utf-8")
+    )
+    assert calendar["items"][0]["status"] == "completed"
+
+
+def test_equivalent_completed_item_executor_skips_filesystem_write(editorial_base: Path):
+    _write_flow_a_complete_campaign(editorial_base, CAMPAIGN_ID)
+    calendar_item = _flow_a_item(
+        campaign_id=CAMPAIGN_ID,
+        status="completed",
+        notes="Keep this note.",
+    )
+    calendar_item.update(
+        {
+            "completed_at_utc": "2026-07-10T12:00:00Z",
+            "processed_source_relative_path": "blog-posts/processed/post.md",
+            "flow_a_completion": {
+                "campaign_state": STATE_FLOW_A_COMPLETE,
+                "execution_status": EXECUTION_STATUS_RECONCILED,
+                "source_lifecycle_status": SOURCE_LIFECYCLE_COMPLETED,
+                "blog_publish_status": "completed",
+                "public_url": "https://silverman.pro/example",
+                "linkedin_package_status": "completed",
+                "linkedin_distribution_status": "completed",
+            },
+        }
+    )
+    calendar_path = _write_calendar(editorial_base, _base_calendar(items=[calendar_item]))
+    path = editorial_base / "editorial-calendar" / "calendar.json"
+    original_bytes = path.read_bytes()
+    original_mtime = path.stat().st_mtime_ns
+    completed_at = calendar_item["completed_at_utc"]
+    notes = calendar_item["notes"]
+
+    plan_item = build_item_plan(
+        calendar_item,
+        calendar_item["source_relative_path"],
+        "selected",
+        [],
+    )
+    plan = EditorialCalendarPlanResult(
+        status="completed",
+        calendar_path=str(calendar_path),
+        calendar_version="1",
+        now_utc=NOW_UTC,
+        due_items=[plan_item],
+        read_only=True,
+    )
+
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.plan_editorial_calendar_due",
+            return_value=plan,
+        ),
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.save_calendar_atomic"
+        ) as mock_save,
+    ):
+        result = execute_due_editorial_calendar_flow_a(
+            editorial_base,
+            now_utc=NOW_UTC,
+            dry_run=False,
+        )
+
+    mock_save.assert_not_called()
+    assert path.read_bytes() == original_bytes
+    assert path.stat().st_mtime_ns == original_mtime
+    reloaded = json.loads(path.read_text(encoding="utf-8"))
+    assert reloaded["items"][0]["completed_at_utc"] == completed_at
+    assert reloaded["items"][0]["notes"] == notes
+    assert result.items[0].calendar_update_status == CALENDAR_UPDATE_SKIPPED_ALREADY_COMPLETED
+    assert result.read_only is True
+
+
+def test_dry_run_reconciliation_preview_stays_read_only(editorial_base: Path):
+    _write_flow_a_complete_campaign(editorial_base, CAMPAIGN_ID)
+    _write_calendar(
+        editorial_base,
+        _base_calendar(items=[_flow_a_item(campaign_id=CAMPAIGN_ID)]),
+    )
+    calendar_hash = _calendar_hash(editorial_base)
+
+    result = execute_due_editorial_calendar_flow_a(
+        editorial_base,
+        now_utc=NOW_UTC,
+        dry_run=True,
+    )
+
+    assert result.dry_run is True
+    assert result.read_only is True
+    assert result.items[0].execution_status == EXECUTION_STATUS_RECONCILED
+    assert result.items[0].calendar_update_status == CALENDAR_UPDATE_RECONCILED
+    assert _calendar_hash(editorial_base) == calendar_hash

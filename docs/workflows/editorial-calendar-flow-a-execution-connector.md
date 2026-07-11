@@ -9,7 +9,7 @@ It does **not** activate n8n, cron, systemd timers, queue-slot scheduling, every
 | Layer | Capability | Mutates `calendar.json` | Calls LinkedIn APIs |
 |-------|------------|-------------------------|---------------------|
 | Planning (step 1) | `plan_editorial_calendar_due()` | No | No |
-| **Execution connector (step 2)** | `execute_due_editorial_calendar_flow_a()` | **No** | **No** |
+| **Execution connector (step 2)** | `execute_due_editorial_calendar_flow_a()` | **Yes** (after full lifecycle success or reconciliation) | **No** |
 | Distribution scheduling | `schedule_linkedin_distribution()` | No (campaign metadata) | No |
 | LinkedIn publication (step 4+) | `publish_linkedin_due_variants()` | No | Yes (when enabled) |
 
@@ -36,8 +36,38 @@ When `dry_run=false`, eligible due items run Flow A in strict order:
 4. `schedule_linkedin_distribution` (uses package result identifiers)
 5. `complete_flow_a_source_lifecycle` (moves source `.md` and companion `.png` from `blog-posts/queued/` to `blog-posts/processed/` after scheduling succeeds)
 6. `release_flow_a_execution` only on recoverable or failed non-terminal exits (idempotent `already_released` after terminal completion)
+7. `complete_flow_a_calendar_item` + `save_calendar_atomic` — persist terminal `status=completed` only after campaign `flow_a_complete` and `source_file_status.location=processed`
 
 Dry-run reports `would_queue_accept` per item without physical moves, claims, or fabricated queue paths.
+
+### Calendar completion boundary
+
+Calendar items become `status=completed` only when:
+
+- real execution completes `complete_flow_a_source_lifecycle` successfully, campaign metadata is `flow_a_complete`, and the source is under `blog-posts/processed/`, **or**
+- reconciliation closes a stale scheduled item against an already `flow_a_complete` campaign (see below).
+
+Calendar completion does **not** run after publish alone, package alone, scheduling alone, or lifecycle failure.
+
+`notes` is never mutated on completion or reconciliation. Completion evidence lives in `completed_at_utc`, `processed_source_relative_path`, and `flow_a_completion` (summary only — no duplicated parent fields, no implied LinkedIn publication).
+
+### Reconciliation ordering (before missing-source rejection)
+
+For each due Flow A item, the connector evaluates campaign reconciliation **before** missing-source rejection:
+
+1. Resolve campaign by authoritative calendar `campaign_id` when present.
+2. Legacy fallback: normalized ready `source_relative_path` against `flow_a_complete` campaigns only when `campaign_id` is absent — requires exactly one match; zero or multiple matches return `calendar_completion_campaign_unresolved` with no calendar mutation.
+3. When the campaign is `flow_a_complete` with processed lifecycle evidence, reconcile the calendar item (`execution_status=reconciled`, `calendar_update_status=reconciled`) without publish/package/schedule/lifecycle/ComfyUI calls or attempt-count mutation.
+4. When the calendar item is already `completed` with equivalent facts, perform a no-write idempotent return (`calendar_update_status=skipped_already_completed`).
+
+Genuinely scheduled items without a resolvable completed campaign retain existing `calendar_source_not_found` behavior when the ready source is missing.
+
+### Campaign guardrails
+
+- **Reconcile:** calendar `campaign_id` with campaign `flow_a_complete` and processed lifecycle evidence → reconcile calendar to `completed` without Flow A side effects
+- **Pre-skip:** calendar `campaign_id` with campaign state `distribution_scheduled` or `distribution_complete` → `skipped_existing_campaign`
+- **Already queued:** campaigns with `source_file_status.location=queued` resume from persisted pipeline state with `queue_acceptance_status=skipped_already_queued`; the original ready file is not required
+- **Post-step conflict:** calendar `campaign_id` differs from publish/package resolved `campaign_id` → `failed` with `calendar_campaign_id_conflict`; subsequent steps are not called
 
 Each step uses the prior step's result object. Queue acceptance failure sets `failed_step=queue_acceptance` and stops the chain. Steps 2–4 stop on the first failure and set `failed_step` on the item. Step 5 runs only after scheduling succeeds; if source move fails, `execution_status` remains `executed` and `source_lifecycle_status` is `failed` with repair warnings (`flow_a_source_move_failed`).
 
@@ -66,13 +96,7 @@ Real or dry-run execution applies only when the planner reports:
 - `review_required`: `false`
 - `flow_type`: `flow_a_ready_blog_post`
 - `content_mode`: `user_provided_approved_blog`
-- Explicit `source_relative_path` resolved by the planner
-
-### Campaign guardrails
-
-- **Pre-skip:** calendar `campaign_id` with campaign state `flow_a_complete` → `skipped_existing_campaign`
-- **Already queued:** campaigns with `source_file_status.location=queued` resume from persisted pipeline state with `queue_acceptance_status=skipped_already_queued`; the original ready file is not required
-- **Post-step conflict:** calendar `campaign_id` differs from publish/package resolved `campaign_id` → `failed` with `calendar_campaign_id_conflict`; subsequent steps are not called
+- Explicit `source_relative_path` resolved by the planner (reconciliation may still run before missing-source rejection when the ready file is gone but a `flow_a_complete` campaign resolves)
 
 ## HTTP endpoint
 
@@ -114,9 +138,10 @@ This capability:
 
 - Does **not** activate n8n workflows
 - Does **not** add cron or automatic triggers
-- Does **not** modify `editorial-calendar/calendar.json`
 - Does **not** call `publish_linkedin_due_variants` or enable `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`
 - Does **not** implement queue-slot or cadence-based source selection
+
+Real execution (`dry_run=false`) **does** persist terminal `calendar.json` updates after full lifecycle success or reconciliation. Dry-run never writes the calendar.
 
 ## Staged rollout alignment
 
@@ -130,6 +155,8 @@ This capability:
 If publish succeeds but package or schedule fails, campaign metadata reflects partial progress via existing services. Operators recover using the standalone endpoints (`/publish-blog-post`, `/generate-linkedin-package`, `/schedule-linkedin-distribution`) documented in their respective workflow guides.
 
 If scheduling succeeds but source lifecycle move fails (`flow_a_source_move_failed` or `flow_a_source_move_partial`), distribution scheduling metadata is preserved. Repair source files under `blog-posts/processed/` (or restore the ready copy if needed) and retry lifecycle completion by `campaign_id` via a future operator hook or by re-running the Flow A connector when the campaign is not yet skipped as `distribution_scheduled`.
+
+If Flow A completes successfully but calendar persistence fails (`calendar_completion_write_failed`), campaign and publication state remain authoritative. Re-run `execute-flow-a-due` with `dry_run=false`; reconciliation completes only the calendar item without republishing.
 
 ### Folder semantics after successful Flow A
 

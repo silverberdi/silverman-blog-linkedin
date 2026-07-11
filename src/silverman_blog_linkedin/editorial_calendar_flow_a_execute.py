@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -28,8 +29,10 @@ from silverman_blog_linkedin.comfyui_client import (
 from silverman_blog_linkedin.github_pages_publish import BLOG_IMAGE_PUBLIC_ASSET_HANDOFF_FAILED
 from silverman_blog_linkedin.campaign_lifecycle import (
     EXECUTION_STATE_PROCESSING,
+    METADATA_CAMPAIGNS_RELATIVE,
     RECOVERY_REPAIR_REQUIRED,
     RECOVERY_RETRYABLE,
+    SOURCE_LOCATION_PROCESSED,
     SOURCE_LOCATION_QUEUED,
     STATE_BLOG_PUBLISHED,
     STATE_DISTRIBUTION_COMPLETE,
@@ -53,12 +56,22 @@ from silverman_blog_linkedin.flow_a_operational_queue import (
     release_flow_a_execution,
 )
 from silverman_blog_linkedin.editorial_calendar_plan import (
+    CALENDAR_COMPLETION_CAMPAIGN_UNRESOLVED,
+    CALENDAR_COMPLETION_CONCURRENT_UPDATE,
+    CALENDAR_COMPLETION_FACTS_CONFLICT,
+    CALENDAR_COMPLETION_WRITE_FAILED,
+    CALENDAR_ITEM_NOT_FOUND,
     FLOW_A_READY_BLOG_POST,
     USER_PROVIDED_APPROVED_BLOG,
     EditorialCalendarItemPlan,
+    calendar_fingerprint,
+    complete_flow_a_calendar_item,
     load_calendar,
     plan_editorial_calendar_due,
+    save_calendar_atomic,
 )
+from silverman_blog_linkedin.file_reader import normalize_relative_path
+from silverman_blog_linkedin.run_metadata import utc_now_iso
 from silverman_blog_linkedin.flow_a_source_lifecycle import complete_flow_a_source_lifecycle
 from silverman_blog_linkedin.linkedin_distribution_schedule import (
     LinkedInDistributionScheduleResult,
@@ -70,11 +83,18 @@ from silverman_blog_linkedin.linkedin_package_flow import (
 )
 
 EXECUTION_STATUS_EXECUTED = "executed"
+EXECUTION_STATUS_RECONCILED = "reconciled"
 EXECUTION_STATUS_SKIPPED_EXISTING_CAMPAIGN = "skipped_existing_campaign"
 EXECUTION_STATUS_SKIPPED_NOT_FLOW_A = "skipped_not_flow_a"
 EXECUTION_STATUS_SKIPPED_REVIEW_REQUIRED = "skipped_review_required"
 EXECUTION_STATUS_FAILED = "failed"
 EXECUTION_STATUS_WOULD_EXECUTE = "would_execute"
+
+CALENDAR_UPDATE_COMPLETED = "completed"
+CALENDAR_UPDATE_RECONCILED = "reconciled"
+CALENDAR_UPDATE_SKIPPED_ALREADY_COMPLETED = "skipped_already_completed"
+CALENDAR_UPDATE_FAILED = "failed"
+CALENDAR_UPDATE_NOT_APPLICABLE = "not_applicable"
 
 FAILED_STEP_QUEUE_ACCEPTANCE = "queue_acceptance"
 FAILED_STEP_PUBLISH_BLOG = "publish_blog"
@@ -88,16 +108,16 @@ SOURCE_LIFECYCLE_FAILED = "failed"
 
 CALENDAR_CAMPAIGN_ID_CONFLICT = "calendar_campaign_id_conflict"
 
-POST_DISTRIBUTION_SCHEDULED_STATES = frozenset(
+SKIP_EXISTING_CAMPAIGN_STATES = frozenset(
     {
         STATE_DISTRIBUTION_SCHEDULED,
         STATE_DISTRIBUTION_COMPLETE,
-        STATE_FLOW_A_COMPLETE,
     }
 )
 
 COUNT_KEYS: tuple[str, ...] = (
     EXECUTION_STATUS_EXECUTED,
+    EXECUTION_STATUS_RECONCILED,
     EXECUTION_STATUS_SKIPPED_EXISTING_CAMPAIGN,
     EXECUTION_STATUS_SKIPPED_NOT_FLOW_A,
     EXECUTION_STATUS_SKIPPED_REVIEW_REQUIRED,
@@ -117,6 +137,7 @@ class EditorialCalendarFlowAItemResult:
     queue_acceptance_status: str | None = None
     would_queue_accept: bool = False
     source_lifecycle_status: str | None = None
+    calendar_update_status: str | None = None
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -157,7 +178,7 @@ def _is_flow_a_eligible(plan_item: EditorialCalendarItemPlan) -> bool:
     )
 
 
-def _should_skip_existing_campaign(
+def _should_skip_in_progress_campaign(
     base_path: Path, calendar_item: dict[str, Any]
 ) -> bool:
     campaign_id = calendar_item.get("campaign_id")
@@ -166,7 +187,440 @@ def _should_skip_existing_campaign(
     campaign = read_campaign_metadata(base_path, campaign_id.strip())
     if campaign is None:
         return False
-    return campaign.get("state") == STATE_FLOW_A_COMPLETE
+    return campaign.get("state") in SKIP_EXISTING_CAMPAIGN_STATES
+
+
+@dataclass
+class _CompletedCampaignResolution:
+    campaign: dict[str, Any] | None = None
+    error_code: str | None = None
+
+
+def _is_flow_a_calendar_item_dict(calendar_item: dict[str, Any]) -> bool:
+    return (
+        str(calendar_item.get("flow_type", "")) == FLOW_A_READY_BLOG_POST
+        and str(calendar_item.get("content_mode", "")) == USER_PROVIDED_APPROVED_BLOG
+    )
+
+
+def _calendar_ready_source_path(calendar_item: dict[str, Any]) -> str | None:
+    value = calendar_item.get("source_relative_path")
+    if isinstance(value, str) and value.strip():
+        return normalize_relative_path(value)
+    return None
+
+
+def _campaign_has_processed_lifecycle_evidence(campaign: dict[str, Any]) -> bool:
+    if campaign.get("state") != STATE_FLOW_A_COMPLETE:
+        return False
+    source_status = normalize_source_file_status(campaign.get("source_file_status"))
+    return source_status.get("location") == SOURCE_LOCATION_PROCESSED
+
+
+def _campaign_identity_consistent_with_calendar(
+    calendar_item: dict[str, Any],
+    campaign: dict[str, Any],
+) -> bool:
+    calendar_campaign_id = _calendar_campaign_id(calendar_item)
+    campaign_id = campaign.get("campaign_id")
+    if calendar_campaign_id and campaign_id and calendar_campaign_id != campaign_id:
+        return False
+
+    calendar_public_slug = _optional_calendar_str(calendar_item, "public_slug")
+    campaign_public_slug = campaign.get("public_slug")
+    if (
+        calendar_public_slug
+        and isinstance(campaign_public_slug, str)
+        and campaign_public_slug.strip()
+        and calendar_public_slug != campaign_public_slug.strip()
+    ):
+        return False
+
+    if (
+        calendar_campaign_id
+        and campaign_id
+        and calendar_campaign_id == campaign_id
+        and campaign.get("state") == STATE_FLOW_A_COMPLETE
+    ):
+        return True
+
+    calendar_ready = _calendar_ready_source_path(calendar_item)
+    campaign_ready = campaign.get("source_relative_path")
+    if calendar_ready and isinstance(campaign_ready, str) and campaign_ready.strip():
+        normalized_campaign_ready = normalize_relative_path(campaign_ready)
+        if calendar_ready == normalized_campaign_ready:
+            return True
+        calendar_name = Path(calendar_ready).name
+        for candidate_key in (
+            "source_relative_path",
+            "queued_source_relative_path",
+            "processed_source_relative_path",
+        ):
+            candidate = campaign.get(candidate_key)
+            if isinstance(candidate, str) and candidate.strip():
+                if Path(normalize_relative_path(candidate)).name == calendar_name:
+                    return True
+        return False
+
+    return True
+
+
+def _processed_source_relative_path_from_campaign(campaign: dict[str, Any]) -> str | None:
+    processed = campaign.get("processed_source_relative_path")
+    if isinstance(processed, str) and processed.strip():
+        return normalize_relative_path(processed)
+    source_status = normalize_source_file_status(campaign.get("source_file_status"))
+    if source_status.get("location") == SOURCE_LOCATION_PROCESSED:
+        fallback = campaign.get("source_relative_path")
+        if isinstance(fallback, str) and fallback.strip():
+            return normalize_relative_path(fallback)
+    return None
+
+
+def _build_completion_facts_from_campaign(
+    campaign: dict[str, Any],
+    *,
+    execution_status: str,
+    source_lifecycle_status: str,
+    completed_at_utc: str | None = None,
+) -> dict[str, Any]:
+    blog_publish = campaign.get("blog_publish") if isinstance(campaign.get("blog_publish"), dict) else {}
+    linkedin_package = (
+        campaign.get("linkedin_package")
+        if isinstance(campaign.get("linkedin_package"), dict)
+        else {}
+    )
+    linkedin_distribution = (
+        campaign.get("linkedin_distribution")
+        if isinstance(campaign.get("linkedin_distribution"), dict)
+        else {}
+    )
+    processed_path = _processed_source_relative_path_from_campaign(campaign)
+    return {
+        "campaign_id": campaign.get("campaign_id"),
+        "completed_at_utc": completed_at_utc or utc_now_iso(),
+        "processed_source_relative_path": processed_path,
+        "flow_a_completion": {
+            "campaign_state": campaign.get("state"),
+            "execution_status": execution_status,
+            "source_lifecycle_status": source_lifecycle_status,
+            "blog_publish_status": blog_publish.get("status"),
+            "public_url": campaign.get("source_public_url"),
+            "linkedin_package_status": linkedin_package.get("status"),
+            "linkedin_distribution_status": linkedin_distribution.get("status"),
+        },
+    }
+
+
+def _list_flow_a_complete_campaigns(base_path: Path) -> list[dict[str, Any]]:
+    campaigns_dir = base_path / METADATA_CAMPAIGNS_RELATIVE
+    if not campaigns_dir.is_dir():
+        return []
+    campaigns: list[dict[str, Any]] = []
+    for metadata_path in sorted(campaigns_dir.glob("*.json")):
+        try:
+            campaign = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(campaign, dict):
+            continue
+        if campaign.get("state") != STATE_FLOW_A_COMPLETE:
+            continue
+        if not _campaign_has_processed_lifecycle_evidence(campaign):
+            continue
+        campaigns.append(campaign)
+    return campaigns
+
+
+def _resolve_completed_campaign_for_reconciliation(
+    base_path: Path,
+    calendar_item: dict[str, Any],
+) -> _CompletedCampaignResolution:
+    campaign_id = _calendar_campaign_id(calendar_item)
+    if campaign_id:
+        campaign = read_campaign_metadata(base_path, campaign_id)
+        if campaign is None or not _campaign_has_processed_lifecycle_evidence(campaign):
+            return _CompletedCampaignResolution()
+        if not _campaign_identity_consistent_with_calendar(calendar_item, campaign):
+            return _CompletedCampaignResolution()
+        return _CompletedCampaignResolution(campaign=campaign)
+
+    calendar_ready = _calendar_ready_source_path(calendar_item)
+    if calendar_ready is None:
+        return _CompletedCampaignResolution()
+
+    matches: list[dict[str, Any]] = []
+    for campaign in _list_flow_a_complete_campaigns(base_path):
+        campaign_ready = campaign.get("source_relative_path")
+        if not isinstance(campaign_ready, str) or not campaign_ready.strip():
+            continue
+        if normalize_relative_path(campaign_ready) != calendar_ready:
+            continue
+        if not _campaign_identity_consistent_with_calendar(calendar_item, campaign):
+            continue
+        matches.append(campaign)
+
+    if len(matches) == 1:
+        return _CompletedCampaignResolution(campaign=matches[0])
+    if len(matches) != 1:
+        return _CompletedCampaignResolution(
+            error_code=CALENDAR_COMPLETION_CAMPAIGN_UNRESOLVED
+        )
+    return _CompletedCampaignResolution()
+
+
+def _persist_calendar_item_completion(
+    base_path: Path,
+    *,
+    calendar: dict[str, Any],
+    item_id: str,
+    completion_facts: dict[str, Any],
+    calendar_update_status_on_success: str,
+) -> tuple[dict[str, Any], str, list[str], bool]:
+    completion = complete_flow_a_calendar_item(
+        calendar,
+        item_id=item_id,
+        completion_facts=completion_facts,
+    )
+    if completion.error_code == CALENDAR_COMPLETION_FACTS_CONFLICT:
+        return calendar, CALENDAR_UPDATE_FAILED, [CALENDAR_COMPLETION_FACTS_CONFLICT], False
+    if completion.error_code == CALENDAR_ITEM_NOT_FOUND:
+        return calendar, CALENDAR_UPDATE_FAILED, [CALENDAR_ITEM_NOT_FOUND], False
+    if completion.error_code is not None:
+        return calendar, CALENDAR_UPDATE_FAILED, [completion.error_code], False
+
+    if completion.skipped_already_completed:
+        return calendar, CALENDAR_UPDATE_SKIPPED_ALREADY_COMPLETED, [], False
+
+    if not completion.requires_persist:
+        return calendar, CALENDAR_UPDATE_SKIPPED_ALREADY_COMPLETED, [], False
+
+    expected_fingerprint = calendar_fingerprint(base_path)
+    write_errors = save_calendar_atomic(
+        base_path,
+        completion.calendar,
+        expected_fingerprint=expected_fingerprint,
+    )
+    if write_errors:
+        if CALENDAR_COMPLETION_CONCURRENT_UPDATE in write_errors:
+            return (
+                calendar,
+                CALENDAR_UPDATE_FAILED,
+                [CALENDAR_COMPLETION_CONCURRENT_UPDATE],
+                False,
+            )
+        return calendar, CALENDAR_UPDATE_FAILED, [CALENDAR_COMPLETION_WRITE_FAILED], False
+    return completion.calendar, calendar_update_status_on_success, [], True
+
+
+def _try_reconcile_flow_a_calendar_item(
+    base_path: Path,
+    *,
+    calendar: dict[str, Any],
+    calendar_item: dict[str, Any],
+    plan_item: EditorialCalendarItemPlan,
+    dry_run: bool,
+) -> tuple[EditorialCalendarFlowAItemResult | None, bool]:
+    if not _is_flow_a_calendar_item_dict(calendar_item):
+        return None, False
+
+    resolution = _resolve_completed_campaign_for_reconciliation(base_path, calendar_item)
+    if resolution.error_code == CALENDAR_COMPLETION_CAMPAIGN_UNRESOLVED:
+        return (
+            _item_result_from_plan(
+                plan_item,
+                EXECUTION_STATUS_FAILED,
+                calendar_update_status=CALENDAR_UPDATE_FAILED,
+                errors=[CALENDAR_COMPLETION_CAMPAIGN_UNRESOLVED],
+            ),
+            False,
+        )
+    if resolution.campaign is None:
+        return None, False
+
+    campaign = resolution.campaign
+    completion_facts = _build_completion_facts_from_campaign(
+        campaign,
+        execution_status=EXECUTION_STATUS_RECONCILED,
+        source_lifecycle_status=SOURCE_LIFECYCLE_COMPLETED,
+    )
+
+    if dry_run:
+        preview = complete_flow_a_calendar_item(
+            calendar,
+            item_id=plan_item.item_id,
+            completion_facts=completion_facts,
+        )
+        if preview.error_code == CALENDAR_COMPLETION_FACTS_CONFLICT:
+            return (
+                _item_result_from_plan(
+                    plan_item,
+                    EXECUTION_STATUS_FAILED,
+                    calendar_update_status=CALENDAR_UPDATE_FAILED,
+                    errors=[CALENDAR_COMPLETION_FACTS_CONFLICT],
+                ),
+                False,
+            )
+        calendar_update_status = (
+            CALENDAR_UPDATE_SKIPPED_ALREADY_COMPLETED
+            if preview.skipped_already_completed
+            else CALENDAR_UPDATE_RECONCILED
+        )
+        return (
+            _item_result_from_plan(
+                plan_item,
+                EXECUTION_STATUS_RECONCILED,
+                source_relative_path=_calendar_ready_source_path(calendar_item)
+                or plan_item.source_relative_path,
+                source_lifecycle_status=SOURCE_LIFECYCLE_COMPLETED,
+                calendar_update_status=calendar_update_status,
+                errors=[],
+                warnings=plan_item.warnings,
+            ),
+            False,
+        )
+
+    updated_calendar, calendar_update_status, calendar_errors, persisted = (
+        _persist_calendar_item_completion(
+            base_path,
+            calendar=calendar,
+            item_id=plan_item.item_id,
+            completion_facts=completion_facts,
+            calendar_update_status_on_success=CALENDAR_UPDATE_RECONCILED,
+        )
+    )
+    if calendar_errors:
+        return (
+            _item_result_from_plan(
+                plan_item,
+                EXECUTION_STATUS_FAILED,
+                calendar_update_status=CALENDAR_UPDATE_FAILED,
+                errors=calendar_errors,
+            ),
+            False,
+        )
+
+    calendar.clear()
+    calendar.update(updated_calendar)
+    return (
+        _item_result_from_plan(
+            plan_item,
+            EXECUTION_STATUS_RECONCILED,
+            source_relative_path=_calendar_ready_source_path(calendar_item)
+            or plan_item.source_relative_path,
+            source_lifecycle_status=SOURCE_LIFECYCLE_COMPLETED,
+            calendar_update_status=calendar_update_status,
+            errors=[],
+            warnings=plan_item.warnings,
+        ),
+        persisted,
+    )
+
+
+def _apply_post_execution_calendar_completion(
+    base_path: Path,
+    *,
+    calendar: dict[str, Any],
+    plan_item: EditorialCalendarItemPlan,
+    calendar_item: dict[str, Any] | None,
+    item_result: EditorialCalendarFlowAItemResult,
+    resolved_campaign_id: str | None = None,
+) -> tuple[EditorialCalendarFlowAItemResult, bool]:
+    if item_result.execution_status != EXECUTION_STATUS_EXECUTED:
+        return _with_calendar_not_applicable(item_result), False
+    if item_result.source_lifecycle_status not in (
+        SOURCE_LIFECYCLE_COMPLETED,
+        SOURCE_LIFECYCLE_SKIPPED,
+    ):
+        return _with_calendar_not_applicable(item_result), False
+    if item_result.failed_step == FAILED_STEP_COMPLETE_SOURCE_LIFECYCLE:
+        return _with_calendar_not_applicable(item_result), False
+
+    campaign_id = resolved_campaign_id or _calendar_campaign_id(calendar_item)
+    if not campaign_id:
+        return _with_calendar_not_applicable(item_result), False
+
+    campaign = read_campaign_metadata(base_path, campaign_id)
+    if campaign is None or not _campaign_has_processed_lifecycle_evidence(campaign):
+        return _with_calendar_not_applicable(item_result), False
+    if calendar_item and not _campaign_identity_consistent_with_calendar(
+        calendar_item, campaign
+    ):
+        return _with_calendar_not_applicable(item_result), False
+
+    completion_facts = _build_completion_facts_from_campaign(
+        campaign,
+        execution_status=EXECUTION_STATUS_EXECUTED,
+        source_lifecycle_status=item_result.source_lifecycle_status or SOURCE_LIFECYCLE_COMPLETED,
+    )
+    updated_calendar, calendar_update_status, calendar_errors, persisted = (
+        _persist_calendar_item_completion(
+            base_path,
+            calendar=calendar,
+            item_id=plan_item.item_id,
+            completion_facts=completion_facts,
+            calendar_update_status_on_success=CALENDAR_UPDATE_COMPLETED,
+        )
+    )
+    if calendar_errors:
+        return (
+            EditorialCalendarFlowAItemResult(
+                item_id=item_result.item_id,
+                execution_status=item_result.execution_status,
+                source_relative_path=item_result.source_relative_path,
+                review_required=item_result.review_required,
+                planned_flow_steps=item_result.planned_flow_steps,
+                failed_step=item_result.failed_step,
+                queue_acceptance_status=item_result.queue_acceptance_status,
+                would_queue_accept=item_result.would_queue_accept,
+                source_lifecycle_status=item_result.source_lifecycle_status,
+                calendar_update_status=CALENDAR_UPDATE_FAILED,
+                errors=list(dict.fromkeys([*item_result.errors, *calendar_errors])),
+                warnings=item_result.warnings,
+            ),
+            False,
+        )
+
+    calendar.clear()
+    calendar.update(updated_calendar)
+    return (
+        EditorialCalendarFlowAItemResult(
+            item_id=item_result.item_id,
+            execution_status=item_result.execution_status,
+            source_relative_path=item_result.source_relative_path,
+            review_required=item_result.review_required,
+            planned_flow_steps=item_result.planned_flow_steps,
+            failed_step=item_result.failed_step,
+            queue_acceptance_status=item_result.queue_acceptance_status,
+            would_queue_accept=item_result.would_queue_accept,
+            source_lifecycle_status=item_result.source_lifecycle_status,
+            calendar_update_status=calendar_update_status,
+            errors=item_result.errors,
+            warnings=item_result.warnings,
+        ),
+        persisted,
+    )
+
+
+def _with_calendar_not_applicable(
+    item_result: EditorialCalendarFlowAItemResult,
+) -> EditorialCalendarFlowAItemResult:
+    if item_result.calendar_update_status is not None:
+        return item_result
+    return EditorialCalendarFlowAItemResult(
+        item_id=item_result.item_id,
+        execution_status=item_result.execution_status,
+        source_relative_path=item_result.source_relative_path,
+        review_required=item_result.review_required,
+        planned_flow_steps=item_result.planned_flow_steps,
+        failed_step=item_result.failed_step,
+        queue_acceptance_status=item_result.queue_acceptance_status,
+        would_queue_accept=item_result.would_queue_accept,
+        source_lifecycle_status=item_result.source_lifecycle_status,
+        calendar_update_status=CALENDAR_UPDATE_NOT_APPLICABLE,
+        errors=item_result.errors,
+        warnings=item_result.warnings,
+    )
 
 
 def _calendar_item_lookup(calendar: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -190,7 +644,7 @@ def _evaluate_execution_status(
         return EXECUTION_STATUS_SKIPPED_REVIEW_REQUIRED
     if not _is_flow_a_eligible(plan_item):
         return EXECUTION_STATUS_SKIPPED_NOT_FLOW_A
-    if calendar_item and _should_skip_existing_campaign(base_path, calendar_item):
+    if calendar_item and _should_skip_in_progress_campaign(base_path, calendar_item):
         return EXECUTION_STATUS_SKIPPED_EXISTING_CAMPAIGN
     return None
 
@@ -203,20 +657,25 @@ def _item_result_from_plan(
     queue_acceptance_status: str | None = None,
     would_queue_accept: bool = False,
     source_lifecycle_status: str | None = None,
+    calendar_update_status: str | None = None,
+    source_relative_path: str | None = None,
     errors: list[str] | None = None,
     warnings: list[str] | None = None,
 ) -> EditorialCalendarFlowAItemResult:
     return EditorialCalendarFlowAItemResult(
         item_id=plan_item.item_id,
         execution_status=execution_status,
-        source_relative_path=plan_item.source_relative_path,
+        source_relative_path=source_relative_path
+        if source_relative_path is not None
+        else plan_item.source_relative_path,
         review_required=plan_item.review_required,
         planned_flow_steps=list(plan_item.planned_flow_steps),
         failed_step=failed_step,
         queue_acceptance_status=queue_acceptance_status,
         would_queue_accept=would_queue_accept,
         source_lifecycle_status=source_lifecycle_status,
-        errors=list(errors or plan_item.errors),
+        calendar_update_status=calendar_update_status,
+        errors=list(errors if errors is not None else plan_item.errors),
         warnings=list(warnings or plan_item.warnings),
     )
 
@@ -470,7 +929,7 @@ def _execute_flow_a_item(
     base_path: Path,
     plan_item: EditorialCalendarItemPlan,
     calendar_item: dict[str, Any] | None,
-) -> EditorialCalendarFlowAItemResult:
+) -> tuple[EditorialCalendarFlowAItemResult, str | None]:
     assert plan_item.source_relative_path is not None
 
     calendar_campaign = _calendar_campaign_id(calendar_item)
@@ -497,13 +956,16 @@ def _execute_flow_a_item(
                 metadata_error_code=queue_result.metadata_error_code,
             )
         )
-        return _item_result_from_plan(
-            plan_item,
-            EXECUTION_STATUS_FAILED,
-            failed_step=FAILED_STEP_QUEUE_ACCEPTANCE,
-            queue_acceptance_status=queue_status,
-            errors=list(dict.fromkeys(queue_errors)),
-            warnings=list(queue_result.warnings),
+        return (
+            _item_result_from_plan(
+                plan_item,
+                EXECUTION_STATUS_FAILED,
+                failed_step=FAILED_STEP_QUEUE_ACCEPTANCE,
+                queue_acceptance_status=queue_status,
+                errors=list(dict.fromkeys(queue_errors)),
+                warnings=list(queue_result.warnings),
+            ),
+            None,
         )
 
     active_source = queue_result.queued_source_relative_path or plan_item.source_relative_path
@@ -520,12 +982,15 @@ def _execute_flow_a_item(
                 metadata_error_code=claim_result.metadata_error_code,
             )
         )
-        return _item_result_from_plan(
-            plan_item,
-            EXECUTION_STATUS_FAILED,
-            failed_step=FAILED_STEP_QUEUE_ACCEPTANCE,
-            queue_acceptance_status=queue_status,
-            errors=list(dict.fromkeys(claim_errors)),
+        return (
+            _item_result_from_plan(
+                plan_item,
+                EXECUTION_STATUS_FAILED,
+                failed_step=FAILED_STEP_QUEUE_ACCEPTANCE,
+                queue_acceptance_status=queue_status,
+                errors=list(dict.fromkeys(claim_errors)),
+            ),
+            None,
         )
 
     if campaign_id:
@@ -537,10 +1002,13 @@ def _execute_flow_a_item(
                 campaign_id=campaign_id,
                 recovery_classification=RECOVERY_RETRYABLE,
             )
-            return _failed_item_from_step(
-                plan_item,
-                failed_step=FAILED_STEP_PUBLISH_BLOG,
-                errors=progress_errors,
+            return (
+                _failed_item_from_step(
+                    plan_item,
+                    failed_step=FAILED_STEP_PUBLISH_BLOG,
+                    errors=progress_errors,
+                ),
+                None,
             )
 
     publish_result = publish_blog_post(
@@ -555,13 +1023,16 @@ def _execute_flow_a_item(
             campaign_id=campaign_id,
             publish_result=publish_result,
         )
-        return _item_result_from_plan(
-            plan_item,
-            EXECUTION_STATUS_FAILED,
-            failed_step=FAILED_STEP_PUBLISH_BLOG,
-            queue_acceptance_status=queue_status,
-            errors=item_errors,
-            warnings=item_warnings,
+        return (
+            _item_result_from_plan(
+                plan_item,
+                EXECUTION_STATUS_FAILED,
+                failed_step=FAILED_STEP_PUBLISH_BLOG,
+                queue_acceptance_status=queue_status,
+                errors=item_errors,
+                warnings=item_warnings,
+            ),
+            None,
         )
 
     if _campaign_id_conflict(calendar_campaign, publish_result.campaign_id):
@@ -571,11 +1042,14 @@ def _execute_flow_a_item(
                 campaign_id=campaign_id,
                 recovery_classification=RECOVERY_REPAIR_REQUIRED,
             )
-        return _failed_item_from_step(
-            plan_item,
-            failed_step=FAILED_STEP_PUBLISH_BLOG,
-            errors=[CALENDAR_CAMPAIGN_ID_CONFLICT],
-            warnings=list(publish_result.warnings),
+        return (
+            _failed_item_from_step(
+                plan_item,
+                failed_step=FAILED_STEP_PUBLISH_BLOG,
+                errors=[CALENDAR_CAMPAIGN_ID_CONFLICT],
+                warnings=list(publish_result.warnings),
+            ),
+            None,
         )
 
     resolved_campaign = publish_result.campaign_id or campaign_id
@@ -588,11 +1062,14 @@ def _execute_flow_a_item(
                 campaign_id=resolved_campaign,
                 recovery_classification=_recovery_after_failure(resolved_campaign, base_path),
             )
-            return _failed_item_from_step(
-                plan_item,
-                failed_step=FAILED_STEP_PUBLISH_BLOG,
-                errors=progress_errors,
-                warnings=_merge_warnings(publish_result),
+            return (
+                _failed_item_from_step(
+                    plan_item,
+                    failed_step=FAILED_STEP_PUBLISH_BLOG,
+                    errors=progress_errors,
+                    warnings=_merge_warnings(publish_result),
+                ),
+                None,
             )
 
     package_result = generate_linkedin_package(
@@ -613,11 +1090,14 @@ def _execute_flow_a_item(
                 campaign_id=resolved_campaign,
                 recovery_classification=_recovery_after_failure(resolved_campaign, base_path),
             )
-        return _failed_item_from_step(
-            plan_item,
-            failed_step=FAILED_STEP_GENERATE_LINKEDIN_PACKAGE,
-            errors=list(package_result.errors),
-            warnings=_merge_warnings(publish_result, package_result),
+        return (
+            _failed_item_from_step(
+                plan_item,
+                failed_step=FAILED_STEP_GENERATE_LINKEDIN_PACKAGE,
+                errors=list(package_result.errors),
+                warnings=_merge_warnings(publish_result, package_result),
+            ),
+            None,
         )
 
     if _campaign_id_conflict(calendar_campaign, package_result.campaign_id):
@@ -627,11 +1107,14 @@ def _execute_flow_a_item(
                 campaign_id=campaign_id or resolved_campaign,
                 recovery_classification=RECOVERY_REPAIR_REQUIRED,
             )
-        return _failed_item_from_step(
-            plan_item,
-            failed_step=FAILED_STEP_GENERATE_LINKEDIN_PACKAGE,
-            errors=[CALENDAR_CAMPAIGN_ID_CONFLICT],
-            warnings=_merge_warnings(publish_result, package_result),
+        return (
+            _failed_item_from_step(
+                plan_item,
+                failed_step=FAILED_STEP_GENERATE_LINKEDIN_PACKAGE,
+                errors=[CALENDAR_CAMPAIGN_ID_CONFLICT],
+                warnings=_merge_warnings(publish_result, package_result),
+            ),
+            None,
         )
 
     if resolved_campaign:
@@ -643,11 +1126,14 @@ def _execute_flow_a_item(
                 campaign_id=resolved_campaign,
                 recovery_classification=_recovery_after_failure(resolved_campaign, base_path),
             )
-            return _failed_item_from_step(
-                plan_item,
-                failed_step=FAILED_STEP_GENERATE_LINKEDIN_PACKAGE,
-                errors=progress_errors,
-                warnings=_merge_warnings(publish_result, package_result),
+            return (
+                _failed_item_from_step(
+                    plan_item,
+                    failed_step=FAILED_STEP_GENERATE_LINKEDIN_PACKAGE,
+                    errors=progress_errors,
+                    warnings=_merge_warnings(publish_result, package_result),
+                ),
+                None,
             )
 
     schedule_result = schedule_linkedin_distribution(
@@ -667,11 +1153,14 @@ def _execute_flow_a_item(
                 campaign_id=resolved_campaign,
                 recovery_classification=RECOVERY_REPAIR_REQUIRED,
             )
-        return _failed_item_from_step(
-            plan_item,
-            failed_step=FAILED_STEP_SCHEDULE_LINKEDIN_DISTRIBUTION,
-            errors=list(schedule_result.errors),
-            warnings=_merge_warnings(publish_result, package_result, schedule_result),
+        return (
+            _failed_item_from_step(
+                plan_item,
+                failed_step=FAILED_STEP_SCHEDULE_LINKEDIN_DISTRIBUTION,
+                errors=list(schedule_result.errors),
+                warnings=_merge_warnings(publish_result, package_result, schedule_result),
+            ),
+            None,
         )
 
     if resolved_campaign:
@@ -683,11 +1172,14 @@ def _execute_flow_a_item(
                 campaign_id=resolved_campaign,
                 recovery_classification=RECOVERY_REPAIR_REQUIRED,
             )
-            return _failed_item_from_step(
-                plan_item,
-                failed_step=FAILED_STEP_SCHEDULE_LINKEDIN_DISTRIBUTION,
-                errors=progress_errors,
-                warnings=_merge_warnings(publish_result, package_result, schedule_result),
+            return (
+                _failed_item_from_step(
+                    plan_item,
+                    failed_step=FAILED_STEP_SCHEDULE_LINKEDIN_DISTRIBUTION,
+                    errors=progress_errors,
+                    warnings=_merge_warnings(publish_result, package_result, schedule_result),
+                ),
+                None,
             )
 
     lifecycle_campaign_id = (
@@ -697,13 +1189,16 @@ def _execute_flow_a_item(
         or campaign_id
     )
     if not lifecycle_campaign_id:
-        return _item_result_from_plan(
-            plan_item,
-            EXECUTION_STATUS_EXECUTED,
-            queue_acceptance_status=queue_status,
-            source_lifecycle_status=SOURCE_LIFECYCLE_FAILED,
-            errors=["flow_a_source_campaign_not_found"],
-            warnings=_merge_warnings(publish_result, package_result, schedule_result),
+        return (
+            _item_result_from_plan(
+                plan_item,
+                EXECUTION_STATUS_EXECUTED,
+                queue_acceptance_status=queue_status,
+                source_lifecycle_status=SOURCE_LIFECYCLE_FAILED,
+                errors=["flow_a_source_campaign_not_found"],
+                warnings=_merge_warnings(publish_result, package_result, schedule_result),
+            ),
+            None,
         )
 
     lifecycle_result = complete_flow_a_source_lifecycle(
@@ -725,14 +1220,17 @@ def _execute_flow_a_item(
                 recovery_classification=RECOVERY_REPAIR_REQUIRED,
             )
         lifecycle_warnings = list(dict.fromkeys([*lifecycle_warnings, *lifecycle_errors]))
-        return _item_result_from_plan(
-            plan_item,
-            EXECUTION_STATUS_EXECUTED,
-            failed_step=FAILED_STEP_COMPLETE_SOURCE_LIFECYCLE,
-            queue_acceptance_status=queue_status,
-            source_lifecycle_status=SOURCE_LIFECYCLE_FAILED,
-            errors=lifecycle_errors,
-            warnings=lifecycle_warnings,
+        return (
+            _item_result_from_plan(
+                plan_item,
+                EXECUTION_STATUS_EXECUTED,
+                failed_step=FAILED_STEP_COMPLETE_SOURCE_LIFECYCLE,
+                queue_acceptance_status=queue_status,
+                source_lifecycle_status=SOURCE_LIFECYCLE_FAILED,
+                errors=lifecycle_errors,
+                warnings=lifecycle_warnings,
+            ),
+            lifecycle_campaign_id,
         )
 
     if lifecycle_campaign_id:
@@ -744,13 +1242,16 @@ def _execute_flow_a_item(
         if lifecycle_result.status == SOURCE_LIFECYCLE_SKIPPED
         else SOURCE_LIFECYCLE_COMPLETED
     )
-    return _item_result_from_plan(
-        plan_item,
-        EXECUTION_STATUS_EXECUTED,
-        queue_acceptance_status=queue_status,
-        source_lifecycle_status=source_lifecycle_status,
-        errors=[],
-        warnings=lifecycle_warnings,
+    return (
+        _item_result_from_plan(
+            plan_item,
+            EXECUTION_STATUS_EXECUTED,
+            queue_acceptance_status=queue_status,
+            source_lifecycle_status=source_lifecycle_status,
+            errors=[],
+            warnings=lifecycle_warnings,
+        ),
+        lifecycle_campaign_id,
     )
 
 
@@ -770,11 +1271,22 @@ def _aggregate_execution_status(
     if not item_results:
         return planner_status
 
+    if any(
+        item.execution_status == EXECUTION_STATUS_EXECUTED
+        and item.calendar_update_status == CALENDAR_UPDATE_FAILED
+        for item in item_results
+    ):
+        return "partial"
+
     statuses = {item.execution_status for item in item_results}
     if EXECUTION_STATUS_FAILED in statuses:
         return "partial"
 
-    actionable = {EXECUTION_STATUS_EXECUTED, EXECUTION_STATUS_WOULD_EXECUTE}
+    actionable = {
+        EXECUTION_STATUS_EXECUTED,
+        EXECUTION_STATUS_RECONCILED,
+        EXECUTION_STATUS_WOULD_EXECUTE,
+    }
     skips = {
         EXECUTION_STATUS_SKIPPED_EXISTING_CAMPAIGN,
         EXECUTION_STATUS_SKIPPED_NOT_FLOW_A,
@@ -810,21 +1322,41 @@ def execute_due_editorial_calendar_flow_a(
         )
 
     calendar, _ = load_calendar(base_path)
-    calendar_lookup = _calendar_item_lookup(calendar or {})
+    if calendar is None:
+        calendar = {"schema_version": "1", "updated_at_utc": plan.now_utc, "items": []}
+    calendar_lookup = _calendar_item_lookup(calendar)
 
     counts = _empty_counts()
     item_results: list[EditorialCalendarFlowAItemResult] = []
     eligible_processed = 0
+    calendar_written = False
 
     for plan_item in plan.due_items:
         calendar_item = calendar_lookup.get(plan_item.item_id)
+
+        if calendar_item is not None:
+            reconcile_result, calendar_persisted = _try_reconcile_flow_a_calendar_item(
+                base_path,
+                calendar=calendar,
+                calendar_item=calendar_item,
+                plan_item=plan_item,
+                dry_run=dry_run,
+            )
+            if reconcile_result is not None:
+                item_results.append(reconcile_result)
+                _increment_count(counts, reconcile_result.execution_status)
+                calendar_written = calendar_written or calendar_persisted
+                continue
+
         skip_status = _evaluate_execution_status(
             plan_item,
             base_path=base_path,
             calendar_item=calendar_item,
         )
         if skip_status is not None:
-            result = _item_result_from_plan(plan_item, skip_status)
+            result = _with_calendar_not_applicable(
+                _item_result_from_plan(plan_item, skip_status)
+            )
             item_results.append(result)
             _increment_count(counts, skip_status)
             continue
@@ -846,19 +1378,32 @@ def execute_due_editorial_calendar_flow_a(
                 )
                 would_accept = preview.would_queue_accept
                 queue_status = preview.queue_acceptance_status
-            result = _item_result_from_plan(
-                plan_item,
-                EXECUTION_STATUS_WOULD_EXECUTE,
-                queue_acceptance_status=queue_status,
-                would_queue_accept=would_accept,
+            result = _with_calendar_not_applicable(
+                _item_result_from_plan(
+                    plan_item,
+                    EXECUTION_STATUS_WOULD_EXECUTE,
+                    queue_acceptance_status=queue_status,
+                    would_queue_accept=would_accept,
+                )
             )
             item_results.append(result)
             _increment_count(counts, EXECUTION_STATUS_WOULD_EXECUTE)
             continue
 
-        result = _execute_flow_a_item(base_path, plan_item, calendar_item)
-        item_results.append(result)
-        _increment_count(counts, result.execution_status)
+        item_result, resolved_campaign_id = _execute_flow_a_item(
+            base_path, plan_item, calendar_item
+        )
+        item_result, calendar_persisted = _apply_post_execution_calendar_completion(
+            base_path,
+            calendar=calendar,
+            plan_item=plan_item,
+            calendar_item=calendar_item,
+            item_result=item_result,
+            resolved_campaign_id=resolved_campaign_id,
+        )
+        calendar_written = calendar_written or calendar_persisted
+        item_results.append(item_result)
+        _increment_count(counts, item_result.execution_status)
 
     return EditorialCalendarFlowAExecutionResult(
         status=_aggregate_execution_status(plan.status, item_results),
@@ -870,5 +1415,5 @@ def execute_due_editorial_calendar_flow_a(
         counts=counts,
         errors=list(plan.errors),
         warnings=list(plan.warnings),
-        read_only=dry_run,
+        read_only=not calendar_written,
     )
