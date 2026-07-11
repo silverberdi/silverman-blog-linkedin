@@ -279,6 +279,35 @@ echo "    host path: ${LINKEDIN_SECRETS_DIR}"
 mkdir -p "${LINKEDIN_SECRETS_DIR}"
 chmod 700 "${LINKEDIN_SECRETS_DIR}"
 
+LINKEDIN_OAUTH_TOKEN_FILE="${LINKEDIN_SECRETS_DIR}/linkedin-oauth-tokens.json"
+LINKEDIN_OAUTH_STATE_FILE="${LINKEDIN_SECRETS_DIR}/linkedin-oauth-state.json"
+for oauth_file in "${LINKEDIN_OAUTH_TOKEN_FILE}" "${LINKEDIN_OAUTH_STATE_FILE}"; do
+  if [[ ! -f "${oauth_file}" ]]; then
+    echo "    creating placeholder: ${oauth_file}"
+    : > "${oauth_file}"
+  fi
+  chmod 600 "${oauth_file}"
+done
+
+GIT_PUBLICATION_KEY_FILE="${LINKEDIN_SECRETS_DIR}/github-pages-deploy-key"
+GIT_PUBLICATION_KNOWN_HOSTS="${LINKEDIN_SECRETS_DIR}/known_hosts"
+if [[ ! -f "${GIT_PUBLICATION_KEY_FILE}" ]]; then
+  cat >&2 <<EOF
+
+WARN: Git publication deploy key not found at ${GIT_PUBLICATION_KEY_FILE}.
+      Git publication will fail until the key is installed (see deployment docs).
+
+EOF
+fi
+if [[ ! -f "${GIT_PUBLICATION_KNOWN_HOSTS}" ]]; then
+  cat >&2 <<EOF
+
+WARN: Git publication known_hosts not found at ${GIT_PUBLICATION_KNOWN_HOSTS}.
+      Git publication SSH will fail until known_hosts is installed.
+
+EOF
+fi
+
 echo "==> Building worker image (BUILD_REVISION=${BUILD_REVISION:0:12})..."
 cd "${TARGET_DIR}"
 if [[ "${FORCE_NO_CACHE}" == "1" ]]; then
