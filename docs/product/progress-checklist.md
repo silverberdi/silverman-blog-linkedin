@@ -15,12 +15,12 @@ Use this checklist to track business progress. Mark items only when the stated b
 - [ ] **BL-001 — Automate Live Blog Publication**
   - Business outcome: Flow A can move a validated post from the public checkout to the live site without manual Git intervention.
   - [ ] **US-001**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted
   - [ ] **US-002**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed

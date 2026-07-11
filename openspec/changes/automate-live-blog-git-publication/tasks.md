@@ -47,16 +47,16 @@
 - [x] 7.1 Update `docs/workflows/blog-publishing-bridge.md` — automatic Git when enabled and opted in, manual fallback, deploy-key setup (no secrets)
 - [x] 7.2 Update `docs/deployment/ubuntu-server-worker-deployment.md` with Git publication env vars, deploy-key mount prerequisites, and Git binary verification
 - [x] 7.3 Update `docs/CURRENT-STATE.md` — Git publication implemented vs operationally validated; adjust manual-steps and completion-layer table for US-001 scope
-- [ ] 7.4 Update `docs/RUNTIME-STATE.md` if live enablement flag is set during validation
+- [x] 7.4 Update `docs/RUNTIME-STATE.md` if live enablement flag is set during validation
 
 ## 8. Business validation (US-001 only)
 
-- [ ] 8.1 Configure deploy key on Ubuntu server (operational prerequisite) before validation
-- [ ] 8.2 Controlled validation via `POST /publish-blog-post` **or** `POST /editorial-calendar/execute-flow-a-due` with `git_publication: true` after enablement; verify remote receives commit with only expected two files
-- [ ] 8.3 Confirm response and campaign metadata show `blog_git_publication.status` `pushed` with `commit_sha` from real remote push evidence — do not claim live-site reachability (US-002 deferred)
-- [ ] 8.4 Verify repeat same-campaign request returns `already_published` without duplicate commit
-- [ ] 8.5 Verify handoff success + simulated or real push failure returns `partial` with preserved `blog_publish` evidence
-- [ ] 8.6 Update `docs/product/progress-checklist.md` for US-001 only when acceptance criteria are demonstrated with real remote push evidence; leave US-002 and BL-001 unchecked
+- [x] 8.1 Configure deploy key on Ubuntu server (operational prerequisite) before validation
+- [x] 8.2 Controlled validation via `POST /publish-blog-post` **or** `POST /editorial-calendar/execute-flow-a-due` with `git_publication: true` after enablement; verify remote receives commit with only expected two files
+- [x] 8.3 Confirm response and campaign metadata show `blog_git_publication.status` `pushed` with `commit_sha` from real remote push evidence — do not claim live-site reachability (US-002 deferred)
+- [x] 8.4 Verify repeat same-campaign request returns `already_published` without duplicate commit
+- [x] 8.5 Verify handoff success + simulated or real push failure returns `partial` with preserved `blog_publish` evidence
+- [x] 8.6 Update `docs/product/progress-checklist.md` for US-001 only when acceptance criteria are demonstrated with real remote push evidence; leave US-002 and BL-001 unchecked
 
 ## 9. Verification gate
 

@@ -16,12 +16,12 @@ As a content operator, I want to validate the generated blog post and image befo
 
 **Acceptance criteria**
 
-- [ ] Validate the generated blog post and image before publication.
-- [ ] Create a controlled commit in the public blog repository.
-- [ ] Push the approved commit to the remote repository.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Validate the generated blog post and image before publication.
+- [x] Create a controlled commit in the public blog repository.
+- [x] Push the approved commit to the remote repository.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-002 — Automate Live Blog Publication: Story 2
 

@@ -67,19 +67,21 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 - Flow A core end-to-end: ComfyUI image, validation, blog handoff, package, schedule, lifecycle, campaign **`flow_a_complete`**
 - Blog live at `https://silverman.pro/2026/07/10/a-bounded-context-is-not-a-folder/` after **manual** Git commit/push
 - `POST /publish-blog-post` idempotency: `already_published` with no metadata side effects
+## Operationally validated (recent)
+
+- Guarded Git commit/push after blog handoff with per-request `git_publication: true` (US-001) — controlled smoke on `192.168.0.194` with real remote push to `origin/main` (`commit_sha` `53d0a26…`); see [phase3-us001-git-publication-validation-2026-07-11.md](operations/phase3-us001-git-publication-validation-2026-07-11.md)
 - Calendar reconciliation: stale item `scheduled` → `completed` via authoritative `campaign_id` without repeating pipeline
 - Worker smoke and n8n import confirmed; n8n workflow remains **inactive** (import ≠ unattended automation)
 
 ## Implemented but not operationally validated
 
-- Guarded Git commit/push after blog handoff (`SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED=false` at last baseline; requires deploy key and controlled validation for US-001)
 - LinkedIn real API publication (`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=false` at last baseline)
-- Fully unattended Flow A (n8n scheduling inactive; Git publication not yet validated on server)
+- Fully unattended Flow A (n8n scheduling inactive)
 - OAuth LinkedIn token refresh in production
 
 ## Manual steps (by design)
 
-- Git commit and push to GitHub Pages when automatic Git publication is disabled or not opted in (manual fallback after worker handoff)
+- Git commit and push to GitHub Pages when automatic Git publication is disabled, not opted in (`git_publication: false`), or validation window is closed — manual fallback after worker handoff
 - LinkedIn draft review and manual publish (Flow B path) or guarded API publish when enabled
 - n8n workflow activation when operator chooses unattended orchestration
 - Editorial source placement in `blog-posts/ready/`
@@ -98,11 +100,11 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 | Flow A core worker pipeline | Operationally validated |
 | Campaign `flow_a_complete` | Validated for test post |
 | Blog handoff to public checkout | Validated |
-| Git commit/push to remote (US-001) | Implemented; not operationally validated |
-| Site published/live | Manual step validated separately; automatic path pending US-001 validation |
+| Git commit/push to remote (US-001) | Operationally validated (controlled smoke; US-002 deferred) |
+| Site published/live | US-002 deferred; Git push validated without live URL probe |
 | LinkedIn package/scheduling | Validated |
 | LinkedIn API publication | Implemented; not operationally validated |
-| Fully unattended Flow A | Not achieved (n8n inactive; Git publication not validated) |
+| Fully unattended Flow A | Not achieved (n8n inactive) |
 
 Do not describe any single layer as "Flow A complete" without qualification. See [GLOSSARY.md](GLOSSARY.md).
 
