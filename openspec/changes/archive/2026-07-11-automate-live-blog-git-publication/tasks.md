@@ -60,5 +60,5 @@
 
 ## 9. Verification gate
 
-- [ ] 9.1 Run `/opsx-verify` for this change before commit approval
+- [x] 9.1 Run `/opsx-verify` for this change before commit approval
 - [x] 9.2 Run `git diff --check` and secrets audit on modified files
