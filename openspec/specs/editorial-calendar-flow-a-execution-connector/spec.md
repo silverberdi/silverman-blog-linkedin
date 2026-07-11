@@ -255,6 +255,10 @@ The persisted item MUST have canonical fields `status=completed`, preserved orig
 
 The `flow_a_completion` summary MUST record `campaign_state`, `execution_status`, `source_lifecycle_status`, `blog_publish_status`, `public_url` when available, `linkedin_package_status`, and `linkedin_distribution_status`. It MUST NOT duplicate parent-item canonical fields. It MUST NOT claim LinkedIn was published.
 
+The connector MUST derive `linkedin_package_status` and `linkedin_distribution_status` from authoritative campaign metadata using shared derivation rules: `linkedin_package.package_status` and lifecycle state for package evidence; lifecycle state at or beyond `distribution_scheduled`, `linkedin_distribution` metadata, and top-level `variants[]` schedule evidence for scheduling. It MUST NOT read `linkedin_package.status` or `linkedin_distribution.status`.
+
+For `flow_a_complete` campaigns with valid package and distribution evidence, derived LinkedIn summary statuses MUST be `completed`.
+
 #### Scenario: Successful Flow A closes calendar item
 
 - **WHEN** real execution completes lifecycle with campaign `flow_a_complete` and source under `blog-posts/processed/`
@@ -269,6 +273,11 @@ The `flow_a_completion` summary MUST record `campaign_state`, `execution_status`
 
 - **WHEN** `publish_blog_post` fails before lifecycle completion
 - **THEN** the calendar item is not marked `completed`
+
+#### Scenario: LinkedIn summary fields populated from campaign metadata
+
+- **WHEN** real execution completes lifecycle for a campaign whose metadata includes `linkedin_package.package_status` `generated` and `linkedin_distribution` with `distribution_id`
+- **THEN** persisted `flow_a_completion.linkedin_package_status` is `completed` and `flow_a_completion.linkedin_distribution_status` is `completed`
 
 #### Scenario: Notes unchanged on normal completion
 
@@ -362,9 +371,13 @@ The connector MUST NOT use `source_relative_path` as the normal reconciliation i
 
 Reconciliation MUST set `calendar_update_status=reconciled`.
 
-Reconciliation MUST populate canonical completion fields and `flow_a_completion` summary evidence from campaign metadata and persisted step results.
+Reconciliation MUST populate canonical completion fields and `flow_a_completion` summary evidence from campaign metadata and persisted step results using the same LinkedIn summary derivation rules as post-execution completion.
+
+When reconciling a **`scheduled` or `due`** calendar item to `completed`, persisted `flow_a_completion.linkedin_package_status` and `flow_a_completion.linkedin_distribution_status` MUST be non-null when the resolved `flow_a_complete` campaign has valid package and distribution metadata.
 
 Reconciliation MUST NOT mutate `notes`.
+
+Automatic HTTP reconciliation via `execute_due_editorial_calendar_flow_a` MUST NOT be required to repair calendar items already `status=completed` with null LinkedIn summaries; those items are excluded from due-item planning.
 
 #### Scenario: Reconciliation by exact campaign_id without ready source
 
@@ -375,6 +388,11 @@ Reconciliation MUST NOT mutate `notes`.
 
 - **WHEN** campaign is `flow_a_complete` and the calendar item is already `status=completed` with equivalent canonical completion facts
 - **THEN** the executor performs no Flow A side effects, performs no calendar-file write, preserves `completed_at_utc`, leaves `notes` unchanged, and reports `calendar_update_status=skipped_already_completed`
+
+#### Scenario: Reconcile-close populates LinkedIn summary fields from realistic campaign metadata
+
+- **WHEN** a calendar item is `status=scheduled` or `status=due`, reconciliation resolves a `flow_a_complete` campaign with `linkedin_package.package_status` `generated` and `linkedin_distribution.distribution_id` present, and `execute_due_editorial_calendar_flow_a` runs with `dry_run=false`
+- **THEN** the executor performs no publish/package/schedule/lifecycle side effects, closes the item to `status=completed`, persists non-null `flow_a_completion.linkedin_package_status` and `flow_a_completion.linkedin_distribution_status` both `completed`, preserves `notes`, and reports `calendar_update_status=reconciled`
 
 ### Requirement: Legacy source-path reconciliation fallback
 
