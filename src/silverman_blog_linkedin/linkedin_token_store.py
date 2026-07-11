@@ -47,13 +47,24 @@ class LinkedInTokenRecord:
 def _atomic_write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_suffix(path.suffix + ".tmp")
-    tmp_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    payload = json.dumps(data, indent=2) + "\n"
+    tmp_path.write_text(payload, encoding="utf-8")
     for target in (tmp_path,):
         try:
             target.chmod(0o600)
         except OSError:
             pass
-    tmp_path.replace(path)
+    try:
+        tmp_path.replace(path)
+    except OSError as exc:
+        # Docker file bind-mounts reject rename into the mounted target (EBUSY).
+        if exc.errno != 16:
+            raise
+        path.write_text(payload, encoding="utf-8")
+        try:
+            tmp_path.unlink()
+        except OSError:
+            pass
     try:
         path.chmod(0o600)
     except OSError:

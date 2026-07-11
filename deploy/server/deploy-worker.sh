@@ -111,6 +111,10 @@ else
       "${DEPLOY_SERVER_DIR}/verify-worker-deploy.sh" \
       "${DEPLOY_SERVER_DIR}/verify-worker-api-key-rotation.sh" \
       "${DEPLOY_SERVER_DIR}/run-linkedin-publication-smoke.sh" \
+      "${DEPLOY_SERVER_DIR}/run-us001-git-publication-smoke.sh" \
+      "${DEPLOY_SERVER_DIR}/run-us002-live-site-confirmation-smoke.sh" \
+      "${DEPLOY_SERVER_DIR}/run-us003-linkedin-publication-validation-smoke.sh" \
+      "${DEPLOY_SERVER_DIR}/run-flow-a-worker-smoke.sh" \
       "${DEPLOY_SERVER_DIR}/collect-flow-a-smoke-evidence.sh" \
       "${TARGET_DIR}/"
   else
@@ -126,6 +130,10 @@ else
       "${DEPLOY_SERVER_DIR}/verify-worker-deploy.sh" \
       "${DEPLOY_SERVER_DIR}/verify-worker-api-key-rotation.sh" \
       "${DEPLOY_SERVER_DIR}/run-linkedin-publication-smoke.sh" \
+      "${DEPLOY_SERVER_DIR}/run-us001-git-publication-smoke.sh" \
+      "${DEPLOY_SERVER_DIR}/run-us002-live-site-confirmation-smoke.sh" \
+      "${DEPLOY_SERVER_DIR}/run-us003-linkedin-publication-validation-smoke.sh" \
+      "${DEPLOY_SERVER_DIR}/run-flow-a-worker-smoke.sh" \
       "${DEPLOY_SERVER_DIR}/collect-flow-a-smoke-evidence.sh" \
       "${TARGET_DIR}/"
   fi
@@ -135,6 +143,10 @@ else
     "${TARGET_DIR}/verify-worker-deploy.sh" \
     "${TARGET_DIR}/verify-worker-api-key-rotation.sh" \
     "${TARGET_DIR}/run-linkedin-publication-smoke.sh" \
+    "${TARGET_DIR}/run-us001-git-publication-smoke.sh" \
+    "${TARGET_DIR}/run-us002-live-site-confirmation-smoke.sh" \
+    "${TARGET_DIR}/run-us003-linkedin-publication-validation-smoke.sh" \
+    "${TARGET_DIR}/run-flow-a-worker-smoke.sh" \
     "${TARGET_DIR}/collect-flow-a-smoke-evidence.sh"
 fi
 
@@ -279,8 +291,12 @@ echo "    host path: ${LINKEDIN_SECRETS_DIR}"
 mkdir -p "${LINKEDIN_SECRETS_DIR}"
 chmod 700 "${LINKEDIN_SECRETS_DIR}"
 
-LINKEDIN_OAUTH_TOKEN_FILE="${LINKEDIN_SECRETS_DIR}/linkedin-oauth-tokens.json"
-LINKEDIN_OAUTH_STATE_FILE="${LINKEDIN_SECRETS_DIR}/linkedin-oauth-state.json"
+LINKEDIN_OAUTH_DIR="${LINKEDIN_SECRETS_DIR}/linkedin-oauth"
+mkdir -p "${LINKEDIN_OAUTH_DIR}"
+chmod 700 "${LINKEDIN_OAUTH_DIR}"
+
+LINKEDIN_OAUTH_TOKEN_FILE="${LINKEDIN_OAUTH_DIR}/linkedin-oauth-tokens.json"
+LINKEDIN_OAUTH_STATE_FILE="${LINKEDIN_OAUTH_DIR}/linkedin-oauth-state.json"
 for oauth_file in "${LINKEDIN_OAUTH_TOKEN_FILE}" "${LINKEDIN_OAUTH_STATE_FILE}"; do
   if [[ ! -f "${oauth_file}" ]]; then
     echo "    creating placeholder: ${oauth_file}"
@@ -288,6 +304,20 @@ for oauth_file in "${LINKEDIN_OAUTH_TOKEN_FILE}" "${LINKEDIN_OAUTH_STATE_FILE}";
   fi
   chmod 600 "${oauth_file}"
 done
+
+# Migrate legacy flat secrets/linkedin-oauth-*.json if directory files are empty
+legacy_token="${LINKEDIN_SECRETS_DIR}/linkedin-oauth-tokens.json"
+legacy_state="${LINKEDIN_SECRETS_DIR}/linkedin-oauth-state.json"
+if [[ -f "${legacy_token}" && ! -s "${LINKEDIN_OAUTH_TOKEN_FILE}" && -s "${legacy_token}" ]]; then
+  echo "    migrating legacy token file into ${LINKEDIN_OAUTH_DIR}/"
+  cp "${legacy_token}" "${LINKEDIN_OAUTH_TOKEN_FILE}"
+  chmod 600 "${LINKEDIN_OAUTH_TOKEN_FILE}"
+fi
+if [[ -f "${legacy_state}" && ! -s "${LINKEDIN_OAUTH_STATE_FILE}" && -s "${legacy_state}" ]]; then
+  echo "    migrating legacy state file into ${LINKEDIN_OAUTH_DIR}/"
+  cp "${legacy_state}" "${LINKEDIN_OAUTH_STATE_FILE}"
+  chmod 600 "${LINKEDIN_OAUTH_STATE_FILE}"
+fi
 
 GIT_PUBLICATION_KEY_FILE="${LINKEDIN_SECRETS_DIR}/github-pages-deploy-key"
 GIT_PUBLICATION_KNOWN_HOSTS="${LINKEDIN_SECRETS_DIR}/known_hosts"

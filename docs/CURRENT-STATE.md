@@ -2,7 +2,7 @@
 
 Canonical project status for `silverman-blog-linkedin`. Authority rules: [CONTEXT-AUTHORITY.md](CONTEXT-AUTHORITY.md). Terminology: [GLOSSARY.md](GLOSSARY.md). Live flags: [RUNTIME-STATE.md](RUNTIME-STATE.md).
 
-**`last_verified_at_utc`:** `2026-07-11T07:45:00Z`
+**`last_verified_at_utc`:** `2026-07-11T08:50:00Z`
 **Last verified baseline revision:** `615091c` (verification timestamp above — **not** a permanent runtime requirement)
 
 ## Purpose
@@ -41,7 +41,7 @@ Key endpoints include `GET /health`, Flow A (`POST /publish-blog-post`, `/genera
 | Live-site HTTP confirmation (guarded) | Worker when enabled **and** request opts in (`live_site_confirmation: true`) after Git push evidence |
 | LinkedIn package generation | Worker |
 | LinkedIn schedule metadata | Worker |
-| LinkedIn real API publish | Worker when explicitly enabled (not operationally validated) |
+| LinkedIn real API publish | Worker when explicitly enabled — **operationally validated** (US-003; guard `false` by default) |
 | Workflow timing / orchestration | n8n when activated (currently inactive) |
 | Secrets and environment flags | Operator |
 | Deployment | Operator (`deploy/server/deploy-worker.sh`) |
@@ -72,14 +72,14 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 
 - Guarded Git commit/push after blog handoff with per-request `git_publication: true` (US-001) — operationally validated on `192.168.0.194` with real remote push to `origin/main`; smoke artifacts removed from public site and editorial mount; see [phase3-us001-git-publication-validation-2026-07-11.md](operations/phase3-us001-git-publication-validation-2026-07-11.md)
 - Live-site HTTP confirmation after Git push with per-request `live_site_confirmation: true` (US-002) — operationally validated on `192.168.0.194` (`blog_live_site_publication.status: confirmed`, HTTP 200 + slug marker during validation window); smoke artifacts removed; see [phase3-us002-live-site-confirmation-validation-2026-07-11.md](operations/phase3-us002-live-site-confirmation-validation-2026-07-11.md)
+- LinkedIn API real publish (US-003/US-004/US-005, BL-002) — operationally validated on `192.168.0.194`: OAuth + queue + publish-due with `publish_now`, `linkedin_post_urn` stored, operator-confirmed visibility, idempotent rerun, safeguards restored; see [phase3-us003-linkedin-publication-validation-2026-07-11.md](operations/phase3-us003-linkedin-publication-validation-2026-07-11.md). v1 text-only API (no LinkedIn image upload); article link preview image deferred to BL-009.
 - Calendar reconciliation: stale item `scheduled` → `completed` via authoritative `campaign_id` without repeating pipeline
 - Worker smoke and n8n import confirmed; n8n workflow remains **inactive** (import ≠ unattended automation)
 
 ## Implemented but not operationally validated
 
-- LinkedIn real API publication (`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=false` at last baseline)
 - Fully unattended Flow A (n8n scheduling inactive)
-- OAuth LinkedIn token refresh in production
+- OAuth LinkedIn token refresh in production (refresh token not present in current token store)
 
 ## Manual steps (by design)
 
@@ -105,7 +105,7 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 | Live-site confirmation (US-002) | Operationally validated (controlled smoke; HTTP 200 + slug marker) |
 | Site published/live | Operationally validated via US-002 probe when `live_site_confirmation` opted in; manual Git still valid when automation disabled |
 | LinkedIn package/scheduling | Validated |
-| LinkedIn API publication | Implemented; not operationally validated |
+| LinkedIn API publication | Operationally validated (US-003 controlled smoke; `executive-recruiter` on bounded-context campaign) |
 | Fully unattended Flow A | Not achieved (n8n inactive) |
 
 Do not describe any single layer as "Flow A complete" without qualification. See [GLOSSARY.md](GLOSSARY.md).

@@ -258,9 +258,21 @@ After a manual Flow A n8n execution (Phase 3), collect read-only evidence with t
 
 Published blog files are informational for diagnosis (e.g. publish succeeded but LinkedIn generation failed later). They do not affect `OVERALL: PASS`.
 
-**Overall status:** `PASS` when worker, public blog repo, and n8n checks pass and latest campaign evidence shows `distribution_scheduled` (or later) or `linkedin_distribution` exists; `PENDING` when worker, public blog repo, and n8n are OK but the campaign has not reached distribution (e.g. `validated`, `blog_published`, `derivatives_generated` without package/distribution); `FAIL` when base path is unresolved, Flow A OpenAPI paths are missing, public blog repo is not mounted or incomplete, workflow is active, n8n is missing, or campaign state is `error`. Plain campaign metadata existence alone does not produce `PASS`. Generated LinkedIn files count toward evidence only when campaign state is at least `derivatives_generated` or `distribution_scheduled`. If worker and n8n are OK but the public repo is missing, the script reports `FAIL` with remediation (not `PENDING`) — publish would fail with `blog_publish_public_repo_not_configured`.
+**Overall status:** `PASS` when worker, public blog repo, and n8n checks pass and latest campaign evidence shows `distribution_scheduled` (or later) or `linkedin_distribution` exists; `PENDING` when worker, public blog repo, and n8n are OK but the campaign has not reached distribution (e.g. `validated`, `blog_published`, `derivatives_generated` without package/distribution); `FAIL` when base path is unresolved, Flow A OpenAPI paths are missing, public blog repo is not mounted or incomplete, workflow is active, n8n is missing, or campaign state is `error`. Plain campaign metadata existence alone does not produce `PASS`. Generated LinkedIn files count toward evidence only when campaign state is at least `derivatives_generated` or `distribution_scheduled`. If worker and n8n are OK but the public repo is missing, the script reports `FAIL` with remediation (not `PENDING`) — publish would fail with `blog_publish_public_repo_not_configured`. For `published` variants, reports whether `linkedin_post_urn` is present (no post body, no tokens).
 
-The script is read-only: no secrets printed, no n8n activation, no LinkedIn API calls, no deploy/restart. Optional `--json` for machine-readable summary.
+The collect-flow-a script is read-only: no secrets printed, no n8n activation, no LinkedIn API calls, no deploy/restart. Optional `--json` for machine-readable summary.
+
+### 5c. US-003 LinkedIn publication validation (BL-002)
+
+Controlled first-real-publish validation. **Publishes one real LinkedIn post** when `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=true` during the validation window. Prerequisites: [linkedin-publication-prerequisites.md](linkedin-publication-prerequisites.md) OAuth bootstrap.
+
+```bash
+/home/silverman/silverman-blog-linkedin-worker/run-us003-linkedin-publication-validation-smoke.sh \
+  --campaign-id <flow-a-campaign-id> \
+  --variant <approved-variant-id>
+```
+
+Requires explicit `--campaign-id` and `--variant`. Restores `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=false` after the run. Record evidence in `docs/operations/phase3-us003-linkedin-publication-validation-YYYY-MM-DD.md` (see [template](../operations/phase3-us003-linkedin-publication-validation-TEMPLATE.md)). Unlike US-001/US-002 smoke, the LinkedIn post is not automatically removed. Does not print secrets.
 
 ### 5b. Deterministic Flow A worker smoke (before n8n)
 
@@ -502,5 +514,7 @@ Real `SILVERMAN_BLOG_LINKEDIN_API_KEY` and `DEEPSEEK_API_KEY` values must exist 
 | `deploy/server/smoke-worker.sh` | HTTP smoke tests |
 | `deploy/server/collect-flow-a-smoke-evidence.sh` | Read-only Flow A post-smoke evidence collection |
 | `deploy/server/run-flow-a-worker-smoke.sh` | Deterministic Flow A worker smoke (publish/package/schedule without n8n) |
+| `deploy/server/run-us003-linkedin-publication-validation-smoke.sh` | US-003 controlled first-real LinkedIn publication validation (BL-002) |
+| `deploy/server/run-linkedin-publication-smoke.sh` | Generic LinkedIn publication dry-run/real smoke |
 | `deploy/server/verify-worker-api-key-rotation.sh` | Post-rotation auth verification |
 | `docker-compose.example.yml` | Local/dev compose (not for server) |

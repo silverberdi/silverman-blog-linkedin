@@ -13,7 +13,9 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     FLOW_A,
     FLOW_B,
     METADATA_CAMPAIGNS_RELATIVE,
+    STATE_DISTRIBUTION_COMPLETE,
     STATE_DISTRIBUTION_SCHEDULED,
+    STATE_FLOW_A_COMPLETE,
     normalize_scheduled_at_utc,
     read_campaign_metadata,
     write_campaign_metadata,
@@ -63,6 +65,14 @@ LINKEDIN_OAUTH_REFRESH_FAILED = "linkedin_oauth_refresh_failed"
 LINKEDIN_OAUTH_REAUTHORIZATION_REQUIRED = "linkedin_oauth_reauthorization_required"
 
 QUEUE_ELIGIBLE_PUBLISH_STATES = frozenset({PUBLISH_STATE_PENDING, PUBLISH_STATE_FAILED})
+
+PUBLICATION_ELIGIBLE_CAMPAIGN_STATES = frozenset(
+    {
+        STATE_DISTRIBUTION_SCHEDULED,
+        STATE_DISTRIBUTION_COMPLETE,
+        STATE_FLOW_A_COMPLETE,
+    }
+)
 
 
 @dataclass
@@ -179,7 +189,7 @@ def _validate_campaign_eligibility(
         return [LINKEDIN_PUBLISH_CAMPAIGN_NOT_FOUND]
     if campaign.get("flow") == FLOW_B:
         return [LINKEDIN_PUBLISH_FLOW_NOT_ALLOWED]
-    if campaign.get("state") != STATE_DISTRIBUTION_SCHEDULED:
+    if campaign.get("state") not in PUBLICATION_ELIGIBLE_CAMPAIGN_STATES:
         return [LINKEDIN_PUBLISH_INVALID_CAMPAIGN_STATE]
     return []
 
@@ -605,7 +615,7 @@ def _collect_queued_targets(
             continue
         if campaign.get("flow") != FLOW_A:
             continue
-        if campaign.get("state") != STATE_DISTRIBUTION_SCHEDULED:
+        if campaign.get("state") not in PUBLICATION_ELIGIBLE_CAMPAIGN_STATES:
             continue
         for entry in campaign.get("variants") or []:
             if not isinstance(entry, dict):

@@ -617,6 +617,17 @@ if variants:
         f"failed={state_counts['failed']} "
         f"cancelled={state_counts['cancelled']}"
     )
+    for entry in variants:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("publish_state") != "published":
+            continue
+        variant_id = entry.get("variant") or "(unknown)"
+        urn = entry.get("linkedin_post_urn")
+        if urn:
+            print(f"linkedin_post_urn present: variant={variant_id} urn={urn}")
+        else:
+            print(f"linkedin_post_urn missing: variant={variant_id} publish_state=published")
 
 print(f"CAMPAIGN_STATE={state}")
 print(f"HAS_BLOG_PUBLISH={1 if has_blog_publish else 0}")

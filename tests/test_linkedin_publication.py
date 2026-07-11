@@ -22,6 +22,7 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     STATE_DERIVATIVES_GENERATED,
     STATE_DERIVATIVES_PENDING,
     STATE_DISTRIBUTION_SCHEDULED,
+    STATE_FLOW_A_COMPLETE,
     STATE_VALIDATED,
     build_derivative_idempotency_key,
     build_initial_campaign_metadata,
@@ -686,6 +687,28 @@ def test_wrong_campaign_state_rejected(editorial_base: Path):
 
     assert result.status == "failed"
     assert LINKEDIN_PUBLISH_INVALID_CAMPAIGN_STATE in result.errors
+
+
+def test_flow_a_complete_campaign_can_queue(scheduled_base: Path):
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    transition_state(
+        campaign,
+        STATE_FLOW_A_COMPLETE,
+        reason="flow a complete for publication validation",
+        actor=ACTOR_WORKER,
+    )
+    write_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID, campaign)
+
+    result = queue_linkedin_publication(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+    )
+
+    assert result.status == "completed"
+    assert result.publish_state == PUBLISH_STATE_QUEUED
 
 
 def test_missing_artifact_rejected(scheduled_base: Path):

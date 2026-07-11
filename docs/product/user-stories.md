@@ -52,12 +52,14 @@ As a content operator, I want to validate oauth credentials and the member ident
 
 **Acceptance criteria**
 
-- [ ] Validate OAuth credentials and the member identity.
-- [ ] Select one approved LinkedIn variant.
-- [ ] Move the variant through pending, queued, publishing, and published states.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Validate OAuth credentials and the member identity.
+- [x] Select one approved LinkedIn variant.
+- [x] Move the variant through pending, queued, publishing, and published states.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
+
+**Validated:** 2026-07-11 — [phase3-us003 report](../operations/phase3-us003-linkedin-publication-validation-2026-07-11.md) (`executive-recruiter` on bounded-context campaign).
 
 ### US-004 — Validate the First Real LinkedIn Publication: Story 2
 
@@ -67,12 +69,14 @@ As a content operator, I want to store the linkedin post urn, so that one linked
 
 **Acceptance criteria**
 
-- [ ] Store the LinkedIn post URN.
-- [ ] Confirm the post is visible on LinkedIn.
-- [ ] Prevent duplicate publication.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Store the LinkedIn post URN.
+- [x] Confirm the post is visible on LinkedIn.
+- [x] Prevent duplicate publication.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
+
+**Validated:** 2026-07-11 — URN stored; operator confirmed visibility; idempotent rerun passed. Article image preview not validated (BL-009).
 
 ### US-005 — Validate the First Real LinkedIn Publication: Story 3
 
@@ -82,10 +86,12 @@ As a content operator, I want to restore publication safeguards after the contro
 
 **Acceptance criteria**
 
-- [ ] Restore publication safeguards after the controlled test.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Restore publication safeguards after the controlled test.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
+
+**Validated:** 2026-07-11 — `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=false` restored in `.env` and worker after validation window.
 
 ## BL-003 — Correct LinkedIn Status Summary in the Editorial Calendar
 

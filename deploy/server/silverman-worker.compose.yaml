@@ -23,9 +23,8 @@ services:
       # Git publication SSH — read-only file mounts (no broad /secrets directory mount)
       - /home/silverman/silverman-blog-linkedin-worker/secrets/github-pages-deploy-key:/secrets/github-pages-deploy-key:ro
       - /home/silverman/silverman-blog-linkedin-worker/secrets/known_hosts:/secrets/known_hosts:ro
-      # LinkedIn OAuth — writable file mounts (host files must exist before container recreate)
-      - /home/silverman/silverman-blog-linkedin-worker/secrets/linkedin-oauth-tokens.json:/secrets/linkedin-oauth-tokens.json
-      - /home/silverman/silverman-blog-linkedin-worker/secrets/linkedin-oauth-state.json:/secrets/linkedin-oauth-state.json
+      # LinkedIn OAuth — writable directory mount (file-level binds break atomic rename)
+      - /home/silverman/silverman-blog-linkedin-worker/secrets/linkedin-oauth:/secrets/linkedin-oauth
     healthcheck:
       test:
         [

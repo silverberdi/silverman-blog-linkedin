@@ -145,7 +145,9 @@ If LinkedIn returns **HTTP 426**, the configured version is no longer supported.
 
 v1 does **not** transition campaign state to `distribution_complete`. Campaign remains `distribution_scheduled`; only per-variant `publish_state` and publication metadata change.
 
-## Smoke script
+## Smoke scripts
+
+### Generic dry-run smoke
 
 On the Ubuntu server:
 
@@ -154,6 +156,56 @@ On the Ubuntu server:
 ```
 
 Defaults to dry-run for queue and publish-due (safe without LinkedIn credentials). Real queue: `--real`. Real publish: `--real-publish` with publication enabled and credentials in `.env`. The script never prints secrets.
+
+### US-003 controlled first-real-publish validation (BL-002)
+
+**Warning:** `run-us003-linkedin-publication-validation-smoke.sh` publishes one **real** LinkedIn post when publication is enabled. The post remains on the operator profile until manually removed in LinkedIn. Unlike US-001/US-002 smoke validation, there is no automatic cleanup of the external artifact.
+
+**Blocking prerequisites (tasks §0 — complete before validation window):**
+
+1. Host token store files exist with `chmod 600` (`deploy/server/deploy-worker.sh` creates placeholders on deploy):
+   - `/home/silverman/silverman-blog-linkedin-worker/secrets/linkedin-oauth-tokens.json`
+   - `/home/silverman/silverman-blog-linkedin-worker/secrets/linkedin-oauth-state.json`
+2. Cloudflare Tunnel routes `https://api.silverman.pro` → worker `localhost:8010` for OAuth callback.
+3. OAuth env vars in server `.env` (`SILVERMAN_LINKEDIN_CLIENT_ID`, `SILVERMAN_LINKEDIN_CLIENT_SECRET`, `SILVERMAN_LINKEDIN_REDIRECT_URI`, `SILVERMAN_LINKEDIN_TOKEN_STORE_PATH`) — no secrets in versioned files.
+4. Browser authorization: `GET /linkedin/oauth/authorize` → consent → successful callback.
+5. `GET /linkedin/oauth/status` reports `token_present`, `member_urn`, and expiry metadata (no token cleartext).
+
+**Validation window procedure:**
+
+1. Reconfirm OAuth status immediately before the run (token may expire between bootstrap and validation).
+2. Operator approves exactly one variant on a Flow A `distribution_scheduled` campaign with `publish_state` `pending`.
+3. Run on the Ubuntu server (example campaign from operational validation):
+
+```bash
+/home/silverman/silverman-blog-linkedin-worker/run-us003-linkedin-publication-validation-smoke.sh \
+  --campaign-id flow-a-2026-07-10-a-bounded-context-is-not-a-folder \
+  --variant executive-recruiter
+```
+
+The script:
+
+- enables `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=true` and recreates the container (US-001 pattern);
+- runs OAuth preflight via `GET /linkedin/oauth/status` (fail-closed);
+- performs real queue → real publish-due with `publish_now: true`;
+- asserts `linkedin_post_urn` and idempotent repeat publish-due (`linkedin_publish_already_published`);
+- restores `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=false` in a trap/finally block.
+
+**LinkedIn visibility checklist (US-004 — manual, after successful publish):**
+
+- Record `linkedin_post_urn` and `published_at` from script output / campaign metadata.
+- Confirm the post appears on the operator LinkedIn profile feed or activity.
+- Optional: note public post URL if obtainable from the URN.
+- Do not store LinkedIn session cookies or credentials in the repository.
+
+**Safeguard restoration (US-005):**
+
+- Script attempts automatic restoration to `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=false`.
+- Operator confirms disabled state in Phase 3 report (`publication_enabled: false` on `/linkedin/oauth/status`).
+
+**HTTP 426 remediation:**
+
+If publish-due fails with LinkedIn HTTP 426 (unsupported API version), update `SILVERMAN_LINKEDIN_API_VERSION` to a current supported YYYYMM value per [LinkedIn API versioning](https://learn.microsoft.com/en-us/linkedin/marketing/versioning), redeploy, and retry publish-due only (do not re-queue if variant is already `queued` or `published` without operator review).
 
 ## Future operator UI (out of scope v1)
 
