@@ -1,0 +1,180 @@
+---
+description: Engineering quality, approval discipline, and implementation standards for silverman-blog-linkedin
+alwaysApply: true
+---
+
+# silverman-blog-linkedin — engineering standards
+
+Complements [.cursor/rules/silverman-blog-linkedin-project.mdc](.cursor/rules/silverman-blog-linkedin-project.mdc). Read canonical docs before acting — do not embed volatile status here:
+
+- [docs/CURRENT-STATE.md](docs/CURRENT-STATE.md) — implemented / validated / manual / deferred
+- [docs/CONTEXT-AUTHORITY.md](docs/CONTEXT-AUTHORITY.md) — authority hierarchy
+- [docs/GLOSSARY.md](docs/GLOSSARY.md) — Flow A completion layers, handoff vs publication
+- [docs/RUNTIME-STATE.md](docs/RUNTIME-STATE.md) — live flags only when operational state matters
+
+This file is **Cursor execution guidance** — subordinate to canonical OpenSpec specs, ADRs, and project context. Not normative product authority.
+
+## Canonical context and authority
+
+- Canonical specs (`openspec/specs/`) are normative; `src/` and `tests/` are evidence of real behavior.
+- Neither layer silently overrides a discrepancy — record in CURRENT-STATE and resolve via a new OpenSpec change.
+- Archived changes (`openspec/changes/archive/`) are historical only; never cite as active requirements.
+- Before non-trivial work: read CURRENT-STATE, relevant specs, ADRs, and existing code paths.
+- Consult `openspec/specs/` for normative behavior; use `tests/` to understand expected contracts.
+- Accepted ADRs in `docs/decisions/` bind architectural choices — do not contradict without a new change.
+
+## Precise status language
+
+- Never bare "Flow A complete" or "Flow A is complete" — name the completion layer (see GLOSSARY).
+- `flow_a_complete` = campaign lifecycle metadata only; `distribution_scheduled` ≠ LinkedIn API published.
+- Blog handoff (files written to checkout) ≠ site published/live (Git commit + push + Pages deploy).
+- LinkedIn implemented ≠ operationally validated; n8n imported ≠ unattended automation.
+- Distinguish implemented / tested / deployed / validated / enabled / automatic / manual / incomplete / deferred / unknown.
+- When reporting worker capability, cite CURRENT-STATE and specs — not assumptions from partial reads.
+- Editorial folder states (`ready`, `queued`, `processed`, `error`) have specific meanings in GLOSSARY.
+
+## Inspect before editing
+
+- Read the target file, callers, related specs, and tests before changing code.
+- Classify artifacts: canonical, generated, operational, historical.
+- Check Git status; match naming, types, imports, and patterns in surrounding code.
+- Do not invent paths, endpoints, env vars, or capabilities not in specs or CURRENT-STATE.
+- For worker endpoints, read route handlers, service modules, and corresponding spec scenarios together.
+- For filesystem changes, trace lifecycle moves in both code and `metadata/campaigns/` contracts.
+
+## Scope and anti-overengineering
+
+- Default: smallest coherent diff satisfying approved OpenSpec requirements.
+- No unrelated refactors, speculative abstractions, generic wrappers, or fallbacks hiding invalid state.
+- Spec-mandated patterns (adapters, idempotency, auth middleware, lifecycle invariants) are allowed.
+- Neighbor issues discovered during work: document as follow-ups; do not expand scope without approval.
+- One approved OpenSpec change at a time for implementation — do not mix unrelated capabilities.
+- If implementation reveals a design flaw, pause and suggest artifact updates rather than improvising.
+
+## Python standards
+
+- Match project Python version and dependency constraints in `pyproject.toml` / `requirements.txt`.
+- Type hints on public APIs; use `pathlib.Path` for filesystem paths, not raw strings.
+- UTC timestamps at boundaries (`datetime.timezone.utc`); validate inputs at HTTP and filesystem edges.
+- Structured errors with actionable messages; no secret values in logs or exceptions.
+- Dry-run paths must not mutate production state or write side-effect artifacts.
+- Reuse existing modules (`src/` layout) — extend functions rather than duplicating logic.
+- Prefer explicit enums or constants for lifecycle states already defined in specs or metadata schemas.
+
+## API and worker standards
+
+- n8n → worker HTTP only — never n8n Execute Command (ADR-0001).
+- Auth, validation, idempotency, and dry-run semantics per canonical specs.
+- Return structured JSON errors; use appropriate HTTP status codes (4xx validation, 5xx unexpected).
+- No secrets in HTTP responses; no hidden Git operations from worker endpoints.
+- New routes, Docker changes, or n8n workflows require an approved OpenSpec change.
+- Guarded features (e.g. LinkedIn publication) must respect enablement env flags — fail closed when disabled.
+
+## Filesystem and lifecycle safety
+
+- Confine reads/writes to approved repo and mount paths; no path traversal.
+- Prefer atomic writes; respect folder lifecycle invariants (`blog-posts/`, `linkedin-posts/`, `metadata/`).
+- No double moves; no false-success metadata when filesystem state disagrees.
+- Campaign traceability via `metadata/campaigns/<campaign-id>.json`.
+- Blog post is canonical (ADR-0002); LinkedIn posts are distribution assets — preserve that separation.
+- Reconciliation endpoints align state without repeating pipeline side effects (see GLOSSARY).
+
+## External integration rules
+
+| Integration | Rules |
+|-------------|-------|
+| **ComfyUI** | Respect enablement flags; dry-run when specified; no duplicate image generation |
+| **DeepSeek** | API keys from env only; no secrets in responses or docs |
+| **LinkedIn** | Guarded by `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`; no duplicate external posts |
+| **GitHub Pages** | Worker writes checkout mount; human owns commit/push; handoff ≠ live |
+| **n8n** | HTTP orchestration only; import ≠ unattended production |
+
+Treat each integration's enablement flag as authoritative — do not bypass guards in code or tests.
+
+## Testing standards
+
+- Behavioral tests over trivial assertions; cover happy path, validation failures, and idempotency.
+- Deterministic fixtures; no real external API calls in unit tests (mock ComfyUI, DeepSeek, LinkedIn).
+- Mirror spec scenarios in test names and assertions where practical.
+- Do not weaken assertions to make tests pass; fix root cause.
+- Full pytest required only when executable code changes; docs/rules-only changes may skip.
+- Run targeted tests for touched modules before declaring implementation complete.
+
+## Warning and quality discipline
+
+- Zero new warnings attributable to your change; fix root causes before completion.
+- Narrow suppressions only with inline explanation tied to a specific line/issue.
+- Forbid global disables, broad per-file-ignores, or tool-config changes to hide failures.
+- Pre-existing unrelated warnings: report separately; do not fix opportunistically without scope.
+- Run `git diff --check` before declaring done.
+
+## Documentation and drift prevention
+
+- Capability, topology, or activation changes: update CURRENT-STATE (and RUNTIME-STATE when live flags change).
+- Do not embed volatile inventories in Cursor rules; link canonical docs instead.
+- Resolve spec↔implementation discrepancies via OpenSpec — do not silently reinterpret.
+- Update CONTEXT-AUTHORITY only when authority hierarchy or document roles change.
+
+## Security and secrets
+
+- Never expose API keys, tokens, passwords, or `.env` values in code, docs, HTTP responses, or commits.
+- Stage-time secrets audit on new/modified files before commit approval.
+- Redact credentials in logs, error messages, and debug output — use env var names only.
+- Do not commit `.env`, credentials files, or operator secrets even if gitignored.
+
+## Git discipline
+
+- Stage explicit paths only; never commit unless user explicitly requests.
+- Three commit boundaries: (1) implementation, (2) spec sync, (3) archive — separate commits.
+- No amend unless user requests and conditions are met; never force-push main/master.
+- Do not push without explicit user approval.
+- Follow repository commit message style from recent `git log` when user requests a commit.
+
+## Deployment and live-operation discipline
+
+- Develop on Mac; deploy Docker on `192.168.0.194` at `/data/silverman-blog-linkedin`.
+- Deploy is separate from implementation — never assume local changes are live.
+- Push, deploy, activation, publication, and live mutation require explicit user approval.
+- Controlled operational validation with evidence — verify state, not just exit codes.
+- Check `BUILD_REVISION` via `/health` or deploy metadata when confirming deployed version.
+- Operational smoke scripts (e.g. Flow A worker smoke) confirm diagnostics — not unattended production.
+
+## Cursor response behavior
+
+- Inspect vs propose vs implement: match mode to task; stop when blocked rather than guessing.
+- OpenSpec before code — no application changes without an approved change.
+- When unclear, ask; when verification fails, fix or report — do not skip gates.
+- Post-verify edits make verification stale; re-run `/opsx-verify` before commit.
+- Use code citations (`startLine:endLine:filepath`) when referencing existing code.
+- Proportional responses — simple fixes need brief answers; architecture questions need structure.
+- Do not create commits, push, deploy, or modify live server state without explicit user approval.
+
+## OpenSpec lifecycle (approval-gated)
+
+Hyphenated commands only — see `.cursor/commands/opsx-*.md`:
+
+```text
+/opsx-explore (when needed)
+→ /opsx-propose → review proposal, design, specs, tasks
+→ explicit user approval
+→ /opsx-apply → implementation
+→ /opsx-verify → explicit commit approval → implementation commit
+→ /opsx-sync → sync review → separate sync commit
+→ /opsx-archive → archive review → separate archive commit
+→ explicit push approval → explicit deploy approval → controlled validation
+```
+
+No apply on unapproved proposal. No sync before implementation commit. No archive before sync commit.
+Verification stale after any post-verify edit — re-run `/opsx-verify` before proceeding.
+
+## Definition of done
+
+- [ ] Approved OpenSpec change scope satisfied
+- [ ] Inspect-before-edit followed; conventions matched
+- [ ] Tests updated when executable code changed; warnings resolved
+- [ ] `/opsx-verify` passed (re-run if post-verify edits)
+- [ ] `git diff --check` clean; secrets audit clean
+- [ ] Implementation commit (with approval) → sync → archive (separate commits)
+- [ ] CURRENT-STATE updated if capability/topology changed
+
+Completion does not imply deployment, push, or live operational validation.

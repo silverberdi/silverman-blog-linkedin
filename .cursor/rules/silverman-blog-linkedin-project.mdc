@@ -32,14 +32,9 @@ Endpoints span health, Flow A (publish/package/schedule/calendar), LinkedIn publ
 
 Blog post is canonical (ADR-0002). LinkedIn posts are distribution assets. English, senior, practical tone. Dairector out of scope. Folder layout: `blog-posts/{ready,queued,processed,error}/`, `linkedin-posts/{review,approved,published}/`, `metadata/{runs,campaigns,backups}/`, `prompts/`.
 
-## Engineering workflow
+## Engineering standards
 
-1. `/opsx-propose` → review/approve
-2. `/opsx-apply` → implement tasks
-3. `/opsx-verify` → validate before commit
-4. Commit → `/opsx-sync` → `/opsx-archive`
-
-Archived changes are historical only. Update CURRENT-STATE (and RUNTIME-STATE when live flags change) when capability or topology changes.
+Implementation quality, approval gates, and the full OpenSpec lifecycle live in [.cursor/rules/silverman-blog-linkedin-engineering.mdc](.cursor/rules/silverman-blog-linkedin-engineering.mdc). Archived changes are historical only. Update CURRENT-STATE (and RUNTIME-STATE when live flags change) when capability or topology changes.
 
 ## Before implementing
 

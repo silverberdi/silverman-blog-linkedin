@@ -15,6 +15,8 @@ How to read, trust, and update documentation in this repository. For **current p
 | Bootstrap/historical context (`docs/context/`) | Rationale and history | Lower authority; bannered when superseded |
 | Archived OpenSpec changes (`openspec/changes/archive/`) | Historical evidence only | **MUST NOT** drive new work |
 | [RUNTIME-STATE.md](RUNTIME-STATE.md) | Volatile operational snapshot | Live flags only; not architectural authority |
+| `.cursor/rules/silverman-blog-linkedin-project.mdc` | Always-on Cursor project context | Orients agents to purpose, guardrails, and canonical doc links |
+| `.cursor/rules/silverman-blog-linkedin-engineering.mdc` | Always-on Cursor execution guidance | Subordinate to canonical specs and project context; not normative product authority; governs engineering behavior and approval discipline |
 
 ## Conflict resolution
 
