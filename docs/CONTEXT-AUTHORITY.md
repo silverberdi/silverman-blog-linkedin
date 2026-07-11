@@ -17,6 +17,19 @@ How to read, trust, and update documentation in this repository. For **current p
 | [RUNTIME-STATE.md](RUNTIME-STATE.md) | Volatile operational snapshot | Live flags only; not architectural authority |
 | `.cursor/rules/silverman-blog-linkedin-project.mdc` | Always-on Cursor project context | Orients agents to purpose, guardrails, and canonical doc links |
 | `.cursor/rules/silverman-blog-linkedin-engineering.mdc` | Always-on Cursor execution guidance | Subordinate to canonical specs and project context; not normative product authority; governs engineering behavior and approval discipline |
+| Product planning (`docs/product/`) | Business backlog, user stories, progress | Define business intent, priorities, acceptance criteria, and business progress |
+
+## Product planning authority
+
+The files under `docs/product/` are the canonical source for business backlog,
+user stories, acceptance criteria, priorities, and business progress.
+
+- `docs/product/backlog.md` owns backlog items and priorities.
+- `docs/product/user-stories.md` owns functional descriptions and acceptance criteria.
+- `docs/product/progress-checklist.md` owns business progress and completion status.
+
+These files define business intent. They do not define implementation design.
+Canonical OpenSpec specs remain authoritative for approved technical behavior.
 
 ## Conflict resolution
 
@@ -24,6 +37,9 @@ How to read, trust, and update documentation in this repository. For **current p
 - **Neither silently overrides a discrepancy.** Any spec↔implementation mismatch MUST be recorded in [CURRENT-STATE.md](CURRENT-STATE.md) and resolved through a new OpenSpec change.
 - Bootstrap or historical documents that disagree with a canonical spec or current implementation MUST NOT be treated as current truth. Record the discrepancy in CURRENT-STATE and open a change.
 - Archived OpenSpec changes MUST NOT be cited as active requirements or implementation instructions.
+- When a technical proposal conflicts with a product backlog item or user story,
+  the conflict must be reported and resolved before implementation.
+  Cursor and OpenSpec must not silently reinterpret business intent.
 
 ## Historical and archived artifacts
 

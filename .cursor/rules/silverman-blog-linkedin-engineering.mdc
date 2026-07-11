@@ -35,6 +35,12 @@ This file is **Cursor execution guidance** — subordinate to canonical OpenSpec
 
 ## Inspect before editing
 
+Before implementation:
+
+1. Identify the related backlog item and user stories.
+2. Confirm the proposed scope satisfies their acceptance criteria.
+3. Report missing, contradictory, or ambiguous acceptance criteria before editing.
+
 - Read the target file, callers, related specs, and tests before changing code.
 - Classify artifacts: canonical, generated, operational, historical.
 - Check Git status; match naming, types, imports, and patterns in surrounding code.
@@ -176,5 +182,12 @@ Verification stale after any post-verify edit — re-run `/opsx-verify` before p
 - [ ] `git diff --check` clean; secrets audit clean
 - [ ] Implementation commit (with approval) → sync → archive (separate commits)
 - [ ] CURRENT-STATE updated if capability/topology changed
+
+A change is not complete from a business perspective until:
+
+- the related acceptance criteria are demonstrated;
+- the corresponding user-story status is updated;
+- the progress checklist reflects the actual validated state;
+- partially satisfied stories remain in progress.
 
 Completion does not imply deployment, push, or live operational validation.

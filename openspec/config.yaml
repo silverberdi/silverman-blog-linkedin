@@ -21,6 +21,25 @@ context: |
   - openspec/specs/ — canonical behavioral specs
   Consult docs/RUNTIME-STATE.md only when live operational flags matter.
 
+  Product planning sources:
+  - docs/product/backlog.md
+  - docs/product/user-stories.md
+  - docs/product/progress-checklist.md
+
+  These files are authoritative for business priorities, user intent,
+  acceptance criteria, and business progress.
+
+  Before proposing a change:
+  - identify the related backlog item and user stories;
+  - preserve their business intent;
+  - report conflicts or missing acceptance criteria;
+  - do not invent requirements.
+
+  After implementation and validation:
+  - update progress only for criteria that were actually demonstrated;
+  - do not mark stories complete based only on code completion;
+  - keep partial outcomes explicitly in progress.
+
   Distinctions (anti-patterns):
   - flow_a_complete = campaign lifecycle state, not product complete
   - Blog handoff to /public-blog ≠ site published/live (manual Git push)
@@ -40,6 +59,9 @@ rules:
     - Explain why HTTP worker instead of n8n Execute Command when relevant.
     - Do not cite archived OpenSpec changes as active requirements.
     - Keep scope to one coherent capability per change.
+    - Reference the related backlog item and user-story IDs.
+    - Explain which acceptance criteria the change addresses.
+    - Identify any acceptance criteria intentionally excluded.
   design:
     - Describe HTTP boundary, configuration, path validation, deployment, security.
     - Align with CURRENT-STATE for implemented vs manual vs deferred capabilities.
@@ -49,6 +71,9 @@ rules:
     - When capability status, topology, activation, or completion criteria change,
       include task to update docs/CURRENT-STATE.md (and RUNTIME-STATE.md if live flags change).
     - Docs-only changes may skip full pytest unless tasks require otherwise.
+    - Include a final business-validation task.
+    - Update docs/product/progress-checklist.md after validated outcomes.
+    - Update user-story status only when acceptance criteria are demonstrated.
   specs:
     - Delta specs must be traceable to implementation or tests when behavioral.
     - Use GLOSSARY terms precisely; avoid unqualified "Flow A complete" language.

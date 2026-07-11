@@ -32,6 +32,23 @@ Endpoints span health, Flow A (publish/package/schedule/calendar), LinkedIn publ
 
 Blog post is canonical (ADR-0002). LinkedIn posts are distribution assets. English, senior, practical tone. Dairector out of scope. Folder layout: `blog-posts/{ready,queued,processed,error}/`, `linkedin-posts/{review,approved,published}/`, `metadata/{runs,campaigns,backups}/`, `prompts/`.
 
+## Product backlog
+
+Before proposing or implementing work, inspect:
+
+- `docs/product/backlog.md`
+- `docs/product/user-stories.md`
+- `docs/product/progress-checklist.md`
+
+Use them as the canonical source for business priority, user intent, acceptance
+criteria, and progress.
+
+Do not invent business requirements that are absent from these files.
+
+After completing a change, update the related user stories and progress checklist
+only when the demonstrated business outcome satisfies their acceptance criteria.
+Do not mark a story complete merely because code was written.
+
 ## Engineering standards
 
 Implementation quality, approval gates, and the full OpenSpec lifecycle live in [.cursor/rules/silverman-blog-linkedin-engineering.mdc](.cursor/rules/silverman-blog-linkedin-engineering.mdc). Archived changes are historical only. Update CURRENT-STATE (and RUNTIME-STATE when live flags change) when capability or topology changes.

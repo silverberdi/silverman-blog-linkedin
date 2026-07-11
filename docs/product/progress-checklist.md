@@ -1,0 +1,689 @@
+# Backlog and User Story Progress Checklist
+
+Use this checklist to track business progress. Mark items only when the stated business outcome has been reviewed and accepted.
+
+## Status Legend
+
+- `[ ]` Not started
+- `[-]` In progress
+- `[x]` Completed
+- `[!]` Blocked
+- `[~]` Deferred
+
+## P1 — Complete Flow A Operationally
+
+- [ ] **BL-001 — Automate Live Blog Publication**
+  - Business outcome: Flow A can move a validated post from the public checkout to the live site without manual Git intervention.
+  - [ ] **US-001**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-002**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-002 — Validate the First Real LinkedIn Publication**
+  - Business outcome: One LinkedIn variant is published successfully, traceably, and without duplicate side effects.
+  - [ ] **US-003**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-004**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-005**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-003 — Correct LinkedIn Status Summary in the Editorial Calendar**
+  - Business outcome: The calendar accurately reflects package and scheduling status for completed campaigns.
+  - [ ] **US-006**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-007**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-008**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-004 — Activate Flow A Orchestration in n8n**
+  - Business outcome: Flow A runs on schedule through n8n without duplicate processing or unintended publication.
+  - [ ] **US-009**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-010**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-011**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-005 — Run a Fully Unattended Flow A Test**
+  - Business outcome: A new post completes the full unattended Flow A path with traceable evidence.
+  - [ ] **US-012**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-013**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-014**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+## P2 — Complete LinkedIn Automation
+
+- [ ] **BL-006 — Define the LinkedIn Variant Review Process**
+  - Business outcome: Each LinkedIn variant has a clear review decision and publication purpose.
+  - [ ] **US-015**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-016**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-017**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-007 — Implement Scheduled LinkedIn Publication Execution**
+  - Business outcome: Due variants are published once, in order, with complete publication evidence.
+  - [ ] **US-018**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-019**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-020**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-008 — Define LinkedIn Retry and Recovery Rules**
+  - Business outcome: LinkedIn failures can be recovered without losing traceability or duplicating content.
+  - [ ] **US-021**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-022**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-009 — Validate LinkedIn Article Preview Rendering**
+  - Business outcome: Published LinkedIn posts display the intended article preview.
+  - [ ] **US-023**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-024**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-025**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+## P3 — Operations, Reliability, and Recovery
+
+- [ ] **BL-010 — Add Operational Observability**
+  - Business outcome: Operators can understand system health and campaign progress from one clear operational view.
+  - [ ] **US-026**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-027**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-011 — Add Operational Alerts**
+  - Business outcome: Important failures and blocked states generate timely, actionable alerts.
+  - [ ] **US-028**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-029**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-030**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-012 — Consolidate Recovery for Incomplete Campaigns**
+  - Business outcome: Incomplete campaigns can be resumed or repaired safely and predictably.
+  - [ ] **US-031**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-032**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-013 — Validate Concurrency and Duplicate Execution Protection**
+  - Business outcome: Concurrent triggers do not create duplicate artifacts or external publications.
+  - [ ] **US-033**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-034**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-035**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-014 — Establish Backup and Restore for Editorial State**
+  - Business outcome: Editorial state can be restored from a verified backup.
+  - [ ] **US-036**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-037**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+## P4 — Flow B
+
+- [ ] **BL-015 — Define Flow B**
+  - Business outcome: Flow B has an approved business process and clear human approval boundaries.
+  - [ ] **US-038**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-039**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-016 — Generate Blog Drafts for Flow B**
+  - Business outcome: The system produces review-ready Flow B blog drafts.
+  - [ ] **US-040**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-041**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-017 — Implement Flow B Review and Approval**
+  - Business outcome: Flow B content cannot proceed to publication without recorded approval.
+  - [ ] **US-042**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-043**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-018 — Integrate Flow B with the Editorial Calendar**
+  - Business outcome: Flow B content is visible and manageable in the editorial calendar.
+  - [ ] **US-044**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-045**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+## P5 — Editorial Strategy and Measurement
+
+- [ ] **BL-019 — Create the Editorial Content Backlog**
+  - Business outcome: The content pipeline has a clear, prioritized source of future topics.
+  - [ ] **US-046**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-047**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-020 — Define Editorial Calendar and Publishing Cadence**
+  - Business outcome: Publications follow an approved cadence that avoids saturation and redundancy.
+  - [ ] **US-048**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-049**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-021 — Define Business and Content Metrics**
+  - Business outcome: The content program has measurable business and editorial outcomes.
+  - [ ] **US-050**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-051**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-022 — Use Performance Feedback to Improve Future Content**
+  - Business outcome: Future editorial decisions are informed by evidence rather than intuition alone.
+  - [ ] **US-052**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-053**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+## P6 — Security and Administration
+
+- [ ] **BL-023 — Rotate and Review Operational Secrets**
+  - Business outcome: Operational secrets are current, protected, and auditable.
+  - [ ] **US-054**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-055**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-056**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-024 — Formalize LinkedIn Token Management**
+  - Business outcome: LinkedIn token management is secure, predictable, and recoverable.
+  - [ ] **US-057**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-058**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-025 — Review Service Permissions and Exposure**
+  - Business outcome: Services and files are exposed only as required for operation.
+  - [ ] **US-059**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-060**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+## P7 — Technical Debt and Maintenance
+
+- [ ] **BL-026 — Correct Stale Flow A Readiness Defaults**
+  - Business outcome: Flow A readiness checks remain accurate as the repository evolves.
+  - [ ] **US-061**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-062**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-063**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-027 — Establish a Warning and Test Quality Baseline**
+  - Business outcome: The team can identify whether a change introduces new quality problems.
+  - [ ] **US-064**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-065**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-028 — Establish Continuous Integration**
+  - Business outcome: Invalid changes are detected before they reach the main branch.
+  - [ ] **US-066**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-067**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-029 — Maintain Current Project and Runtime Context**
+  - Business outcome: Project context remains accurate, current, and trustworthy.
+  - [ ] **US-068**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-069**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-070**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
