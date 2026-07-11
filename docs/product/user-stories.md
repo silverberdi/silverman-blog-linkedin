@@ -1037,11 +1037,11 @@ As a content operator, I want to identify stale expected revisions, so that flow
 
 **Acceptance criteria**
 
-- [ ] Identify stale expected revisions.
-- [ ] Replace brittle commit assumptions.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Identify stale expected revisions.
+- [x] Replace brittle commit assumptions.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-062 — Correct Stale Flow A Readiness Defaults: Story 2
 
@@ -1051,11 +1051,11 @@ As a content operator, I want to avoid false failures, so that flow a readiness 
 
 **Acceptance criteria**
 
-- [ ] Avoid false failures.
-- [ ] Preserve valid readiness checks.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Avoid false failures.
+- [x] Preserve valid readiness checks.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-063 — Correct Stale Flow A Readiness Defaults: Story 3
 
@@ -1065,10 +1065,10 @@ As a content operator, I want to document the new baseline, so that flow a readi
 
 **Acceptance criteria**
 
-- [ ] Document the new baseline.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Document the new baseline.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ## BL-027 — Establish a Warning and Test Quality Baseline
 
