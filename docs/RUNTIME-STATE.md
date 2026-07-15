@@ -6,13 +6,13 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 ## Snapshot
 
-**`verified_at_utc`:** `2026-07-15T21:43:03Z`
-**Evidence source:** US-011 LinkedIn publication-guard validation; US-010 Flow A n8n activation; US-009 identity; BL-003 calendar LinkedIn summary; prior US-001/US-002/US-003 Phase 3 reports; deploy on Ubuntu server `192.168.0.194`
+**`verified_at_utc`:** `2026-07-15T22:24:45Z`
+**Evidence source:** Post-US-011 clean worker deploy from git HEAD `eef06dd` (docs/ops/archive lifecycle); prior US-011 publication-guard validation; US-010 activation; US-009 identity; BL-003 calendar LinkedIn summary; prior US-001/US-002/US-003 Phase 3 reports; Ubuntu server `192.168.0.194`
 
 | Fact | Value | Evidence |
 |------|-------|----------|
 | Worker URL | `http://192.168.0.194:8010` | Deploy + health check |
-| `BUILD_REVISION` | `1784088086` (timestamp fallback; server target layout has no `.git`) | Deploy output 2026-07-15; BL-003 smoke |
+| `BUILD_REVISION` | `1784154207` (timestamp fallback; server target layout has no `.git`; content synced from clean HEAD `eef06dd`) | Deploy 2026-07-15T22:24:45Z; `OVERALL: PASS` |
 | Editorial mount | `/data/silverman-blog-linkedin` | `deploy-worker.sh` compose |
 | Public blog mount | `/public-blog` → host `/home/silverman/silverberdi.github.io` | Deploy verification |
 | n8n Flow A workflow | **Active** on server (`silvermanFlowAPublish01`, 31 nodes, Schedule `0 9 * * *` UTC, single-flight); repo export `active: false` | [us-010 validation](operations/us-010-flow-a-n8n-activation-validation-2026-07-15.md) |
@@ -35,7 +35,7 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 | Fact | Status |
 |------|--------|
-| Current `BUILD_REVISION` if redeployed from git checkout on Mac | Known for last server deploy (`1784088086`); drifts on next rebuild |
+| Current `BUILD_REVISION` if redeployed from git checkout on Mac | Known for last server deploy (`1784154207`); drifts on next rebuild |
 | DeepSeek API quota / rate limits | `unknown` |
 | ComfyUI availability right now | `unknown` — check before image-dependent publish |
 | Remote divergence / duplicate-artifact Git guards under real collision | `unknown` — code + unit tests only; not exercised in smoke |
