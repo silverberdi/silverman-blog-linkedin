@@ -522,7 +522,7 @@ def test_import_flow_a_script_verifies_imported_workflow_inactive(
     assert "import:workflow" in content
     assert "verify_exported_workflow" in content
     assert 'match.get("active") is not False' in content
-    assert "EXPECTED_NODE_COUNT=31" in content
+    assert "EXPECTED_NODE_COUNT=35" in content
     assert "EXPECTED_SCHEDULE_CRON" in content
     assert "Single-Flight Guard" in content
     assert "separate US-010 operator step" in content or "separate" in content.lower()
@@ -547,7 +547,7 @@ def test_import_flow_a_script_prints_canonical_identity_summary(
     content = import_flow_a_script_content
     assert "Canonical Flow A n8n identity" in content
     assert 'WORKFLOW_ID="silvermanFlowAPublish01"' in content
-    assert "EXPECTED_NODE_COUNT=31" in content
+    assert "EXPECTED_NODE_COUNT=35" in content
     assert "worker_base_url:" in content
     assert "worker_api_key:   configured" in content
     assert "worker_api_key:   missing" in content
@@ -657,7 +657,7 @@ def test_collect_flow_a_evidence_script_checks_n8n_workflow_inactive_and_node_co
 ) -> None:
     content = collect_flow_a_evidence_script_content
     assert "silvermanFlowAPublish01" in content
-    assert "EXPECTED_NODE_COUNT=31" in content
+    assert "EXPECTED_NODE_COUNT=35" in content
     assert "--expect-server-active" in content
     assert "EXPECT_SERVER_ACTIVE" in content
     assert "EXPECTED_SCHEDULE_CRON" in content
