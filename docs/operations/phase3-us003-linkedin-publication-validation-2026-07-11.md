@@ -87,3 +87,4 @@
 - No API keys, tokens, client secrets, or authorization codes in this report.
 - Real LinkedIn post remains on operator profile until manually removed in LinkedIn (out of scope for automation).
 - Other variants on the same campaign remain `pending`; only `executive-recruiter` was published.
+- Follow-up for scheduled / bulk pending execution is **BL-007** — construction WIP handoff: [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md).

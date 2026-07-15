@@ -298,6 +298,8 @@ As a content operator, I want to support correction or rejection before queueing
 
 **Business context:** Publish due LinkedIn variants automatically according to the approved editorial schedule.
 
+**Implementation handoff:** Construction WIP for opt-in `auto_queue_pending` on `POST /publish-linkedin-due-variants` exists locally (not on `main`, not OpenSpec-approved). Absorb under this backlog item — see [bl-007-auto-queue-pending-handoff.md](bl-007-auto-queue-pending-handoff.md). Do not mark US-018–US-020 complete from that WIP alone.
+
 ### US-018 — Implement Scheduled LinkedIn Publication Execution: Story 1
 
 **Description**

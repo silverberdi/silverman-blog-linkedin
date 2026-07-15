@@ -2,7 +2,9 @@
 
 Flow A Core stops at `distribution_scheduled` with per-variant `publish_state: pending`. This document covers the **follow-up** LinkedIn publication slice: queue → safety delay → publish-due.
 
-**Implementation vs validation:** Worker endpoints (`/queue-linkedin-publication`, `/publish-linkedin-due-variants`, `/cancel-linkedin-publication`) are **implemented** and guarded by `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` (default `false`). Real LinkedIn API publication is **not operationally validated** in production at last baseline — see [CURRENT-STATE.md](../CURRENT-STATE.md).
+**Implementation vs validation:** Worker endpoints (`/queue-linkedin-publication`, `/publish-linkedin-due-variants`, `/cancel-linkedin-publication`) are **implemented** and guarded by `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` (default `false`). First real API publication was **operationally validated** under BL-002 (controlled smoke); see [CURRENT-STATE.md](../CURRENT-STATE.md). Scheduled multi-variant execution remains **BL-007**.
+
+**BL-007 handoff:** A local uncommitted opt-in `auto_queue_pending` path exists for construction convenience (queue+publish in one call). It is **deferred** — see [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md). Canonical contract on `main` remains separate queue then publish-due until BL-007 OpenSpec lands.
 
 Public site prerequisites for LinkedIn app configuration:
 

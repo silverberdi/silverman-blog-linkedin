@@ -94,6 +94,7 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 - Flow B automation beyond draft generation orchestration
 - Dairector content paths
 - Operator review UI for LinkedIn publication
+- **BL-007** scheduled LinkedIn publication execution — construction WIP `auto_queue_pending` (local/uncommitted; not OpenSpec-approved); handoff [bl-007-auto-queue-pending-handoff.md](product/bl-007-auto-queue-pending-handoff.md)
 
 ## Completion layers (qualified)
 
@@ -118,5 +119,6 @@ Do not describe any single layer as "Flow A complete" without qualification. See
 ## Related documents
 
 - Workflows: [flow-a-target-flow.md](workflows/flow-a-target-flow.md), [linkedin-draft-review-flow.md](workflows/linkedin-draft-review-flow.md)
+- Product: [backlog.md](product/backlog.md), [bl-007-auto-queue-pending-handoff.md](product/bl-007-auto-queue-pending-handoff.md)
 - ADRs: [docs/decisions/](decisions/)
 - Specs: `openspec/specs/`

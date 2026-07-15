@@ -127,6 +127,8 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Due variants are published once, in order, with complete publication evidence.
 
+**Construction handoff (not started as OpenSpec):** Uncommitted `auto_queue_pending` WIP from 2026-07-11 must be formalized here — see [bl-007-auto-queue-pending-handoff.md](bl-007-auto-queue-pending-handoff.md). Do not merge that WIP without an approved BL-007 change.
+
 ### BL-008 — Define LinkedIn Retry and Recovery Rules
 
 **Business need:** Create safe business rules for handling LinkedIn publication failures and uncertain outcomes.
