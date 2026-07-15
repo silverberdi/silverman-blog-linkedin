@@ -169,18 +169,22 @@ As a content operator, I want to identify the canonical flow a workflow, so that
 
 **Validated:** 2026-07-15 — [us-009 validation report](../operations/us-009-canonical-flow-a-n8n-identity-validation-2026-07-15.md). Workflow inactive; proposed schedule 09:00 UTC docs-only. LinkedIn flag temporarily `false` for verify, then restored `true` per operator.
 
+### US-010 — Activate Flow A Orchestration in n8n: Story 2
+
 **Description**
 
 As a content operator, I want to activate the workflow, so that flow a runs on schedule through n8n without duplicate processing or unintended publication.
 
 **Acceptance criteria**
 
-- [ ] Activate the workflow.
-- [ ] Prevent duplicate or concurrent processing.
-- [ ] Validate restart and recovery behavior.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Activate the workflow.
+- [x] Prevent duplicate or concurrent processing.
+- [x] Validate restart and recovery behavior.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
+
+**Validated:** 2026-07-15 — [us-010 activation validation](../operations/us-010-flow-a-n8n-activation-validation-2026-07-15.md). Server `active: true`, Schedule `0 9 * * *` UTC, single-flight skip + TTL recovery with empty ready. Repo export remains `active: false`. Not BL-005; US-011 open.
 
 ### US-011 — Activate Flow A Orchestration in n8n: Story 3
 

@@ -395,7 +395,8 @@ def test_extract_openapi_paths() -> None:
 def test_canonical_flow_a_n8n_identity_constants() -> None:
     assert far.FLOW_A_N8N_WORKFLOW_ID == "silvermanFlowAPublish01"
     assert far.FLOW_A_N8N_WORKFLOW_NAME == "Silverman Blog LinkedIn Flow A Publish"
-    assert far.FLOW_A_N8N_EXPECTED_NODE_COUNT == 26
+    assert far.FLOW_A_N8N_EXPECTED_NODE_COUNT == 31
+    assert far.FLOW_A_N8N_SCHEDULE_CRON == "0 9 * * *"
     assert far.WORKFLOW_EXPORT_REL.endswith(
         "silverman-blog-linkedin-flow-a-publish.json"
     )
@@ -409,7 +410,9 @@ def test_assess_canonical_export_identity_on_repo_export(repo_path: Path) -> Non
     by_id = {check_id: (status, message) for check_id, status, message in results}
     assert by_id["canonical_workflow_name"][0] == far.CheckStatus.PASS
     assert by_id["canonical_workflow_node_count"][0] == far.CheckStatus.PASS
-    assert by_id["canonical_workflow_no_schedule_triggers"][0] == far.CheckStatus.PASS
+    assert by_id["canonical_workflow_schedule_trigger"][0] == far.CheckStatus.PASS
+    assert by_id["canonical_workflow_manual_trigger"][0] == far.CheckStatus.PASS
+    assert by_id["canonical_workflow_single_flight_guard"][0] == far.CheckStatus.PASS
     assert by_id["canonical_workflow_http_only"][0] == far.CheckStatus.PASS
     assert by_id["canonical_workflow_identity"][0] == far.CheckStatus.PASS
     assert far.FLOW_A_N8N_WORKFLOW_ID in by_id["canonical_workflow_identity"][1]
@@ -417,20 +420,22 @@ def test_assess_canonical_export_identity_on_repo_export(repo_path: Path) -> Non
     assert far.forbidden_orchestration_types_present(data) == []
 
 
-def test_assess_canonical_export_fails_for_wrong_name_and_active_schedule() -> None:
+def test_assess_canonical_export_fails_for_wrong_name_and_missing_schedule() -> None:
     workflow = {
         "name": "Wrong Name",
         "active": False,
+        "settings": {"timezone": "UTC"},
         "nodes": [
             {"type": "n8n-nodes-base.manualTrigger"},
-            {"type": "n8n-nodes-base.scheduleTrigger"},
+            {"type": "n8n-nodes-base.webhook"},
         ],
     }
     results = far.assess_canonical_export_identity(workflow)
     by_id = {check_id: status for check_id, status, _ in results}
     assert by_id["canonical_workflow_name"] == far.CheckStatus.FAIL
     assert by_id["canonical_workflow_node_count"] == far.CheckStatus.FAIL
-    assert by_id["canonical_workflow_no_schedule_triggers"] == far.CheckStatus.FAIL
+    assert by_id["canonical_workflow_schedule_trigger"] == far.CheckStatus.FAIL
+    assert by_id["canonical_workflow_no_extra_triggers"] == far.CheckStatus.FAIL
     assert by_id["canonical_workflow_identity"] == far.CheckStatus.FAIL
 
 

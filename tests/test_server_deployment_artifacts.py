@@ -477,7 +477,8 @@ def test_import_flow_a_script_sets_stable_workflow_id(
 def test_import_flow_a_script_forces_active_false(import_flow_a_script_content: str) -> None:
     assert 'workflow["active"] = False' in import_flow_a_script_content
     assert "workflow inactive" in import_flow_a_script_content
-    assert "was not activated" in import_flow_a_script_content
+    assert "remains inactive" in import_flow_a_script_content
+    assert "separate US-010 operator step" in import_flow_a_script_content
 
 
 def test_import_flow_a_script_updates_worker_base_url(
@@ -521,7 +522,10 @@ def test_import_flow_a_script_verifies_imported_workflow_inactive(
     assert "import:workflow" in content
     assert "verify_exported_workflow" in content
     assert 'match.get("active") is not False' in content
-    assert "EXPECTED_NODE_COUNT=26" in content
+    assert "EXPECTED_NODE_COUNT=31" in content
+    assert "EXPECTED_SCHEDULE_CRON" in content
+    assert "Single-Flight Guard" in content
+    assert "separate US-010 operator step" in content or "separate" in content.lower()
 
 
 def test_import_flow_a_script_does_not_activate_or_call_linkedin_api(
@@ -529,12 +533,12 @@ def test_import_flow_a_script_does_not_activate_or_call_linkedin_api(
 ) -> None:
     content = import_flow_a_script_content
     lowered = content.lower()
-    assert "active: true" not in lowered
-    assert '"active": true' not in lowered
-    assert "activate" not in lowered or "was not activated" in content
+    assert 'workflow["active"] = False' in content
+    assert '"active": true' not in content
+    assert "n8n activate" not in lowered
     assert "linkedin api" not in lowered or "call linkedin api" in lowered
-    assert "cron" not in lowered or "no cron/webhook" in content
-    assert "webhook" not in lowered or "no cron/webhook" in content
+    assert "separate US-010 operator step" in content
+    assert "Schedule Trigger" in content
 
 
 def test_import_flow_a_script_prints_canonical_identity_summary(
@@ -543,12 +547,14 @@ def test_import_flow_a_script_prints_canonical_identity_summary(
     content = import_flow_a_script_content
     assert "Canonical Flow A n8n identity" in content
     assert 'WORKFLOW_ID="silvermanFlowAPublish01"' in content
-    assert "EXPECTED_NODE_COUNT=26" in content
+    assert "EXPECTED_NODE_COUNT=31" in content
     assert "worker_base_url:" in content
     assert "worker_api_key:   configured" in content
     assert "worker_api_key:   missing" in content
-    assert "proposed schedule daily 09:00 UTC" in content
+    assert "0 9 * * *" in content
     assert "publish-pending" in content
+    assert "US-010" in content
+    assert "Schedule Trigger is present" in content or "Schedule Trigger" in content
 
 
 def test_import_flow_a_script_fail_closed_requires_workflow_id(
@@ -579,7 +585,10 @@ def test_deployment_doc_documents_flow_a_n8n_import() -> None:
     assert "Canonical Flow A workflow identity" in content
     assert "09:00 UTC" in content
     assert "n8n-gateway" in content or "nginx gateway" in content.lower()
-    assert "workflow must remain inactive" in content.lower() or "remains inactive" in content.lower()
+    assert "active: false" in content.lower() or '"active": false' in content.lower()
+    assert "expect-server-active" in content or "--expect-server-active" in content
+    assert "31" in content
+    assert "US-011" in content or "BL-005" in content
 
 
 @pytest.fixture
@@ -610,9 +619,8 @@ def test_collect_flow_a_evidence_script_is_read_only_and_safe(
     assert "docker compose build" not in lowered
     assert "force-recreate" not in lowered
     assert "import:workflow" not in content
-    assert "activate" not in lowered or "no n8n activation" in lowered
-    assert "cron" not in lowered or "no cron" in lowered
-    assert "webhook" not in lowered or "no cron" in lowered
+    assert "activate" not in lowered or "expect-server-active" in lowered or "no n8n activation" in lowered
+    assert "schedule trigger" in lowered or "expected_schedule_cron" in lowered
     assert "linkedin api" in lowered
     assert "no linkedin api" in lowered
 
@@ -649,10 +657,15 @@ def test_collect_flow_a_evidence_script_checks_n8n_workflow_inactive_and_node_co
 ) -> None:
     content = collect_flow_a_evidence_script_content
     assert "silvermanFlowAPublish01" in content
-    assert "EXPECTED_NODE_COUNT=26" in content
-    assert 'match.get("active") is not False' in content
+    assert "EXPECTED_NODE_COUNT=31" in content
+    assert "--expect-server-active" in content
+    assert "EXPECT_SERVER_ACTIVE" in content
+    assert "EXPECTED_SCHEDULE_CRON" in content
+    assert "Single-Flight Guard" in content
     assert "export:workflow" in content
     assert "find_n8n_container" in content
+    assert "pre-activation" in content
+    assert "post-activation" in content
 
 
 def test_collect_flow_a_evidence_script_supports_slug_fragment(
@@ -715,7 +728,9 @@ def test_collect_flow_a_evidence_script_prints_canonical_identity_section(
     assert "canonical Flow A n8n identity" in content
     assert 'N8N_WORKFLOW_ID="${N8N_WORKFLOW_ID:-silvermanFlowAPublish01}"' in content
     assert "expected nodes:" in content
-    assert "required active: false" in content
+    assert "required active:" in content
+    assert "pre-activation" in content
+    assert "post-activation" in content
     assert "publish-pending" in content
 
 
@@ -737,7 +752,8 @@ def test_collect_flow_a_evidence_script_pass_requires_distribution_evidence(
     assert "HAS_LINKEDIN_DISTRIBUTION" in content
     assert "read_campaign_evidence" in content
     assert 'if [[ "${FLOW_A_COMPLETE}" -eq 1 ]]; then' in content
-    assert 'OVERALL: PASS (worker OK, public blog repo ready, n8n inactive, Flow A reached distribution_scheduled' in content
+    assert "OVERALL: PASS (worker OK, public blog repo ready," in content
+    assert "Flow A reached distribution_scheduled" in content
 
 
 def test_collect_flow_a_evidence_script_campaign_error_is_fail(

@@ -30,8 +30,12 @@ FORBIDDEN_NODE_TYPES = {
 FORBIDDEN_TRIGGER_TYPES = {
     "n8n-nodes-base.cron",
     "n8n-nodes-base.webhook",
-    "n8n-nodes-base.scheduleTrigger",
 }
+
+APPROVED_SCHEDULE_TRIGGER_TYPE = "n8n-nodes-base.scheduleTrigger"
+EXPECTED_NODE_COUNT = 31
+EXPECTED_SCHEDULE_CRON = "0 9 * * *"
+SINGLE_FLIGHT_GUARD_NAME = "Single-Flight Guard"
 
 FORBIDDEN_URL_PATTERNS = [
     re.compile(r"api\.deepseek\.com", re.I),
@@ -56,7 +60,11 @@ WORKER_ENDPOINT_FRAGMENTS = (
 
 EXPECTED_NODE_NAMES = {
     "Manual Trigger",
+    "Schedule Trigger",
     "Set Configuration",
+    "Single-Flight Guard",
+    "IF Single-Flight Acquired",
+    "Stop Skipped Already Running",
     "Health Check",
     "Process Ready",
     "Publish Blog Post",
@@ -70,6 +78,7 @@ EXPECTED_NODE_NAMES = {
     "IF Schedule Completed",
     "Split Out Valid Files",
     "Set Flow A Success",
+    "Release Single-Flight Lock",
     "Set Publish Failed",
     "Set Package Failed",
     "Set Schedule Failed",
@@ -77,11 +86,13 @@ EXPECTED_NODE_NAMES = {
 
 REQUIRED_NODE_TYPES = {
     "n8n-nodes-base.manualTrigger",
+    "n8n-nodes-base.scheduleTrigger",
     "n8n-nodes-base.httpRequest",
     "n8n-nodes-base.if",
     "n8n-nodes-base.set",
     "n8n-nodes-base.splitOut",
     "n8n-nodes-base.noOp",
+    "n8n-nodes-base.code",
 }
 
 EXPECTED_CONFIG_VALUES = (
@@ -130,10 +141,72 @@ def test_workflow_is_inactive(workflow: dict):
     assert workflow.get("active") is False
 
 
-def test_workflow_has_manual_trigger_only(workflow: dict):
+def test_workflow_has_manual_and_schedule_triggers(workflow: dict):
     node_types = {node["type"] for node in workflow["nodes"]}
     assert "n8n-nodes-base.manualTrigger" in node_types
+    assert APPROVED_SCHEDULE_TRIGGER_TYPE in node_types
     assert node_types.isdisjoint(FORBIDDEN_TRIGGER_TYPES)
+    schedule_nodes = [
+        node
+        for node in workflow["nodes"]
+        if node["type"] == APPROVED_SCHEDULE_TRIGGER_TYPE
+    ]
+    assert len(schedule_nodes) == 1
+    serialized = json.dumps(schedule_nodes[0].get("parameters", {}))
+    assert EXPECTED_SCHEDULE_CRON in serialized
+    options = schedule_nodes[0].get("parameters", {}).get("options") or {}
+    settings = workflow.get("settings") or {}
+    assert (
+        str(options.get("timezone", "")).upper() == "UTC"
+        or str(settings.get("timezone", "")).upper() == "UTC"
+    )
+
+
+def test_workflow_expected_node_count(workflow: dict):
+    assert len(workflow["nodes"]) == EXPECTED_NODE_COUNT
+
+
+def test_workflow_single_flight_guard_before_health(workflow: dict):
+    names = {node["name"] for node in workflow["nodes"]}
+    assert SINGLE_FLIGHT_GUARD_NAME in names
+    assert "IF Single-Flight Acquired" in names
+    assert "Stop Skipped Already Running" in names
+    assert "Release Single-Flight Lock" in names
+    connections = workflow["connections"]
+    assert connections["Set Configuration"]["main"][0][0]["node"] == SINGLE_FLIGHT_GUARD_NAME
+    assert (
+        connections[SINGLE_FLIGHT_GUARD_NAME]["main"][0][0]["node"]
+        == "IF Single-Flight Acquired"
+    )
+    assert connections["IF Single-Flight Acquired"]["main"][0][0]["node"] == "Health Check"
+    assert (
+        connections["IF Single-Flight Acquired"]["main"][1][0]["node"]
+        == "Stop Skipped Already Running"
+    )
+    guard = next(n for n in workflow["nodes"] if n["name"] == SINGLE_FLIGHT_GUARD_NAME)
+    code = guard["parameters"]["jsCode"]
+    assert "skipped_already_running" in code
+    assert "flowASingleFlight" in code
+    assert "2 * 60 * 60 * 1000" in code or "TTL" in code
+    assert ".silverman-flow-a-single-flight.lock" in code
+
+
+def test_workflow_dual_triggers_enter_set_configuration(workflow: dict):
+    connections = workflow["connections"]
+    assert connections["Manual Trigger"]["main"][0][0]["node"] == "Set Configuration"
+    assert connections["Schedule Trigger"]["main"][0][0]["node"] == "Set Configuration"
+
+
+def test_workflow_retains_ready_folder_http_path(workflow: dict):
+    http_nodes = [
+        node for node in workflow["nodes"] if node["type"] == "n8n-nodes-base.httpRequest"
+    ]
+    serialized = json.dumps([node.get("parameters", {}) for node in http_nodes])
+    assert "/process-ready" in serialized
+    assert "/publish-blog-post" in serialized
+    assert "/generate-linkedin-package" in serialized
+    assert "/schedule-linkedin-distribution" in serialized
+    assert "/editorial-calendar/execute-flow-a-due" not in serialized
 
 
 def test_workflow_has_expected_node_types(workflow: dict):
@@ -372,7 +445,7 @@ def test_workflow_schedule_body_prefers_package_response_campaign_id(workflow: d
     assert "$('Generate LinkedIn Package')" not in body
 
 
-def test_workflow_has_no_schedule_or_webhook_trigger(workflow: dict):
+def test_workflow_forbids_webhook_and_legacy_cron_triggers(workflow: dict):
     node_types = {node["type"] for node in workflow["nodes"]}
     assert node_types.isdisjoint(FORBIDDEN_TRIGGER_TYPES)
 

@@ -6,8 +6,8 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 ## Snapshot
 
-**`verified_at_utc`:** `2026-07-15T14:14:12Z`
-**Evidence source:** US-009 Flow A n8n identity validation (import + evidence + LinkedIn flag window); BL-003 calendar LinkedIn summary; prior US-001/US-002/US-003 Phase 3 reports; deploy on Ubuntu server `192.168.0.194`
+**`verified_at_utc`:** `2026-07-15T19:22:06Z`
+**Evidence source:** US-010 Flow A n8n activation validation; US-009 identity; BL-003 calendar LinkedIn summary; prior US-001/US-002/US-003 Phase 3 reports; deploy on Ubuntu server `192.168.0.194`
 
 | Fact | Value | Evidence |
 |------|-------|----------|
@@ -15,7 +15,7 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 | `BUILD_REVISION` | `1784088086` (timestamp fallback; server target layout has no `.git`) | Deploy output 2026-07-15; BL-003 smoke |
 | Editorial mount | `/data/silverman-blog-linkedin` | `deploy-worker.sh` compose |
 | Public blog mount | `/public-blog` → host `/home/silverman/silverberdi.github.io` | Deploy verification |
-| n8n Flow A workflow | Imported, **inactive**; identity confirmed US-009 (`silvermanFlowAPublish01`, 26 nodes) | [us-009 validation](operations/us-009-canonical-flow-a-n8n-identity-validation-2026-07-15.md) |
+| n8n Flow A workflow | **Active** on server (`silvermanFlowAPublish01`, 31 nodes, Schedule `0 9 * * *` UTC, single-flight); repo export `active: false` | [us-010 validation](operations/us-010-flow-a-n8n-activation-validation-2026-07-15.md) |
 | `SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED` | `true` | Server `.env` |
 | `SILVERMAN_BLOG_LIVE_SITE_CONFIRMATION_ENABLED` | `true` | Server `.env` |
 | `GIT_SSH_COMMAND` | Set (deploy key + known_hosts paths) | Server `.env`; container env present |
@@ -26,7 +26,8 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 | LinkedIn OAuth token store | Configured; `token_present` during validation | Directory mount `secrets/linkedin-oauth/`; [phase3-us003 report](operations/phase3-us003-linkedin-publication-validation-2026-07-11.md) |
 | LinkedIn API real publish US-003 | Validated — one variant `published` with URN | [phase3-us003 report](operations/phase3-us003-linkedin-publication-validation-2026-07-11.md) |
 | ComfyUI image generation | Enabled during Flow A validation smoke | Operator confirmation; exact env names only |
-| n8n unattended scheduling | Not active | Workflow `active: false` |
+| n8n Flow A schedule activated (US-010) | Server workflow `active: true` with daily 09:00 UTC Schedule Trigger | [us-010 validation](operations/us-010-flow-a-n8n-activation-validation-2026-07-15.md) |
+| Fully unattended Flow A (BL-005) | Not achieved | Activation ≠ unattended E2E; empty-ready evidence only |
 | Calendar LinkedIn summaries (BL-003) | Validated — all 3 calendar items have non-null `linkedin_package_status` / `linkedin_distribution_status` | Reconcile-close smoke + legacy operator patch 2026-07-15 |
 
 ## Unverified / unknown

@@ -8,7 +8,10 @@ WORKER_CONTAINER="${WORKER_CONTAINER:-silverman-blog-linkedin-worker}"
 N8N_WORKFLOW_ID="${N8N_WORKFLOW_ID:-silvermanFlowAPublish01}"
 N8N_WORKFLOW_NAME="${N8N_WORKFLOW_NAME:-Silverman Blog LinkedIn Flow A Publish}"
 POST_SLUG_FRAGMENT="${POST_SLUG_FRAGMENT:-why-i-did-not-start-with-the-database}"
-EXPECTED_NODE_COUNT=26
+EXPECTED_NODE_COUNT=31
+EXPECTED_SCHEDULE_CRON="0 9 * * *"
+SINGLE_FLIGHT_GUARD_NAME="Single-Flight Guard"
+EXPECT_SERVER_ACTIVE=0
 
 FLOW_A_OPENAPI_PATHS=(
   "/publish-blog-post"
@@ -34,9 +37,34 @@ BASE_PATH_CANDIDATES=(
 )
 
 JSON_OUTPUT=0
-if [[ "${1:-}" == "--json" ]]; then
-  JSON_OUTPUT=1
-fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --json)
+      JSON_OUTPUT=1
+      shift
+      ;;
+    --expect-server-active)
+      EXPECT_SERVER_ACTIVE=1
+      shift
+      ;;
+    -h|--help)
+      cat <<'USAGE'
+Usage: collect-flow-a-smoke-evidence.sh [--json] [--expect-server-active]
+
+  Default (pre-activation): expect silvermanFlowAPublish01 active=false
+  --expect-server-active:   expect active=true (US-010 post-activation evidence)
+
+Does not print secrets, call LinkedIn API, deploy, or restart services.
+USAGE
+      exit 0
+      ;;
+    *)
+      echo "FAIL: unknown argument: $1" >&2
+      echo "Remediation: use --json and/or --expect-server-active" >&2
+      exit 1
+      ;;
+  esac
+done
 
 HEALTH_TMP=""
 OPENAPI_TMP=""
@@ -60,7 +88,7 @@ docker_inspect_json_tmp() {
 
 WORKER_OK=0
 N8N_OK=0
-N8N_INACTIVE=0
+N8N_ACTIVE_OK=0
 HAS_SMOKE_ARTIFACTS=0
 CAMPAIGN_STATE=""
 HAS_BLOG_PUBLISH=0
@@ -701,12 +729,18 @@ check_public_blog_artifacts() {
 
 check_n8n_workflow() {
   local n8n_container n8n_image export_tmp container_export
+  local expected_active_label="false"
+  if [[ "${EXPECT_SERVER_ACTIVE}" -eq 1 ]]; then
+    expected_active_label="true"
+  fi
 
   section "canonical Flow A n8n identity"
   echo "canonical id:    ${N8N_WORKFLOW_ID}"
   echo "canonical name:  ${N8N_WORKFLOW_NAME}"
   echo "expected nodes:  ${EXPECTED_NODE_COUNT}"
-  echo "required active: false"
+  echo "required active: ${expected_active_label} (mode=$([ "${EXPECT_SERVER_ACTIVE}" -eq 1 ] && echo post-activation || echo pre-activation))"
+  echo "schedule:        ${EXPECTED_SCHEDULE_CRON} UTC"
+  echo "single-flight:   ${SINGLE_FLIGHT_GUARD_NAME}"
   echo "not canonical:   Flow B draft-generation; LinkedIn publish-pending (BL-007 handoff)"
 
   section "n8n workflow"
@@ -735,12 +769,23 @@ check_n8n_workflow() {
     return 1
   fi
 
-  if ! python3 - "${N8N_EXPORT_TMP}" "${N8N_WORKFLOW_ID}" "${N8N_WORKFLOW_NAME}" "${EXPECTED_NODE_COUNT}" <<'PY'
+  if ! python3 - "${N8N_EXPORT_TMP}" "${N8N_WORKFLOW_ID}" "${N8N_WORKFLOW_NAME}" \
+    "${EXPECTED_NODE_COUNT}" "${EXPECT_SERVER_ACTIVE}" "${EXPECTED_SCHEDULE_CRON}" \
+    "${SINGLE_FLIGHT_GUARD_NAME}" <<'PY'
 import json
 import sys
 
-export_path, workflow_id, workflow_name, expected_nodes = sys.argv[1:5]
+(
+    export_path,
+    workflow_id,
+    workflow_name,
+    expected_nodes,
+    expect_active,
+    expected_cron,
+    guard_name,
+) = sys.argv[1:8]
 expected_nodes = int(expected_nodes)
+expect_active = expect_active == "1"
 
 with open(export_path, encoding="utf-8") as fh:
     payload = json.load(fh)
@@ -777,28 +822,87 @@ if match.get("name") != workflow_name:
     )
     sys.exit(1)
 
-if match.get("active") is not False:
-    print(f"FAIL: workflow active is {match.get('active')!r}, expected false")
-    sys.exit(1)
+active = match.get("active")
+if expect_active:
+    if active is not True:
+        print(
+            f"FAIL: workflow active is {active!r}, expected true "
+            "(post-activation mode). Remediation: activate silvermanFlowAPublish01 "
+            "after identity checks, or omit --expect-server-active for pre-activation."
+        )
+        sys.exit(1)
+    print("PASS: workflow active (active=true) for post-activation mode")
+else:
+    if active is not False:
+        print(
+            f"FAIL: workflow active is {active!r}, expected false "
+            "(pre-activation mode). Remediation: deactivate, or re-run with "
+            "--expect-server-active after intentional activate."
+        )
+        sys.exit(1)
+    print("PASS: workflow inactive (active=false) for pre-activation mode")
 
-print("PASS: workflow inactive (active=false)")
-
-node_count = len(match.get("nodes", []))
+nodes = match.get("nodes", [])
+node_count = len(nodes) if isinstance(nodes, list) else -1
 if node_count != expected_nodes:
     print(f"FAIL: workflow node count is {node_count}, expected {expected_nodes}")
     sys.exit(1)
 
 print(f"PASS: workflow node count {node_count}/{expected_nodes}")
+
+schedule_nodes = []
+guard_nodes = []
+for node in nodes if isinstance(nodes, list) else []:
+    if not isinstance(node, dict):
+        continue
+    ntype = str(node.get("type") or "").lower().replace(".", "").replace("-", "")
+    if "scheduletrigger" in ntype:
+        schedule_nodes.append(node)
+    if node.get("name") == guard_name:
+        guard_nodes.append(node)
+
+if len(schedule_nodes) != 1:
+    print(f"FAIL: expected exactly one Schedule Trigger, found {len(schedule_nodes)}")
+    sys.exit(1)
+serialized = json.dumps(schedule_nodes[0].get("parameters", {}))
+if expected_cron not in serialized:
+    print(f"FAIL: Schedule Trigger missing cron {expected_cron!r}")
+    sys.exit(1)
+settings = match.get("settings") if isinstance(match.get("settings"), dict) else {}
+options = schedule_nodes[0].get("parameters", {}).get("options")
+options = options if isinstance(options, dict) else {}
+tz_ok = str(settings.get("timezone") or "").upper() == "UTC" or str(
+    options.get("timezone") or ""
+).upper() == "UTC"
+if not tz_ok:
+    print("FAIL: Schedule Trigger / workflow settings must declare timezone UTC")
+    sys.exit(1)
+print(f"PASS: Schedule Trigger cron {expected_cron} UTC")
+
+if not guard_nodes:
+    print(f"FAIL: single-flight guard {guard_name!r} missing")
+    sys.exit(1)
+print(f"PASS: single-flight guard {guard_name!r} present")
+
+if expect_active and active is True and len(schedule_nodes) == 1 and guard_nodes:
+    # Imported+active with schedule/guard — identity activation check PASS path
+    pass
+elif not expect_active and active is False and len(schedule_nodes) == 1:
+    # Pre-activation: schedule present but inactive → operator may still need activate
+    print(
+        "NOTE: PENDING activation until operator enables active=true "
+        "(use --expect-server-active after activate)."
+    )
 PY
   then
     return 1
   fi
 
-  N8N_INACTIVE=1
+  N8N_ACTIVE_OK=1
 }
 
 compute_overall_status() {
-  if [[ "${BASE_PATH_RESOLVED}" -ne 1 || "${WORKER_OK}" -ne 1 || "${N8N_OK}" -ne 1 || "${N8N_INACTIVE}" -ne 1 ]]; then
+  if [[ "${BASE_PATH_RESOLVED}" -ne 1 || "${WORKER_OK}" -ne 1 || "${N8N_OK}" -ne 1 || "${N8N_ACTIVE_OK}" -ne 1 ]]; then
     OVERALL_STATUS="FAIL"
     return
   fi
@@ -831,7 +935,8 @@ print(json.dumps({
     "base_path_source": "${BASE_PATH_SOURCE}",
     "worker_ok": ${WORKER_OK} == 1,
     "n8n_ok": ${N8N_OK} == 1,
-    "n8n_inactive": ${N8N_INACTIVE} == 1,
+    "n8n_active_ok": ${N8N_ACTIVE_OK} == 1,
+    "expect_server_active": ${EXPECT_SERVER_ACTIVE} == 1,
     "public_blog_repo_ok": ${PUBLIC_BLOG_REPO_OK} == 1,
     "public_blog_host_mount": "${PUBLIC_BLOG_HOST_MOUNT}",
     "campaign_state": "${CAMPAIGN_STATE}",
@@ -855,7 +960,12 @@ main() {
   echo "    workflow id:     ${N8N_WORKFLOW_ID}"
   echo "    workflow name:   ${N8N_WORKFLOW_NAME}"
   echo "    slug fragment:   ${POST_SLUG_FRAGMENT}"
-  echo "    note: read-only; no secrets; no LinkedIn API; no deploy/restart; no n8n activation"
+  echo "    note: read-only; no secrets; no LinkedIn API; no deploy/restart"
+  if [[ "${EXPECT_SERVER_ACTIVE}" -eq 1 ]]; then
+    echo "    mode: post-activation (--expect-server-active)"
+  else
+    echo "    mode: pre-activation (expect inactive)"
+  fi
 
   section "Base path resolution"
   if ! resolve_base_path; then
@@ -892,18 +1002,22 @@ main() {
   compute_overall_status
 
   section "Overall"
+  local n8n_mode_label="n8n pre-activation (inactive)"
+  if [[ "${EXPECT_SERVER_ACTIVE}" -eq 1 ]]; then
+    n8n_mode_label="n8n post-activation (active)"
+  fi
   case "${OVERALL_STATUS}" in
     PASS)
-      echo "OVERALL: PASS (worker OK, public blog repo ready, n8n inactive, Flow A reached distribution_scheduled or linkedin_distribution exists)"
+      echo "OVERALL: PASS (worker OK, public blog repo ready, ${n8n_mode_label}, Flow A reached distribution_scheduled or linkedin_distribution exists)"
       ;;
     PENDING)
-      echo "OVERALL: PENDING (worker OK, public blog repo ready, n8n inactive; campaign has not reached distribution_scheduled)"
+      echo "OVERALL: PENDING (worker OK, public blog repo ready, ${n8n_mode_label}; campaign has not reached distribution_scheduled)"
       echo "NOTE: run deterministic worker smoke or Flow A in n8n, then re-run this script."
       ;;
     FAIL)
       if [[ "${CAMPAIGN_STATE}" == "error" ]]; then
         echo "OVERALL: FAIL (campaign state is error; worker smoke or publish reconciliation required)"
-      elif [[ "${WORKER_OK}" -eq 1 && "${N8N_OK}" -eq 1 && "${N8N_INACTIVE}" -eq 1 && "${PUBLIC_BLOG_REPO_OK}" -ne 1 ]]; then
+      elif [[ "${WORKER_OK}" -eq 1 && "${N8N_OK}" -eq 1 && "${N8N_ACTIVE_OK}" -eq 1 && "${PUBLIC_BLOG_REPO_OK}" -ne 1 ]]; then
         echo "OVERALL: FAIL (worker and n8n OK but public blog repo not mounted or incomplete)"
         echo "NOTE: publish fails with blog_publish_public_repo_not_configured until the GitHub Pages checkout is mounted at /public-blog."
       else

@@ -11,7 +11,9 @@ WORKER_BASE_URL="${WORKER_BASE_URL:-http://192.168.0.194:8010}"
 
 WORKFLOW_NAME="Silverman Blog LinkedIn Flow A Publish"
 WORKFLOW_ID="silvermanFlowAPublish01"
-EXPECTED_NODE_COUNT=26
+EXPECTED_NODE_COUNT=31
+EXPECTED_SCHEDULE_CRON="0 9 * * *"
+SINGLE_FLIGHT_GUARD_NAME="Single-Flight Guard"
 
 N8N_IMAGE_MARKERS=(
   "n8nio/n8n"
@@ -150,11 +152,19 @@ verify_exported_workflow() {
   local workflow_name="$3"
   local expected_nodes="$4"
 
-  python3 - "${export_path}" "${workflow_id}" "${workflow_name}" "${expected_nodes}" <<'PY'
+  python3 - "${export_path}" "${workflow_id}" "${workflow_name}" "${expected_nodes}" \
+    "${EXPECTED_SCHEDULE_CRON}" "${SINGLE_FLIGHT_GUARD_NAME}" <<'PY'
 import json
 import sys
 
-export_path, workflow_id, workflow_name, expected_nodes = sys.argv[1:5]
+(
+    export_path,
+    workflow_id,
+    workflow_name,
+    expected_nodes,
+    expected_cron,
+    guard_name,
+) = sys.argv[1:7]
 expected_nodes = int(expected_nodes)
 
 with open(export_path, encoding="utf-8") as fh:
@@ -199,7 +209,8 @@ if match.get("active") is not False:
     print(f"FAIL: workflow active is {match.get('active')!r}, expected false", file=sys.stderr)
     sys.exit(1)
 
-node_count = len(match.get("nodes", []))
+nodes = match.get("nodes", [])
+node_count = len(nodes) if isinstance(nodes, list) else -1
 if node_count != expected_nodes:
     print(
         f"FAIL: workflow node count is {node_count}, expected {expected_nodes}",
@@ -207,9 +218,54 @@ if node_count != expected_nodes:
     )
     sys.exit(1)
 
+schedule_nodes = []
+manual_nodes = []
+guard_nodes = []
+for node in nodes if isinstance(nodes, list) else []:
+    if not isinstance(node, dict):
+        continue
+    ntype = str(node.get("type") or "").lower().replace(".", "").replace("-", "")
+    if "scheduletrigger" in ntype:
+        schedule_nodes.append(node)
+    if "manualtrigger" in ntype:
+        manual_nodes.append(node)
+    if node.get("name") == guard_name:
+        guard_nodes.append(node)
+
+if not manual_nodes:
+    print("FAIL: Manual Trigger missing after import", file=sys.stderr)
+    sys.exit(1)
+if len(schedule_nodes) != 1:
+    print(
+        f"FAIL: expected exactly one Schedule Trigger, found {len(schedule_nodes)}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+serialized = json.dumps(schedule_nodes[0].get("parameters", {}))
+if expected_cron not in serialized:
+    print(
+        f"FAIL: Schedule Trigger missing cron {expected_cron!r}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+settings = match.get("settings") if isinstance(match.get("settings"), dict) else {}
+options = schedule_nodes[0].get("parameters", {}).get("options")
+options = options if isinstance(options, dict) else {}
+tz_ok = str(settings.get("timezone") or "").upper() == "UTC" or str(
+    options.get("timezone") or ""
+).upper() == "UTC"
+if not tz_ok:
+    print("FAIL: Schedule Trigger / workflow settings must declare timezone UTC", file=sys.stderr)
+    sys.exit(1)
+if not guard_nodes:
+    print(f"FAIL: single-flight guard {guard_name!r} missing after import", file=sys.stderr)
+    sys.exit(1)
+
 print(f"PASS: workflow id={match.get('id')!r} name={match.get('name')!r}")
 print(f"PASS: workflow inactive (active=false)")
 print(f"PASS: workflow node count {node_count}/{expected_nodes}")
+print(f"PASS: Schedule Trigger cron {expected_cron} UTC")
+print(f"PASS: single-flight guard {guard_name!r} present")
 PY
 }
 
@@ -291,7 +347,9 @@ echo "    export (source):  ${WORKFLOW_SOURCE_JSON}"
 echo "    workflow id:      ${WORKFLOW_ID}"
 echo "    workflow name:    ${WORKFLOW_NAME}"
 echo "    expected nodes:   ${EXPECTED_NODE_COUNT}"
-echo "    active:           false"
+echo "    active:           false (post-import; activate separately)"
+echo "    schedule:         ${EXPECTED_SCHEDULE_CRON} UTC (Schedule Trigger present)"
+echo "    single-flight:    ${SINGLE_FLIGHT_GUARD_NAME}"
 echo "    worker_base_url:  ${WORKER_BASE_URL}"
 if [[ -n "${WORKER_API_KEY}" ]]; then
   echo "    worker_api_key:   configured"
@@ -301,5 +359,6 @@ fi
 echo "    not canonical:    Flow B draft-generation / publish-pending workflows"
 echo
 echo "OVERALL: PASS (Flow A workflow imported; remains inactive)"
-echo "NOTE: workflow was not activated; no cron/webhook/schedule triggers were added."
-echo "NOTE: proposed schedule daily 09:00 UTC is documentation-only until US-010."
+echo "NOTE: Schedule Trigger is present; server activation (active: true) is a separate US-010 operator step."
+echo "NOTE: repository export must stay active: false; verify activation with collect-flow-a-smoke-evidence.sh --expect-server-active."
+echo "NOTE: US-011 / BL-005 remain out of scope (do not flip LinkedIn publication for US-010)."

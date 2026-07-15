@@ -14,6 +14,30 @@
     },
     {
       "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        },
+        "options": {
+          "timezone": "UTC"
+        }
+      },
+      "id": "85bc37be-0745-47c0-b8ce-13f9eb2728ef",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        120
+      ],
+      "notes": "US-010: Daily 09:00 UTC via cron 0 9 * * *. Timezone UTC (workflow/settings). Manual Trigger retained for operator runs. Ready-folder orchestration path only; calendar due connector is separate."
+    },
+    {
+      "parameters": {
         "mode": "manual",
         "duplicateItem": false,
         "assignments": {
@@ -76,6 +100,67 @@
     },
     {
       "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Single-flight guard (US-010). TTL 2h.\n// Primary: workflow static data. Fallback: lockfile on shared n8n files mount\n// (so CLI/sidecar executes can also observe locks).\nconst TTL_MS = 2 * 60 * 60 * 1000;\nconst LOCK_PATH = '/home/node/.n8n-files/.silverman-flow-a-single-flight.lock';\nconst fs = require('fs');\nconst staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\nconst nowIso = new Date(now).toISOString();\nconst executionId = String($execution.id);\nconst incoming = $input.first().json;\n\nfunction readFileLock() {\n  try {\n    if (!fs.existsSync(LOCK_PATH)) return null;\n    return JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));\n  } catch (e) {\n    return null;\n  }\n}\n\nfunction writeFileLock(lock) {\n  fs.writeFileSync(LOCK_PATH, JSON.stringify(lock), 'utf8');\n}\n\nfunction lockHeld(lock) {\n  const acquiredAt = lock && typeof lock.acquired_at_ms === 'number' ? lock.acquired_at_ms : null;\n  return Boolean(lock && acquiredAt !== null && (now - acquiredAt) < TTL_MS);\n}\n\nlet lock = staticData.flowASingleFlight || null;\nif (!lockHeld(lock)) {\n  const fileLock = readFileLock();\n  if (lockHeld(fileLock)) {\n    lock = fileLock;\n  }\n}\n\nif (lockHeld(lock)) {\n  return [{\n    json: {\n      ...incoming,\n      single_flight_acquired: false,\n      outcome: 'skipped_already_running',\n      single_flight_lock_execution_id: lock.execution_id || null,\n      single_flight_lock_acquired_at_utc: lock.acquired_at_utc || null,\n      single_flight_ttl_hours: 2,\n      checked_at_utc: nowIso,\n    }\n  }];\n}\n\nconst acquired = {\n  execution_id: executionId,\n  acquired_at_ms: now,\n  acquired_at_utc: nowIso,\n};\nstaticData.flowASingleFlight = acquired;\ntry {\n  writeFileLock(acquired);\n} catch (e) {\n  // If shared mount unavailable, static-data lock still applies for in-process runs.\n}\n\nreturn [{\n  json: {\n    ...incoming,\n    single_flight_acquired: true,\n    outcome: 'lock_acquired',\n    single_flight_lock_execution_id: executionId,\n    single_flight_lock_acquired_at_utc: nowIso,\n    single_flight_ttl_hours: 2,\n    checked_at_utc: nowIso,\n  }\n}];\n"
+      },
+      "id": "1fb01096-5df1-4336-b8ca-18cbad8bf3a9",
+      "name": "Single-Flight Guard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "notes": "US-010 single-flight: static-data + shared-mount lockfile fallback, TTL 2h. If lock held \u2192 outcome skipped_already_running. Worker idempotency remains the completed-work safety net."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8a85b360-c1f7-4f2a-9d6b-e616b42cf859",
+              "leftValue": "={{ $json.single_flight_acquired }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "acdb60d3-6394-470a-95b6-8bf0c18de635",
+      "name": "IF Single-Flight Acquired",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a477c6c3-9151-4a18-8313-8d9c9a73ba91",
+      "name": "Stop Skipped Already Running",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        880,
+        480
+      ],
+      "notes": "US-010: concurrent Manual/Schedule while lock held \u2192 outcome skipped_already_running (from Single-Flight Guard). Not a hard failure for schedule."
+    },
+    {
+      "parameters": {
         "method": "GET",
         "url": "={{ $('Set Configuration').first().json.worker_base_url }}/health",
         "options": {}
@@ -85,10 +170,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        440,
+        880,
         300
       ],
-      "notes": "GET /health — no authentication required."
+      "notes": "GET /health \u2014 no authentication required."
     },
     {
       "parameters": {
@@ -127,7 +212,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        660,
+        1100,
         300
       ]
     },
@@ -176,20 +261,24 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        880,
+        1100,
         520
       ]
     },
     {
-      "parameters": {},
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Best-effort release of Flow A single-flight lock (US-010).\nconst fs = require('fs');\nconst LOCK_PATH = '/home/node/.n8n-files/.silverman-flow-a-single-flight.lock';\nconst staticData = $getWorkflowStaticData('global');\nconst executionId = String($execution.id);\nconst lock = staticData.flowASingleFlight || null;\nif (lock && String(lock.execution_id) === executionId) {\n  delete staticData.flowASingleFlight;\n}\ntry {\n  if (fs.existsSync(LOCK_PATH)) {\n    const cur = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));\n    if (!cur || String(cur.execution_id) === executionId) {\n      fs.unlinkSync(LOCK_PATH);\n    }\n  }\n} catch (e) {\n  // best effort\n}\nconst incoming = $input.first().json;\nreturn [{ json: { ...incoming, single_flight_released: true } }];\n"
+      },
       "id": "50a619be-3fdd-4c47-9c31-d24689d8a838",
       "name": "Stop Health Not Ready",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        1100,
+        1320,
         520
-      ]
+      ],
+      "notes": " Releases single-flight lock (US-010 best-effort)."
     },
     {
       "parameters": {
@@ -221,7 +310,7 @@
         880,
         300
       ],
-      "notes": "POST /process-ready — scans blog-posts/ready/."
+      "notes": "POST /process-ready \u2014 scans blog-posts/ready/."
     },
     {
       "parameters": {
@@ -300,15 +389,19 @@
       ]
     },
     {
-      "parameters": {},
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Best-effort release of Flow A single-flight lock (US-010).\nconst fs = require('fs');\nconst LOCK_PATH = '/home/node/.n8n-files/.silverman-flow-a-single-flight.lock';\nconst staticData = $getWorkflowStaticData('global');\nconst executionId = String($execution.id);\nconst lock = staticData.flowASingleFlight || null;\nif (lock && String(lock.execution_id) === executionId) {\n  delete staticData.flowASingleFlight;\n}\ntry {\n  if (fs.existsSync(LOCK_PATH)) {\n    const cur = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));\n    if (!cur || String(cur.execution_id) === executionId) {\n      fs.unlinkSync(LOCK_PATH);\n    }\n  }\n} catch (e) {\n  // best effort\n}\nconst incoming = $input.first().json;\nreturn [{ json: { ...incoming, single_flight_released: true } }];\n"
+      },
       "id": "f50a64e2-2a49-448a-8076-17caec01c79e",
       "name": "Stop Process Ready Error",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         1540,
         520
-      ]
+      ],
+      "notes": " Releases single-flight lock (US-010 best-effort)."
     },
     {
       "parameters": {
@@ -344,16 +437,19 @@
       ]
     },
     {
-      "parameters": {},
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Best-effort release of Flow A single-flight lock (US-010).\nconst fs = require('fs');\nconst LOCK_PATH = '/home/node/.n8n-files/.silverman-flow-a-single-flight.lock';\nconst staticData = $getWorkflowStaticData('global');\nconst executionId = String($execution.id);\nconst lock = staticData.flowASingleFlight || null;\nif (lock && String(lock.execution_id) === executionId) {\n  delete staticData.flowASingleFlight;\n}\ntry {\n  if (fs.existsSync(LOCK_PATH)) {\n    const cur = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));\n    if (!cur || String(cur.execution_id) === executionId) {\n      fs.unlinkSync(LOCK_PATH);\n    }\n  }\n} catch (e) {\n  // best effort\n}\nconst incoming = $input.first().json;\nreturn [{ json: { ...incoming, single_flight_released: true } }];\n"
+      },
       "id": "2e03eb97-005c-4ae9-a196-052886bdb712",
       "name": "Stop No Candidates",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         1540,
         120
       ],
-      "notes": "Clean stop when valid_count is 0."
+      "notes": "Clean stop when valid_count is 0. Releases single-flight lock (US-010 best-effort)."
     },
     {
       "parameters": {
@@ -400,7 +496,7 @@
         1760,
         300
       ],
-      "notes": "POST /publish-blog-post — validates and publishes one ready post. Idempotent completed (already_published) is success."
+      "notes": "POST /publish-blog-post \u2014 validates and publishes one ready post. Idempotent completed (already_published) is success."
     },
     {
       "parameters": {
@@ -491,15 +587,19 @@
       ]
     },
     {
-      "parameters": {},
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Best-effort release of Flow A single-flight lock (US-010).\nconst fs = require('fs');\nconst LOCK_PATH = '/home/node/.n8n-files/.silverman-flow-a-single-flight.lock';\nconst staticData = $getWorkflowStaticData('global');\nconst executionId = String($execution.id);\nconst lock = staticData.flowASingleFlight || null;\nif (lock && String(lock.execution_id) === executionId) {\n  delete staticData.flowASingleFlight;\n}\ntry {\n  if (fs.existsSync(LOCK_PATH)) {\n    const cur = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));\n    if (!cur || String(cur.execution_id) === executionId) {\n      fs.unlinkSync(LOCK_PATH);\n    }\n  }\n} catch (e) {\n  // best effort\n}\nconst incoming = $input.first().json;\nreturn [{ json: { ...incoming, single_flight_released: true } }];\n"
+      },
       "id": "fb50a64e-2a49-448a-8076-17caec01c80f",
       "name": "Stop Publish Failed",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         2420,
         520
-      ]
+      ],
+      "notes": " Releases single-flight lock (US-010 best-effort)."
     },
     {
       "parameters": {
@@ -531,7 +631,7 @@
         2200,
         300
       ],
-      "notes": "POST /generate-linkedin-package — multi-variant package generation inside the worker."
+      "notes": "POST /generate-linkedin-package \u2014 multi-variant package generation inside the worker."
     },
     {
       "parameters": {
@@ -616,15 +716,19 @@
       ]
     },
     {
-      "parameters": {},
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Best-effort release of Flow A single-flight lock (US-010).\nconst fs = require('fs');\nconst LOCK_PATH = '/home/node/.n8n-files/.silverman-flow-a-single-flight.lock';\nconst staticData = $getWorkflowStaticData('global');\nconst executionId = String($execution.id);\nconst lock = staticData.flowASingleFlight || null;\nif (lock && String(lock.execution_id) === executionId) {\n  delete staticData.flowASingleFlight;\n}\ntry {\n  if (fs.existsSync(LOCK_PATH)) {\n    const cur = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));\n    if (!cur || String(cur.execution_id) === executionId) {\n      fs.unlinkSync(LOCK_PATH);\n    }\n  }\n} catch (e) {\n  // best effort\n}\nconst incoming = $input.first().json;\nreturn [{ json: { ...incoming, single_flight_released: true } }];\n"
+      },
       "id": "0c50a64e-3a49-448a-8076-17caec01c810",
       "name": "Stop Package Failed",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         2860,
         520
-      ]
+      ],
+      "notes": " Releases single-flight lock (US-010 best-effort)."
     },
     {
       "parameters": {
@@ -656,7 +760,7 @@
         2640,
         300
       ],
-      "notes": "POST /schedule-linkedin-distribution — schedules variants with publish_state pending. No LinkedIn API call."
+      "notes": "POST /schedule-linkedin-distribution \u2014 schedules variants with publish_state pending. No LinkedIn API call."
     },
     {
       "parameters": {
@@ -741,15 +845,19 @@
       ]
     },
     {
-      "parameters": {},
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Best-effort release of Flow A single-flight lock (US-010).\nconst fs = require('fs');\nconst LOCK_PATH = '/home/node/.n8n-files/.silverman-flow-a-single-flight.lock';\nconst staticData = $getWorkflowStaticData('global');\nconst executionId = String($execution.id);\nconst lock = staticData.flowASingleFlight || null;\nif (lock && String(lock.execution_id) === executionId) {\n  delete staticData.flowASingleFlight;\n}\ntry {\n  if (fs.existsSync(LOCK_PATH)) {\n    const cur = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));\n    if (!cur || String(cur.execution_id) === executionId) {\n      fs.unlinkSync(LOCK_PATH);\n    }\n  }\n} catch (e) {\n  // best effort\n}\nconst incoming = $input.first().json;\nreturn [{ json: { ...incoming, single_flight_released: true } }];\n"
+      },
       "id": "1d50a64e-4b49-448a-8076-17caec01c820",
       "name": "Stop Schedule Failed",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         3300,
         520
-      ]
+      ],
+      "notes": " Releases single-flight lock (US-010 best-effort)."
     },
     {
       "parameters": {
@@ -805,6 +913,21 @@
         3080,
         200
       ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Best-effort release of Flow A single-flight lock (US-010).\nconst fs = require('fs');\nconst LOCK_PATH = '/home/node/.n8n-files/.silverman-flow-a-single-flight.lock';\nconst staticData = $getWorkflowStaticData('global');\nconst executionId = String($execution.id);\nconst lock = staticData.flowASingleFlight || null;\nif (lock && String(lock.execution_id) === executionId) {\n  delete staticData.flowASingleFlight;\n}\ntry {\n  if (fs.existsSync(LOCK_PATH)) {\n    const cur = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));\n    if (!cur || String(cur.execution_id) === executionId) {\n      fs.unlinkSync(LOCK_PATH);\n    }\n  }\n} catch (e) {\n  // best effort\n}\nconst incoming = $input.first().json;\nreturn [{ json: { ...incoming, single_flight_released: true } }];\n"
+      },
+      "id": "174ea9b9-a197-4469-b954-da1a16ac3227",
+      "name": "Release Single-Flight Lock",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        300
+      ],
+      "notes": "Release single-flight lock after successful Flow A schedule completion."
     }
   ],
   "connections": {
@@ -823,7 +946,7 @@
       "main": [
         [
           {
-            "node": "Health Check",
+            "node": "Single-Flight Guard",
             "type": "main",
             "index": 0
           }
@@ -1058,11 +1181,63 @@
           }
         ]
       ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Single-Flight Guard": {
+      "main": [
+        [
+          {
+            "node": "IF Single-Flight Acquired",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Single-Flight Acquired": {
+      "main": [
+        [
+          {
+            "node": "Health Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop Skipped Already Running",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Flow A Success": {
+      "main": [
+        [
+          {
+            "node": "Release Single-Flight Lock",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "timezone": "UTC"
   },
   "versionId": "c1865cba-805a-4d52-9e44-996da54d4f77",
   "meta": {

@@ -37,11 +37,14 @@ REQUIRED_OPENAPI_PATHS = (
     "/schedule-linkedin-distribution",
 )
 
-# Canonical Flow A n8n workflow identity (US-009 / BL-004).
+# Canonical Flow A n8n workflow identity (US-009 / US-010 / BL-004).
 WORKFLOW_EXPORT_REL = "n8n/workflows/silverman-blog-linkedin-flow-a-publish.json"
 FLOW_A_N8N_WORKFLOW_ID = "silvermanFlowAPublish01"
 FLOW_A_N8N_WORKFLOW_NAME = "Silverman Blog LinkedIn Flow A Publish"
-FLOW_A_N8N_EXPECTED_NODE_COUNT = 26
+FLOW_A_N8N_EXPECTED_NODE_COUNT = 31
+FLOW_A_N8N_SCHEDULE_CRON = "0 9 * * *"
+FLOW_A_N8N_SCHEDULE_TRIGGER_TYPE = "n8n-nodes-base.scheduleTrigger"
+FLOW_A_N8N_SINGLE_FLIGHT_GUARD_NAME = "Single-Flight Guard"
 FLOW_B_DRAFT_WORKFLOW_EXPORT_REL = (
     "n8n/workflows/silverman-blog-linkedin-draft-generation.json"
 )
@@ -49,10 +52,13 @@ FLOW_B_DRAFT_WORKFLOW_EXPORT_REL = (
 NON_CANONICAL_FLOW_A_LOOKALIKES = (
     "n8n/workflows/silverman-blog-linkedin-publish-pending.json",
 )
-FORBIDDEN_N8N_TRIGGER_TYPE_FRAGMENTS = (
-    "cron",
-    "scheduletrigger",
+# Extra triggers beyond the single approved Schedule Trigger (US-010).
+FORBIDDEN_EXTRA_N8N_TRIGGER_TYPE_FRAGMENTS = (
     "webhook",
+)
+# Legacy Cron node type (distinct from scheduleTrigger) remains forbidden.
+FORBIDDEN_LEGACY_CRON_TYPE_FRAGMENTS = (
+    "n8nnodesbasecron",  # n8n-nodes-base.cron normalized
 )
 FORBIDDEN_N8N_ORCHESTRATION_TYPE_FRAGMENTS = (
     "executecommand",
@@ -94,9 +100,9 @@ WORKER_CONTAINER_PORT_MARKERS = (
 PHASE3_MANUAL_STEPS = [
     "Import n8n/workflows/silverman-blog-linkedin-flow-a-publish.json if not already imported.",
     "Set worker_base_url and worker_api_key in the Flow A Set Configuration node.",
-    "Confirm workflow remains inactive in n8n UI (export has active: false).",
-    "Place a valid test blog post (+ PNG) in blog-posts/ready/.",
-    "Execute the Flow A workflow using the Manual Trigger only (no cron/webhook).",
+    "Confirm repository export remains active: false; server may be activated under US-010 ops.",
+    "Prefer empty blog-posts/ready/ for no-op Manual runs during activation evidence.",
+    "Execute the Flow A workflow using Manual Trigger (Schedule Trigger is daily 09:00 UTC).",
     "Verify campaign metadata, publish-confirmed URL, package artifacts, and scheduling metadata.",
 ]
 
@@ -116,20 +122,22 @@ N8N_IMPORT_CHECKLIST = [
     (
         "Run deploy/server/import-flow-a-n8n-workflow.sh on the Ubuntu server "
         f"(sets stable workflow id {FLOW_A_N8N_WORKFLOW_ID}, worker_base_url, "
-        "worker_api_key; leaves workflow inactive)."
+        "worker_api_key; leaves workflow inactive immediately after import)."
     ),
     (
         "Confirm import script reports OVERALL: PASS with canonical identity "
         f"id={FLOW_A_N8N_WORKFLOW_ID}, "
-        f"{FLOW_A_N8N_EXPECTED_NODE_COUNT} nodes, and active=false."
+        f"{FLOW_A_N8N_EXPECTED_NODE_COUNT} nodes, Schedule Trigger "
+        f"{FLOW_A_N8N_SCHEDULE_CRON} UTC, single-flight guard, and active=false."
     ),
     (
-        "Leave workflow inactive in n8n until US-010 activation; proposed "
-        "schedule is daily 09:00 UTC (documentation only until then)."
+        "Activate silvermanFlowAPublish01 on the server only as a separate "
+        "operator step (US-010); repository export must remain active: false. "
+        "Verify with collect-flow-a-smoke-evidence.sh --expect-server-active."
     ),
     (
         "Do not treat Flow B draft-generation or publish-pending workflows as "
-        "canonical Flow A orchestration."
+        "canonical Flow A orchestration. US-011 / BL-005 remain out of scope."
     ),
 ]
 
@@ -278,21 +286,91 @@ def workflow_node_types(workflow_json: dict[str, Any]) -> list[str]:
     return types
 
 
+def _normalize_node_type(node_type: str) -> str:
+    return node_type.lower().replace(".", "").replace("-", "").replace("_", "")
+
+
 def forbidden_trigger_types_present(workflow_json: dict[str, Any]) -> list[str]:
+    """Return disallowed extra triggers (webhook / legacy cron), excluding scheduleTrigger."""
     found: list[str] = []
     for node_type in workflow_node_types(workflow_json):
-        lowered = node_type.lower().replace(".", "").replace("-", "").replace("_", "")
-        for fragment in FORBIDDEN_N8N_TRIGGER_TYPE_FRAGMENTS:
+        lowered = _normalize_node_type(node_type)
+        if "scheduletrigger" in lowered:
+            continue
+        for fragment in FORBIDDEN_EXTRA_N8N_TRIGGER_TYPE_FRAGMENTS:
             if fragment in lowered:
                 found.append(node_type)
                 break
+        else:
+            # n8n-nodes-base.cron (legacy) — scheduleTrigger uses scheduletrigger fragment
+            if lowered.endswith("cron") or lowered == "n8nnodesbasecron":
+                found.append(node_type)
     return list(dict.fromkeys(found))
+
+
+def schedule_trigger_nodes(workflow_json: dict[str, Any]) -> list[dict[str, Any]]:
+    nodes = workflow_json.get("nodes")
+    if not isinstance(nodes, list):
+        return []
+    return [
+        node
+        for node in nodes
+        if isinstance(node, dict)
+        and isinstance(node.get("type"), str)
+        and "scheduletrigger" in _normalize_node_type(node["type"])
+    ]
+
+
+def approved_daily_utc_schedule_present(
+    workflow_json: dict[str, Any],
+) -> tuple[bool, str]:
+    """Require exactly one Schedule Trigger with cron 0 9 * * * and UTC semantics."""
+    triggers = schedule_trigger_nodes(workflow_json)
+    if len(triggers) == 0:
+        return False, "missing Schedule Trigger (expected daily 09:00 UTC)"
+    if len(triggers) > 1:
+        return False, f"expected exactly one Schedule Trigger, found {len(triggers)}"
+    trigger = triggers[0]
+    serialized = json.dumps(trigger.get("parameters", {}))
+    if FLOW_A_N8N_SCHEDULE_CRON not in serialized:
+        return (
+            False,
+            f"Schedule Trigger cron must include {FLOW_A_N8N_SCHEDULE_CRON!r}",
+        )
+    settings = workflow_json.get("settings")
+    settings_tz = ""
+    if isinstance(settings, dict):
+        settings_tz = str(settings.get("timezone") or "")
+    options = trigger.get("parameters", {}).get("options")
+    options_tz = ""
+    if isinstance(options, dict):
+        options_tz = str(options.get("timezone") or "")
+    if settings_tz.upper() != "UTC" and options_tz.upper() != "UTC":
+        return False, "Schedule Trigger / workflow settings must declare timezone UTC"
+    return True, f"Schedule Trigger present with cron {FLOW_A_N8N_SCHEDULE_CRON} UTC"
+
+
+def single_flight_guard_present(workflow_json: dict[str, Any]) -> bool:
+    nodes = workflow_json.get("nodes")
+    if not isinstance(nodes, list):
+        return False
+    return any(
+        isinstance(node, dict) and node.get("name") == FLOW_A_N8N_SINGLE_FLIGHT_GUARD_NAME
+        for node in nodes
+    )
+
+
+def manual_trigger_present(workflow_json: dict[str, Any]) -> bool:
+    for node_type in workflow_node_types(workflow_json):
+        if "manualtrigger" in _normalize_node_type(node_type):
+            return True
+    return False
 
 
 def forbidden_orchestration_types_present(workflow_json: dict[str, Any]) -> list[str]:
     found: list[str] = []
     for node_type in workflow_node_types(workflow_json):
-        lowered = node_type.lower().replace(".", "").replace("-", "").replace("_", "")
+        lowered = _normalize_node_type(node_type)
         for fragment in FORBIDDEN_N8N_ORCHESTRATION_TYPE_FRAGMENTS:
             frag = fragment.lower().replace(".", "").replace("-", "").replace("_", "")
             if frag and frag in lowered:
@@ -441,23 +519,72 @@ def assess_canonical_export_identity(
     if forbidden:
         results.append(
             (
-                "canonical_workflow_no_schedule_triggers",
+                "canonical_workflow_no_extra_triggers",
                 CheckStatus.FAIL,
                 (
-                    "Canonical Flow A export contains forbidden schedule/cron/webhook "
-                    f"node types: {', '.join(forbidden)}"
+                    "Canonical Flow A export contains forbidden extra trigger "
+                    f"node types (webhook/legacy cron): {', '.join(forbidden)}"
                 ),
             )
         )
     else:
         results.append(
             (
-                "canonical_workflow_no_schedule_triggers",
+                "canonical_workflow_no_extra_triggers",
                 CheckStatus.PASS,
-                (
-                    "Canonical Flow A export has no Cron/Webhook/Schedule Trigger nodes "
-                    "(proposed daily 09:00 UTC schedule remains documentation-only until US-010)"
-                ),
+                "Canonical Flow A export has no webhook/legacy-cron triggers beyond approved Schedule Trigger",
+            )
+        )
+
+    schedule_ok, schedule_msg = approved_daily_utc_schedule_present(workflow_json)
+    if schedule_ok:
+        results.append(
+            (
+                "canonical_workflow_schedule_trigger",
+                CheckStatus.PASS,
+                schedule_msg,
+            )
+        )
+    else:
+        results.append(
+            (
+                "canonical_workflow_schedule_trigger",
+                CheckStatus.FAIL,
+                f"Canonical Flow A Schedule Trigger check failed: {schedule_msg}",
+            )
+        )
+
+    if manual_trigger_present(workflow_json):
+        results.append(
+            (
+                "canonical_workflow_manual_trigger",
+                CheckStatus.PASS,
+                "Canonical Flow A export retains Manual Trigger",
+            )
+        )
+    else:
+        results.append(
+            (
+                "canonical_workflow_manual_trigger",
+                CheckStatus.FAIL,
+                "Canonical Flow A export missing Manual Trigger",
+            )
+        )
+
+    if single_flight_guard_present(workflow_json):
+        results.append(
+            (
+                "canonical_workflow_single_flight_guard",
+                CheckStatus.PASS,
+                f"Single-flight guard node {FLOW_A_N8N_SINGLE_FLIGHT_GUARD_NAME!r} present",
+            )
+        )
+    else:
+        results.append(
+            (
+                "canonical_workflow_single_flight_guard",
+                CheckStatus.FAIL,
+                f"Missing single-flight guard node {FLOW_A_N8N_SINGLE_FLIGHT_GUARD_NAME!r}",
             )
         )
 
@@ -485,7 +612,10 @@ def assess_canonical_export_identity(
     prerequisite_ids = (
         "canonical_workflow_name",
         "canonical_workflow_node_count",
-        "canonical_workflow_no_schedule_triggers",
+        "canonical_workflow_no_extra_triggers",
+        "canonical_workflow_schedule_trigger",
+        "canonical_workflow_manual_trigger",
+        "canonical_workflow_single_flight_guard",
         "canonical_workflow_http_only",
     )
     prereq_failed = any(
@@ -499,7 +629,7 @@ def assess_canonical_export_identity(
                 CheckStatus.FAIL,
                 (
                     "Canonical Flow A n8n identity aggregate FAIL: one or more "
-                    "name/node-count/schedule/HTTP-only checks failed "
+                    "name/node-count/schedule/guard/HTTP-only checks failed "
                     f"(stable import id {FLOW_A_N8N_WORKFLOW_ID})"
                 ),
             )
@@ -513,6 +643,7 @@ def assess_canonical_export_identity(
                     f"Canonical Flow A n8n identity: export={WORKFLOW_EXPORT_REL}; "
                     f"import id={FLOW_A_N8N_WORKFLOW_ID}; name={FLOW_A_N8N_WORKFLOW_NAME}; "
                     f"nodes={FLOW_A_N8N_EXPECTED_NODE_COUNT}; active=false; "
+                    f"schedule={FLOW_A_N8N_SCHEDULE_CRON} UTC; "
                     f"not Flow B ({FLOW_B_DRAFT_WORKFLOW_EXPORT_REL})"
                 ),
             )
@@ -713,10 +844,25 @@ def run_phase0(
                         f"{WORKFLOW_EXPORT_REL} node count "
                         f"({FLOW_A_N8N_EXPECTED_NODE_COUNT})."
                     )
-                elif check_id == "canonical_workflow_no_schedule_triggers":
+                elif check_id == "canonical_workflow_schedule_trigger":
                     report.append_remediation(
-                        "Remove Cron/Webhook/Schedule Trigger nodes from the "
-                        "canonical Flow A export until US-010 activation."
+                        "Ensure exactly one Schedule Trigger with cron "
+                        f"{FLOW_A_N8N_SCHEDULE_CRON} and timezone UTC in "
+                        f"{WORKFLOW_EXPORT_REL}."
+                    )
+                elif check_id == "canonical_workflow_no_extra_triggers":
+                    report.append_remediation(
+                        "Remove webhook/legacy Cron trigger nodes from the "
+                        "canonical Flow A export (only approved Schedule Trigger allowed)."
+                    )
+                elif check_id == "canonical_workflow_single_flight_guard":
+                    report.append_remediation(
+                        f"Restore {FLOW_A_N8N_SINGLE_FLIGHT_GUARD_NAME!r} on the "
+                        "shared path after Set Configuration / before Health Check."
+                    )
+                elif check_id == "canonical_workflow_manual_trigger":
+                    report.append_remediation(
+                        "Restore Manual Trigger in the canonical Flow A export."
                     )
                 elif check_id == "canonical_workflow_name":
                     report.append_remediation(

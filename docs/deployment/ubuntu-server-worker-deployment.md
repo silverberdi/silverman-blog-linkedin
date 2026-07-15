@@ -208,22 +208,25 @@ Run the workflow manually and verify a draft appears under `linkedin-posts/revie
 
 ### 5. Import Flow A n8n workflow
 
-#### Canonical Flow A workflow identity (US-009)
+#### Canonical Flow A workflow identity (US-009 / US-010)
 
 | Attribute | Value |
 |-----------|-------|
 | Repository export | `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json` |
 | Workflow display name | `Silverman Blog LinkedIn Flow A Publish` |
 | Stable n8n workflow id | `silvermanFlowAPublish01` |
-| Expected node count | `26` |
-| Export / server active state (this change) | `false` |
+| Expected node count | `31` |
+| Export `active` (git) | `false` |
+| Server `active` after US-010 activation | `true` (RUNTIME-STATE authority; separate from import) |
+| Schedule | Daily `0 9 * * *` UTC via Schedule Trigger |
+| Single-flight | `Single-Flight Guard` (TTL 2h; `skipped_already_running`) |
 | Default import source on server | `/home/silverman/n8n-imports/silverman-blog-linkedin-flow-a-publish.source.json` |
 | Import script | `deploy/server/import-flow-a-n8n-workflow.sh` (or target layout `/home/silverman/silverman-blog-linkedin-worker/import-flow-a-n8n-workflow.sh`) |
 | Default `worker_base_url` | `http://192.168.0.194:8010` |
 
 **Not the canonical Flow A workflow:** `silverman-blog-linkedin-draft-generation.json` (Flow B drafts) and any LinkedIn `publish-pending` helper workflow (BL-007 handoff).
 
-**Proposed execution frequency (documentation only until US-010):** daily at **09:00 UTC** via Schedule Trigger. Export and imported workflow must remain without Cron/Webhook/Schedule Trigger nodes and `active: false` until activation.
+**Execution frequency (materialized in export):** daily at **09:00 UTC** via Schedule Trigger. Repository export remains `"active": false`. Server activation (`active: true`) is an explicit post-import operator step. Ready-folder HTTP path is retained (`POST /process-ready` → publish → package → schedule); this is **not** a rewrite to `POST /editorial-calendar/execute-flow-a-due`. Empty ready folder → clean no-op. Prefer empty-ready evidence; do not call LinkedIn publication APIs for US-010 checks. US-011 and BL-005 remain open.
 
 The `local-ai-stack` deployment exposes n8n through an **nginx gateway** container (for example `local-ai-stack-n8n-gateway-1`). The gateway is **not** the n8n application — do not run `n8n import:workflow` against it. Select the real n8n container by image (`docker.n8n.io/n8nio/n8n` or `n8nio/n8n`), for example `local-ai-stack-n8n-1`.
 
@@ -247,11 +250,19 @@ The `local-ai-stack` deployment exposes n8n through an **nginx gateway** contain
 
    Defaults: source `/home/silverman/n8n-imports/silverman-blog-linkedin-flow-a-publish.source.json`, prepared output alongside with `.prepared.json` suffix, worker env `/home/silverman/silverman-blog-linkedin-worker/.env`, `worker_base_url` `http://192.168.0.194:8010`, workflow name **Silverman Blog LinkedIn Flow A Publish**, id `silvermanFlowAPublish01`.
 
-3. Confirm safe output only (`worker_api_key: configured` — never the key) and `OVERALL: PASS` with 26 nodes and `active=false`.
+3. Confirm safe output only (`worker_api_key: configured` — never the key) and `OVERALL: PASS` with 31 nodes, Schedule Trigger `0 9 * * *` UTC, single-flight guard present, and `active=false` immediately after import.
 
-The script reads `SILVERMAN_BLOG_LINKEDIN_API_KEY` from the worker `.env`, updates **Set Configuration** `worker_base_url` and `worker_api_key`, imports via `docker exec <n8n-container> n8n import:workflow`, and verifies with `export:workflow`. It does **not** activate the workflow, add cron/webhook triggers, call the LinkedIn API, or modify the worker or nginx gateway.
+4. **Activate separately (US-010, approval-gated):** enable `silvermanFlowAPublish01` in n8n UI (or scripted activate). Verify with:
 
-**Workflow must remain inactive** until a future operational change explicitly enables scheduling. Manual smoke uses the n8n editor Manual Trigger only.
+   ```bash
+   ./deploy/server/collect-flow-a-smoke-evidence.sh --expect-server-active
+   ```
+
+   Prefer empty `blog-posts/ready/` for concurrency/restart evidence (Manual no-op). Do not flip `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` for US-010. Record evidence under `docs/operations/us-010-flow-a-n8n-activation-validation-YYYY-MM-DD.md`.
+
+The script reads `SILVERMAN_BLOG_LINKEDIN_API_KEY` from the worker `.env`, updates **Set Configuration** `worker_base_url` and `worker_api_key`, imports via `docker exec <n8n-container> n8n import:workflow`, and verifies with `export:workflow`. It does **not** activate the workflow by default, call the LinkedIn API, or modify the worker or nginx gateway.
+
+**Import → verify → activate:** import prepares/verifies inactive; activation is a separate operator step. Repository export must stay `"active": false`. n8n active ≠ BL-005 unattended; blog handoff ≠ site live.
 
 Phase 0 `n8n_workflow_import` may remain **pending** when the readiness script cannot verify import over HTTP alone; a successful import script run satisfies manual import verification evidence.
 
@@ -269,13 +280,15 @@ After a manual Flow A n8n execution (Phase 3), collect read-only evidence with t
 
 **Defaults:** `WORKER_BASE_URL=http://localhost:8010`, `WORKER_CONTAINER=silverman-blog-linkedin-worker`, workflow id `silvermanFlowAPublish01`, slug fragment `why-i-did-not-start-with-the-database`.
 
+**Modes:** default pre-activation expects `active=false`; `--expect-server-active` expects `active=true` after intentional activate. Both modes require Schedule Trigger `0 9 * * *` UTC, single-flight guard, and expected node count `31`.
+
 **Base path resolution (in order):** `BASE_PATH` override if set and directory exists; worker container env `SILVERMAN_BLOG_LINKEDIN_BASE_PATH`; Docker mount mapped to host source containing `/data/silverman-blog-linkedin`; `GET /health` `base_path`; known host candidates (`/home/silverman/compartido_mac/silverman-blog-linkedin`, etc.). The script prints how the path was resolved.
 
-**Collected evidence:** worker `GET /health` and `GET /openapi.json` (Flow A paths); public blog repo readiness (`SILVERMAN_GITHUB_PAGES_REPO_PATH`, `/public-blog/_posts`, `/public-blog/assets/images`, host mount when available); **editorial artifacts** under the resolved editorial base path (`metadata/runs/*.json`, `metadata/campaigns/*.json`, `linkedin-posts/generated/`); **public blog artifacts** — published `_posts` and `assets/images` matching the slug fragment under the public GitHub Pages repo host mount (`${PUBLIC_BLOG_HOST_MOUNT}`, default `/home/silverman/silverberdi.github.io`) or inside the container at `/public-blog` when the host mount cannot be resolved; n8n workflow export confirming `active=false` and 26 nodes.
+**Collected evidence:** worker `GET /health` and `GET /openapi.json` (Flow A paths); public blog repo readiness (`SILVERMAN_GITHUB_PAGES_REPO_PATH`, `/public-blog/_posts`, `/public-blog/assets/images`, host mount when available); **editorial artifacts** under the resolved editorial base path (`metadata/runs/*.json`, `metadata/campaigns/*.json`, `linkedin-posts/generated/`); **public blog artifacts** — published `_posts` and `assets/images` matching the slug fragment under the public GitHub Pages repo host mount (`${PUBLIC_BLOG_HOST_MOUNT}`, default `/home/silverman/silverberdi.github.io`) or inside the container at `/public-blog` when the host mount cannot be resolved; n8n workflow export confirming mode-aware `active`, Schedule Trigger, single-flight guard, and 31 nodes.
 
 Published blog files are informational for diagnosis (e.g. publish succeeded but LinkedIn generation failed later). They do not affect `OVERALL: PASS`.
 
-**Overall status:** `PASS` when worker, public blog repo, and n8n checks pass and latest campaign evidence shows `distribution_scheduled` (or later) or `linkedin_distribution` exists; `PENDING` when worker, public blog repo, and n8n are OK but the campaign has not reached distribution (e.g. `validated`, `blog_published`, `derivatives_generated` without package/distribution); `FAIL` when base path is unresolved, Flow A OpenAPI paths are missing, public blog repo is not mounted or incomplete, workflow is active, n8n is missing, or campaign state is `error`. Plain campaign metadata existence alone does not produce `PASS`. Generated LinkedIn files count toward evidence only when campaign state is at least `derivatives_generated` or `distribution_scheduled`. If worker and n8n are OK but the public repo is missing, the script reports `FAIL` with remediation (not `PENDING`) — publish would fail with `blog_publish_public_repo_not_configured`. For `published` variants, reports whether `linkedin_post_urn` is present (no post body, no tokens).
+**Overall status:** `PASS` when worker, public blog repo, and n8n checks pass and latest campaign evidence shows `distribution_scheduled` (or later) or `linkedin_distribution` exists; `PENDING` when worker, public blog repo, and n8n are OK but the campaign has not reached distribution (e.g. `validated`, `blog_published`, `derivatives_generated` without package/distribution); `FAIL` when base path is unresolved, Flow A OpenAPI paths are missing, public blog repo is not mounted or incomplete, active-state expectation for the selected mode is violated, n8n is missing, or campaign state is `error`. Plain campaign metadata existence alone does not produce `PASS`. Generated LinkedIn files count toward evidence only when campaign state is at least `derivatives_generated` or `distribution_scheduled`. If worker and n8n are OK but the public repo is missing, the script reports `FAIL` with remediation (not `PENDING`) — publish would fail with `blog_publish_public_repo_not_configured`. For `published` variants, reports whether `linkedin_post_urn` is present (no post body, no tokens).
 
 The collect-flow-a script is read-only: no secrets printed, no n8n activation, no LinkedIn API calls, no deploy/restart. Optional `--json` for machine-readable summary.
 
