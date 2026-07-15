@@ -113,7 +113,7 @@ As a content operator, I want to show the actual package-generation status, so t
 - [x] Failures or blocked states are clearly communicated.
 - [x] Existing completed work is not duplicated or unintentionally changed.
 
-**Validated:** 2026-07-11 — unit tests: `derive_flow_a_linkedin_completion_statuses`, reconcile-close persists non-null `linkedin_package_status` / `linkedin_distribution_status` from realistic campaign metadata (`package_status: generated`, `distribution_id`). Legacy `completed` rows with null summaries not auto-repaired via HTTP.
+**Validated:** 2026-07-15 — unit tests plus operational smoke on `192.168.0.194`: reconcile-close of `2026-07-10-a-bounded-context-is-not-a-folder` persisted `linkedin_package_status=completed` and `linkedin_distribution_status=completed` from `package_status: generated` / `distribution_id`; remaining legacy null rows operator-patched once. Deploy `BUILD_REVISION=1784088086`.
 
 ### US-007 — Correct LinkedIn Status Summary in the Editorial Calendar: Story 2
 
@@ -129,7 +129,7 @@ As a content operator, I want to keep completed campaign facts immutable, so tha
 - [x] Failures or blocked states are clearly communicated.
 - [x] Existing completed work is not duplicated or unintentionally changed.
 
-**Validated:** 2026-07-11 — unit tests: conflicting non-null LinkedIn summaries return `calendar_completion_facts_conflict`; equivalent completed items skip calendar write; null-summary repair allowed only when other fields match.
+**Validated:** 2026-07-15 — unit tests for conflict/idempotency/repair; operational reconcile-close closed scheduled item to completed without republish/package/schedule/lifecycle side effects (`execution_status=reconciled`, `calendar_update_status=reconciled`).
 
 ### US-008 — Correct LinkedIn Status Summary in the Editorial Calendar: Story 3
 
@@ -144,7 +144,7 @@ As a content operator, I want to avoid changing unrelated campaign or calendar d
 - [x] Failures or blocked states are clearly communicated.
 - [x] Existing completed work is not duplicated or unintentionally changed.
 
-**Validated:** 2026-07-11 — unit tests: reconcile-close preserves `notes`; repair updates only null LinkedIn summary fields; no publish/package/schedule/lifecycle side effects on reconciliation.
+**Validated:** 2026-07-15 — unit tests preserve notes/unrelated fields; operational smoke preserved item notes on reconcile-close and touched only LinkedIn summary fields (plus required completion canonical fields) without Flow A republish/package/schedule/lifecycle.
 
 ## BL-004 — Activate Flow A Orchestration in n8n
 

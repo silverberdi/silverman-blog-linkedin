@@ -6,13 +6,13 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 ## Snapshot
 
-**`verified_at_utc`:** `2026-07-11T08:50:00Z`
-**Evidence source:** US-001/US-002/US-003 Phase 3 validation reports; deploy verification on Ubuntu server `192.168.0.194`
+**`verified_at_utc`:** `2026-07-15T05:34:43Z`
+**Evidence source:** BL-003 calendar LinkedIn summary operational validation; prior US-001/US-002/US-003 Phase 3 reports; deploy on Ubuntu server `192.168.0.194`
 
 | Fact | Value | Evidence |
 |------|-------|----------|
 | Worker URL | `http://192.168.0.194:8010` | Deploy + health check |
-| `BUILD_REVISION` | `1783752289` (timestamp fallback; server target layout has no `.git`) | Deploy output 2026-07-11 |
+| `BUILD_REVISION` | `1784088086` (timestamp fallback; server target layout has no `.git`) | Deploy output 2026-07-15; BL-003 smoke |
 | Editorial mount | `/data/silverman-blog-linkedin` | `deploy-worker.sh` compose |
 | Public blog mount | `/public-blog` → host `/home/silverman/silverberdi.github.io` | Deploy verification |
 | n8n Flow A workflow | Imported, **inactive** | `import-flow-a-n8n-workflow.sh`, workflow id `silvermanFlowAPublish01` |
@@ -27,12 +27,13 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 | LinkedIn API real publish US-003 | Validated — one variant `published` with URN | [phase3-us003 report](operations/phase3-us003-linkedin-publication-validation-2026-07-11.md) |
 | ComfyUI image generation | Enabled during Flow A validation smoke | Operator confirmation; exact env names only |
 | n8n unattended scheduling | Not active | Workflow `active: false` |
+| Calendar LinkedIn summaries (BL-003) | Validated — all 3 calendar items have non-null `linkedin_package_status` / `linkedin_distribution_status` | Reconcile-close smoke + legacy operator patch 2026-07-15 |
 
 ## Unverified / unknown
 
 | Fact | Status |
 |------|--------|
-| Current `BUILD_REVISION` if redeployed from git checkout on Mac | `unknown` — server uses timestamp fallback |
+| Current `BUILD_REVISION` if redeployed from git checkout on Mac | Known for last server deploy (`1784088086`); drifts on next rebuild |
 | DeepSeek API quota / rate limits | `unknown` |
 | ComfyUI availability right now | `unknown` — check before image-dependent publish |
 | Remote divergence / duplicate-artifact Git guards under real collision | `unknown` — code + unit tests only; not exercised in smoke |

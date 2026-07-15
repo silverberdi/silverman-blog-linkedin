@@ -2,8 +2,8 @@
 
 Canonical project status for `silverman-blog-linkedin`. Authority rules: [CONTEXT-AUTHORITY.md](CONTEXT-AUTHORITY.md). Terminology: [GLOSSARY.md](GLOSSARY.md). Live flags: [RUNTIME-STATE.md](RUNTIME-STATE.md).
 
-**`last_verified_at_utc`:** `2026-07-11T08:50:00Z`
-**Last verified baseline revision:** `615091c` (verification timestamp above — **not** a permanent runtime requirement)
+**`last_verified_at_utc`:** `2026-07-15T05:34:43Z`
+**Last verified baseline revision:** `72be831` (verification timestamp above — **not** a permanent runtime requirement)
 
 ## Purpose
 
@@ -74,7 +74,7 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 - Live-site HTTP confirmation after Git push with per-request `live_site_confirmation: true` (US-002) — operationally validated on `192.168.0.194` (`blog_live_site_publication.status: confirmed`, HTTP 200 + slug marker during validation window); smoke artifacts removed; see [phase3-us002-live-site-confirmation-validation-2026-07-11.md](operations/phase3-us002-live-site-confirmation-validation-2026-07-11.md)
 - LinkedIn API real publish (US-003/US-004/US-005, BL-002) — operationally validated on `192.168.0.194`: OAuth + queue + publish-due with `publish_now`, `linkedin_post_urn` stored, operator-confirmed visibility, idempotent rerun, safeguards restored; see [phase3-us003-linkedin-publication-validation-2026-07-11.md](operations/phase3-us003-linkedin-publication-validation-2026-07-11.md). v1 text-only API (no LinkedIn image upload); article link preview image deferred to BL-009.
 - Calendar reconciliation: stale item `scheduled` → `completed` via authoritative `campaign_id` without repeating pipeline
-- Calendar `flow_a_completion` LinkedIn summaries (`linkedin_package_status`, `linkedin_distribution_status`) derived from canonical campaign metadata (`linkedin_package.package_status`, `linkedin_distribution.distribution_id`, top-level `variants[]`) — **implemented and unit-tested** (BL-003); forward completion and reconcile-close populate non-null summaries; legacy `completed` rows with null summaries are not auto-repaired via HTTP; not operationally validated on server after deploy
+- Calendar `flow_a_completion` LinkedIn summaries (BL-003 / US-006–US-008) — **operationally validated** on `192.168.0.194` after deploy (`BUILD_REVISION=1784088086`): reopen of `2026-07-10-a-bounded-context-is-not-a-folder` to `scheduled` + `POST /editorial-calendar/execute-flow-a-due` (`dry_run=false`) reconciled with `linkedin_package_status=completed` and `linkedin_distribution_status=completed` from canonical campaign metadata; two remaining legacy completed rows with null summaries operator-patched once; all three calendar items now show non-null LinkedIn summaries
 - Worker smoke and n8n import confirmed; n8n workflow remains **inactive** (import ≠ unattended automation)
 
 ## Implemented but not operationally validated
