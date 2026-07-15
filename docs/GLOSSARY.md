@@ -9,6 +9,7 @@ Precise terminology for `silverman-blog-linkedin`. Authority rules: [CONTEXT-AUT
 | **Flow A** | End-to-end automation from calendar/queue acceptance through blog publish, LinkedIn package, distribution scheduling, and source lifecycle completion | Flow B human draft review path |
 | **Flow A core** | Worker pipeline: queue acceptance → publish → package → schedule → lifecycle → campaign `distribution_scheduled` or `flow_a_complete` | Fully unattended n8n production |
 | **`distribution_scheduled`** | Campaign metadata state after LinkedIn distribution timing is recorded | LinkedIn API publication completed |
+| **Flow A n8n active / scheduled** | Canonical Flow A workflow enabled with Schedule Trigger (US-010) | `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=true` or LinkedIn API posts |
 | **`flow_a_complete`** | Campaign lifecycle metadata state after source moved to `blog-posts/processed/` | Entire product or feature complete |
 | **Operational smoke pass** | Deterministic worker diagnostic (e.g. `run-flow-a-worker-smoke.sh`) confirming publish → package → schedule with expected campaign state | Unattended n8n scheduling |
 | **Fully unattended Flow A** | n8n scheduled trigger + worker + elimination of manual Git and review steps | Same as `flow_a_complete` |
@@ -43,8 +44,9 @@ Worker handoff ≠ blog Git publication ≠ live-site confirmation. Git push alo
 | Term | Definition |
 |------|------------|
 | **LinkedIn package/scheduling implemented** | Worker generates packages and schedule metadata (`linkedin-posts/generated/`, campaign `linkedin_distribution`) |
-| **LinkedIn API publication (implemented)** | Worker exposes queue/publish/cancel endpoints; guarded by `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` |
-| **LinkedIn API publication (operationally validated)** | Real posts published via LinkedIn API in production — **not** validated as of last baseline |
+| **LinkedIn API publication (implemented)** | Worker exposes queue/publish/cancel endpoints; guarded by `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` (fail-closed when not `true`) |
+| **LinkedIn API publication (operationally validated)** | Real posts published via LinkedIn API under a controlled smoke (BL-002); live flag is independent of Flow A schedule — see [RUNTIME-STATE.md](RUNTIME-STATE.md) |
+| **US-011 publication guard** | Acceptance that Flow A schedule cannot silently publish to LinkedIn; evidence may temporarily disable then restore prior enablement — MUST NOT mean LinkedIn must stay `false` forever |
 | **`pending`** | Variant authorized for future publish window |
 | **`queued`** | Variant queued with `publish_after_utc` |
 | **`publishing`** | In-flight API publish |

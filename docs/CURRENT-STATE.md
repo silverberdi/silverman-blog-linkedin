@@ -77,12 +77,12 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 - Calendar `flow_a_completion` LinkedIn summaries (BL-003 / US-006–US-008) — **operationally validated** on `192.168.0.194` after deploy (`BUILD_REVISION=1784088086`): reopen of `2026-07-10-a-bounded-context-is-not-a-folder` to `scheduled` + `POST /editorial-calendar/execute-flow-a-due` (`dry_run=false`) reconciled with `linkedin_package_status=completed` and `linkedin_distribution_status=completed` from canonical campaign metadata; two remaining legacy completed rows with null summaries operator-patched once; all three calendar items now show non-null LinkedIn summaries
 - Worker smoke and n8n import confirmed; n8n Flow A workflow is **activated on the Ubuntu server** under US-010 (repo export remains `active: false`; activation ≠ BL-005 unattended)
 - Canonical Flow A n8n identity (**US-009** / BL-004 identification slice): **validated 2026-07-15** — export `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`, stable id `silvermanFlowAPublish01`, name **Silverman Blog LinkedIn Flow A Publish**. Evidence: [us-009 validation](operations/us-009-canonical-flow-a-n8n-identity-validation-2026-07-15.md).
-- Flow A n8n activation (**US-010** / BL-004 activation slice): **validated 2026-07-15** — server `active: true`, 31 nodes, Schedule Trigger `0 9 * * *` UTC, single-flight (static-data + shared-mount lockfile TTL 2h), idle restart + skip + TTL recovery with empty ready. Repo export `active: false`. Ready-folder HTTP path retained. US-011 / BL-005 remain open. Evidence: [us-010 validation](operations/us-010-flow-a-n8n-activation-validation-2026-07-15.md).
+- Flow A n8n activation (**US-010** / BL-004 activation slice): **validated 2026-07-15** — server `active: true`, 31 nodes, Schedule Trigger `0 9 * * *` UTC, single-flight (static-data + shared-mount lockfile TTL 2h), idle restart + skip + TTL recovery with empty ready. Repo export `active: false`. Ready-folder HTTP path retained. Evidence: [us-010 validation](operations/us-010-flow-a-n8n-activation-validation-2026-07-15.md).
+- LinkedIn publication guard (**US-011** / BL-004 story 3): **validated 2026-07-15** — Flow A schedule ≠ LinkedIn enablement; `distribution_scheduled` ≠ LinkedIn API published; fail-closed `linkedin_publish_not_enabled` with temporary flag `false` then restore of recorded baseline `true`. US-011 is not permanent LinkedIn-off. BL-004 closable; BL-005 remains open. Evidence: [us-011 validation](operations/us-011-linkedin-publication-guard-validation-2026-07-15.md).
 
 ## Implemented but not operationally validated
 
 - Fully unattended Flow A (BL-005 — n8n may be active on schedule, but E2E unattended with real ready content is not proven)
-- US-011 LinkedIn publication disabled-until-approved acceptance (flag not flipped for US-010)
 - OAuth LinkedIn token refresh in production (refresh token not present in current token store)
 
 ## Manual steps (by design)

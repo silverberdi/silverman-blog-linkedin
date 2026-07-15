@@ -74,7 +74,7 @@ The default Comfy Cloud workflow (`silverman-blog-openai-gpt-image.json`) uses t
 |----------|----------|---------|---------|
 | `SILVERMAN_LINKEDIN_ACCESS_TOKEN` | Real publish | — | OAuth access token (external; never logged or returned) |
 | `SILVERMAN_LINKEDIN_MEMBER_URN` | **Yes v1** | — | Author URN, e.g. `urn:li:person:{id}` (no auto-resolve) |
-| `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` | Real publish | `false` | Must be `true` for real LinkedIn API calls |
+| `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` | Real publish | `false` | Must be `true` for real LinkedIn API calls; independent of Flow A n8n activation/schedule (US-011). Live value: [RUNTIME-STATE.md](docs/RUNTIME-STATE.md) — not assumed permanently `false` |
 | `SILVERMAN_LINKEDIN_DEFAULT_SAFETY_DELAY_MINUTES` | No | `120` | Minutes after queue before variant is due for publish |
 | `SILVERMAN_LINKEDIN_API_VERSION` | No | `202606` | LinkedIn REST API version header (YYYYMM) |
 
@@ -677,7 +677,7 @@ The exported JSON keeps `"active": false`. It includes **Manual Trigger** (opera
 
 **Single-flight:** Concurrent Manual/Schedule runs take `outcome: skipped_already_running` while the lock is held (TTL 2h) via workflow static-data plus a shared-mount lockfile fallback under `/home/node/.n8n-files/.silverman-flow-a-single-flight.lock`. Worker idempotency remains the completed-work safety net.
 
-**Still open (not US-010):** US-011 (LinkedIn publication disabled-until-approved acceptance) and BL-005 (fully unattended Flow A). Do not flip `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` for US-010.
+**Still open (not US-010 / US-011):** BL-005 (fully unattended Flow A). Flow A schedule ≠ LinkedIn enablement; `distribution_scheduled` ≠ LinkedIn API published. US-011 validated with temporary disable → fail-closed → restore baseline (not permanent LinkedIn-off). Evidence: [us-011 validation](docs/operations/us-011-linkedin-publication-guard-validation-2026-07-15.md). Out of scope remains: BL-007 / publish-pending WIP, Flow B, calendar `execute-flow-a-due` rewrite.
 
 ### Import (Ubuntu server — recommended)
 

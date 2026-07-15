@@ -45,6 +45,18 @@ FORBIDDEN_URL_PATTERNS = [
     re.compile(r"localhost:11434", re.I),
 ]
 
+FORBIDDEN_LINKEDIN_HOST_PATTERNS = [
+    re.compile(r"api\.linkedin\.com", re.I),
+    re.compile(r"(?<![a-z])linkedin\.com", re.I),
+]
+
+# Worker LinkedIn *API publication* paths — Flow A stops at package/schedule metadata.
+FORBIDDEN_LINKEDIN_PUBLICATION_PATHS = (
+    "/queue-linkedin-publication",
+    "/publish-linkedin-due-variants",
+    "/cancel-linkedin-publication",
+)
+
 SECRET_PATTERNS = [
     re.compile(r"sk-[a-zA-Z0-9]{20,}"),
     re.compile(r"Bearer\s+[a-zA-Z0-9_-]{24,}"),
@@ -237,6 +249,17 @@ def test_workflow_has_no_forbidden_node_types(workflow: dict):
 def test_workflow_has_no_direct_llm_provider_urls(workflow_text: str):
     for pattern in FORBIDDEN_URL_PATTERNS:
         assert not pattern.search(workflow_text)
+
+
+def test_workflow_excludes_linkedin_api_publication_paths(workflow: dict, workflow_text: str):
+    """US-011: Flow A orchestration must not invoke LinkedIn API publication endpoints."""
+    node_types = {node["type"] for node in workflow["nodes"]}
+    assert "n8n-nodes-base.linkedIn" not in node_types
+    for pattern in FORBIDDEN_LINKEDIN_HOST_PATTERNS:
+        assert not pattern.search(workflow_text)
+    for path in FORBIDDEN_LINKEDIN_PUBLICATION_PATHS:
+        assert path not in workflow_text
+    assert "/schedule-linkedin-distribution" in workflow_text
 
 
 def test_workflow_has_no_obvious_real_secrets(workflow_text: str):

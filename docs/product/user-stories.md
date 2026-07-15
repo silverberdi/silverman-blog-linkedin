@@ -184,7 +184,7 @@ As a content operator, I want to activate the workflow, so that flow a runs on s
 - [x] Failures or blocked states are clearly communicated.
 - [x] Existing completed work is not duplicated or unintentionally changed.
 
-**Validated:** 2026-07-15 — [us-010 activation validation](../operations/us-010-flow-a-n8n-activation-validation-2026-07-15.md). Server `active: true`, Schedule `0 9 * * *` UTC, single-flight skip + TTL recovery with empty ready. Repo export remains `active: false`. Not BL-005; US-011 open.
+**Validated:** 2026-07-15 — [us-010 activation validation](../operations/us-010-flow-a-n8n-activation-validation-2026-07-15.md). Server `active: true`, Schedule `0 9 * * *` UTC, single-flight skip + TTL recovery with empty ready. Repo export remains `active: false`. Not BL-005.
 
 ### US-011 — Activate Flow A Orchestration in n8n: Story 3
 
@@ -194,10 +194,12 @@ As a content operator, I want to keep linkedin publication disabled until separa
 
 **Acceptance criteria**
 
-- [ ] Keep LinkedIn publication disabled until separately approved.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Keep LinkedIn publication disabled until separately approved.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
+
+**Validated:** 2026-07-15 — [us-011 LinkedIn publication-guard validation](../operations/us-011-linkedin-publication-guard-validation-2026-07-15.md). Baseline `true` → temporary `false` → fail-closed `linkedin_publish_not_enabled` → restore `true`. Flow A has no LinkedIn API nodes/paths. Not permanent LinkedIn-off; BL-005 remains open.
 
 ## BL-005 — Run a Fully Unattended Flow A Test
 

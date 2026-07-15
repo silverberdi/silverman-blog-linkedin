@@ -77,6 +77,8 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Flow A runs on schedule through n8n without duplicate processing or unintended publication.
 
+**Status:** Closed 2026-07-15 after US-009, US-010, and US-011 demonstrated. LinkedIn API publication remains independently gated (`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`); US-011 restored the operator baseline `true` after a controlled fail-closed window — not a permanent LinkedIn-off policy. BL-005 (fully unattended Flow A) remains open. Evidence: [us-011 validation](../operations/us-011-linkedin-publication-guard-validation-2026-07-15.md).
+
 ### BL-005 — Run a Fully Unattended Flow A Test
 
 **Business need:** Demonstrate that a new approved blog post can move through Flow A without technical intervention.

@@ -86,7 +86,7 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated
   - [x] Backlog item closed
 
-- [ ] **BL-004 — Activate Flow A Orchestration in n8n**
+- [x] **BL-004 — Activate Flow A Orchestration in n8n**
   - Business outcome: Flow A runs on schedule through n8n without duplicate processing or unintended publication.
   - [x] **US-009**
     - [x] Story reviewed
@@ -102,16 +102,16 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Business outcome demonstrated
     - [x] Acceptance criteria validated
     - [x] Story accepted
-  - [ ] **US-011**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+  - [x] **US-011**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated
+  - [x] Backlog item closed
 
 - [ ] **BL-005 — Run a Fully Unattended Flow A Test**
   - Business outcome: A new post completes the full unattended Flow A path with traceable evidence.

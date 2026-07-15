@@ -1,6 +1,6 @@
 # LinkedIn publication prerequisites
 
-Flow A Core stops at `distribution_scheduled` with per-variant `publish_state: pending`. This document covers the **follow-up** LinkedIn publication slice: queue → safety delay → publish-due.
+Flow A Core stops at `distribution_scheduled` with per-variant `publish_state: pending`. This document covers the **follow-up** LinkedIn publication slice: queue → safety delay → publish-due. Flow A n8n activation/schedule does **not** enable LinkedIn API publication; `distribution_scheduled` is not LinkedIn API published. US-011 publication-guard acceptance (see [us-011 validation template](../operations/us-011-linkedin-publication-guard-validation-TEMPLATE.md)) may temporarily disable then restore the prior operator-approved flag — it is not a permanent leave-false policy.
 
 **Implementation vs validation:** Worker endpoints (`/queue-linkedin-publication`, `/publish-linkedin-due-variants`, `/cancel-linkedin-publication`) are **implemented** and guarded by `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` (default `false`). First real API publication was **operationally validated** under BL-002 (controlled smoke); see [CURRENT-STATE.md](../CURRENT-STATE.md). Scheduled multi-variant execution remains **BL-007**.
 
