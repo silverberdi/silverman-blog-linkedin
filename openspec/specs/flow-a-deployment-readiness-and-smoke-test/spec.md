@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Repeatable deployment readiness and smoke verification for Flow A after worker slice 7. Distinguishes repository checkout state from the running worker OpenAPI surface, gates phased smoke on Phase 0, and provides server-side evidence collection and deterministic worker smoke scripts — without activating n8n, calling LinkedIn API, or performing destructive operations.
+Repeatable deployment readiness and smoke verification for Flow A after worker slice 7. Distinguishes repository checkout state from the running worker OpenAPI surface, gates phased smoke on Phase 0, and provides server-side evidence collection and deterministic worker smoke scripts — including Schedule Trigger and mode-aware active-state checks for US-010 — without calling LinkedIn API or performing destructive operations by default.
 
 ## Requirements
 
@@ -99,7 +99,7 @@ The readiness command SHALL verify the running worker HTTP surface independently
 
 ### Requirement: Flow A workflow export checks
 
-The readiness command SHALL verify the Flow A n8n workflow export in the repository checkout without activating the workflow.
+The readiness command SHALL verify the Flow A n8n workflow export in the repository checkout without activating the live server workflow.
 
 #### Scenario: Required workflow file present
 
@@ -110,6 +110,16 @@ The readiness command SHALL verify the Flow A n8n workflow export in the reposit
 
 - **WHEN** Phase 0 parses the Flow A workflow JSON export
 - **THEN** it requires top-level `"active": false`; if `"active": true`, Phase 0 fails clearly
+
+#### Scenario: Workflow export includes approved schedule trigger
+
+- **WHEN** Phase 0 parses the Flow A workflow JSON export after US-010
+- **THEN** it requires exactly one Schedule Trigger configured for daily 09:00 UTC (`0 9 * * *` UTC semantics) and fails clearly if missing or incorrect
+
+#### Scenario: Workflow export retains manual trigger
+
+- **WHEN** Phase 0 parses the Flow A workflow JSON export
+- **THEN** it requires a Manual Trigger node and fails clearly if absent
 
 ### Requirement: n8n reachability and import status
 
@@ -127,12 +137,12 @@ The readiness command SHALL check n8n reachability when configured and SHALL dis
 
 #### Scenario: Manual import script satisfies pending evidence
 
-- **WHEN** an operator runs `deploy/server/import-flow-a-n8n-workflow.sh` on the Ubuntu server and the script reports `OVERALL: PASS` with workflow id `silvermanFlowAPublish01`, `active: false`, and 26 nodes
+- **WHEN** an operator runs `deploy/server/import-flow-a-n8n-workflow.sh` on the Ubuntu server and the script reports `OVERALL: PASS` with workflow id `silvermanFlowAPublish01`, `active: false`, US-010 expected node count, and Schedule Trigger present
 - **THEN** manual import verification evidence is satisfied even if Phase 0 `n8n_workflow_import` remains pending from HTTP-only probes
 
 ### Requirement: Repeatable n8n Flow A import on Ubuntu server
 
-The repository SHALL provide `deploy/server/import-flow-a-n8n-workflow.sh` that imports the Flow A workflow into the real n8n container (not the nginx gateway), prepares a stable workflow id for Postgres import, configures worker URL and API key without printing secrets, and verifies the imported workflow remains inactive.
+The repository SHALL provide `deploy/server/import-flow-a-n8n-workflow.sh` that imports the Flow A workflow into the real n8n container (not the nginx gateway), prepares a stable workflow id for Postgres import, configures worker URL and API key without printing secrets, and verifies the imported workflow remains inactive immediately after import.
 
 #### Scenario: Select n8n container by image
 
@@ -147,7 +157,12 @@ The repository SHALL provide `deploy/server/import-flow-a-n8n-workflow.sh` that 
 #### Scenario: Import verification without activation
 
 - **WHEN** import completes successfully
-- **THEN** the script verifies via `export:workflow` that the workflow exists by stable id `silvermanFlowAPublish01` (name is a secondary assert only; name-only match without that id MUST FAIL), has 26 nodes, and `active` is false, without activating the workflow or adding cron/webhook triggers
+- **THEN** the script verifies via `export:workflow` that the workflow exists by stable id `silvermanFlowAPublish01` (name is a secondary assert only; name-only match without that id MUST FAIL), has the US-010 expected node count, includes the required Schedule Trigger, and `active` is false, without activating the workflow
+
+#### Scenario: Import notes separate activation step
+
+- **WHEN** import verification passes under US-010
+- **THEN** output states that Schedule Trigger is present and that server activation (`active: true`) is a separate operator step
 
 ### Requirement: Smoke-test phase gating
 
@@ -166,12 +181,12 @@ Smoke testing SHALL follow phased execution with Phase 0 as a mandatory gate.
 #### Scenario: Phase 2 n8n configuration smoke
 
 - **WHEN** Phase 0 passes and the operator runs Phase 2
-- **THEN** the command verifies n8n reachability and workflow export inactivity and reports import/configuration pending items without activating the workflow
+- **THEN** the command verifies n8n reachability and repository-style workflow export expectations (`active: false`, Schedule Trigger present, expected identity) and reports import/configuration pending items without activating the workflow
 
 #### Scenario: Phase 3 full manual Flow A execution
 
 - **WHEN** Phases 0–2 pass and the operator runs Phase 3 per documented procedure
-- **THEN** documentation describes manual n8n manual-trigger execution of the Flow A workflow with `"active": false` import, without cron or webhook activation
+- **THEN** documentation describes manual n8n Manual Trigger execution of the Flow A workflow, noting repository export remains `"active": false` while server may be activated under US-010 ops procedures
 
 #### Scenario: Phase 4 idempotent rerun verification
 
@@ -239,6 +254,8 @@ The change SHALL include automated tests for readiness parsing and checking logi
 
 The repository SHALL provide a repeatable server-side script at `deploy/server/collect-flow-a-smoke-evidence.sh` that collects read-only Flow A post-smoke evidence on the Ubuntu server without ad-hoc SSH heredoc commands.
 
+The script MUST support distinguishing pre-activation (`active: false` expected) from post-activation verification (`active: true` expected when an explicit activation-evidence flag/mode is set). Default historical behavior that treated any `active: true` as FAIL MUST be replaced by mode-aware expectations after US-010.
+
 #### Scenario: Evidence script resolves editorial base path
 
 - **WHEN** an operator runs the evidence script on the Ubuntu server without `BASE_PATH` set
@@ -252,12 +269,12 @@ The repository SHALL provide a repeatable server-side script at `deploy/server/c
 - **THEN** it verifies worker `GET /health` and `GET /openapi.json` include Flow A paths `/publish-blog-post`, `/generate-linkedin-package`, and `/schedule-linkedin-distribution`
 - **AND** reports latest metadata and generated LinkedIn artifacts under the resolved editorial base path
 - **AND** reports published `_posts` and `assets/images` matches for the slug fragment under the public GitHub Pages repo host mount (or inside the container at `/public-blog` when the host mount cannot be resolved), not under the editorial base path
-- **AND** exports n8n workflows from the real n8n container and confirms workflow id `silvermanFlowAPublish01` with expected name, `active: false`, and 26 nodes (name-only match without that stable id MUST FAIL)
+- **AND** exports n8n workflows from the real n8n container and confirms workflow id `silvermanFlowAPublish01` with expected name, expected node count, and required Schedule Trigger (name-only match without that stable id MUST FAIL)
 
 #### Scenario: Evidence script safety constraints
 
 - **WHEN** the evidence script runs
-- **THEN** it does not print API keys or secret env values, does not activate the n8n workflow, does not call the LinkedIn API, and does not deploy or restart services
+- **THEN** it does not print API keys or secret env values, does not call the LinkedIn API, and does not deploy or restart services by default
 
 #### Scenario: Evidence script overall status
 
@@ -265,10 +282,20 @@ The repository SHALL provide a repeatable server-side script at `deploy/server/c
 - **THEN** the script reports `OVERALL: PASS`
 - **WHEN** worker, public blog repo, and n8n checks pass but smoke artifacts are not found yet
 - **THEN** the script reports `OVERALL: PENDING`
-- **WHEN** base path is unresolved, Flow A OpenAPI paths are missing, public blog repo is not mounted or incomplete, the workflow is active, or n8n is missing
+- **WHEN** base path is unresolved, Flow A OpenAPI paths are missing, public blog repo is not mounted or incomplete, active-state expectation is violated for the selected mode, or n8n is missing
 - **THEN** the script reports `OVERALL: FAIL`
 - **WHEN** worker and n8n checks pass but public blog repo is missing or incomplete
 - **THEN** the script reports `OVERALL: FAIL` with remediation (not `PENDING`) because publish would fail with `blog_publish_public_repo_not_configured`
+
+#### Scenario: Pre-activation mode expects inactive
+
+- **WHEN** evidence runs in pre-activation mode and `silvermanFlowAPublish01` is `active: true`
+- **THEN** the script reports `FAIL` with remediation to deactivate or switch to post-activation mode after intentional activate
+
+#### Scenario: Post-activation mode expects active
+
+- **WHEN** evidence runs in post-activation mode and `silvermanFlowAPublish01` is `active: true` with Schedule Trigger present
+- **THEN** the active-state check reports PASS
 
 ### Requirement: Public blog repo deployment readiness
 
@@ -436,9 +463,9 @@ When `deploy/server/collect-flow-a-smoke-evidence.sh` reports per-variant Linked
 - export path `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`
 - stable id `silvermanFlowAPublish01`
 - display name `Silverman Blog LinkedIn Flow A Publish`
-- expected node count `26`
+- expected node count equal to the US-010 repository constant (MUST match scripts/tests)
 
-Phase 0 and Phase 2 checks MUST use these constants when reporting workflow export and import status.
+Phase 0 and Phase 2 checks MUST use these constants when reporting workflow export and import status, and MUST require the approved Schedule Trigger in repository-style checks.
 
 #### Scenario: Readiness reports canonical path on export check
 
@@ -452,14 +479,14 @@ Phase 0 and Phase 2 checks MUST use these constants when reporting workflow expo
 
 ### Requirement: Canonical identity section in evidence collector output
 
-`deploy/server/collect-flow-a-smoke-evidence.sh` SHALL print a labeled canonical workflow identity summary including workflow id, name, node count, and `active` state before overall status.
+`deploy/server/collect-flow-a-smoke-evidence.sh` SHALL print a labeled canonical workflow identity summary including workflow id, name, node count, Schedule Trigger presence, and `active` state before overall status.
 
 When workflow id does not match the canonical id `silvermanFlowAPublish01`, the script MUST report `FAIL` with remediation to re-run import script (name-only matches MUST NOT succeed).
 
 #### Scenario: Evidence collector prints identity summary
 
 - **WHEN** evidence collection runs and n8n export succeeds
-- **THEN** output includes canonical id `silvermanFlowAPublish01`, node count, and `active: false` in a dedicated identity section
+- **THEN** output includes canonical id `silvermanFlowAPublish01`, node count, Schedule Trigger presence, and `active` state for the selected mode in a dedicated identity section
 
 #### Scenario: Wrong workflow id fails evidence collection
 
@@ -468,12 +495,12 @@ When workflow id does not match the canonical id `silvermanFlowAPublish01`, the 
 
 ### Requirement: Import script canonical identity assertion in output
 
-`deploy/server/import-flow-a-n8n-workflow.sh` SHALL print explicit canonical identity fields in verification output (path, id, name, node count, active state, worker_base_url, worker_api_key configured flag) to satisfy US-009 operator visibility. Post-import verification MUST resolve the workflow by stable id (name is a secondary assert only).
+`deploy/server/import-flow-a-n8n-workflow.sh` SHALL print explicit canonical identity fields in verification output (path, id, name, node count, active state, Schedule Trigger presence, worker_base_url, worker_api_key configured flag) to satisfy operator visibility. Post-import verification MUST resolve the workflow by stable id (name is a secondary assert only).
 
 #### Scenario: Import verification prints identity block
 
 - **WHEN** import completes successfully
-- **THEN** output includes a canonical identity summary with id `silvermanFlowAPublish01`, 26 nodes, and `active: false`
+- **THEN** output includes a canonical identity summary with id `silvermanFlowAPublish01`, US-010 expected node count, Schedule Trigger present, and `active: false`
 
 ### Requirement: Phase 2 can confirm imported identity via read-only export
 
@@ -481,8 +508,8 @@ When workflow id does not match the canonical id `silvermanFlowAPublish01`, the 
 
 - FAIL when `--n8n-base-url` is set and n8n is unreachable
 - PENDING (`pending_import` / confirmation needed) when n8n is reachable but `--n8n-workflow-export` is not provided
-- PASS when `--n8n-workflow-export` is provided and the export contains workflow id `silvermanFlowAPublish01` with expected name, `active: false`, and 26 nodes
-- FAIL when the export is provided but id/name/active/node count mismatches canonical identity
+- PASS when `--n8n-workflow-export` is provided and the export contains workflow id `silvermanFlowAPublish01` with expected name, `active: false`, US-010 expected node count, and required Schedule Trigger
+- FAIL when the export is provided but id/name/active/node count/schedule mismatches canonical identity
 
 #### Scenario: Phase 2 pending without export confirmation
 
@@ -491,5 +518,19 @@ When workflow id does not match the canonical id `silvermanFlowAPublish01`, the 
 
 #### Scenario: Phase 2 passes with confirmed export
 
-- **WHEN** Phase 2 runs with n8n reachable and `--n8n-workflow-export` containing id `silvermanFlowAPublish01`, expected name, `active: false`, and 26 nodes
+- **WHEN** Phase 2 runs with n8n reachable and `--n8n-workflow-export` containing id `silvermanFlowAPublish01`, expected name, `active: false`, US-010 expected node count, and Schedule Trigger
 - **THEN** readiness reports PASS for n8n configuration identity confirmation
+
+### Requirement: Activation evidence entry point
+
+The repository SHALL provide an operator-facing activation verification path (dedicated script or documented mode of existing evidence/import tools) that reports PASS/PENDING/FAIL for US-010 activation criteria: server `active: true`, Schedule Trigger `0 9 * * *` UTC, single-flight guard present, expected node count, and clear remediation without printing secrets.
+
+#### Scenario: Activation verifier pending before activate
+
+- **WHEN** the workflow is imported with Schedule Trigger but still inactive
+- **THEN** activation verification reports `PENDING` with remediation to activate after identity checks
+
+#### Scenario: Activation verifier pass after activate
+
+- **WHEN** the workflow is active with required schedule and single-flight guard
+- **THEN** activation verification reports `PASS`

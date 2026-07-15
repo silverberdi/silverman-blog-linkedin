@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Operator-facing identification of the single canonical Flow A n8n workflow: repository export path, stable n8n id, import/configuration verification on the Ubuntu server, proposed schedule frequency (documentation only), and pass/fail/pending remediation — without activating the workflow or enabling LinkedIn publication (US-009 / BL-004 identification slice; US-010/US-011 deferred).
+Operator-facing identification of the single canonical Flow A n8n workflow: repository export path, stable n8n id, import/configuration verification on the Ubuntu server, materialized daily Schedule Trigger (export remains inactive), and pass/fail/pending remediation — without calling LinkedIn publication APIs. Live server activation is owned by capability `flow-a-n8n-workflow-activation` (US-010); US-011 LinkedIn publication enablement remains deferred.
 
 ## Requirements
 
@@ -15,8 +15,10 @@ The repository and operator documentation SHALL define exactly one canonical Flo
 | Repository export path | `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json` |
 | Workflow display name | `Silverman Blog LinkedIn Flow A Publish` |
 | Stable n8n workflow id | `silvermanFlowAPublish01` |
-| Expected node count | `26` |
-| Export active flag | `false` |
+| Expected node count | Repository constant after US-010 edits (baseline target `28` = prior `26` + Schedule Trigger + single-flight guard; exact value MUST match scripts/tests) |
+| Export active flag | `false` (repository export only) |
+| Live server active flag | `true` after US-010 activation (RUNTIME-STATE authority) |
+| Schedule | Daily `0 9 * * *` UTC via Schedule Trigger in export |
 
 The Flow B draft-generation workflow at `n8n/workflows/silverman-blog-linkedin-draft-generation.json` MUST NOT be identified as the canonical Flow A orchestration workflow.
 
@@ -29,6 +31,11 @@ The Flow B draft-generation workflow at `n8n/workflows/silverman-blog-linkedin-d
 
 - **WHEN** an operator compares Flow A and Flow B n8n workflows
 - **THEN** documentation states that `silverman-blog-linkedin-draft-generation.json` is for human-review draft generation only and is not the Flow A publish orchestration workflow
+
+#### Scenario: Identity table records schedule and export inactivity
+
+- **WHEN** an operator reads the canonical identity table after US-010
+- **THEN** it lists Schedule Trigger daily 09:00 UTC, repository export `active: false`, and expected node count matching the repository constant
 
 ### Requirement: Canonical workflow distinction from Flow B
 
@@ -47,21 +54,23 @@ Operator-facing identification output MUST list distinguishing characteristics:
 
 The change SHALL use `deploy/server/import-flow-a-n8n-workflow.sh` as the primary server-side import and post-import verification entry point on Ubuntu host `192.168.0.194`.
 
-After successful import verification, the script MUST confirm:
+After successful import verification (pre-activation), the script MUST confirm:
 
 - Workflow exists by stable id `silvermanFlowAPublish01` (lookup MUST NOT succeed on display name alone)
 - Display name matches **Silverman Blog LinkedIn Flow A Publish** as a secondary assert after id resolution
-- `active` is `false`
-- Node count is `26`
+- `active` is `false` immediately after import
+- Node count matches the US-010 repository constant
+- Exactly one Schedule Trigger is present with cron `0 9 * * *` UTC semantics
+- Single-flight guard node(s) are present when required by the export
 - `worker_base_url` is set to the configured worker URL (default `http://192.168.0.194:8010`)
 - `worker_api_key` is configured without printing the secret value
 
-The script MUST NOT activate the workflow, add schedule triggers, call LinkedIn API, or invoke publish/package/schedule worker apply paths.
+The import script MUST NOT activate the workflow by default, MUST NOT call LinkedIn API, and MUST NOT invoke publish/package/schedule worker apply paths. Activation remains a separate US-010 step.
 
-#### Scenario: Import script reports PASS for canonical workflow
+#### Scenario: Import script reports PASS for canonical workflow pre-activation
 
 - **WHEN** an operator runs `deploy/server/import-flow-a-n8n-workflow.sh` on the Ubuntu server with valid source JSON and worker env
-- **THEN** output includes `OVERALL: PASS` with workflow id `silvermanFlowAPublish01`, `active: false`, and 26 nodes
+- **THEN** output includes `OVERALL: PASS` with workflow id `silvermanFlowAPublish01`, `active: false`, expected node count, and Schedule Trigger present
 
 #### Scenario: Import script rejects name-only match
 
@@ -80,44 +89,56 @@ The script MUST NOT activate the workflow, add schedule triggers, call LinkedIn 
 
 ### Requirement: Read-only evidence verification
 
-`deploy/server/collect-flow-a-smoke-evidence.sh` and `scripts/flow_a_readiness.py` Phase 2 MUST verify canonical workflow identity via read-only means (n8n export or HTTP probe) without activating the workflow or mutating editorial state.
+`deploy/server/collect-flow-a-smoke-evidence.sh` and `scripts/flow_a_readiness.py` Phase 2 MUST verify canonical workflow identity via read-only means (n8n export or HTTP probe) without mutating editorial state by default.
 
-#### Scenario: Evidence script confirms inactive canonical workflow
+Evidence and readiness MUST distinguish:
+
+- **Repository / pre-activation:** export `active: false`, Schedule Trigger required
+- **Server post-activation mode:** when explicitly requested (`--expect-server-active` or dedicated activation verifier), `active: true` is PASS; when expecting inactive, `active: true` is FAIL
+
+Scripts MUST NOT call LinkedIn publication APIs as part of identity verification.
+
+#### Scenario: Evidence script confirms canonical workflow with schedule
 
 - **WHEN** `collect-flow-a-smoke-evidence.sh` runs on the Ubuntu server and n8n is reachable
-- **THEN** n8n export verification reports workflow id `silvermanFlowAPublish01`, expected name, `active: false`, and 26 nodes
+- **THEN** n8n export verification reports workflow id `silvermanFlowAPublish01`, expected name, expected node count, and Schedule Trigger present
 
 #### Scenario: Readiness Phase 2 reports pending import
 
 - **WHEN** n8n is reachable but canonical workflow cannot be confirmed imported (no `--n8n-workflow-export` or export missing id)
 - **THEN** readiness reports `pending_import` (or equivalent) with remediation referencing `import-flow-a-n8n-workflow.sh`, not a code failure
 
-#### Scenario: Readiness Phase 2 passes when export confirms identity
+#### Scenario: Readiness Phase 2 passes when export confirms identity including schedule
 
-- **WHEN** Phase 2 is given a read-only n8n workflow export containing id `silvermanFlowAPublish01` with expected name, `active: false`, and 26 nodes
+- **WHEN** Phase 2 is given a read-only n8n workflow export containing id `silvermanFlowAPublish01` with expected name, node count, Schedule Trigger, and repository-style `active: false`
 - **THEN** readiness reports PASS for n8n configuration identity confirmation
+
+#### Scenario: Post-activation evidence expects active true
+
+- **WHEN** an operator runs activation evidence mode expecting server-active and export shows `silvermanFlowAPublish01` with `active: true`
+- **THEN** activation evidence reports PASS for active state
 
 ### Requirement: Proposed execution frequency documentation
 
-Operator documentation SHALL record a **proposed** Flow A n8n execution frequency for scheduled orchestration:
+Operator documentation SHALL record the Flow A n8n execution frequency for scheduled orchestration as **materialized** after US-010:
 
-- **Proposed schedule:** daily at 09:00 UTC via Schedule Trigger (to be added in US-010 activation change).
-- **Rationale:** predictable polling aligned with editorial calendar due-item processing; n8n triggers orchestration, editorial calendar remains policy authority.
-- **Constraint:** repository export and server import MUST remain without Cron, Webhook, or Schedule Trigger nodes until US-010 explicitly activates scheduling.
+- **Schedule:** daily at 09:00 UTC via Schedule Trigger (`0 9 * * *`, timezone UTC) present in the repository export.
+- **Rationale:** predictable polling aligned with editorial calendar due-item processing; n8n triggers orchestration, editorial calendar remains policy authority via its own connector.
+- **Constraint:** repository export MUST keep `"active": false`; live server MAY be `"active": true` after explicit activation.
 
-#### Scenario: Frequency documented as proposal only
+#### Scenario: Frequency documented as active schedule definition
 
-- **WHEN** an operator reads deployment documentation after this change
-- **THEN** proposed execution frequency is labeled as not yet active and workflow export remains `"active": false` without schedule trigger nodes
+- **WHEN** an operator reads deployment documentation after US-010
+- **THEN** daily 09:00 UTC is documented as the Schedule Trigger configuration in the export, with repository export remaining inactive until server activation
 
-#### Scenario: US-009 does not add schedule trigger
+#### Scenario: US-010 adds schedule trigger to export
 
 - **WHEN** this change is applied
-- **THEN** `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json` does not gain Cron, Webhook, or Schedule Trigger node types
+- **THEN** `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json` contains a Schedule Trigger node for daily 09:00 UTC
 
 ### Requirement: Operator-visible pass fail pending outcomes
 
-Identification verification MUST emit human-readable overall status with distinct failure modes and remediation guidance.
+Identification and activation-adjacent verification MUST emit human-readable overall status with distinct failure modes and remediation guidance.
 
 Supported overall states MUST include at minimum: `PASS`, `PENDING`, and `FAIL`.
 
@@ -127,16 +148,17 @@ Failure modes MUST distinguish at minimum:
 - workflow not imported (`PENDING`)
 - wrong workflow id (`FAIL`) — including name-only match without id `silvermanFlowAPublish01`
 - wrong display name after id resolution (`FAIL`)
-- workflow unexpectedly active (`FAIL`)
+- repository export unexpectedly active (`FAIL`)
+- missing or incorrect Schedule Trigger (`FAIL`)
 - node count mismatch (`FAIL`)
 - worker API key mismatch (`FAIL`)
 - n8n unreachable (`FAIL`)
 - running worker stale relative to repository OpenAPI (`FAIL`)
 
-#### Scenario: Active workflow fails identification
+#### Scenario: Active repository export fails identity
 
-- **WHEN** n8n export shows `silvermanFlowAPublish01` with `active: true`
-- **THEN** identification reports `FAIL` with remediation to deactivate before US-010
+- **WHEN** repository export shows `silvermanFlowAPublish01` with `active: true`
+- **THEN** identification reports `FAIL` with remediation to keep export inactive and activate only on server
 
 #### Scenario: Name-only match without canonical id fails
 
@@ -148,21 +170,27 @@ Failure modes MUST distinguish at minimum:
 - **WHEN** n8n is reachable but canonical workflow is not found
 - **THEN** identification reports `PENDING` with remediation to run import script
 
+#### Scenario: Missing schedule trigger fails after US-010
+
+- **WHEN** canonical export or server export lacks the required Schedule Trigger
+- **THEN** identification reports `FAIL` with remediation to update and re-import the US-010 export
+
 ### Requirement: No duplicate processing or unintended publication
 
-US-009 identification and verification MUST NOT:
+US-010 identification/import verification (pre-activation) MUST NOT:
 
-- activate the n8n workflow
-- add schedule triggers to export or server workflow
+- activate the n8n workflow as part of default import verification
 - call LinkedIn publication APIs
 - run `POST /publish-blog-post`, `POST /generate-linkedin-package`, or `POST /schedule-linkedin-distribution` apply paths as part of default identification checks
-- move blog posts between editorial folders
-- enable `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`
+- move blog posts between editorial folders as part of identification checks
+- enable or flip `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`
 
-#### Scenario: Identification is read-only by default
+Controlled activation and Manual/Schedule executions used for concurrency/restart evidence are documented under the `flow-a-n8n-workflow-activation` capability and MUST prefer empty-ready/no-op paths.
 
-- **WHEN** operator runs US-009 identification verification entry points
-- **THEN** only health, OpenAPI, n8n export, and configuration presence checks run unless operator explicitly opts into separate smoke phases documented outside US-009
+#### Scenario: Identification remains non-mutating by default
+
+- **WHEN** operator runs import or identity verification entry points without activation evidence mode
+- **THEN** only health, OpenAPI, n8n export, and configuration presence checks run unless the operator explicitly opts into separate smoke or evidence phases
 
 ### Requirement: HTTP-only orchestration boundary preserved
 
@@ -175,9 +203,9 @@ Canonical Flow A workflow identification MUST reaffirm ADR-0001: n8n orchestrate
 
 ### Requirement: Backlog traceability
 
-Implementation tasks and operator documentation MUST map to backlog **BL-004** user story **US-009** acceptance criteria and MUST defer **US-010** (activation) and **US-011** (LinkedIn publication guard at activation) to follow-up changes.
+Implementation tasks and operator documentation MUST map to backlog **BL-004** user story **US-010** acceptance criteria and MUST defer **US-011** (LinkedIn publication guard at activation) and **BL-005** (fully unattended Flow A) to follow-up work.
 
-#### Scenario: US-010 scope excluded
+#### Scenario: US-011 scope excluded
 
 - **WHEN** this change is applied
-- **THEN** no task activates the workflow or validates restart/recovery behavior (US-010 criteria)
+- **THEN** no task closes US-011 or requires flipping LinkedIn publication enablement for US-010 acceptance
