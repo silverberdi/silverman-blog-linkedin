@@ -22,7 +22,7 @@ n8n (orchestrator, HTTP only) → Worker (FastAPI) → Editorial dirs + public b
                               ComfyUI (optional images), DeepSeek (LLM)
 ```
 
-- **30** canonical OpenSpec specs (strict validation passing at last baseline)
+- **31** canonical OpenSpec specs (strict validation passing at last baseline)
 - **882** automated tests at last baseline
 - Worker deployed at `http://192.168.0.194:8010` (see [RUNTIME-STATE.md](RUNTIME-STATE.md))
 - Editorial base: `/data/silverman-blog-linkedin` (container); public GitHub Pages checkout: `/public-blog`

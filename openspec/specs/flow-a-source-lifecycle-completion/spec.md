@@ -22,6 +22,23 @@ The entry point MUST NOT republish the blog, alter public blog content, alter Li
 
 - **WHEN** `complete_flow_a_source_lifecycle` is called for a campaign in `distribution_scheduled` with source Markdown at `blog-posts/queued/<name>.md` and scheduling has already succeeded
 - **THEN** the Markdown file exists at `blog-posts/processed/<name>.md` (or collision suffix path when required), no duplicate remains in `blog-posts/queued/`, `execution_state` is `idle`, and the result `status` is `completed`
+
+### Requirement: Ready-path HTTP may invoke lifecycle completion
+
+The Python entry point `complete_flow_a_source_lifecycle` MUST remain the sole filesystem lifecycle implementation used by authenticated HTTP ready-path completion (`POST /complete-flow-a-ready-path` per capability `flow-a-ready-path-completion`) after successful distribution scheduling on the ready-folder n8n path.
+
+When invoked that way, lifecycle semantics MUST match this capability (including legacy `blog-posts/ready/` fallback). Calendar mutation MUST remain outside `complete_flow_a_source_lifecycle` itself and MUST be owned by the ready-path completion wrapper when requested.
+
+#### Scenario: HTTP ready-path uses the same lifecycle entry point
+
+- **WHEN** `POST /complete-flow-a-ready-path` runs for an eligible `distribution_scheduled` campaign whose Markdown is still under `blog-posts/ready/`
+- **THEN** `complete_flow_a_source_lifecycle` performs the physical move to `blog-posts/processed/` and transitions campaign state to `flow_a_complete` on success
+
+#### Scenario: Lifecycle entry point still does not write calendar.json
+
+- **WHEN** `complete_flow_a_source_lifecycle` runs successfully
+- **THEN** it does not itself modify `editorial-calendar/calendar.json` (calendar updates remain a separate ready-path completion concern)
+
 ### Requirement: Queued generated companion image lifecycle move
 
 When ComfyUI generates `blog-posts/queued/<source_slug>.png` during Flow A execution, lifecycle completion MUST discover that companion PNG beside the queued Markdown and move it with the Markdown to `blog-posts/processed/`.
