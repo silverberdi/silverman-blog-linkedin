@@ -36,7 +36,7 @@ _US-009: Outcome visible; no duplicate processing or unintended publication_
 - [x] 5.2 Run `deploy/server/import-flow-a-n8n-workflow.sh`; capture `OVERALL: PASS` with id `silvermanFlowAPublish01`, 26 nodes, `active: false`, `worker_api_key: configured`
 - [x] 5.3 Run `python scripts/flow_a_readiness.py --phase 2` (or Phase 0+2) against server worker URL; capture PASS or documented PENDING with remediation
 - [x] 5.4 Run `deploy/server/collect-flow-a-smoke-evidence.sh`; confirm canonical identity section and n8n inactive check (no publish/package/schedule apply, no workflow activation)
-- [x] 5.5 Verify `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=false` unchanged on server worker env
+- [x] 5.5 Verify LinkedIn publication enablement during US-009 verification window (`false` for the verify window; final runtime may be restored to `true` per operator — see ops note / §7.4; no LinkedIn API calls in this change)
 
 ## 6. Business validation and progress tracking
 
@@ -52,3 +52,22 @@ _US-009: Outcome visible; no duplicate processing or unintended publication_
 | **US-010** | Activate workflow, add Schedule Trigger, concurrency/single-flight, restart/recovery validation |
 | **US-011** | LinkedIn publication guard confirmation at activation time |
 | **BL-005** | Fully unattended Flow A test |
+
+## 7. Pre-sync review fixes (spec↔implementation)
+
+_Follow-ups from pre-sync review of `864545d` — complete before `/opsx-sync`_
+
+- [x] 7.1 Fail-closed n8n export match: require `id == silvermanFlowAPublish01` in import + collect scripts; name is secondary assert; wrong id + name-only match → FAIL with re-import remediation; tests cover name-OK/id-bad
+- [x] 7.2 Gate `canonical_workflow_identity` on name, node count, no-schedule, and no Execute Command checks; wire `FORBIDDEN_N8N_ORCHESTRATION_TYPE_FRAGMENTS` in `assess_canonical_export_identity`
+- [x] 7.3 Phase 2 Option A: PASS when `--n8n-workflow-export` confirms imported id/name/active/nodes; PENDING when n8n reachable but export not provided; FAIL on mismatch/unreachable; align delta + design
+- [x] 7.4 Update proposal/design LinkedIn non-goal language (US-009 verify window may temporarily set false; final ops state may be restored true per operator; US-011 still deferred); fix identification evidence scenario wording to require id
+- [x] 7.5 Run targeted pytest + `git diff --check` (no commit unless requested)
+
+## 8. Pre-sync delta wording / sync hygiene
+
+_Fail-open “id or name” leftover in delta + MODIFIED for main legacy scenarios_
+
+- [x] 8.1 Fix identification delta: import confirms by stable id only; clarify failure modes (wrong id / wrong name after id / name-only without canonical id → FAIL)
+- [x] 8.2 Add MODIFIED requirements in readiness delta for legacy main scenarios that say “by id or name” (import verification + evidence n8n check)
+- [x] 8.3 Reorder design.md Decision sections 6 then 7; note §5.5 historical wording vs operator restore
+- [x] 8.4 `openspec validate --strict` + `git diff --check`

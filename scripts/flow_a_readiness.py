@@ -289,6 +289,105 @@ def forbidden_trigger_types_present(workflow_json: dict[str, Any]) -> list[str]:
     return list(dict.fromkeys(found))
 
 
+def forbidden_orchestration_types_present(workflow_json: dict[str, Any]) -> list[str]:
+    found: list[str] = []
+    for node_type in workflow_node_types(workflow_json):
+        lowered = node_type.lower().replace(".", "").replace("-", "").replace("_", "")
+        for fragment in FORBIDDEN_N8N_ORCHESTRATION_TYPE_FRAGMENTS:
+            frag = fragment.lower().replace(".", "").replace("-", "").replace("_", "")
+            if frag and frag in lowered:
+                found.append(node_type)
+                break
+    return list(dict.fromkeys(found))
+
+
+def select_canonical_imported_workflow(
+    payload: Any,
+    *,
+    workflow_id: str = FLOW_A_N8N_WORKFLOW_ID,
+    workflow_name: str = FLOW_A_N8N_WORKFLOW_NAME,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Resolve imported workflow by stable id only.
+
+    Returns (workflow, error_message). Name-only matches are rejected (fail-closed).
+    """
+    candidates = payload if isinstance(payload, list) else [payload]
+    match_by_id: dict[str, Any] | None = None
+    match_by_name: dict[str, Any] | None = None
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        if item.get("id") == workflow_id:
+            match_by_id = item
+        if item.get("name") == workflow_name:
+            match_by_name = item
+
+    if match_by_id is None:
+        if match_by_name is not None:
+            observed_id = match_by_name.get("id")
+            return (
+                None,
+                (
+                    f"FAIL: workflow found by name {workflow_name!r} but id is "
+                    f"{observed_id!r}; expected id {workflow_id!r}. "
+                    "Re-run deploy/server/import-flow-a-n8n-workflow.sh"
+                ),
+            )
+        return (
+            None,
+            (
+                f"FAIL: workflow not found by id={workflow_id!r}. "
+                "Re-run deploy/server/import-flow-a-n8n-workflow.sh"
+            ),
+        )
+    return match_by_id, None
+
+
+def verify_canonical_imported_workflow(
+    workflow: dict[str, Any],
+    *,
+    workflow_id: str = FLOW_A_N8N_WORKFLOW_ID,
+    workflow_name: str = FLOW_A_N8N_WORKFLOW_NAME,
+    expected_nodes: int = FLOW_A_N8N_EXPECTED_NODE_COUNT,
+) -> tuple[CheckStatus, str]:
+    """Secondary asserts after id resolution: name, active=false, node count."""
+    if workflow.get("id") != workflow_id:
+        return (
+            CheckStatus.FAIL,
+            (
+                f"FAIL: workflow id is {workflow.get('id')!r}; "
+                f"expected {workflow_id!r}"
+            ),
+        )
+    if workflow.get("name") != workflow_name:
+        return (
+            CheckStatus.FAIL,
+            (
+                f"FAIL: workflow name is {workflow.get('name')!r}; "
+                f"expected {workflow_name!r}"
+            ),
+        )
+    if workflow.get("active") is not False:
+        return (
+            CheckStatus.FAIL,
+            f"FAIL: workflow active is {workflow.get('active')!r}, expected false",
+        )
+    nodes = workflow.get("nodes")
+    node_count = len(nodes) if isinstance(nodes, list) else -1
+    if node_count != expected_nodes:
+        return (
+            CheckStatus.FAIL,
+            f"FAIL: workflow node count is {node_count}, expected {expected_nodes}",
+        )
+    return (
+        CheckStatus.PASS,
+        (
+            f"PASS: imported canonical Flow A id={workflow_id!r} "
+            f"name={workflow_name!r} nodes={node_count} active=false"
+        ),
+    )
+
+
 def assess_canonical_export_identity(
     workflow_json: dict[str, Any],
 ) -> list[tuple[str, CheckStatus, str]]:
@@ -362,18 +461,62 @@ def assess_canonical_export_identity(
             )
         )
 
-    results.append(
-        (
-            "canonical_workflow_identity",
-            CheckStatus.PASS,
+    forbidden_orch = forbidden_orchestration_types_present(workflow_json)
+    if forbidden_orch:
+        results.append(
             (
-                f"Canonical Flow A n8n identity: export={WORKFLOW_EXPORT_REL}; "
-                f"import id={FLOW_A_N8N_WORKFLOW_ID}; name={FLOW_A_N8N_WORKFLOW_NAME}; "
-                f"nodes={FLOW_A_N8N_EXPECTED_NODE_COUNT}; active=false; "
-                f"not Flow B ({FLOW_B_DRAFT_WORKFLOW_EXPORT_REL})"
-            ),
+                "canonical_workflow_http_only",
+                CheckStatus.FAIL,
+                (
+                    "Canonical Flow A export contains forbidden non-HTTP orchestration "
+                    f"node types (ADR-0001): {', '.join(forbidden_orch)}"
+                ),
+            )
         )
+    else:
+        results.append(
+            (
+                "canonical_workflow_http_only",
+                CheckStatus.PASS,
+                "Canonical Flow A export has no Execute Command (HTTP-only orchestration)",
+            )
+        )
+
+    prerequisite_ids = (
+        "canonical_workflow_name",
+        "canonical_workflow_node_count",
+        "canonical_workflow_no_schedule_triggers",
+        "canonical_workflow_http_only",
     )
+    prereq_failed = any(
+        check_id in prerequisite_ids and status == CheckStatus.FAIL
+        for check_id, status, _ in results
+    )
+    if prereq_failed:
+        results.append(
+            (
+                "canonical_workflow_identity",
+                CheckStatus.FAIL,
+                (
+                    "Canonical Flow A n8n identity aggregate FAIL: one or more "
+                    "name/node-count/schedule/HTTP-only checks failed "
+                    f"(stable import id {FLOW_A_N8N_WORKFLOW_ID})"
+                ),
+            )
+        )
+    else:
+        results.append(
+            (
+                "canonical_workflow_identity",
+                CheckStatus.PASS,
+                (
+                    f"Canonical Flow A n8n identity: export={WORKFLOW_EXPORT_REL}; "
+                    f"import id={FLOW_A_N8N_WORKFLOW_ID}; name={FLOW_A_N8N_WORKFLOW_NAME}; "
+                    f"nodes={FLOW_A_N8N_EXPECTED_NODE_COUNT}; active=false; "
+                    f"not Flow B ({FLOW_B_DRAFT_WORKFLOW_EXPORT_REL})"
+                ),
+            )
+        )
     return results
 
 
@@ -579,6 +722,11 @@ def run_phase0(
                     report.append_remediation(
                         f'Restore workflow name "{FLOW_A_N8N_WORKFLOW_NAME}" '
                         f"in {WORKFLOW_EXPORT_REL}."
+                    )
+                elif check_id == "canonical_workflow_http_only":
+                    report.append_remediation(
+                        "Remove Execute Command (and other non-HTTP) nodes from "
+                        f"{WORKFLOW_EXPORT_REL} (ADR-0001)."
                     )
     except (OSError, json.JSONDecodeError) as exc:
         report.add(
@@ -864,7 +1012,12 @@ def run_phase1(
         )
 
 
-def run_phase2(report: ReadinessReport, *, n8n_base_url: str | None) -> None:
+def run_phase2(
+    report: ReadinessReport,
+    *,
+    n8n_base_url: str | None,
+    n8n_workflow_export: Path | None = None,
+) -> None:
     report.phases_run.append(2)
     if not n8n_base_url:
         report.add(
@@ -879,7 +1032,18 @@ def run_phase2(report: ReadinessReport, *, n8n_base_url: str | None) -> None:
 
     n8n_base = n8n_base_url.rstrip("/")
     n8n_status, _ = http_request("GET", n8n_base)
-    if n8n_status is not None and 200 <= n8n_status < 500:
+    if n8n_status is None or not (200 <= n8n_status < 500):
+        report.add(
+            CheckResult(
+                "n8n_configuration",
+                2,
+                CheckStatus.FAIL,
+                f"n8n not reachable at {n8n_base} for Phase 2 configuration smoke",
+            )
+        )
+        return
+
+    if n8n_workflow_export is None:
         report.add(
             CheckResult(
                 "n8n_configuration",
@@ -888,20 +1052,73 @@ def run_phase2(report: ReadinessReport, *, n8n_base_url: str | None) -> None:
                 (
                     f"n8n reachable at {n8n_base}; canonical Flow A workflow "
                     f"import id {FLOW_A_N8N_WORKFLOW_ID} / configuration pending "
-                    "operator checklist (pending_import until import script PASS)"
+                    "operator checklist (pending_import until import script PASS "
+                    "or --n8n-workflow-export confirms identity)"
                 ),
             )
         )
         for item in N8N_IMPORT_CHECKLIST:
             report.append_remediation(f"n8n import: {item}")
-    else:
+        report.append_remediation(
+            "Or re-run Phase 2 with --n8n-workflow-export PATH to a read-only "
+            f"n8n export containing id {FLOW_A_N8N_WORKFLOW_ID}."
+        )
+        return
+
+    export_path = n8n_workflow_export.expanduser()
+    if not export_path.is_file():
         report.add(
             CheckResult(
                 "n8n_configuration",
                 2,
                 CheckStatus.FAIL,
-                f"n8n not reachable at {n8n_base} for Phase 2 configuration smoke",
+                f"--n8n-workflow-export not found: {export_path}",
             )
+        )
+        report.append_remediation(
+            "Provide a readable n8n export JSON path, or run "
+            "deploy/server/import-flow-a-n8n-workflow.sh / "
+            "deploy/server/collect-flow-a-smoke-evidence.sh on the Ubuntu server."
+        )
+        return
+
+    try:
+        payload = json.loads(export_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        report.add(
+            CheckResult(
+                "n8n_configuration",
+                2,
+                CheckStatus.FAIL,
+                f"n8n workflow export unreadable or invalid: {exc}",
+            )
+        )
+        return
+
+    match, select_error = select_canonical_imported_workflow(payload)
+    if match is None:
+        # Name-only match with wrong/missing id → FAIL; id absent entirely → PENDING
+        if select_error and "found by name" in select_error:
+            status = CheckStatus.FAIL
+            message = select_error
+        else:
+            status = CheckStatus.PENDING
+            message = (
+                f"n8n export at {export_path} does not contain id "
+                f"{FLOW_A_N8N_WORKFLOW_ID} (pending_import)"
+            )
+        report.add(CheckResult("n8n_configuration", 2, status, message))
+        for item in N8N_IMPORT_CHECKLIST:
+            report.append_remediation(f"n8n import: {item}")
+        return
+
+    status, message = verify_canonical_imported_workflow(match)
+    report.add(CheckResult("n8n_configuration", 2, status, message))
+    if status == CheckStatus.FAIL:
+        report.append_remediation(
+            "Re-run deploy/server/import-flow-a-n8n-workflow.sh so n8n contains "
+            f"id {FLOW_A_N8N_WORKFLOW_ID}, active=false, "
+            f"{FLOW_A_N8N_EXPECTED_NODE_COUNT} nodes."
         )
 
 
@@ -959,6 +1176,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--worker-base-url", default="http://localhost:8010")
     parser.add_argument("--n8n-base-url", default=None)
     parser.add_argument(
+        "--n8n-workflow-export",
+        type=Path,
+        default=None,
+        help=(
+            "Optional read-only n8n workflow export JSON (single workflow or list) "
+            "to confirm canonical id in Phase 2"
+        ),
+    )
+    parser.add_argument(
         "--expected-commit",
         action="append",
         dest="expected_commits",
@@ -999,6 +1225,7 @@ def run_readiness(
     phase: str,
     api_key: str | None,
     force: bool = False,
+    n8n_workflow_export: Path | None = None,
 ) -> ReadinessReport:
     commits = expected_commits or list(DEFAULT_EXPECTED_COMMITS)
     report = ReadinessReport()
@@ -1029,7 +1256,11 @@ def run_readiness(
 
     if max_phase >= 2:
         if gate_ok:
-            run_phase2(report, n8n_base_url=n8n_base_url)
+            run_phase2(
+                report,
+                n8n_base_url=n8n_base_url,
+                n8n_workflow_export=n8n_workflow_export,
+            )
         else:
             report.add(
                 CheckResult(
@@ -1059,6 +1290,7 @@ def main(argv: list[str] | None = None) -> int:
         phase=args.phase,
         api_key=api_key,
         force=args.force,
+        n8n_workflow_export=args.n8n_workflow_export,
     )
 
     if args.json_output:

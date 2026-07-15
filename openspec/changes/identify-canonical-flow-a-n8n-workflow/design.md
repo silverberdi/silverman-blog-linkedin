@@ -7,7 +7,7 @@ Flow A worker pipeline (publish → package → schedule → campaign lifecycle)
 - Evidence script: `deploy/server/collect-flow-a-smoke-evidence.sh`
 - Readiness CLI: `scripts/flow_a_readiness.py` (Phase 0–2 gates)
 
-The Flow B draft-generation workflow (`silverman-blog-linkedin-draft-generation.json`) is a separate artifact and must not be conflated with Flow A. n8n orchestration is HTTP-only per ADR-0001. LinkedIn publication remains disabled (`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=false`).
+The Flow B draft-generation workflow (`silverman-blog-linkedin-draft-generation.json`) is a separate artifact and must not be conflated with Flow A. n8n orchestration is HTTP-only per ADR-0001. US-009 identification MUST NOT enable LinkedIn publication; a temporary `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=false` verify window is allowed, and operator may restore a prior `true` value afterward (see `docs/operations/us-009-canonical-flow-a-n8n-identity-validation-2026-07-15.md`). US-011 (LinkedIn guard at activation) remains deferred.
 
 **US-009** requires operators to identify the canonical workflow, confirm import/configuration, and define execution frequency — without activation (US-010) or LinkedIn publication enablement (US-011).
 
@@ -48,9 +48,9 @@ The Flow B draft-generation workflow (`silverman-blog-linkedin-draft-generation.
 
 | Layer | Tool | Purpose |
 |-------|------|---------|
-| Local / CI | `scripts/flow_a_readiness.py` Phase 0 + Phase 2 | Repo export exists, inactive, canonical endpoint fragments; n8n import pending vs fail |
-| Ubuntu server | `deploy/server/import-flow-a-n8n-workflow.sh` | Idempotent import + post-import export verification |
-| Ubuntu server | `deploy/server/collect-flow-a-smoke-evidence.sh` | Read-only n8n export check (id, nodes, inactive) alongside worker health |
+| Local / CI | `scripts/flow_a_readiness.py` Phase 0 + Phase 2 | Repo export identity; Phase 2 PASS when `--n8n-workflow-export` confirms imported id `silvermanFlowAPublish01` (active=false, 26 nodes); PENDING when n8n reachable but export confirmation not provided |
+| Ubuntu server | `deploy/server/import-flow-a-n8n-workflow.sh` | Idempotent import + post-import export verification **by stable id** (name secondary) |
+| Ubuntu server | `deploy/server/collect-flow-a-smoke-evidence.sh` | Read-only n8n export check (**id required**, nodes, inactive) alongside worker health |
 
 **Rationale:** Reuse proven scripts from `flow-a-deployment-readiness-and-smoke-test` rather than new ad-hoc SSH commands. Extend with explicit canonical identity assertions and remediation strings.
 
@@ -105,6 +105,14 @@ Identification checks use:
 - Optional Phase 1 `POST /process-ready` only when explicitly running full readiness Phase 1 (non-mutating scan)
 
 Do **not** run `run-flow-a-worker-smoke.sh` or manual n8n trigger as part of US-009 identification tasks unless operator explicitly opts into Phase 3 smoke (out of US-009 scope).
+
+### 7. Fail-closed imported workflow identity (by id)
+
+**Decision:** Import verification and evidence collection MUST resolve the canonical workflow by stable id `silvermanFlowAPublish01` only. Matching by display name alone is forbidden (fail-open risk for a renamed duplicate). After id resolution, name, `active: false`, and node count are secondary asserts.
+
+**Phase 2 Option A:** When `--n8n-base-url` shows n8n reachable and `--n8n-workflow-export PATH` provides a read-only n8n export (single workflow or list), Phase 2 PASSes if the export contains id `silvermanFlowAPublish01` with expected name/nodes/`active: false`. If n8n is reachable but no export path is provided, Phase 2 remains PENDING (`pending_import` / confirmation needed) with remediation pointing at import + collect (or re-run readiness with `--n8n-workflow-export`). Wrong id / active / node count → FAIL.
+
+**Alternative considered (Option B):** Keep Phase 2 always PENDING on HTTP reachability — rejected; operators and overall readiness would never PASS Phase 2 after a successful import.
 
 ## Risks / Trade-offs
 

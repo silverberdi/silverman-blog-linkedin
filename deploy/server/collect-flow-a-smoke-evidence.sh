@@ -746,19 +746,36 @@ with open(export_path, encoding="utf-8") as fh:
     payload = json.load(fh)
 
 candidates = payload if isinstance(payload, list) else [payload]
-match = None
+match_by_id = None
+match_by_name = None
 for item in candidates:
     if not isinstance(item, dict):
         continue
-    if item.get("id") == workflow_id or item.get("name") == workflow_name:
-        match = item
-        break
+    if item.get("id") == workflow_id:
+        match_by_id = item
+    if item.get("name") == workflow_name:
+        match_by_name = item
 
-if match is None:
-    print(f"FAIL: workflow not found by id={workflow_id!r} or name={workflow_name!r}")
+if match_by_id is None:
+    if match_by_name is not None:
+        print(
+            f"FAIL: workflow found by name {workflow_name!r} but id is "
+            f"{match_by_name.get('id')!r}; expected id {workflow_id!r}. "
+            "Re-run deploy/server/import-flow-a-n8n-workflow.sh"
+        )
+    else:
+        print(f"FAIL: workflow not found by id={workflow_id!r}")
     sys.exit(1)
 
+match = match_by_id
 print(f"PASS: workflow found id={match.get('id')!r} name={match.get('name')!r}")
+
+if match.get("name") != workflow_name:
+    print(
+        f"FAIL: workflow id={workflow_id!r} name is {match.get('name')!r}; "
+        f"expected {workflow_name!r}"
+    )
+    sys.exit(1)
 
 if match.get("active") is not False:
     print(f"FAIL: workflow active is {match.get('active')!r}, expected false")

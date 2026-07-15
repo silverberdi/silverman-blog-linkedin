@@ -45,7 +45,8 @@ The change SHALL use `deploy/server/import-flow-a-n8n-workflow.sh` as the primar
 
 After successful import verification, the script MUST confirm:
 
-- Workflow exists by id `silvermanFlowAPublish01` or canonical name
+- Workflow exists by stable id `silvermanFlowAPublish01` (lookup MUST NOT succeed on display name alone)
+- Display name matches **Silverman Blog LinkedIn Flow A Publish** as a secondary assert after id resolution
 - `active` is `false`
 - Node count is `26`
 - `worker_base_url` is set to the configured worker URL (default `http://192.168.0.194:8010`)
@@ -57,6 +58,11 @@ The script MUST NOT activate the workflow, add schedule triggers, call LinkedIn 
 
 - **WHEN** an operator runs `deploy/server/import-flow-a-n8n-workflow.sh` on the Ubuntu server with valid source JSON and worker env
 - **THEN** output includes `OVERALL: PASS` with workflow id `silvermanFlowAPublish01`, `active: false`, and 26 nodes
+
+#### Scenario: Import script rejects name-only match
+
+- **WHEN** post-import `export:workflow` contains a workflow with the canonical display name but id is not `silvermanFlowAPublish01` and no workflow with that stable id exists
+- **THEN** import verification reports `FAIL` with remediation to re-run the import script
 
 #### Scenario: Import script does not print secrets
 
@@ -75,12 +81,17 @@ The script MUST NOT activate the workflow, add schedule triggers, call LinkedIn 
 #### Scenario: Evidence script confirms inactive canonical workflow
 
 - **WHEN** `collect-flow-a-smoke-evidence.sh` runs on the Ubuntu server and n8n is reachable
-- **THEN** n8n export verification reports workflow id or name matching `silvermanFlowAPublish01`, `active: false`, and 26 nodes
+- **THEN** n8n export verification reports workflow id `silvermanFlowAPublish01`, expected name, `active: false`, and 26 nodes
 
 #### Scenario: Readiness Phase 2 reports pending import
 
-- **WHEN** n8n is reachable but canonical workflow cannot be confirmed imported
+- **WHEN** n8n is reachable but canonical workflow cannot be confirmed imported (no `--n8n-workflow-export` or export missing id)
 - **THEN** readiness reports `pending_import` (or equivalent) with remediation referencing `import-flow-a-n8n-workflow.sh`, not a code failure
+
+#### Scenario: Readiness Phase 2 passes when export confirms identity
+
+- **WHEN** Phase 2 is given a read-only n8n workflow export containing id `silvermanFlowAPublish01` with expected name, `active: false`, and 26 nodes
+- **THEN** readiness reports PASS for n8n configuration identity confirmation
 
 ### Requirement: Proposed execution frequency documentation
 
@@ -110,7 +121,8 @@ Failure modes MUST distinguish at minimum:
 
 - missing canonical export in repository
 - workflow not imported (`PENDING`)
-- wrong workflow id or name (`FAIL`)
+- wrong workflow id (`FAIL`) — including name-only match without id `silvermanFlowAPublish01`
+- wrong display name after id resolution (`FAIL`)
 - workflow unexpectedly active (`FAIL`)
 - node count mismatch (`FAIL`)
 - worker API key mismatch (`FAIL`)
@@ -121,6 +133,11 @@ Failure modes MUST distinguish at minimum:
 
 - **WHEN** n8n export shows `silvermanFlowAPublish01` with `active: true`
 - **THEN** identification reports `FAIL` with remediation to deactivate before US-010
+
+#### Scenario: Name-only match without canonical id fails
+
+- **WHEN** n8n export shows the canonical display name but no workflow with id `silvermanFlowAPublish01`
+- **THEN** identification reports `FAIL` (not PASS) with remediation to re-run import script
 
 #### Scenario: Missing import reports pending
 

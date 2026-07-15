@@ -551,6 +551,27 @@ def test_import_flow_a_script_prints_canonical_identity_summary(
     assert "publish-pending" in content
 
 
+def test_import_flow_a_script_fail_closed_requires_workflow_id(
+    import_flow_a_script_content: str,
+) -> None:
+    content = import_flow_a_script_content
+    assert 'item.get("id") == workflow_id or item.get("name") == workflow_name' not in content
+    assert "match_by_id" in content
+    assert "found by name" in content
+    assert "expected id" in content
+    assert "Re-run deploy/server/import-flow-a-n8n-workflow.sh" in content
+
+
+def test_collect_flow_a_evidence_script_fail_closed_requires_workflow_id(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert 'item.get("id") == workflow_id or item.get("name") == workflow_name' not in content
+    assert "match_by_id" in content
+    assert "found by name" in content
+    assert "Re-run deploy/server/import-flow-a-n8n-workflow.sh" in content
+
+
 def test_deployment_doc_documents_flow_a_n8n_import() -> None:
     content = DEPLOYMENT_DOC_PATH.read_text(encoding="utf-8")
     assert "import-flow-a-n8n-workflow.sh" in content

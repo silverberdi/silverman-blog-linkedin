@@ -12,7 +12,7 @@ Flow A core worker capabilities are operationally validated, and the Flow A n8n 
 ## Non-Goals
 
 - **US-010**: Activating the workflow, adding cron/schedule triggers, or enabling unattended n8n execution.
-- **US-011**: LinkedIn publication enablement (`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` stays `false`).
+- **US-011**: LinkedIn publication enablement as an activation-time guard story. US-009 MUST NOT enable LinkedIn publication; a temporary `false` verify window is allowed. Final runtime flag may remain or be restored to `true` by operator after validation (documented in ops notes / RUNTIME-STATE) without closing US-011.
 - **BL-005**: Fully unattended Flow A test.
 - Modifying Flow B draft-generation workflow (`silverman-blog-linkedin-draft-generation.json`).
 - Worker endpoint contract changes, publish/package/schedule apply paths, or destructive filesystem operations.
@@ -43,7 +43,7 @@ Flow A core worker capabilities are operationally validated, and the Flow A n8n 
 - **Scripts**: `deploy/server/import-flow-a-n8n-workflow.sh`, `deploy/server/collect-flow-a-smoke-evidence.sh`, `scripts/flow_a_readiness.py` — targeted extensions for canonical identity checks and remediation text.
 - **Tests**: Unit tests for new readiness/identity check logic (no live n8n or Ubuntu server required in CI).
 - **n8n**: Verification only on Ubuntu server; workflow remains **inactive**; no cron/webhook nodes added.
-- **Worker / LinkedIn**: No API or env flag changes; `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=false` unchanged.
+- **Worker / LinkedIn**: No worker API contract changes in this change. US-009 verification does not enable LinkedIn publication; live enablement flag is recorded in RUNTIME-STATE and may differ after an operator-approved restore.
 
 ## Backlog and User Story Mapping
 
