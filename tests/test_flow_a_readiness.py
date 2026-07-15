@@ -395,7 +395,7 @@ def test_extract_openapi_paths() -> None:
 def test_canonical_flow_a_n8n_identity_constants() -> None:
     assert far.FLOW_A_N8N_WORKFLOW_ID == "silvermanFlowAPublish01"
     assert far.FLOW_A_N8N_WORKFLOW_NAME == "Silverman Blog LinkedIn Flow A Publish"
-    assert far.FLOW_A_N8N_EXPECTED_NODE_COUNT == 31
+    assert far.FLOW_A_N8N_EXPECTED_NODE_COUNT == 35
     assert far.FLOW_A_N8N_SCHEDULE_CRON == "0 9 * * *"
     assert far.WORKFLOW_EXPORT_REL.endswith(
         "silverman-blog-linkedin-flow-a-publish.json"

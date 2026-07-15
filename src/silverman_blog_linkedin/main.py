@@ -31,6 +31,9 @@ from silverman_blog_linkedin.editorial_calendar_plan import (
     plan_editorial_calendar_due,
     validate_canonical_utc_timestamp,
 )
+from silverman_blog_linkedin.flow_a_ready_path_completion import (
+    complete_flow_a_ready_path,
+)
 from silverman_blog_linkedin.file_reader import (
     derive_filename,
     normalize_relative_path,
@@ -462,6 +465,32 @@ class PlanEditorialCalendarDueRequest(BaseModel):
         if value is None:
             return None
         return validate_canonical_utc_timestamp(value)
+
+
+class CompleteFlowAReadyPathRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str
+    source_relative_path: str | None = None
+    update_calendar: bool = True
+
+    @field_validator("campaign_id")
+    @classmethod
+    def validate_campaign_id(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("campaign_id must not be empty")
+        return stripped
+
+    @field_validator("source_relative_path")
+    @classmethod
+    def validate_source_relative_path(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = normalize_relative_path(value)
+        if not normalized:
+            raise ValueError("source_relative_path must not be empty")
+        return normalized
 
 
 class ExecuteEditorialCalendarFlowADueRequest(BaseModel):
@@ -1575,6 +1604,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/linkedin/oauth/status")
     def linkedin_oauth_status(_auth: None = Depends(require_api_key)) -> dict:
         result = build_oauth_status(os.environ)
+        return result.to_dict()
+
+    @app.post("/complete-flow-a-ready-path")
+    def complete_flow_a_ready_path_endpoint(
+        body: CompleteFlowAReadyPathRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = complete_flow_a_ready_path(
+            settings.base_path,
+            campaign_id=body.campaign_id,
+            source_relative_path=body.source_relative_path,
+            update_calendar=body.update_calendar,
+        )
+        logger.info(
+            "complete-flow-a-ready-path status=%s campaign_id=%s "
+            "source_lifecycle_status=%s calendar_update_status=%s",
+            result.status,
+            result.campaign_id,
+            result.source_lifecycle_status,
+            result.calendar_update_status,
+        )
         return result.to_dict()
 
     @app.post("/publish-blog-post")

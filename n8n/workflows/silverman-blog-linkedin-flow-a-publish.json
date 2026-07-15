@@ -83,6 +83,24 @@
               "name": "timezone",
               "value": "",
               "type": "string"
+            },
+            {
+              "id": "884e6c4d-a032-4af0-aede-ac0af13e5e12",
+              "name": "git_publication",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "df9b99ac-acdf-462c-8bd3-266156f4e15a",
+              "name": "live_site_confirmation",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "2fcdda7a-b812-4b24-b2aa-5099072127f8",
+              "name": "update_calendar",
+              "value": true,
+              "type": "boolean"
             }
           ]
         },
@@ -485,7 +503,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ (() => { const config = $('Set Configuration').first().json; const item = $json; const body = { source_relative_path: item.relative_path }; const siteUrl = (config.site_url || '').trim(); if (siteUrl) body.site_url = siteUrl; return JSON.stringify(body); })() }}",
+        "jsonBody": "={{ (() => { const config = $('Set Configuration').first().json; const item = $json; const body = { source_relative_path: item.relative_path }; const siteUrl = (config.site_url || '').trim(); if (siteUrl) body.site_url = siteUrl; if (config.git_publication === true || config.git_publication === 'true') body.git_publication = true; if (config.live_site_confirmation === true || config.live_site_confirmation === 'true') body.live_site_confirmation = true; return JSON.stringify(body); })() }}",
         "options": {}
       },
       "id": "1aab35f5-3c6c-4e4e-90af-459a1084eeb4",
@@ -866,39 +884,51 @@
         "assignments": {
           "assignments": [
             {
-              "id": "4dea5eb3-f90a-4b30-902d-47ba1d7e6d52",
+              "id": "26c1d83f-52a2-41ef-b1fe-a864ce37988b",
               "name": "outcome",
               "value": "flow_a_completed",
               "type": "string"
             },
             {
-              "id": "aea54217-7058-4809-a81a-d0f5f032ba30",
+              "id": "de4492ef-4628-4835-b369-0b7219a85fb6",
               "name": "campaign_id",
-              "value": "={{ $json.campaign_id }}",
+              "value": "={{ $json.campaign_id || $('Schedule LinkedIn Distribution').first().json.campaign_id }}",
               "type": "string"
             },
             {
-              "id": "e1850008-dac1-4916-be2e-9f423d6e8902",
+              "id": "ccbe66fb-c529-4328-bd13-431addcca3d6",
               "name": "source_public_url",
-              "value": "={{ $json.source_public_url }}",
+              "value": "={{ $('Schedule LinkedIn Distribution').first().json.source_public_url }}",
               "type": "string"
             },
             {
-              "id": "7fe99f08-016e-41eb-af3a-d1290eba9199",
+              "id": "8e42ae47-5057-45e4-91fa-cb22fa8e8a14",
               "name": "variant_schedules",
-              "value": "={{ $json.variant_schedules }}",
+              "value": "={{ $('Schedule LinkedIn Distribution').first().json.variant_schedules }}",
               "type": "array"
             },
             {
-              "id": "8ff0a119-127f-52fc-b04b-e23a1fcb02aa",
+              "id": "b29c6a78-15db-4c4a-bae1-67575b5680bc",
               "name": "warnings",
               "value": "={{ $json.warnings || [] }}",
               "type": "array"
             },
             {
-              "id": "9aa1b22a-238a-63ad-c05c-f34b2adc13bb",
+              "id": "5b639267-d262-44f1-9c1a-825c83001e1d",
               "name": "source_relative_path",
-              "value": "={{ $json.source_relative_path }}",
+              "value": "={{ $('Schedule LinkedIn Distribution').first().json.source_relative_path }}",
+              "type": "string"
+            },
+            {
+              "id": "d97b6ec5-22bb-4325-8814-ad3af126867a",
+              "name": "source_lifecycle_status",
+              "value": "={{ $json.source_lifecycle_status }}",
+              "type": "string"
+            },
+            {
+              "id": "38f1482f-f6e4-4f6e-9026-72a9cf5bc8cf",
+              "name": "calendar_update_status",
+              "value": "={{ $json.calendar_update_status }}",
               "type": "string"
             }
           ]
@@ -910,8 +940,8 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        3080,
-        200
+        3520,
+        80
       ]
     },
     {
@@ -924,10 +954,154 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2860,
-        300
+        3740,
+        80
       ],
       "notes": "Release single-flight lock after successful Flow A schedule completion."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set Configuration').first().json.worker_base_url }}/complete-flow-a-ready-path",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Set Configuration').first().json.worker_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const config = $('Set Configuration').first().json; const item = $json; const body = {}; if (item.campaign_id) body.campaign_id = item.campaign_id; else if (item.source_relative_path) body.source_relative_path = item.source_relative_path; if (item.source_relative_path) body.source_relative_path = item.source_relative_path; body.update_calendar = !(config.update_calendar === false || config.update_calendar === 'false'); return JSON.stringify(body); })() }}",
+        "options": {}
+      },
+      "id": "e8bed2bd-8254-42a2-a976-a3b8dd752710",
+      "name": "Complete Flow A Ready Path",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        200
+      ],
+      "notes": "POST /complete-flow-a-ready-path \u2014 lifecycle + calendar after schedule."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e838a734-145d-417c-9670-e170b64177fc",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "completed"
+            },
+            {
+              "id": "59f9b5b0-9db3-430e-93a0-25d3a60ba589",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "skipped"
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "f01b2d35-a2c4-419f-b188-5cae517228e6",
+      "name": "IF Ready Path Completed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3300,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9b938ffd-11c1-40fc-80d4-a74e0c54d4e4",
+              "name": "outcome",
+              "value": "ready_path_completion_failed",
+              "type": "string"
+            },
+            {
+              "id": "f4caf35b-f6c4-4e9f-8b2b-84b68d3fa092",
+              "name": "campaign_id",
+              "value": "={{ $json.campaign_id }}",
+              "type": "string"
+            },
+            {
+              "id": "95d21049-b86d-4029-82d6-d5cd5cbfbe64",
+              "name": "errors",
+              "value": "={{ $json.errors }}",
+              "type": "array"
+            },
+            {
+              "id": "f2af512e-bfcc-4a66-9287-f3df2be0750f",
+              "name": "warnings",
+              "value": "={{ $json.warnings || [] }}",
+              "type": "array"
+            },
+            {
+              "id": "cc7fc6a3-6ea5-4e82-9b3e-2f4ae5113f6f",
+              "name": "source_lifecycle_status",
+              "value": "={{ $json.source_lifecycle_status }}",
+              "type": "string"
+            },
+            {
+              "id": "ec8a5a1c-d1dc-430b-bd0a-c4382a2cc275",
+              "name": "calendar_update_status",
+              "value": "={{ $json.calendar_update_status }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7acdb12c-a9a5-441a-8123-1283e8880059",
+      "name": "Set Ready Path Failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3520,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Best-effort release of Flow A single-flight lock (US-010).\nconst fs = require('fs');\nconst LOCK_PATH = '/home/node/.n8n-files/.silverman-flow-a-single-flight.lock';\nconst staticData = $getWorkflowStaticData('global');\nconst executionId = String($execution.id);\nconst lock = staticData.flowASingleFlight || null;\nif (lock && String(lock.execution_id) === executionId) {\n  delete staticData.flowASingleFlight;\n}\ntry {\n  if (fs.existsSync(LOCK_PATH)) {\n    const cur = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));\n    if (!cur || String(cur.execution_id) === executionId) {\n      fs.unlinkSync(LOCK_PATH);\n    }\n  }\n} catch (e) {\n  // best effort\n}\nconst incoming = $input.first().json;\nreturn [{ json: { ...incoming, single_flight_released: true } }];\n"
+      },
+      "id": "a064d09f-a7f7-4b67-8a81-c2e4044a25af",
+      "name": "Stop Ready Path Failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        400
+      ],
+      "notes": " Releases single-flight lock (US-010 best-effort)."
     }
   ],
   "connections": {
@@ -1157,7 +1331,7 @@
       "main": [
         [
           {
-            "node": "Set Flow A Success",
+            "node": "Complete Flow A Ready Path",
             "type": "main",
             "index": 0
           }
@@ -1227,6 +1401,46 @@
         [
           {
             "node": "Release Single-Flight Lock",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Complete Flow A Ready Path": {
+      "main": [
+        [
+          {
+            "node": "IF Ready Path Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Ready Path Completed": {
+      "main": [
+        [
+          {
+            "node": "Set Flow A Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Ready Path Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Ready Path Failed": {
+      "main": [
+        [
+          {
+            "node": "Stop Ready Path Failed",
             "type": "main",
             "index": 0
           }

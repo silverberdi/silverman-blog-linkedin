@@ -215,7 +215,7 @@ Run the workflow manually and verify a draft appears under `linkedin-posts/revie
 | Repository export | `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json` |
 | Workflow display name | `Silverman Blog LinkedIn Flow A Publish` |
 | Stable n8n workflow id | `silvermanFlowAPublish01` |
-| Expected node count | `31` |
+| Expected node count | `35` |
 | Export `active` (git) | `false` |
 | Server `active` after US-010 activation | `true` (RUNTIME-STATE authority; separate from import) |
 | Schedule | Daily `0 9 * * *` UTC via Schedule Trigger |
@@ -282,7 +282,7 @@ After a manual Flow A n8n execution (Phase 3), collect read-only evidence with t
 
 **Defaults:** `WORKER_BASE_URL=http://localhost:8010`, `WORKER_CONTAINER=silverman-blog-linkedin-worker`, workflow id `silvermanFlowAPublish01`, slug fragment `why-i-did-not-start-with-the-database`.
 
-**Modes:** default pre-activation expects `active=false`; `--expect-server-active` expects `active=true` after intentional activate. Both modes require Schedule Trigger `0 9 * * *` UTC, single-flight guard, and expected node count `31`.
+**Modes:** default pre-activation expects `active=false`; `--expect-server-active` expects `active=true` after intentional activate. Both modes require Schedule Trigger `0 9 * * *` UTC, single-flight guard, and expected node count `35`.
 
 **Base path resolution (in order):** `BASE_PATH` override if set and directory exists; worker container env `SILVERMAN_BLOG_LINKEDIN_BASE_PATH`; Docker mount mapped to host source containing `/data/silverman-blog-linkedin`; `GET /health` `base_path`; known host candidates (`/home/silverman/compartido_mac/silverman-blog-linkedin`, etc.). The script prints how the path was resolved.
 

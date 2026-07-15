@@ -33,7 +33,7 @@ FORBIDDEN_TRIGGER_TYPES = {
 }
 
 APPROVED_SCHEDULE_TRIGGER_TYPE = "n8n-nodes-base.scheduleTrigger"
-EXPECTED_NODE_COUNT = 31
+EXPECTED_NODE_COUNT = 35
 EXPECTED_SCHEDULE_CRON = "0 9 * * *"
 SINGLE_FLIGHT_GUARD_NAME = "Single-Flight Guard"
 
@@ -68,6 +68,7 @@ WORKER_ENDPOINT_FRAGMENTS = (
     "/publish-blog-post",
     "/generate-linkedin-package",
     "/schedule-linkedin-distribution",
+    "/complete-flow-a-ready-path",
 )
 
 EXPECTED_NODE_NAMES = {
@@ -82,18 +83,21 @@ EXPECTED_NODE_NAMES = {
     "Publish Blog Post",
     "Generate LinkedIn Package",
     "Schedule LinkedIn Distribution",
+    "Complete Flow A Ready Path",
     "IF Health Ready",
     "IF Process Ready Failed",
     "IF Has Valid Candidates",
     "IF Publish Completed",
     "IF Package Completed",
     "IF Schedule Completed",
+    "IF Ready Path Completed",
     "Split Out Valid Files",
     "Set Flow A Success",
     "Release Single-Flight Lock",
     "Set Publish Failed",
     "Set Package Failed",
     "Set Schedule Failed",
+    "Set Ready Path Failed",
 }
 
 REQUIRED_NODE_TYPES = {
@@ -117,6 +121,9 @@ EXPECTED_CONFIG_VALUES = (
     "schedule_strategy",
     "start_at_utc",
     "timezone",
+    "git_publication",
+    "live_site_confirmation",
+    "update_calendar",
 )
 
 CANONICAL_CAMPAIGN_ID = "flow-a-2026-07-06-why-i-did-not-start-with-the-database"

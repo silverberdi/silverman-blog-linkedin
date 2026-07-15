@@ -653,7 +653,7 @@ For per-endpoint HTTP Request examples, see sections above (`GET /health`, `POST
 | Repository export | `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json` |
 | Workflow name | `Silverman Blog LinkedIn Flow A Publish` |
 | Stable n8n id (set on import) | `silvermanFlowAPublish01` |
-| Expected node count | `31` |
+| Expected node count | `35` |
 | Export `active` | `false` (repository authoritative; server may be `true` after US-010 activation) |
 | Triggers | Manual Trigger + Schedule Trigger (`0 9 * * *` UTC) |
 | Single-flight | `Single-Flight Guard` (static-data lock, TTL 2h, `skipped_already_running`) |
@@ -667,13 +667,13 @@ For per-endpoint HTTP Request examples, see sections above (`GET /health`, `POST
 
 Importable workflow JSON: `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`
 
-This workflow orchestrates **Flow A** end-to-end over HTTP only: scan ready posts, publish via `POST /publish-blog-post`, generate the multi-variant LinkedIn package via `POST /generate-linkedin-package`, and schedule distribution via `POST /schedule-linkedin-distribution`. It does **not** call the LinkedIn API, perform git operations, or move source blog files out of `blog-posts/ready/`.
+This workflow orchestrates **Flow A** end-to-end over HTTP only: scan ready posts, publish via `POST /publish-blog-post` (optional `git_publication` / `live_site_confirmation` from Set Configuration), generate the multi-variant LinkedIn package via `POST /generate-linkedin-package`, schedule distribution via `POST /schedule-linkedin-distribution`, then complete source lifecycle + calendar via `POST /complete-flow-a-ready-path`. It does **not** call the LinkedIn API. n8n does **not** perform git or filesystem moves itself — the worker owns those side effects when opted in / after schedule.
 
-**Distinction from draft-generation workflow:** `silverman-blog-linkedin-draft-generation.json` is Flow B–adjacent review orchestration (`process-file` → single `generate-linkedin-draft` → `linkedin-posts/review/`). The Flow A workflow chains publish → package → schedule for automatic distribution metadata (`publish_state` `pending` until a LinkedIn API publication slice).
+**Distinction from draft-generation workflow:** `silverman-blog-linkedin-draft-generation.json` is Flow B–adjacent review orchestration (`process-file` → single `generate-linkedin-draft` → `linkedin-posts/review/`). The Flow A workflow chains publish → package → schedule → ready-path completion for automatic distribution metadata (`publish_state` `pending` until a LinkedIn API publication slice).
 
 The exported JSON keeps `"active": false`. It includes **Manual Trigger** (operator runs) and **Schedule Trigger** daily **09:00 UTC** (`0 9 * * *`, timezone UTC). Live server `active: true` is a separate activation step — not encoded in git.
 
-**Schedule vs calendar connector:** Schedule Trigger is the orchestration **timer** for the ready-folder path (`POST /process-ready` → publish → package → schedule). Editorial calendar due-item policy remains authoritative via worker `POST /editorial-calendar/execute-flow-a-due` (not rewired into this workflow for US-010). Empty `blog-posts/ready/` → clean no-op.
+**Schedule vs calendar connector:** Schedule Trigger is the orchestration **timer** for the ready-folder path (`POST /process-ready` → publish → package → schedule → `complete-flow-a-ready-path`). Editorial calendar due-item policy remains available via worker `POST /editorial-calendar/execute-flow-a-due` (not the body of this workflow). Empty `blog-posts/ready/` → clean no-op.
 
 **Single-flight:** Concurrent Manual/Schedule runs take `outcome: skipped_already_running` while the lock is held (TTL 2h) via workflow static-data plus a shared-mount lockfile fallback under `/home/node/.n8n-files/.silverman-flow-a-single-flight.lock`. Worker idempotency remains the completed-work safety net.
 
@@ -690,7 +690,7 @@ cp n8n/workflows/silverman-blog-linkedin-flow-a-publish.json \
 ./deploy/server/import-flow-a-n8n-workflow.sh
 ```
 
-Confirm `OVERALL: PASS`, 31 nodes, Schedule Trigger present, and `active=false`. Then activate on the server only with explicit operator approval (US-010). Verify with:
+Confirm `OVERALL: PASS`, 35 nodes, Schedule Trigger present, and `active=false`. Then activate on the server only with explicit operator approval (US-010). Verify with:
 
 ```bash
 ./deploy/server/collect-flow-a-smoke-evidence.sh --expect-server-active
@@ -716,6 +716,9 @@ Edit the **Set Configuration** node (first node after Manual / Schedule Trigger)
 | `schedule_strategy` | _(empty)_ | Optional; omit from schedule request when empty (worker default `flow_a_staggered`). |
 | `start_at_utc` | _(empty)_ | Optional deterministic schedule anchor for smoke tests (ISO-8601 UTC). |
 | `timezone` | _(empty)_ | Optional informational timezone hint for scheduling. |
+| `git_publication` | `false` | When `true`, publish requests opt into guarded Git commit/push (still requires `SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED=true`). |
+| `live_site_confirmation` | `false` | When `true`, publish requests opt into live-site HTTP confirmation after push (requires live-site env flag). |
+| `update_calendar` | `true` | When not `false`, post-schedule `POST /complete-flow-a-ready-path` upserts/reconciles calendar. |
 
 Authenticated HTTP Request nodes use `Authorization: Bearer {{ $('Set Configuration').first().json.worker_api_key }}` via expressions — not hardcoded tokens.
 
@@ -742,8 +745,11 @@ Schedule Trigger (daily 09:00 UTC) ─┴→ Set Configuration
       → IF Package Completed
           → Schedule LinkedIn Distribution (POST /schedule-linkedin-distribution)
           → IF Schedule Completed
-              → success: campaign_id, source_public_url, variant_schedules[]
-              → Release Single-Flight Lock
+              → Complete Flow A Ready Path (POST /complete-flow-a-ready-path)
+              → IF Ready Path Completed (status completed|skipped)
+                  → success: campaign_id, source_lifecycle_status, calendar_update_status, variant_schedules[]
+                  → Release Single-Flight Lock
+              → else: ready-path completion errors/warnings (+ release lock)
           → else: schedule errors/warnings (+ release lock)
       → else: package errors/warnings (+ release lock)
   → else: publish errors/warnings (+ release lock)
