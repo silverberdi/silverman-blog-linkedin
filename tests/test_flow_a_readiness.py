@@ -392,6 +392,75 @@ def test_extract_openapi_paths() -> None:
     assert far.extract_openapi_paths(doc) == {"/health", "/process-ready"}
 
 
+def test_canonical_flow_a_n8n_identity_constants() -> None:
+    assert far.FLOW_A_N8N_WORKFLOW_ID == "silvermanFlowAPublish01"
+    assert far.FLOW_A_N8N_WORKFLOW_NAME == "Silverman Blog LinkedIn Flow A Publish"
+    assert far.FLOW_A_N8N_EXPECTED_NODE_COUNT == 26
+    assert far.WORKFLOW_EXPORT_REL.endswith(
+        "silverman-blog-linkedin-flow-a-publish.json"
+    )
+    assert "draft-generation" in far.FLOW_B_DRAFT_WORKFLOW_EXPORT_REL
+
+
+def test_assess_canonical_export_identity_on_repo_export(repo_path: Path) -> None:
+    workflow_path = repo_path / far.WORKFLOW_EXPORT_REL
+    data = json.loads(workflow_path.read_text(encoding="utf-8"))
+    results = far.assess_canonical_export_identity(data)
+    by_id = {check_id: (status, message) for check_id, status, message in results}
+    assert by_id["canonical_workflow_name"][0] == far.CheckStatus.PASS
+    assert by_id["canonical_workflow_node_count"][0] == far.CheckStatus.PASS
+    assert by_id["canonical_workflow_no_schedule_triggers"][0] == far.CheckStatus.PASS
+    assert far.FLOW_A_N8N_WORKFLOW_ID in by_id["canonical_workflow_identity"][1]
+    assert far.forbidden_trigger_types_present(data) == []
+
+
+def test_assess_canonical_export_fails_for_wrong_name_and_active_schedule() -> None:
+    workflow = {
+        "name": "Wrong Name",
+        "active": False,
+        "nodes": [
+            {"type": "n8n-nodes-base.manualTrigger"},
+            {"type": "n8n-nodes-base.scheduleTrigger"},
+        ],
+    }
+    results = far.assess_canonical_export_identity(workflow)
+    by_id = {check_id: status for check_id, status, _ in results}
+    assert by_id["canonical_workflow_name"] == far.CheckStatus.FAIL
+    assert by_id["canonical_workflow_node_count"] == far.CheckStatus.FAIL
+    assert by_id["canonical_workflow_no_schedule_triggers"] == far.CheckStatus.FAIL
+
+
+def test_phase2_reports_pending_import_with_canonical_id() -> None:
+    report = far.ReadinessReport()
+
+    def fake_http(method: str, url: str, **kwargs):
+        return 200, b"ok"
+
+    with patch.object(far, "http_request", side_effect=fake_http):
+        far.run_phase2(report, n8n_base_url="http://192.168.0.194:5678")
+
+    cfg = next(c for c in report.checks if c.id == "n8n_configuration")
+    assert cfg.status == far.CheckStatus.PENDING
+    assert far.FLOW_A_N8N_WORKFLOW_ID in cfg.message
+    assert "pending_import" in cfg.message
+    remediation = "\n".join(report.deduped_remediation())
+    assert "import-flow-a-n8n-workflow.sh" in remediation
+    assert far.FLOW_A_N8N_WORKFLOW_ID in remediation
+
+
+def test_phase2_fails_when_n8n_unreachable() -> None:
+    report = far.ReadinessReport()
+
+    def fake_http(method: str, url: str, **kwargs):
+        return None, "unreachable"
+
+    with patch.object(far, "http_request", side_effect=fake_http):
+        far.run_phase2(report, n8n_base_url="http://192.168.0.194:5678")
+
+    cfg = next(c for c in report.checks if c.id == "n8n_configuration")
+    assert cfg.status == far.CheckStatus.FAIL
+
+
 def test_main_json_exit_code_without_secret_leak(repo_path: Path) -> None:
     import os
 

@@ -208,6 +208,23 @@ Run the workflow manually and verify a draft appears under `linkedin-posts/revie
 
 ### 5. Import Flow A n8n workflow
 
+#### Canonical Flow A workflow identity (US-009)
+
+| Attribute | Value |
+|-----------|-------|
+| Repository export | `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json` |
+| Workflow display name | `Silverman Blog LinkedIn Flow A Publish` |
+| Stable n8n workflow id | `silvermanFlowAPublish01` |
+| Expected node count | `26` |
+| Export / server active state (this change) | `false` |
+| Default import source on server | `/home/silverman/n8n-imports/silverman-blog-linkedin-flow-a-publish.source.json` |
+| Import script | `deploy/server/import-flow-a-n8n-workflow.sh` (or target layout `/home/silverman/silverman-blog-linkedin-worker/import-flow-a-n8n-workflow.sh`) |
+| Default `worker_base_url` | `http://192.168.0.194:8010` |
+
+**Not the canonical Flow A workflow:** `silverman-blog-linkedin-draft-generation.json` (Flow B drafts) and any LinkedIn `publish-pending` helper workflow (BL-007 handoff).
+
+**Proposed execution frequency (documentation only until US-010):** daily at **09:00 UTC** via Schedule Trigger. Export and imported workflow must remain without Cron/Webhook/Schedule Trigger nodes and `active: false` until activation.
+
 The `local-ai-stack` deployment exposes n8n through an **nginx gateway** container (for example `local-ai-stack-n8n-gateway-1`). The gateway is **not** the n8n application — do not run `n8n import:workflow` against it. Select the real n8n container by image (`docker.n8n.io/n8nio/n8n` or `n8nio/n8n`), for example `local-ai-stack-n8n-1`.
 
 **Why a stable workflow id:** n8n imports into Postgres via `workflow_entity.id`. Exports without a top-level `id` (or with null `createdAt` / `updatedAt` / `versionId`) can fail with `null value in column "id"`. The import script sets stable id `silvermanFlowAPublish01` before import.

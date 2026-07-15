@@ -6,8 +6,8 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 ## Snapshot
 
-**`verified_at_utc`:** `2026-07-15T05:34:43Z`
-**Evidence source:** BL-003 calendar LinkedIn summary operational validation; prior US-001/US-002/US-003 Phase 3 reports; deploy on Ubuntu server `192.168.0.194`
+**`verified_at_utc`:** `2026-07-15T14:14:12Z`
+**Evidence source:** US-009 Flow A n8n identity validation (import + evidence + LinkedIn flag window); BL-003 calendar LinkedIn summary; prior US-001/US-002/US-003 Phase 3 reports; deploy on Ubuntu server `192.168.0.194`
 
 | Fact | Value | Evidence |
 |------|-------|----------|
@@ -15,14 +15,14 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 | `BUILD_REVISION` | `1784088086` (timestamp fallback; server target layout has no `.git`) | Deploy output 2026-07-15; BL-003 smoke |
 | Editorial mount | `/data/silverman-blog-linkedin` | `deploy-worker.sh` compose |
 | Public blog mount | `/public-blog` → host `/home/silverman/silverberdi.github.io` | Deploy verification |
-| n8n Flow A workflow | Imported, **inactive** | `import-flow-a-n8n-workflow.sh`, workflow id `silvermanFlowAPublish01` |
+| n8n Flow A workflow | Imported, **inactive**; identity confirmed US-009 (`silvermanFlowAPublish01`, 26 nodes) | [us-009 validation](operations/us-009-canonical-flow-a-n8n-identity-validation-2026-07-15.md) |
 | `SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED` | `true` | Server `.env` |
 | `SILVERMAN_BLOG_LIVE_SITE_CONFIRMATION_ENABLED` | `true` | Server `.env` |
 | `GIT_SSH_COMMAND` | Set (deploy key + known_hosts paths) | Server `.env`; container env present |
 | Git publication US-001 | Validated with real push | [phase3-us001 report](operations/phase3-us001-git-publication-validation-2026-07-11.md) |
 | Live-site confirmation US-002 | Validated with HTTP 200 + slug marker | [phase3-us002 report](operations/phase3-us002-live-site-confirmation-validation-2026-07-11.md) |
 | BL-001 smoke artifacts | Removed from public site and editorial mount | Cleanup commits on `silverberdi.github.io` |
-| `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` | `false` | Restored after US-003 validation window 2026-07-11 |
+| `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` | `true` (operator-requested; US-009 verify window used temporary `false` then restore) | [us-009 validation](operations/us-009-canonical-flow-a-n8n-identity-validation-2026-07-15.md) §5.5 |
 | LinkedIn OAuth token store | Configured; `token_present` during validation | Directory mount `secrets/linkedin-oauth/`; [phase3-us003 report](operations/phase3-us003-linkedin-publication-validation-2026-07-11.md) |
 | LinkedIn API real publish US-003 | Validated — one variant `published` with URN | [phase3-us003 report](operations/phase3-us003-linkedin-publication-validation-2026-07-11.md) |
 | ComfyUI image generation | Enabled during Flow A validation smoke | Operator confirmation; exact env names only |

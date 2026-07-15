@@ -537,10 +537,26 @@ def test_import_flow_a_script_does_not_activate_or_call_linkedin_api(
     assert "webhook" not in lowered or "no cron/webhook" in content
 
 
+def test_import_flow_a_script_prints_canonical_identity_summary(
+    import_flow_a_script_content: str,
+) -> None:
+    content = import_flow_a_script_content
+    assert "Canonical Flow A n8n identity" in content
+    assert 'WORKFLOW_ID="silvermanFlowAPublish01"' in content
+    assert "EXPECTED_NODE_COUNT=26" in content
+    assert "worker_base_url:" in content
+    assert "worker_api_key:   configured" in content
+    assert "worker_api_key:   missing" in content
+    assert "proposed schedule daily 09:00 UTC" in content
+    assert "publish-pending" in content
+
+
 def test_deployment_doc_documents_flow_a_n8n_import() -> None:
     content = DEPLOYMENT_DOC_PATH.read_text(encoding="utf-8")
     assert "import-flow-a-n8n-workflow.sh" in content
     assert "silvermanFlowAPublish01" in content
+    assert "Canonical Flow A workflow identity" in content
+    assert "09:00 UTC" in content
     assert "n8n-gateway" in content or "nginx gateway" in content.lower()
     assert "workflow must remain inactive" in content.lower() or "remains inactive" in content.lower()
 
@@ -669,6 +685,17 @@ def test_collect_flow_a_evidence_script_does_not_print_secrets(
     assert "DEEPSEEK_API_KEY" not in content
     assert "worker_api_key" not in content
     assert "no secrets" in content.lower()
+
+
+def test_collect_flow_a_evidence_script_prints_canonical_identity_section(
+    collect_flow_a_evidence_script_content: str,
+) -> None:
+    content = collect_flow_a_evidence_script_content
+    assert "canonical Flow A n8n identity" in content
+    assert 'N8N_WORKFLOW_ID="${N8N_WORKFLOW_ID:-silvermanFlowAPublish01}"' in content
+    assert "expected nodes:" in content
+    assert "required active: false" in content
+    assert "publish-pending" in content
 
 
 def test_collect_flow_a_evidence_script_reports_overall_status_values(

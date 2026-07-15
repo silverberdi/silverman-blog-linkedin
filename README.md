@@ -646,13 +646,33 @@ For per-endpoint HTTP Request examples, see sections above (`GET /health`, `POST
 
 ## n8n workflow: Flow A automatic publish orchestration
 
+### Canonical Flow A workflow identity (US-009)
+
+| Attribute | Value |
+|-----------|-------|
+| Repository export | `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json` |
+| Workflow name | `Silverman Blog LinkedIn Flow A Publish` |
+| Stable n8n id (set on import) | `silvermanFlowAPublish01` |
+| Expected node count | `26` |
+| Export `active` | `false` |
+| Trigger in export | Manual Trigger only |
+
+**Not canonical Flow A orchestration:**
+
+| Artifact | Role |
+|----------|------|
+| `n8n/workflows/silverman-blog-linkedin-draft-generation.json` | Flow B–adjacent draft generation (`/process-file`, `/generate-linkedin-draft`) |
+| `n8n/workflows/silverman-blog-linkedin-publish-pending.json` | Construction/BL-007 handoff for LinkedIn pending publish — **not** Flow A blog publish orchestration |
+
 Importable workflow JSON: `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`
 
 This workflow orchestrates **Flow A** end-to-end over HTTP only: scan ready posts, publish via `POST /publish-blog-post`, generate the multi-variant LinkedIn package via `POST /generate-linkedin-package`, and schedule distribution via `POST /schedule-linkedin-distribution`. It does **not** call the LinkedIn API, perform git operations, or move source blog files out of `blog-posts/ready/`.
 
-**Distinction from draft-generation workflow:** `silverman-blog-linkedin-draft-generation.json` is Flow B–adjacent review orchestration (`process-file` → single `generate-linkedin-draft` → `linkedin-posts/review/`). The Flow A workflow chains publish → package → schedule for automatic distribution metadata (`publish_state` `pending` until a future LinkedIn API slice).
+**Distinction from draft-generation workflow:** `silverman-blog-linkedin-draft-generation.json` is Flow B–adjacent review orchestration (`process-file` → single `generate-linkedin-draft` → `linkedin-posts/review/`). The Flow A workflow chains publish → package → schedule for automatic distribution metadata (`publish_state` `pending` until a LinkedIn API publication slice).
 
 The exported JSON keeps `"active": false` and uses **Manual Trigger** only — no cron, webhook, or schedule trigger in this change.
+
+**Proposed execution frequency (not active):** daily Schedule Trigger at **09:00 UTC** (US-010). Until activation, operators run Manual Trigger only. Editorial calendar due-item policy remains authoritative via worker `POST /editorial-calendar/execute-flow-a-due`; n8n scheduling is the future orchestration timer, not editorial policy.
 
 ### Import (Ubuntu server — recommended)
 

@@ -264,5 +264,20 @@ else
 fi
 
 echo
+echo "==> Canonical Flow A n8n identity"
+echo "    export (source):  ${WORKFLOW_SOURCE_JSON}"
+echo "    workflow id:      ${WORKFLOW_ID}"
+echo "    workflow name:    ${WORKFLOW_NAME}"
+echo "    expected nodes:   ${EXPECTED_NODE_COUNT}"
+echo "    active:           false"
+echo "    worker_base_url:  ${WORKER_BASE_URL}"
+if [[ -n "${WORKER_API_KEY}" ]]; then
+  echo "    worker_api_key:   configured"
+else
+  echo "    worker_api_key:   missing"
+fi
+echo "    not canonical:    Flow B draft-generation / publish-pending workflows"
+echo
 echo "OVERALL: PASS (Flow A workflow imported; remains inactive)"
 echo "NOTE: workflow was not activated; no cron/webhook/schedule triggers were added."
+echo "NOTE: proposed schedule daily 09:00 UTC is documentation-only until US-010."

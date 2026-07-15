@@ -160,14 +160,14 @@ As a content operator, I want to identify the canonical flow a workflow, so that
 
 **Acceptance criteria**
 
-- [ ] Identify the canonical Flow A workflow.
-- [ ] Confirm correct import and configuration.
-- [ ] Define execution frequency.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Identify the canonical Flow A workflow.
+- [x] Confirm correct import and configuration.
+- [x] Define execution frequency.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
-### US-010 — Activate Flow A Orchestration in n8n: Story 2
+**Validated:** 2026-07-15 — [us-009 validation report](../operations/us-009-canonical-flow-a-n8n-identity-validation-2026-07-15.md). Workflow inactive; proposed schedule 09:00 UTC docs-only. LinkedIn flag temporarily `false` for verify, then restored `true` per operator.
 
 **Description**
 

@@ -37,7 +37,27 @@ REQUIRED_OPENAPI_PATHS = (
     "/schedule-linkedin-distribution",
 )
 
+# Canonical Flow A n8n workflow identity (US-009 / BL-004).
 WORKFLOW_EXPORT_REL = "n8n/workflows/silverman-blog-linkedin-flow-a-publish.json"
+FLOW_A_N8N_WORKFLOW_ID = "silvermanFlowAPublish01"
+FLOW_A_N8N_WORKFLOW_NAME = "Silverman Blog LinkedIn Flow A Publish"
+FLOW_A_N8N_EXPECTED_NODE_COUNT = 26
+FLOW_B_DRAFT_WORKFLOW_EXPORT_REL = (
+    "n8n/workflows/silverman-blog-linkedin-draft-generation.json"
+)
+# Not the Flow A publish orchestration workflow (BL-007 construction handoff / other).
+NON_CANONICAL_FLOW_A_LOOKALIKES = (
+    "n8n/workflows/silverman-blog-linkedin-publish-pending.json",
+)
+FORBIDDEN_N8N_TRIGGER_TYPE_FRAGMENTS = (
+    "cron",
+    "scheduletrigger",
+    "webhook",
+)
+FORBIDDEN_N8N_ORCHESTRATION_TYPE_FRAGMENTS = (
+    "executecommand",
+    "n8n-nodes-base.executecommand",
+)
 
 STALE_WORKER_MESSAGE = (
     "Repository checks passed but the running worker OpenAPI surface is missing "
@@ -88,14 +108,34 @@ PHASE4_MANUAL_STEPS = [
 ]
 
 N8N_IMPORT_CHECKLIST = [
-    "Copy n8n/workflows/silverman-blog-linkedin-flow-a-publish.json to the server import path (default: /home/silverman/n8n-imports/silverman-blog-linkedin-flow-a-publish.source.json).",
-    "Run deploy/server/import-flow-a-n8n-workflow.sh on the Ubuntu server (sets stable workflow id, worker_base_url, worker_api_key; leaves workflow inactive).",
-    "Confirm import script reports OVERALL: PASS with 26 nodes and active=false.",
-    "Leave workflow inactive in n8n until a future operational change enables scheduling.",
+    (
+        "Copy n8n/workflows/silverman-blog-linkedin-flow-a-publish.json to the server "
+        "import path (default: /home/silverman/n8n-imports/"
+        "silverman-blog-linkedin-flow-a-publish.source.json)."
+    ),
+    (
+        "Run deploy/server/import-flow-a-n8n-workflow.sh on the Ubuntu server "
+        f"(sets stable workflow id {FLOW_A_N8N_WORKFLOW_ID}, worker_base_url, "
+        "worker_api_key; leaves workflow inactive)."
+    ),
+    (
+        "Confirm import script reports OVERALL: PASS with canonical identity "
+        f"id={FLOW_A_N8N_WORKFLOW_ID}, "
+        f"{FLOW_A_N8N_EXPECTED_NODE_COUNT} nodes, and active=false."
+    ),
+    (
+        "Leave workflow inactive in n8n until US-010 activation; proposed "
+        "schedule is daily 09:00 UTC (documentation only until then)."
+    ),
+    (
+        "Do not treat Flow B draft-generation or publish-pending workflows as "
+        "canonical Flow A orchestration."
+    ),
 ]
 
 N8N_IMPORT_PENDING_MESSAGE = (
-    "n8n workflow import status inconclusive from HTTP probe alone; "
+    "n8n workflow import status inconclusive from HTTP probe alone "
+    f"(canonical id {FLOW_A_N8N_WORKFLOW_ID}); "
     "run deploy/server/import-flow-a-n8n-workflow.sh on the Ubuntu server "
     "and confirm OVERALL: PASS to satisfy manual import verification evidence"
 )
@@ -223,6 +263,118 @@ def parse_workflow_active(workflow_json: dict[str, Any]) -> bool | None:
     if "active" not in workflow_json:
         return None
     return bool(workflow_json["active"])
+
+
+def workflow_node_types(workflow_json: dict[str, Any]) -> list[str]:
+    nodes = workflow_json.get("nodes")
+    if not isinstance(nodes, list):
+        return []
+    types: list[str] = []
+    for node in nodes:
+        if isinstance(node, dict):
+            node_type = node.get("type")
+            if isinstance(node_type, str) and node_type.strip():
+                types.append(node_type)
+    return types
+
+
+def forbidden_trigger_types_present(workflow_json: dict[str, Any]) -> list[str]:
+    found: list[str] = []
+    for node_type in workflow_node_types(workflow_json):
+        lowered = node_type.lower().replace(".", "").replace("-", "").replace("_", "")
+        for fragment in FORBIDDEN_N8N_TRIGGER_TYPE_FRAGMENTS:
+            if fragment in lowered:
+                found.append(node_type)
+                break
+    return list(dict.fromkeys(found))
+
+
+def assess_canonical_export_identity(
+    workflow_json: dict[str, Any],
+) -> list[tuple[str, CheckStatus, str]]:
+    """Return (check_id, status, message) tuples for repo export identity checks."""
+    results: list[tuple[str, CheckStatus, str]] = []
+    name = workflow_json.get("name")
+    if name == FLOW_A_N8N_WORKFLOW_NAME:
+        results.append(
+            (
+                "canonical_workflow_name",
+                CheckStatus.PASS,
+                f'Canonical Flow A workflow name is "{FLOW_A_N8N_WORKFLOW_NAME}"',
+            )
+        )
+    else:
+        results.append(
+            (
+                "canonical_workflow_name",
+                CheckStatus.FAIL,
+                f'Canonical Flow A workflow name is {name!r}; expected "{FLOW_A_N8N_WORKFLOW_NAME}"',
+            )
+        )
+
+    nodes = workflow_json.get("nodes")
+    node_count = len(nodes) if isinstance(nodes, list) else -1
+    if node_count == FLOW_A_N8N_EXPECTED_NODE_COUNT:
+        results.append(
+            (
+                "canonical_workflow_node_count",
+                CheckStatus.PASS,
+                (
+                    f"Canonical Flow A workflow has "
+                    f"{FLOW_A_N8N_EXPECTED_NODE_COUNT} nodes "
+                    f"(stable import id {FLOW_A_N8N_WORKFLOW_ID})"
+                ),
+            )
+        )
+    else:
+        results.append(
+            (
+                "canonical_workflow_node_count",
+                CheckStatus.FAIL,
+                (
+                    f"Canonical Flow A workflow node count is {node_count}; "
+                    f"expected {FLOW_A_N8N_EXPECTED_NODE_COUNT}"
+                ),
+            )
+        )
+
+    forbidden = forbidden_trigger_types_present(workflow_json)
+    if forbidden:
+        results.append(
+            (
+                "canonical_workflow_no_schedule_triggers",
+                CheckStatus.FAIL,
+                (
+                    "Canonical Flow A export contains forbidden schedule/cron/webhook "
+                    f"node types: {', '.join(forbidden)}"
+                ),
+            )
+        )
+    else:
+        results.append(
+            (
+                "canonical_workflow_no_schedule_triggers",
+                CheckStatus.PASS,
+                (
+                    "Canonical Flow A export has no Cron/Webhook/Schedule Trigger nodes "
+                    "(proposed daily 09:00 UTC schedule remains documentation-only until US-010)"
+                ),
+            )
+        )
+
+    results.append(
+        (
+            "canonical_workflow_identity",
+            CheckStatus.PASS,
+            (
+                f"Canonical Flow A n8n identity: export={WORKFLOW_EXPORT_REL}; "
+                f"import id={FLOW_A_N8N_WORKFLOW_ID}; name={FLOW_A_N8N_WORKFLOW_NAME}; "
+                f"nodes={FLOW_A_N8N_EXPECTED_NODE_COUNT}; active=false; "
+                f"not Flow B ({FLOW_B_DRAFT_WORKFLOW_EXPORT_REL})"
+            ),
+        )
+    )
+    return results
 
 
 def load_env_var(env_file: Path | None, key: str) -> str | None:
@@ -409,6 +561,25 @@ def run_phase0(
                     'Flow A workflow export missing top-level "active" flag',
                 )
             )
+        for check_id, status, message in assess_canonical_export_identity(workflow_data):
+            report.add(CheckResult(check_id, 0, status, message))
+            if status == CheckStatus.FAIL:
+                if check_id == "canonical_workflow_node_count":
+                    report.append_remediation(
+                        "Pull latest origin/main and re-verify "
+                        f"{WORKFLOW_EXPORT_REL} node count "
+                        f"({FLOW_A_N8N_EXPECTED_NODE_COUNT})."
+                    )
+                elif check_id == "canonical_workflow_no_schedule_triggers":
+                    report.append_remediation(
+                        "Remove Cron/Webhook/Schedule Trigger nodes from the "
+                        "canonical Flow A export until US-010 activation."
+                    )
+                elif check_id == "canonical_workflow_name":
+                    report.append_remediation(
+                        f'Restore workflow name "{FLOW_A_N8N_WORKFLOW_NAME}" '
+                        f"in {WORKFLOW_EXPORT_REL}."
+                    )
     except (OSError, json.JSONDecodeError) as exc:
         report.add(
             CheckResult(
@@ -714,7 +885,11 @@ def run_phase2(report: ReadinessReport, *, n8n_base_url: str | None) -> None:
                 "n8n_configuration",
                 2,
                 CheckStatus.PENDING,
-                f"n8n reachable at {n8n_base}; workflow import/configuration pending operator checklist",
+                (
+                    f"n8n reachable at {n8n_base}; canonical Flow A workflow "
+                    f"import id {FLOW_A_N8N_WORKFLOW_ID} / configuration pending "
+                    "operator checklist (pending_import until import script PASS)"
+                ),
             )
         )
         for item in N8N_IMPORT_CHECKLIST:

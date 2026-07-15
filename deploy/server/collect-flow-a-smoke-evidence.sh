@@ -702,6 +702,13 @@ check_public_blog_artifacts() {
 check_n8n_workflow() {
   local n8n_container n8n_image export_tmp container_export
 
+  section "canonical Flow A n8n identity"
+  echo "canonical id:    ${N8N_WORKFLOW_ID}"
+  echo "canonical name:  ${N8N_WORKFLOW_NAME}"
+  echo "expected nodes:  ${EXPECTED_NODE_COUNT}"
+  echo "required active: false"
+  echo "not canonical:   Flow B draft-generation; LinkedIn publish-pending (BL-007 handoff)"
+
   section "n8n workflow"
   if ! command -v docker >/dev/null 2>&1; then
     fail "docker not available for n8n workflow export"

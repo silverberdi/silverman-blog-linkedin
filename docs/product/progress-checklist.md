@@ -88,13 +88,13 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 - [ ] **BL-004 — Activate Flow A Orchestration in n8n**
   - Business outcome: Flow A runs on schedule through n8n without duplicate processing or unintended publication.
-  - [ ] **US-009**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
+  - [x] **US-009**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted
   - [ ] **US-010**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed
