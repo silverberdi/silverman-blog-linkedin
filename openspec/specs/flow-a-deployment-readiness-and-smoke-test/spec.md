@@ -147,7 +147,7 @@ The repository SHALL provide `deploy/server/import-flow-a-n8n-workflow.sh` that 
 #### Scenario: Import verification without activation
 
 - **WHEN** import completes successfully
-- **THEN** the script verifies via `export:workflow` that the workflow exists by id or name, has 26 nodes, and `active` is false, without activating the workflow or adding cron/webhook triggers
+- **THEN** the script verifies via `export:workflow` that the workflow exists by stable id `silvermanFlowAPublish01` (name is a secondary assert only; name-only match without that id MUST FAIL), has 26 nodes, and `active` is false, without activating the workflow or adding cron/webhook triggers
 
 ### Requirement: Smoke-test phase gating
 
@@ -252,7 +252,7 @@ The repository SHALL provide a repeatable server-side script at `deploy/server/c
 - **THEN** it verifies worker `GET /health` and `GET /openapi.json` include Flow A paths `/publish-blog-post`, `/generate-linkedin-package`, and `/schedule-linkedin-distribution`
 - **AND** reports latest metadata and generated LinkedIn artifacts under the resolved editorial base path
 - **AND** reports published `_posts` and `assets/images` matches for the slug fragment under the public GitHub Pages repo host mount (or inside the container at `/public-blog` when the host mount cannot be resolved), not under the editorial base path
-- **AND** exports n8n workflows from the real n8n container and confirms workflow id or name match with `active: false` and 26 nodes
+- **AND** exports n8n workflows from the real n8n container and confirms workflow id `silvermanFlowAPublish01` with expected name, `active: false`, and 26 nodes (name-only match without that stable id MUST FAIL)
 
 #### Scenario: Evidence script safety constraints
 
@@ -428,3 +428,68 @@ When `deploy/server/collect-flow-a-smoke-evidence.sh` reports per-variant Linked
 
 - **WHEN** evidence collection runs for a campaign with one `published` variant storing `linkedin_post_urn`
 - **THEN** summary reports published count 1 and URN recorded without variant body text
+
+### Requirement: Canonical Flow A workflow identity constants in readiness tooling
+
+`scripts/flow_a_readiness.py` SHALL define documented canonical Flow A n8n workflow identity constants matching:
+
+- export path `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`
+- stable id `silvermanFlowAPublish01`
+- display name `Silverman Blog LinkedIn Flow A Publish`
+- expected node count `26`
+
+Phase 0 and Phase 2 checks MUST use these constants when reporting workflow export and import status.
+
+#### Scenario: Readiness reports canonical path on export check
+
+- **WHEN** Phase 0 verifies the Flow A workflow export in the repository checkout
+- **THEN** the report references `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json` and stable id `silvermanFlowAPublish01`
+
+#### Scenario: Phase 2 references canonical id in remediation
+
+- **WHEN** Phase 2 reports `pending_import` for n8n workflow import
+- **THEN** remediation text references `deploy/server/import-flow-a-n8n-workflow.sh` and expected id `silvermanFlowAPublish01`
+
+### Requirement: Canonical identity section in evidence collector output
+
+`deploy/server/collect-flow-a-smoke-evidence.sh` SHALL print a labeled canonical workflow identity summary including workflow id, name, node count, and `active` state before overall status.
+
+When workflow id does not match the canonical id `silvermanFlowAPublish01`, the script MUST report `FAIL` with remediation to re-run import script (name-only matches MUST NOT succeed).
+
+#### Scenario: Evidence collector prints identity summary
+
+- **WHEN** evidence collection runs and n8n export succeeds
+- **THEN** output includes canonical id `silvermanFlowAPublish01`, node count, and `active: false` in a dedicated identity section
+
+#### Scenario: Wrong workflow id fails evidence collection
+
+- **WHEN** n8n export shows a workflow matching name but wrong id and no `silvermanFlowAPublish01` present
+- **THEN** evidence collection reports `FAIL` with remediation to re-import canonical export
+
+### Requirement: Import script canonical identity assertion in output
+
+`deploy/server/import-flow-a-n8n-workflow.sh` SHALL print explicit canonical identity fields in verification output (path, id, name, node count, active state, worker_base_url, worker_api_key configured flag) to satisfy US-009 operator visibility. Post-import verification MUST resolve the workflow by stable id (name is a secondary assert only).
+
+#### Scenario: Import verification prints identity block
+
+- **WHEN** import completes successfully
+- **THEN** output includes a canonical identity summary with id `silvermanFlowAPublish01`, 26 nodes, and `active: false`
+
+### Requirement: Phase 2 can confirm imported identity via read-only export
+
+`scripts/flow_a_readiness.py` Phase 2 SHALL:
+
+- FAIL when `--n8n-base-url` is set and n8n is unreachable
+- PENDING (`pending_import` / confirmation needed) when n8n is reachable but `--n8n-workflow-export` is not provided
+- PASS when `--n8n-workflow-export` is provided and the export contains workflow id `silvermanFlowAPublish01` with expected name, `active: false`, and 26 nodes
+- FAIL when the export is provided but id/name/active/node count mismatches canonical identity
+
+#### Scenario: Phase 2 pending without export confirmation
+
+- **WHEN** Phase 2 runs with n8n reachable and no `--n8n-workflow-export`
+- **THEN** readiness reports PENDING with remediation referencing `import-flow-a-n8n-workflow.sh` and expected id `silvermanFlowAPublish01`
+
+#### Scenario: Phase 2 passes with confirmed export
+
+- **WHEN** Phase 2 runs with n8n reachable and `--n8n-workflow-export` containing id `silvermanFlowAPublish01`, expected name, `active: false`, and 26 nodes
+- **THEN** readiness reports PASS for n8n configuration identity confirmation
