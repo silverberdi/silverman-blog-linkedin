@@ -149,7 +149,7 @@ This activation capability MUST NOT own LinkedIn publication enablement and MUST
 
 Closing US-011 (LinkedIn publication disabled until separately approved) is owned by capability `flow-a-linkedin-publication-guard` after demonstrated evidence — not by this activation capability.
 
-This capability MUST NOT close BL-005 (fully unattended Flow A test).
+Closing BL-005 (fully unattended Flow A test) is owned by capability `flow-a-unattended-e2e-validation` after demonstrated Manual and Schedule evidence — not by this activation capability.
 
 #### Scenario: Activation does not close US-011 by itself
 
@@ -161,7 +161,7 @@ This capability MUST NOT close BL-005 (fully unattended Flow A test).
 - **WHEN** default US-010 apply and evidence procedures run
 - **THEN** they do not change `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`
 
-#### Scenario: BL-005 remains out of scope for activation
+#### Scenario: Activation does not close BL-005 by itself
 
-- **WHEN** US-010 activation validation passes
-- **THEN** BL-005 remains incomplete
+- **WHEN** US-010 activation validation passes without a separate `flow-a-unattended-e2e-validation` evidence report
+- **THEN** product progress for BL-005 remains incomplete
