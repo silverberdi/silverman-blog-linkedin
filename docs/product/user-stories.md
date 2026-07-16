@@ -269,13 +269,17 @@ As a content operator, I want to complete campaign and calendar records, so that
 
 As a content operator, I want to define whether all variants may eventually be published, so that each linkedin variant has a clear review decision and publication purpose.
 
+**Policy artifact:** [linkedin-variant-review-policy.md](../operations/linkedin-variant-review-policy.md)
+
 **Acceptance criteria**
 
-- [ ] Define whether all variants may eventually be published.
-- [ ] Define when review is mandatory.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Define whether all variants may eventually be published.
+- [x] Define when review is mandatory.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
+
+**Validated:** 2026-07-16 — US-015 policy defined (docs/spec); BL-006 remains open until US-016 and US-017.
 
 ### US-016 — Define the LinkedIn Variant Review Process: Story 2
 

@@ -1,0 +1,110 @@
+# LinkedIn variant review policy (Flow A)
+
+**Scope:** US-015 (BL-006 story 1) — operator-visible publication and supervision policy for Flow A LinkedIn variants.  
+**Status:** Policy defined (docs/spec); enforcement mechanics, supervision console, and US-016/US-017 remain deferred.  
+**Authority:** Complements [GLOSSARY.md](../GLOSSARY.md), [silverman-editorial-system.md](../../content-strategy/silverman-editorial-system.md) `#flow-a-vs-flow-b`, and [user-stories.md](../product/user-stories.md) US-015.
+
+## Purpose and scope
+
+This document is the operator source of truth for:
+
+1. Whether Flow A scheduled LinkedIn variants are **expected to publish** (strategy-driven default vs operator override).
+2. When human review is **mandatory** (Flow B) versus **optional supervision** (Flow A pre-send window).
+
+**In scope (US-015):** Policy language, glossary alignment, editorial-canon alignment, and product traceability.
+
+**Out of scope (deferred):**
+
+- **US-016** — quality and differentiation criteria; audience/objective association mechanics.
+- **US-017** — correction, rejection, defer, or cancel before queue; metadata recording for operator overrides.
+- **BL-007** — `auto_queue_pending` WIP, publish-pending n8n workflow, deploy publish-pending scripts (see [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md) as future consumer only — **do not merge or run that WIP from this policy**).
+- Worker HTTP routes, n8n LinkedIn publish workflow changes, and permanent LinkedIn enablement (`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`).
+
+## Strategy-driven publication default
+
+Flow A posture (operator-confirmed, non-conservative):
+
+- The **blog** is user-provided and pre-reviewed in `blog-posts/ready/` before Flow A runs.
+- **LinkedIn variants** are generated derivatives scheduled per `#linkedin-distribution-strategy` (audience lens, spacing, `scheduled_at_utc`).
+- **Default:** all variants scheduled by distribution strategy are **expected to publish** at their scheduled times when publication integration and enablement allow.
+- **Operator override only:** explicit **cancel**, **defer/delay**, or **edit** removes or changes that expectation (mechanics deferred to US-017).
+- **Absence of operator action does not mean “do not publish.”** Non-intervention allows publication per strategy when automation exists (BL-007, not implemented here).
+
+This is **not** selective-by-default publication where only a subset is expected to publish without operator override. BL-002 left sibling variants `pending` as a controlled smoke choice, not as the default product posture.
+
+## Optional supervision window (`pending` before API send)
+
+While a variant’s technical `publish_state` is `pending` and before real LinkedIn API queue/send:
+
+- The variant is in the **LinkedIn variant supervision window** (see [GLOSSARY.md](../GLOSSARY.md)).
+- The variant is visible on the editorial calendar and in campaign metadata with `scheduled_at_utc`.
+- The operator **MAY** supervise: **edit**, **delay**, or **cancel**.
+- Supervision is **optional** — not a mandatory approval gate.
+- If the operator does not intervene, publication **proceeds per distribution strategy** when BL-007 (or manual queue/publish) runs.
+
+Recording edits, delays, and cancellations in metadata or a future operator console is **deferred to US-017**. A future supervision console is the intended surface; it is not implemented in US-015.
+
+## Mandatory review: Flow A vs Flow B
+
+| Step | Flow A | Flow B |
+|------|--------|--------|
+| Blog source | User-provided, pre-reviewed `ready` content | System-generated; never pre-approved |
+| Blog publish / package / schedule | Automatic after validation — **no mandatory human review** | **Mandatory** human review before any publish |
+| Campaign lifecycle (`distribution_scheduled`, `flow_a_complete`) | Automatic after validation — not LinkedIn API published | N/A (deferred) |
+| LinkedIn API queue/publish | **Not mandatory** human review; optional supervision while `pending` | **Mandatory** human review before any publish (implementation **deferred**) |
+
+**Flow B guardrail:** Flow B content MUST NOT enter Flow A automatic publish paths. See `#flow-a-vs-flow-b` in [silverman-editorial-system.md](../../content-strategy/silverman-editorial-system.md).
+
+## `publish_state`, enablement, and supervision
+
+These concepts are **distinct**:
+
+| Concept | Meaning |
+|---------|---------|
+| **`publish_state` (`pending`, `queued`, …)** | Technical worker publication state machine. US-015 does not redefine enum values. |
+| **`pending` after Flow A schedule** | Scheduled variant in the **optional supervision window** — not yet API-queued, not LinkedIn API published. |
+| **`distribution_scheduled` / `flow_a_complete`** | Campaign lifecycle metadata after package/schedule/lifecycle — **≠** LinkedIn API published (US-011). |
+| **`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`** | Technical fail-closed guard for real API publish. Separate from Flow A strategy expectations and from Flow B mandatory review. |
+| **Supervision window** | Operator MAY intervene while `pending` before send; optional, not an approval gate. |
+| **Mandatory review (Flow B)** | Human approval required before any publish — not applicable to Flow A API send. |
+
+## Blocked and deferred states
+
+| State / condition | Meaning | Operator action |
+|-------------------|---------|-----------------|
+| `pending`, before `scheduled_at_utc` | Scheduled; supervision window open; not yet API-queued | Optional edit/delay/cancel (US-017) — **normal**, not a policy failure |
+| `pending`, operator cancelled/deferred | Override; not eligible for strategy-driven auto-queue | Wait for US-017 mechanics |
+| LinkedIn publication not enabled | Blocked for real API publish (fail-closed) | Enable only for controlled windows; not permanent off (US-011) |
+| `failed`, OAuth action-required, missing URN | Integration failure | Existing publication error semantics; BL-008 later |
+| US-016 / US-017 / supervision console | Deferred capabilities | Absence is **not** a worker defect for US-015 |
+| BL-007 not implemented | No scheduled auto-queue yet | Manual queue/publish or wait for BL-007 OpenSpec apply |
+
+## Future BL-007 eligibility (documentation only)
+
+When BL-007 scheduled LinkedIn publication is implemented under its own OpenSpec change:
+
+- Auto-queue **SHOULD** target Flow A variants that remain `pending`, are due per `scheduled_at_utc` / queue rules, and have **not** been operator-cancelled or deferred (per US-017 when defined).
+- Auto-queue **MUST NOT** require a mandatory Flow A human review flag from US-015.
+- This policy **does not** instruct operators to merge, deploy, or run the local `auto_queue_pending` WIP, publish-pending n8n workflow, or permanent LinkedIn enablement.
+
+Reference: [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md) (construction WIP — future consumer only).
+
+## Future supervision console
+
+A dedicated operator console for calendar-visible supervision (edit, delay, cancel while `pending`) is anticipated but **not** assigned or implemented in US-015. Until US-017, operators rely on campaign metadata, editorial calendar, and this policy for expectations.
+
+## Preserved behavior (no duplication)
+
+US-015 is policy-only. It does **not** change:
+
+- Flow A ready-path completion, package, or schedule behavior.
+- US-011 publication-guard semantics (`distribution_scheduled` ≠ LinkedIn API published; enablement fail-closed).
+- ADR-0001 (n8n → worker HTTP only).
+- Existing `POST /queue-linkedin-publication`, `POST /publish-linkedin-due-variants`, or `POST /cancel-linkedin-publication` contracts.
+
+## Related documents
+
+- [GLOSSARY.md](../GLOSSARY.md) — supervision window, `publish_state`, mandatory review
+- [user-stories.md](../product/user-stories.md) — US-015 acceptance criteria
+- [silverman-editorial-system.md](../../content-strategy/silverman-editorial-system.md) `#flow-a-vs-flow-b`
+- [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md) — future auto-queue consumer (WIP, out of scope)

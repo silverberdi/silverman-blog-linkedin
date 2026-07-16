@@ -145,12 +145,13 @@ Use this checklist to track business progress. Mark items only when the stated b
 - [ ] **BL-006 — Define the LinkedIn Variant Review Process**
   - Business outcome: Each LinkedIn variant has a clear review decision and publication purpose.
   - [ ] **US-015**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted
+    - Policy: [linkedin-variant-review-policy.md](../operations/linkedin-variant-review-policy.md)
   - [ ] **US-016**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed

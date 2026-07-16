@@ -174,3 +174,22 @@ def test_linkedin_package_contains_linkedin_style_rules(canon_sections: dict[str
     assert "LinkedIn style rules" in linkedin
     assert "compressed architectural arguments" in linkedin
     assert "independently readable" in linkedin
+
+
+FLOW_A_VS_FLOW_B_REQUIRED_PHRASES = frozenset(
+    {
+        "optional supervision",
+        "Not mandatory",
+        "#linkedin-distribution-strategy",
+        "Flow B content MUST NOT enter Flow A automatic publish paths",
+        "linkedin-variant-review-policy.md",
+    }
+)
+
+
+def test_flow_a_vs_flow_b_encodes_strategy_and_optional_supervision(
+    canon_sections: dict[str, str],
+):
+    flow = canon_sections["flow-a-vs-flow-b"]
+    missing = sorted(phrase for phrase in FLOW_A_VS_FLOW_B_REQUIRED_PHRASES if phrase not in flow)
+    assert not missing, f"Missing flow-a-vs-flow-b phrases: {missing}"

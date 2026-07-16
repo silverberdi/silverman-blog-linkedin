@@ -4,7 +4,7 @@ Operational editorial canon for the `silverman-blog-linkedin` content automation
 
 **Umbrella reference (archived):** `openspec/changes/archive/2026-07-07-flow-a-automatic-blog-linkedin-publishing-roadmap/` — historical evidence only, not active requirements. **Current status:** [docs/CURRENT-STATE.md](../docs/CURRENT-STATE.md). **Authority:** [docs/CONTEXT-AUTHORITY.md](../docs/CONTEXT-AUTHORITY.md).
 
-**Flow A vs Flow B approval:** Flow A automates publish/package/schedule with campaign lifecycle completion; human Git push and LinkedIn API publish remain operator-gated. Flow B is the human draft review path (`review` → `approved` → `published`). See [GLOSSARY.md](../docs/GLOSSARY.md).
+**Flow A vs Flow B approval:** Flow A automates publish/package/schedule after validation; LinkedIn variants follow distribution strategy with an optional pre-send supervision window (not mandatory per-variant approval). Flow B requires mandatory human review before any publish (deferred). See [GLOSSARY.md](../docs/GLOSSARY.md) and [linkedin-variant-review-policy.md](../docs/operations/linkedin-variant-review-policy.md).
 
 ---
 
@@ -615,11 +615,12 @@ Publication policy consistent with umbrella `flow-a-automatic-blog-linkedin-publ
 |-----------|--------|--------|
 | **Content source** | User-provided blog in `blog-posts/ready/` | System-generated ideas/drafts (future) |
 | **Pre-approval** | After automated validation passes | Never pre-approved |
-| **Human review** | **Not required** after validation | **Required** before any publish |
+| **Human review (core)** | **Not required** after validation for blog publish, package, or schedule | **Required** before any publish |
+| **Human review (LinkedIn API)** | **Not mandatory** — optional supervision while `pending` before API send (edit, delay, cancel; mechanics US-017) | **Mandatory** before any publish |
 | **Blog publish** | MAY proceed automatically | MUST NOT auto-publish |
 | **LinkedIn package** | MAY generate automatically | MUST NOT enter Flow A paths |
-| **LinkedIn publish** | MAY be automatic per distribution strategy when API integration exists | Manual approval only |
-| **Implementation status** | Active roadmap (umbrella + children) | **Deferred** — policy encoded now |
+| **LinkedIn publish** | Expected per `#linkedin-distribution-strategy` when integration and enablement allow; all scheduled variants unless operator overrides | Manual approval only — no automatic API publish |
+| **Implementation status** | Active roadmap (umbrella + children); policy: [linkedin-variant-review-policy.md](../docs/operations/linkedin-variant-review-policy.md) | **Deferred** — mandatory review policy encoded now |
 
 ### Flow A automatic path (operational)
 
@@ -627,8 +628,12 @@ Publication policy consistent with umbrella `flow-a-automatic-blog-linkedin-publ
 2. `POST /validate-ready-post` (future) passes structural + editorial checks.
 3. Blog publishes to GitHub Pages; `source_public_url` confirmed.
 4. Derivative package generated (≥3 variants).
-5. Variants scheduled per `#linkedin-distribution-strategy`.
-6. LinkedIn API publish (deferred child) when credentials exist.
+5. Variants scheduled per `#linkedin-distribution-strategy` (`publish_state` `pending` = optional supervision window).
+6. LinkedIn API queue/publish per strategy when integration, enablement, and automation (e.g. BL-007) allow — not blocked on mandatory per-variant human approval.
+
+### Flow A LinkedIn supervision (optional)
+
+While variants remain `pending` before API queue/send, the operator MAY edit, delay, or cancel. Non-intervention means publication proceeds per schedule. This is not a mandatory approval gate. Detail: [linkedin-variant-review-policy.md](../docs/operations/linkedin-variant-review-policy.md).
 
 ### Flow B guardrail
 

@@ -47,10 +47,14 @@ Worker handoff ≠ blog Git publication ≠ live-site confirmation. Git push alo
 | **LinkedIn API publication (implemented)** | Worker exposes queue/publish/cancel endpoints; guarded by `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` (fail-closed when not `true`) |
 | **LinkedIn API publication (operationally validated)** | Real posts published via LinkedIn API under a controlled smoke (BL-002); live flag is independent of Flow A schedule — see [RUNTIME-STATE.md](RUNTIME-STATE.md) |
 | **US-011 publication guard** | Acceptance that Flow A schedule cannot silently publish to LinkedIn; evidence may temporarily disable then restore prior enablement — MUST NOT mean LinkedIn must stay `false` forever |
-| **`pending`** | Variant authorized for future publish window |
+| **LinkedIn variant supervision window** | Flow A phase while `publish_state` is `pending` and before LinkedIn API queue/send: variant is scheduled (`scheduled_at_utc`) and the operator MAY optionally edit, delay, or cancel. Not mandatory human review; non-intervention allows publication per distribution strategy. Policy: [linkedin-variant-review-policy.md](operations/linkedin-variant-review-policy.md) |
+| **Mandatory review (Flow B)** | Human approval required before any publish for system-generated Flow B content. Distinct from Flow A optional supervision and from technical `publish_state`. Flow B implementation deferred; policy encoded in editorial canon and US-015 |
+| **`pending`** | Variant authorized for future publish window; after Flow A schedule, also the optional supervision window (not API-queued, not LinkedIn API published) |
 | **`queued`** | Variant queued with `publish_after_utc` |
 | **`publishing`** | In-flight API publish |
 | **`published`** | Confirmed API publication (or manual move to `linkedin-posts/published/`) |
+
+`distribution_scheduled` and `flow_a_complete` record campaign lifecycle after package/schedule — they MUST NOT be read as LinkedIn API published.
 
 ## n8n and orchestration
 
