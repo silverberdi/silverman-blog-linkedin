@@ -53,6 +53,10 @@ from silverman_blog_linkedin.linkedin_publication_flow import (
     publish_linkedin_due_variants,
     queue_linkedin_publication,
 )
+from silverman_blog_linkedin.linkedin_supervision_flow import (
+    correct_linkedin_variant,
+    defer_linkedin_variant,
+)
 from silverman_blog_linkedin.linkedin_package_flow import generate_linkedin_package
 from silverman_blog_linkedin.linkedin_prompt import build_chat_messages
 from silverman_blog_linkedin.paths import validate_folders
@@ -393,6 +397,8 @@ class CancelLinkedInPublicationRequest(BaseModel):
     campaign_id: str
     variant: str
     dry_run: bool = True
+    reason: str | None = None
+    idempotency_key: str | None = None
 
     @field_validator("campaign_id")
     @classmethod
@@ -408,6 +414,123 @@ class CancelLinkedInPublicationRequest(BaseModel):
         stripped = value.strip()
         if not stripped:
             raise ValueError("variant must not be empty")
+        return stripped
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @field_validator("idempotency_key")
+    @classmethod
+    def validate_idempotency_key(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("idempotency_key must not be empty or whitespace-only")
+        return stripped
+
+
+class CorrectLinkedInVariantRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str
+    variant: str
+    draft_content: str
+    dry_run: bool = True
+    reason: str | None = None
+    idempotency_key: str | None = None
+    auto_queue_eligible: bool | None = None
+
+    @field_validator("campaign_id")
+    @classmethod
+    def validate_campaign_id(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("campaign_id must not be empty")
+        return stripped
+
+    @field_validator("variant")
+    @classmethod
+    def validate_variant(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("variant must not be empty")
+        return stripped
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @field_validator("idempotency_key")
+    @classmethod
+    def validate_idempotency_key(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("idempotency_key must not be empty or whitespace-only")
+        return stripped
+
+
+class DeferLinkedInVariantRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str
+    variant: str
+    new_scheduled_at_utc: str
+    dry_run: bool = True
+    reason: str | None = None
+    idempotency_key: str | None = None
+
+    @field_validator("campaign_id")
+    @classmethod
+    def validate_campaign_id(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("campaign_id must not be empty")
+        return stripped
+
+    @field_validator("variant")
+    @classmethod
+    def validate_variant(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("variant must not be empty")
+        return stripped
+
+    @field_validator("new_scheduled_at_utc")
+    @classmethod
+    def validate_new_scheduled_at_utc(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("new_scheduled_at_utc must not be empty or whitespace-only")
+        return stripped
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @field_validator("idempotency_key")
+    @classmethod
+    def validate_idempotency_key(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("idempotency_key must not be empty or whitespace-only")
         return stripped
 
 
@@ -1549,9 +1672,59 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             campaign_id=body.campaign_id,
             variant=body.variant,
             dry_run=body.dry_run,
+            reason=body.reason,
+            idempotency_key=body.idempotency_key,
         )
         logger.info(
-            "cancel-linkedin-publication status=%s campaign_id=%s variant=%s dry_run=%s",
+            "cancel-linkedin-publication status=%s campaign_id=%s variant=%s dry_run=%s phase=%s",
+            result.status,
+            result.campaign_id,
+            result.variant,
+            result.dry_run,
+            result.phase,
+        )
+        return result.to_dict()
+
+    @app.post("/correct-linkedin-variant")
+    def correct_linkedin_variant_endpoint(
+        body: CorrectLinkedInVariantRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = correct_linkedin_variant(
+            settings.base_path,
+            campaign_id=body.campaign_id,
+            variant=body.variant,
+            draft_content=body.draft_content,
+            dry_run=body.dry_run,
+            reason=body.reason,
+            idempotency_key=body.idempotency_key,
+            auto_queue_eligible=body.auto_queue_eligible,
+        )
+        logger.info(
+            "correct-linkedin-variant status=%s campaign_id=%s variant=%s dry_run=%s",
+            result.status,
+            result.campaign_id,
+            result.variant,
+            result.dry_run,
+        )
+        return result.to_dict()
+
+    @app.post("/defer-linkedin-variant")
+    def defer_linkedin_variant_endpoint(
+        body: DeferLinkedInVariantRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = defer_linkedin_variant(
+            settings.base_path,
+            campaign_id=body.campaign_id,
+            variant=body.variant,
+            new_scheduled_at_utc=body.new_scheduled_at_utc,
+            dry_run=body.dry_run,
+            reason=body.reason,
+            idempotency_key=body.idempotency_key,
+        )
+        logger.info(
+            "defer-linkedin-variant status=%s campaign_id=%s variant=%s dry_run=%s",
             result.status,
             result.campaign_id,
             result.variant,

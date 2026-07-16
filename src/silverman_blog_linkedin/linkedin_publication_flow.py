@@ -60,6 +60,7 @@ LINKEDIN_PUBLISH_API_ERROR = "linkedin_publish_api_error"
 LINKEDIN_PUBLISH_CONTENT_INVALID = "linkedin_publish_content_invalid"
 LINKEDIN_PUBLISH_METADATA_WRITE_FAILED = "linkedin_publish_metadata_write_failed"
 LINKEDIN_PUBLISH_CANCEL_NOT_ALLOWED = "linkedin_publish_cancel_not_allowed"
+LINKEDIN_SUPERVISION_ACTION_NOT_ALLOWED = "linkedin_supervision_action_not_allowed"
 LINKEDIN_OAUTH_TOKEN_MISSING = "linkedin_oauth_token_missing"
 LINKEDIN_OAUTH_REFRESH_FAILED = "linkedin_oauth_refresh_failed"
 LINKEDIN_OAUTH_REAUTHORIZATION_REQUIRED = "linkedin_oauth_reauthorization_required"
@@ -136,6 +137,8 @@ class LinkedInCancelPublicationResult:
     state: str | None = None
     publish_state: str | None = None
     dry_run: bool = True
+    phase: str | None = None
+    operator_supervision: dict[str, Any] | None = None
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     metadata_written: bool = False
@@ -726,8 +729,16 @@ def cancel_linkedin_publication(
     campaign_id: str,
     variant: str,
     dry_run: bool = True,
+    reason: str | None = None,
+    idempotency_key: str | None = None,
 ) -> LinkedInCancelPublicationResult:
-    """Cancel a queued variant before real LinkedIn publication."""
+    """Cancel a pending or queued variant before real LinkedIn publication."""
+    from silverman_blog_linkedin.linkedin_supervision_flow import (
+        SUPERVISION_PHASE_POST_QUEUE,
+        SUPERVISION_PHASE_PRE_QUEUE,
+        apply_supervision_cancellation,
+    )
+
     campaign = read_campaign_metadata(base_path, campaign_id)
     eligibility_errors = _validate_campaign_eligibility(campaign)
     if eligibility_errors:
@@ -764,7 +775,11 @@ def cancel_linkedin_publication(
             errors=[LINKEDIN_PUBLISH_CANCEL_NOT_ALLOWED],
         )
 
-    if publish_state != PUBLISH_STATE_QUEUED:
+    if publish_state == PUBLISH_STATE_PENDING:
+        cancel_phase = SUPERVISION_PHASE_PRE_QUEUE
+    elif publish_state == PUBLISH_STATE_QUEUED:
+        cancel_phase = SUPERVISION_PHASE_POST_QUEUE
+    else:
         return LinkedInCancelPublicationResult(
             status="failed",
             campaign_id=campaign_id,
@@ -772,7 +787,7 @@ def cancel_linkedin_publication(
             state=campaign.get("state"),
             publish_state=publish_state,
             dry_run=dry_run,
-            errors=[LINKEDIN_PUBLISH_VARIANT_NOT_QUEUED],
+            errors=[LINKEDIN_SUPERVISION_ACTION_NOT_ALLOWED],
         )
 
     if dry_run:
@@ -783,6 +798,7 @@ def cancel_linkedin_publication(
             state=campaign.get("state"),
             publish_state=publish_state,
             dry_run=True,
+            phase=cancel_phase,
             metadata_written=False,
         )
 
@@ -790,12 +806,58 @@ def cancel_linkedin_publication(
     metadata_map = _get_variant_metadata_map(working)
     updated_entry = dict(metadata_map[variant])
     cancelled_at = utc_now_iso()
-    updated_entry["publish_state"] = PUBLISH_STATE_CANCELLED
-    updated_entry["linkedin_publication"] = {
-        "cancelled_at": cancelled_at,
-    }
+    existing_supervision = updated_entry.get("operator_supervision")
+    if isinstance(existing_supervision, dict):
+        existing_supervision = deepcopy(existing_supervision)
+    else:
+        existing_supervision = None
+
+    updated_entry, cancel_error = apply_supervision_cancellation(
+        updated_entry,
+        phase=cancel_phase,
+        cancelled_at=cancelled_at,
+        reason=reason,
+        idempotency_key=idempotency_key,
+        existing_supervision=existing_supervision,
+    )
+    if cancel_error and cancel_error != "replay":
+        return LinkedInCancelPublicationResult(
+            status="failed",
+            campaign_id=campaign_id,
+            variant=variant,
+            state=campaign.get("state"),
+            publish_state=publish_state,
+            dry_run=False,
+            errors=[cancel_error],
+        )
+
+    is_replay = cancel_error == "replay"
+    if not is_replay:
+        updated_entry["publish_state"] = PUBLISH_STATE_CANCELLED
+        if cancel_phase == SUPERVISION_PHASE_POST_QUEUE:
+            linkedin_publication = updated_entry.get("linkedin_publication")
+            if not isinstance(linkedin_publication, dict):
+                linkedin_publication = {}
+            else:
+                linkedin_publication = dict(linkedin_publication)
+            linkedin_publication["cancelled_at"] = cancelled_at
+            updated_entry["linkedin_publication"] = linkedin_publication
+
     metadata_map[variant] = updated_entry
     working["variants"] = list(metadata_map.values())
+
+    if is_replay:
+        return LinkedInCancelPublicationResult(
+            status="completed",
+            campaign_id=campaign_id,
+            variant=variant,
+            state=working.get("state"),
+            publish_state=updated_entry.get("publish_state"),
+            dry_run=False,
+            phase=cancel_phase,
+            operator_supervision=updated_entry.get("operator_supervision"),
+            metadata_written=False,
+        )
 
     write_result = write_campaign_metadata(base_path, campaign_id, working)
     if not write_result.written:
@@ -817,5 +879,7 @@ def cancel_linkedin_publication(
         state=working.get("state"),
         publish_state=PUBLISH_STATE_CANCELLED,
         dry_run=False,
+        phase=cancel_phase,
+        operator_supervision=updated_entry.get("operator_supervision"),
         metadata_written=True,
     )

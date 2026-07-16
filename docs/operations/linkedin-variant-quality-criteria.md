@@ -1,7 +1,7 @@
 # LinkedIn variant quality and differentiation criteria (Flow A)
 
 **Scope:** US-016 (BL-006 story 2) — operator-visible quality and differentiation criteria for Flow A LinkedIn variants during the optional supervision window.  
-**Status:** Criteria defined (docs/spec + campaign metadata `objective`); US-017 enforcement and automated queue-time checks remain deferred.  
+**Status:** Criteria defined (docs/spec + campaign metadata `objective`); US-017 supervision mechanics defined (see [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md)); automated queue-time checks remain deferred.
 **Authority:** Complements [linkedin-variant-review-policy.md](linkedin-variant-review-policy.md) (US-015), [GLOSSARY.md](../GLOSSARY.md), [user-stories.md](../product/user-stories.md) US-016, and [silverman-editorial-system.md](../../content-strategy/silverman-editorial-system.md) `#audience-map`, `#linkedin-derivative-package`, `#no-redundancy-rules`, `#anti-ai-writing-rules`, `#linkedin-distribution-strategy`, `#flow-a-vs-flow-b`.
 
 ## Purpose and scope
@@ -17,11 +17,12 @@ This document answers: **“Is this variant good enough and distinct enough to p
 
 **Out of scope (deferred):**
 
-- **US-017** — correction, rejection, defer, or cancel before queue; persisted operator overrides; supervision console UI.
 - **BL-007** — `auto_queue_pending` WIP, publish-pending n8n workflow, deploy publish-pending scripts (see [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md) as future consumer only — **do not merge or run that WIP from this criteria doc**).
-- Worker HTTP routes, n8n LinkedIn publish workflow changes, and permanent LinkedIn enablement (`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`).
+- Worker HTTP routes beyond criteria scope, n8n LinkedIn publish workflow changes, and permanent LinkedIn enablement (`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`).
 - Automated criteria enforcement at package generation, queue, or publish time.
 - Mandatory per-variant approval gates or new `publish_state` values for criteria failure.
+
+**Implemented elsewhere (US-017):** Persisted operator edit, defer, and cancel-from-pending — see [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md). Supervision console UI remains deferred (BL-015).
 
 ## Relationship to US-015 supervision window
 
@@ -31,7 +32,7 @@ This criteria document **guides optional supervision** — it does **not**:
 
 - Convert Flow A into mandatory per-variant approval.
 - Change US-015 strategy-driven defaults or `publish_state` enum values.
-- Block auto-queue or publish when criteria are not formally recorded (BL-007 / US-017 deferred).
+- Block auto-queue or publish when criteria are not formally recorded (BL-007 deferred; US-017 provides metadata for operator overrides, not automated criteria gates).
 
 Operators **MAY** use these criteria while supervising; absence of a recorded criteria pass does **not** mean “do not publish.” See [linkedin-variant-review-policy.md](linkedin-variant-review-policy.md).
 
@@ -70,7 +71,7 @@ Evaluate each variant against the canonical blog and editorial canon. Quality ch
 
 Generated LinkedIn derivatives follow `#anti-ai-writing-rules` **rewrite/blocking posture** for derivatives — **not** the Flow A user-blog warning posture.
 
-During supervision, if the variant sounds AI-generated (template openers, hollow transitions, buzzword stacking), the operator **SHOULD** edit or defer (US-017 mechanics to persist override). US-016 documents this as quality criteria for human judgment only.
+During supervision, if the variant sounds AI-generated (template openers, hollow transitions, buzzword stacking), the operator **SHOULD** edit or defer — persist via [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md) (US-017). US-016 documents this as quality criteria for human judgment only.
 
 ### CTA and URL rules
 
@@ -114,17 +115,17 @@ For each variant, answer:
 7. **Sibling differentiation** — Unique hook, objective angle, structure, and CTA phrasing vs other variants in this package?
 
 **Pass:** Variant meets criteria; proceed per US-015 strategy unless other override.  
-**Criteria failure:** See table below — operator **SHOULD** edit, defer, or cancel during supervision (US-017 to persist).
+**Criteria failure:** See table below — operator **SHOULD** edit, defer, or cancel during supervision (persist per [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md)).
 
 ## Criteria failure, technical blocks, and deferred states
 
 | Condition | Classification | Operator implication |
 |-----------|----------------|----------------------|
 | Variant passes criteria | Normal supervision | Proceed per US-015 strategy unless other override |
-| Variant fails quality/differentiation | **Criteria failure** (editorial guidance) | Operator **SHOULD** edit, defer, or cancel during supervision — **US-017 mechanics to persist override** |
+| Variant fails quality/differentiation | **Criteria failure** (editorial guidance) | Operator **SHOULD** edit, defer, or cancel — persist per [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md) |
 | `pending`, before `scheduled_at_utc` | Normal supervision window | Not a failure (US-015) |
 | Enablement off / `failed` / OAuth action-required | Technical block | Existing publication semantics; not criteria failure |
-| US-017 / supervision console absent | Deferred capability | Criteria still apply to human judgment; absence is **not** a worker defect |
+| Supervision console absent (BL-015) | Deferred UI capability | US-017 worker mechanics implemented; criteria still apply to human judgment |
 | BL-007 not implemented | Deferred capability | Manual queue/publish or wait for BL-007 OpenSpec apply |
 | Automated similarity check | Deferred | Operator judges differentiation manually per checklist |
 
@@ -138,7 +139,7 @@ US-016 is criteria + minimal metadata alignment. It does **not** change:
 - Flow A ready-path completion, package, or schedule behavior.
 - US-011 publication-guard semantics (`distribution_scheduled` ≠ LinkedIn API published; enablement fail-closed).
 - ADR-0001 (n8n → worker HTTP only).
-- Existing `POST /queue-linkedin-publication`, `POST /publish-linkedin-due-variants`, or `POST /cancel-linkedin-publication` contracts.
+- Existing `POST /queue-linkedin-publication`, `POST /publish-linkedin-due-variants`, `POST /cancel-linkedin-publication` (extended for pre-queue cancel), `POST /correct-linkedin-variant`, and `POST /defer-linkedin-variant` per US-017.
 
 ## Related documents
 
@@ -146,4 +147,5 @@ US-016 is criteria + minimal metadata alignment. It does **not** change:
 - [GLOSSARY.md](../GLOSSARY.md) — variant publication objective, criteria failure, supervision window
 - [user-stories.md](../product/user-stories.md) — US-016 acceptance criteria
 - [silverman-editorial-system.md](../../content-strategy/silverman-editorial-system.md) — `#audience-map`, `#linkedin-derivative-package`, `#no-redundancy-rules`, `#anti-ai-writing-rules`, `#linkedin-distribution-strategy`, `#flow-a-vs-flow-b`
+- [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md) — US-017 edit, defer, cancel mechanics
 - [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md) — future auto-queue consumer (WIP, out of scope)

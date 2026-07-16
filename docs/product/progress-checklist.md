@@ -142,9 +142,9 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 ## P2 — Complete LinkedIn Automation
 
-- [ ] **BL-006 — Define the LinkedIn Variant Review Process**
+- [x] **BL-006 — Define the LinkedIn Variant Review Process**
   - Business outcome: Each LinkedIn variant has a clear review decision and publication purpose.
-  - [ ] **US-015**
+  - [x] **US-015**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
@@ -152,7 +152,7 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Acceptance criteria validated
     - [x] Story accepted
     - Policy: [linkedin-variant-review-policy.md](../operations/linkedin-variant-review-policy.md)
-  - [ ] **US-016**
+  - [x] **US-016**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
@@ -160,16 +160,17 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Acceptance criteria validated
     - [x] Story accepted
     - Criteria: [linkedin-variant-quality-criteria.md](../operations/linkedin-variant-quality-criteria.md)
-  - [ ] **US-017**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+  - [x] **US-017**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted
+    - Mechanics: [linkedin-variant-supervision-mechanics.md](../operations/linkedin-variant-supervision-mechanics.md)
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated
+  - [x] Backlog item closed
 
 - [ ] **BL-007 — Implement Scheduled LinkedIn Publication Execution**
   - Business outcome: Due variants are published once, in order, with complete publication evidence.

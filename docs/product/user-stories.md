@@ -307,12 +307,16 @@ As a content operator, I want to establish quality and differentiation criteria,
 
 As a content operator, I want to support correction or rejection before queueing, so that each linkedin variant has a clear review decision and publication purpose.
 
+**Mechanics artifact:** [linkedin-variant-supervision-mechanics.md](../operations/linkedin-variant-supervision-mechanics.md)
+
 **Acceptance criteria**
 
-- [ ] Support correction or rejection before queueing.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Support correction or rejection before queueing.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
+
+**Validated:** 2026-07-16 — US-017 supervision mechanics implemented (worker routes + docs + tests); BL-006 closed when combined with US-015 and US-016.
 
 ## BL-007 — Implement Scheduled LinkedIn Publication Execution
 

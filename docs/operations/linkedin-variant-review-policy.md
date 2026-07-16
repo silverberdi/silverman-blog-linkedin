@@ -1,7 +1,7 @@
 # LinkedIn variant review policy (Flow A)
 
 **Scope:** US-015 (BL-006 story 1) — operator-visible publication and supervision policy for Flow A LinkedIn variants.
-**Status:** Policy defined (docs/spec); US-016 criteria defined (see [linkedin-variant-quality-criteria.md](linkedin-variant-quality-criteria.md)); US-017 enforcement and supervision console remain deferred.
+**Status:** Policy defined (docs/spec); US-016 criteria defined (see [linkedin-variant-quality-criteria.md](linkedin-variant-quality-criteria.md)); US-017 supervision mechanics defined (see [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md)); supervision console remains deferred.
 **Authority:** Complements [GLOSSARY.md](../GLOSSARY.md), [silverman-editorial-system.md](../../content-strategy/silverman-editorial-system.md) `#flow-a-vs-flow-b`, and [user-stories.md](../product/user-stories.md) US-015.
 
 ## Purpose and scope
@@ -15,9 +15,10 @@ This document is the operator source of truth for:
 
 **Out of scope (deferred):**
 
-- **US-017** — correction, rejection, defer, or cancel before queue; metadata recording for operator overrides.
 - **BL-007** — `auto_queue_pending` WIP, publish-pending n8n workflow, deploy publish-pending scripts (see [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md) as future consumer only — **do not merge or run that WIP from this policy**).
-- Worker HTTP routes, n8n LinkedIn publish workflow changes, and permanent LinkedIn enablement (`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`).
+- Worker HTTP routes beyond policy scope, n8n LinkedIn publish workflow changes, and permanent LinkedIn enablement (`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`).
+
+**Implemented elsewhere (US-017):** Correction, rejection/cancel-from-pending, defer, and `operator_supervision` metadata — see [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md). `POST /cancel-linkedin-publication` now accepts `pending` (pre-queue) in addition to `queued` (post-queue); post-queue cancel semantics unchanged.
 
 ## Strategy-driven publication default
 
@@ -26,7 +27,7 @@ Flow A posture (operator-confirmed, non-conservative):
 - The **blog** is user-provided and pre-reviewed in `blog-posts/ready/` before Flow A runs.
 - **LinkedIn variants** are generated derivatives scheduled per `#linkedin-distribution-strategy` (audience lens, spacing, `scheduled_at_utc`).
 - **Default:** all variants scheduled by distribution strategy are **expected to publish** at their scheduled times when publication integration and enablement allow.
-- **Operator override only:** explicit **cancel**, **defer/delay**, or **edit** removes or changes that expectation (mechanics deferred to US-017).
+- **Operator override only:** explicit **cancel**, **defer/delay**, or **edit** removes or changes that expectation — mechanics in [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md) (US-017).
 - **Absence of operator action does not mean “do not publish.”** Non-intervention allows publication per strategy when automation exists (BL-007, not implemented here).
 
 This is **not** selective-by-default publication where only a subset is expected to publish without operator override. BL-002 left sibling variants `pending` as a controlled smoke choice, not as the default product posture.
@@ -41,7 +42,7 @@ While a variant’s technical `publish_state` is `pending` and before real Linke
 - Supervision is **optional** — not a mandatory approval gate.
 - If the operator does not intervene, publication **proceeds per distribution strategy** when BL-007 (or manual queue/publish) runs.
 
-Recording edits, delays, and cancellations in metadata or a future operator console is **deferred to US-017**. A future supervision console is the intended surface; it is not implemented in US-015.
+Recording edits, delays, and cancellations in metadata is defined in [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md) (US-017). A future supervision console is the intended surface; it is not implemented in US-015.
 
 ## Mandatory review: Flow A vs Flow B
 
@@ -71,18 +72,18 @@ These concepts are **distinct**:
 
 | State / condition | Meaning | Operator action |
 |-------------------|---------|-----------------|
-| `pending`, before `scheduled_at_utc` | Scheduled; supervision window open; not yet API-queued | Optional edit/delay/cancel (US-017) — **normal**, not a policy failure |
-| `pending`, operator cancelled/deferred | Override; not eligible for strategy-driven auto-queue | Wait for US-017 mechanics |
+| `pending`, before `scheduled_at_utc` | Scheduled; supervision window open; not yet API-queued | Optional edit/delay/cancel per [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md) — **normal**, not a policy failure |
+| `pending`, operator cancelled/deferred | Override; not eligible for strategy-driven auto-queue | See US-017 mechanics; `auto_queue_eligible` metadata |
 | LinkedIn publication not enabled | Blocked for real API publish (fail-closed) | Enable only for controlled windows; not permanent off (US-011) |
 | `failed`, OAuth action-required, missing URN | Integration failure | Existing publication error semantics; BL-008 later |
-| US-017 / supervision console | Deferred capabilities | Absence is **not** a worker defect for US-015 |
+| Supervision console (BL-015) | Deferred UI capability | US-017 worker mechanics implemented; console not yet |
 | BL-007 not implemented | No scheduled auto-queue yet | Manual queue/publish or wait for BL-007 OpenSpec apply |
 
 ## Future BL-007 eligibility (documentation only)
 
 When BL-007 scheduled LinkedIn publication is implemented under its own OpenSpec change:
 
-- Auto-queue **SHOULD** target Flow A variants that remain `pending`, are due per `scheduled_at_utc` / queue rules, and have **not** been operator-cancelled or deferred (per US-017 when defined).
+- Auto-queue **SHOULD** target Flow A variants that remain `pending`, are due per `scheduled_at_utc` / queue rules, and have **not** been operator-cancelled or deferred (per [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md)).
 - Auto-queue **MUST NOT** require a mandatory Flow A human review flag from US-015.
 - This policy **does not** instruct operators to merge, deploy, or run the local `auto_queue_pending` WIP, publish-pending n8n workflow, or permanent LinkedIn enablement.
 
@@ -92,7 +93,7 @@ Reference: [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-p
 
 **Backlog:** [BL-015 — Implement Flow A LinkedIn Variant Supervision Console](../product/backlog.md) (US-038–US-040), placed before Flow B (P4). Priority P3; end of operations wave before Flow B starts.
 
-The console is the intended operator surface for calendar-visible supervision (edit, delay, cancel while `pending`). It is **not** implemented in US-015. Until BL-015 and US-017 land, operators rely on campaign metadata, editorial calendar, and this policy for expectations.
+The console is the intended operator surface for calendar-visible supervision (edit, delay, cancel while `pending`). It is **not** implemented in US-015. US-017 worker mechanics are defined in [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md); until BL-015 lands, operators use worker HTTP routes and campaign metadata.
 
 ## Preserved behavior (no duplication)
 
@@ -101,7 +102,7 @@ US-015 is policy-only. It does **not** change:
 - Flow A ready-path completion, package, or schedule behavior.
 - US-011 publication-guard semantics (`distribution_scheduled` ≠ LinkedIn API published; enablement fail-closed).
 - ADR-0001 (n8n → worker HTTP only).
-- Existing `POST /queue-linkedin-publication`, `POST /publish-linkedin-due-variants`, or `POST /cancel-linkedin-publication` contracts.
+- Existing `POST /queue-linkedin-publication`, `POST /publish-linkedin-due-variants`, `POST /cancel-linkedin-publication` (extended to accept `pending` for pre-queue cancel), `POST /correct-linkedin-variant`, and `POST /defer-linkedin-variant` contracts per US-017 mechanics doc.
 
 ## Related documents
 
@@ -109,5 +110,6 @@ US-015 is policy-only. It does **not** change:
 - [GLOSSARY.md](../GLOSSARY.md) — supervision window, `publish_state`, mandatory review
 - [user-stories.md](../product/user-stories.md) — US-015 acceptance criteria
 - [silverman-editorial-system.md](../../content-strategy/silverman-editorial-system.md) `#flow-a-vs-flow-b`
+- [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md) — US-017 edit, defer, cancel mechanics
 - [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md) — future auto-queue consumer (WIP, out of scope)
 - [backlog.md](../product/backlog.md) — BL-015 supervision console (US-038–US-040)

@@ -103,6 +103,8 @@ This backlog describes the outstanding business and operational capabilities req
 
 ### BL-006 — Define the LinkedIn Variant Review Process
 
+**Status:** Closed 2026-07-16 after US-015, US-016, and US-017 demonstrated (policy + criteria + supervision mechanics). Evidence: [linkedin-variant-review-policy.md](../operations/linkedin-variant-review-policy.md), [linkedin-variant-quality-criteria.md](../operations/linkedin-variant-quality-criteria.md), [linkedin-variant-supervision-mechanics.md](../operations/linkedin-variant-supervision-mechanics.md).
+
 **Business need:** Establish a clear business process for reviewing, approving, rejecting, or retaining generated LinkedIn variants.
 
 **Expected outcomes:**

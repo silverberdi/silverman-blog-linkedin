@@ -425,10 +425,32 @@ def test_cancel_queued_to_cancelled(scheduled_base: Path):
 
     assert result.status == "completed"
     assert result.publish_state == PUBLISH_STATE_CANCELLED
+    assert result.phase == "post_queue"
     campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
     assert campaign is not None
     entry = next(v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT)
     assert entry["publish_state"] == PUBLISH_STATE_CANCELLED
+    assert entry["operator_supervision"]["cancellation"]["phase"] == "post_queue"
+    assert entry["linkedin_publication"]["cancelled_at"]
+
+
+def test_cancel_pending_to_cancelled(scheduled_base: Path):
+    result = cancel_linkedin_publication(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+    )
+
+    assert result.status == "completed"
+    assert result.publish_state == PUBLISH_STATE_CANCELLED
+    assert result.phase == "pre_queue"
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    entry = next(v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_CANCELLED
+    assert entry["operator_supervision"]["cancellation"]["phase"] == "pre_queue"
+    assert entry["operator_supervision"]["auto_queue_eligible"] is False
 
 
 def test_cancel_published_rejected(scheduled_base: Path):
