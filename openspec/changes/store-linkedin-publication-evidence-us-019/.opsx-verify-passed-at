@@ -1,0 +1,31 @@
+2026-07-16T21:55:00Z
+
+Re-verification (user requested: valida la implementacion).
+
+Verification notes (store-linkedin-publication-evidence-us-019):
+- openspec validate --strict: pass
+- All planning artifacts done
+- Tasks: 22/23 applicable complete; 4.1 intentionally unchecked (N/A — no D1–D2 gap; path 4.2 taken)
+- Code: only planned D3 addition confirmed in linkedin_publication_flow.py
+  - LinkedInAutoQueueVariantResult.linkedin_post_urn / published_at
+  - scan skip copies from metadata when published
+  - publish_evidence correlation after publish phase
+- No code change beyond planned D3; linkedin_client.py untouched
+- Canonical openspec/specs/: unchanged
+- Spec↔test map:
+  - evidence completeness → test_us019_complete_evidence_after_real_publish_success
+  - failure context + null http_status → test_us019_failure_context_shape_api_and_transport_errors
+  - content_invalid → test_us019_content_rejection_uses_dedicated_stable_code
+  - success-without-URN → test_us019_success_without_post_identifier_treated_as_failure
+  - blocked-vs-failed → test_us019_blocked_conditions_* / test_us019_oauth_action_required_*
+  - response evidence → test_us019_response_carries_evidence_for_published_and_already_published
+  - auto-queue evidence + cross-campaign → test_us019_auto_queue_results_carry_evidence_including_cross_campaign_scan
+  - null when no evidence → test_us019_auto_queue_fields_null_when_no_publication_evidence
+  - idempotency → test_us019_idempotency_preserves_evidence_across_rerun_modes
+  - no automatic retry → test_us019_no_automatic_retry_after_failed_real_attempt
+- Targeted pytest: 56 passed; zero new warnings
+- Full pytest: 973 passed; 1 pre-existing Starlette/httpx warning
+- git diff --check: clean
+- Secrets audit: clean
+- Tracking: US-019 in progress / not complete; BL-007 open; US-020 incomplete
+- No deploy / commit / sync / archive performed

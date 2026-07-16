@@ -130,6 +130,8 @@ class LinkedInAutoQueueVariantResult:
     variant: str
     publish_state: str
     publish_after_utc: str | None = None
+    linkedin_post_urn: str | None = None
+    published_at: str | None = None
     status: str = "completed"
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -765,11 +767,26 @@ def _auto_queue_pending_variants(
             entry, publish_now=publish_now, now=now
         )
         if skip_reason is not None:
+            linkedin_post_urn: str | None = None
+            published_at: str | None = None
+            if publish_state == PUBLISH_STATE_PUBLISHED:
+                stored_urn = entry.get("linkedin_post_urn")
+                stored_published_at = entry.get("published_at")
+                linkedin_post_urn = (
+                    stored_urn if isinstance(stored_urn, str) else None
+                )
+                published_at = (
+                    stored_published_at
+                    if isinstance(stored_published_at, str)
+                    else None
+                )
             outcomes.append(
                 LinkedInAutoQueueVariantResult(
                     campaign_id=target_campaign_id,
                     variant=target_variant,
                     publish_state=publish_state,
+                    linkedin_post_urn=linkedin_post_urn,
+                    published_at=published_at,
                     skipped=True,
                     skip_reason=skip_reason,
                     warnings=[skip_reason],
@@ -969,6 +986,21 @@ def publish_linkedin_due_variants(
             for code in result.errors:
                 if code not in top_level_errors:
                     top_level_errors.append(code)
+
+    publish_evidence = {
+        (item.campaign_id, item.variant): item
+        for item in results
+        if item.publish_state == PUBLISH_STATE_PUBLISHED
+        and item.linkedin_post_urn
+    }
+    for auto_queue_result in auto_queue_results:
+        match = publish_evidence.get(
+            (auto_queue_result.campaign_id, auto_queue_result.variant)
+        )
+        if match is None:
+            continue
+        auto_queue_result.linkedin_post_urn = match.linkedin_post_urn
+        auto_queue_result.published_at = match.published_at
 
     for auto_queue_result in auto_queue_results:
         if auto_queue_result.status != "failed":

@@ -345,18 +345,22 @@ As a content operator, I want to identify due variants, so that due variants are
 
 ### US-019 — Implement Scheduled LinkedIn Publication Execution: Story 2
 
+**Status:** In progress (implementation demonstrated in tests/docs; **not complete** — closure deferred to a separate authorized validation step). BL-007 remains open. US-020 untouched/incomplete.
+
 **Description**
 
 As a content operator, I want to store the external publication identifier, so that due variants are published once, in order, with complete publication evidence.
 
 **Acceptance criteria**
 
-- [ ] Store the external publication identifier.
-- [ ] Record failures clearly.
-- [ ] Avoid retries that could create duplicates.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Store the external publication identifier. — Demonstrated: `test_us019_complete_evidence_after_real_publish_success`, `test_us019_response_carries_evidence_for_published_and_already_published`, `test_us019_auto_queue_results_carry_evidence_including_cross_campaign_scan`; operator contract in [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md#publication-evidence-and-failure-taxonomy-us-019).
+- [x] Record failures clearly. — Demonstrated: `test_us019_failure_context_shape_api_and_transport_errors`, `test_us019_content_rejection_uses_dedicated_stable_code`, `test_us019_success_without_post_identifier_treated_as_failure`.
+- [x] Avoid retries that could create duplicates. — Demonstrated: `test_us019_idempotency_preserves_evidence_across_rerun_modes`, `test_us019_no_automatic_retry_after_failed_real_attempt` (BL-008 retry policy still out of scope).
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: publish-phase `results[]` and `auto_queue_results[]` carry `linkedin_post_urn` / `published_at` (or `null`); docs section above.
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: `test_us019_blocked_conditions_leave_publish_state_unchanged`, `test_us019_oauth_action_required_leaves_publish_state_unchanged`, failure-context tests.
+- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: existing US-018 auto-queue tests still pass unmodified; additive fields only; no US-017/US-018 contract reshape.
+
+**Not done:** operational deploy / live validation; story acceptance/closure; BL-007 closure.
 
 ### US-020 — Implement Scheduled LinkedIn Publication Execution: Story 3
 

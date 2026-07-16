@@ -133,7 +133,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Due variants are published once, in order, with complete publication evidence.
 
-**Implementation status:** US-018 `auto_queue_pending` WIP was absorbed and rewritten under the approved OpenSpec change; implementation is not operationally validated. BL-007 remains open for US-019 and US-020 — see [bl-007-auto-queue-pending-handoff.md](bl-007-auto-queue-pending-handoff.md).
+**Implementation status:** US-018 operationally validated 2026-07-16. US-019 publication-evidence formalization is **implemented, not deployed**, and remains **in progress / not complete**. US-020 deferred. BL-007 remains open — see [bl-007-auto-queue-pending-handoff.md](bl-007-auto-queue-pending-handoff.md).
 
 ### BL-008 — Define LinkedIn Retry and Recovery Rules
 

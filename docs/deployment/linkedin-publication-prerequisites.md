@@ -2,7 +2,7 @@
 
 Flow A Core stops at `distribution_scheduled` with per-variant `publish_state: pending`. This document covers the **follow-up** LinkedIn publication slice: queue → safety delay → publish-due. Flow A n8n activation/schedule does **not** enable LinkedIn API publication; `distribution_scheduled` is not LinkedIn API published. US-011 publication-guard acceptance (see [us-011 validation template](../operations/us-011-linkedin-publication-guard-validation-TEMPLATE.md)) may temporarily disable then restore the prior operator-approved flag — it is not a permanent leave-false policy.
 
-**Implementation vs validation:** Worker endpoints (`/queue-linkedin-publication`, `/publish-linkedin-due-variants`, `/cancel-linkedin-publication`) are **implemented** and guarded by `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` (default `false`). First real API publication was **operationally validated** under BL-002 (controlled smoke); see [CURRENT-STATE.md](../CURRENT-STATE.md). US-018 combined due identification and auto-queue is implemented but not operationally validated; BL-007 remains open for US-019 and US-020.
+**Implementation vs validation:** Worker endpoints (`/queue-linkedin-publication`, `/publish-linkedin-due-variants`, `/cancel-linkedin-publication`) are **implemented** and guarded by `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` (default `false`). First real API publication was **operationally validated** under BL-002 (controlled smoke); see [CURRENT-STATE.md](../CURRENT-STATE.md). US-018 combined due identification and auto-queue is **operationally validated**. US-019 publication-evidence formalization (spec + tests + additive `auto_queue_results` evidence fields) is **implemented, not deployed**. BL-007 remains open; US-020 is deferred.
 
 **BL-007 handoff:** The former local `auto_queue_pending` construction WIP was absorbed and rewritten under the approved US-018 OpenSpec change; see [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md). The canonical two-step path remains available.
 
@@ -133,6 +133,31 @@ Safe preview:
 The script defaults to `dry_run: true`. Use `--respect-schedule` to set `publish_now: false`; optional `--campaign-id` and `--variant` filters narrow the run (`--variant` requires `--campaign-id`). `--real` requires `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=true` and a separately approved real publication window.
 
 The manual n8n export `n8n/workflows/silverman-blog-linkedin-publish-pending.json` performs health and publish-due calls over HTTP only. Its repository default is `dry_run: true` and `"active": false`. Importing it does not enable unattended automation; activation or scheduling requires separate approval.
+
+## Publication evidence and failure taxonomy (US-019)
+
+After a **real successful** LinkedIn publish, campaign variant metadata MUST contain complete evidence:
+
+| Field | Status | Notes |
+|-------|--------|-------|
+| `linkedin_post_urn` | **Mandatory** | Non-empty URN from LinkedIn `x-restli-id` |
+| `published_at` | **Mandatory** | UTC ISO8601 `Z` |
+| `linkedin_publication.provider` | **Mandatory** | e.g. `linkedin_rest_posts` |
+| `linkedin_publication.post_urn` | **Mandatory** | Equal to `linkedin_post_urn` |
+| `linkedin_publication.published_at` | **Mandatory** | Equal to top-level `published_at` |
+| `linkedin_publication.http_status` | **Mandatory** | Numeric on HTTP response (success is `201`); `null` only on transport failure |
+| `linkedin_post_id` | **Optional** | Never a substitute for the URN |
+
+After a **real failed** API attempt, `publish_state` becomes `failed` and `linkedin_publication` records at minimum: `last_error_code`, `last_failed_at`, `retryable` (descriptive evidence only — retry policy is BL-008), and `http_status` (nullable only when no HTTP response was received). Content rejection uses dedicated code `linkedin_publish_content_invalid` (distinct from generic `linkedin_publish_api_error`). A 201 without a usable post URN is treated as `linkedin_publish_api_error`, never as `published` with missing evidence.
+
+**Blocked conditions** fail the HTTP response with a stable code but **never** mark the variant `failed`: enablement off (`linkedin_publish_not_enabled`), OAuth reauthorization / token provider `action_required`, missing member URN, missing token, and dry-run. There is no automatic retry of a failed real attempt within the same request or via auto-queue; manual re-queue via `POST /queue-linkedin-publication` is the only retry path. Evidence behavior after manual re-queue of a `failed` variant is BL-008 (neither authorized nor prohibited here).
+
+**Where operators see preserved URN evidence on re-runs:**
+
+- Publish-phase `results[]` entries carry `linkedin_post_urn` and `published_at` for first publish and for already-published replay (`linkedin_publish_already_published`, zero LinkedIn API calls).
+- Under `auto_queue_pending: true`, matching `auto_queue_results[]` entries also carry those fields for published and already-published outcomes (including cross-campaign scan skips with `linkedin_publish_auto_queue_skipped_state`). Entries without publication evidence serialize both fields as `null`.
+
+Metadata and HTTP responses never include tokens, variant body text, or raw API response bodies.
 
 ## Safety delay and immediate mode
 

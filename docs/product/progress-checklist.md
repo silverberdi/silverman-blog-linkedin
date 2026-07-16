@@ -183,14 +183,14 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Acceptance criteria validated
     - [x] Story accepted
     - Evidence: [us-018 validation](../operations/us-018-scheduled-linkedin-publication-validation-2026-07-16.md)
-  - [ ] **US-019**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+  - [ ] **US-019** — **in progress / not complete** (BL-007 remains open)
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated (unit/integration evidence only — see user-stories US-019 mapping)
+    - [ ] Acceptance criteria validated (operational / authorized closure deferred)
     - [ ] Story accepted
-  - [ ] **US-020**
+  - [ ] **US-020** — incomplete / deferred
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed
     - [ ] Work started

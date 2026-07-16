@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -44,6 +45,8 @@ from silverman_blog_linkedin.linkedin_publication_flow import (
     LINKEDIN_PUBLISH_ARTIFACT_HASH_CHANGED,
     LINKEDIN_PUBLISH_ARTIFACT_MISSING,
     LINKEDIN_PUBLISH_CANCEL_NOT_ALLOWED,
+    LINKEDIN_PUBLISH_CONTENT_INVALID,
+    LINKEDIN_PUBLISH_API_ERROR,
     LINKEDIN_PUBLISH_INVALID_CAMPAIGN_STATE,
     LINKEDIN_PUBLISH_MEMBER_URN_MISSING,
     LINKEDIN_PUBLISH_NOT_ENABLED,
@@ -1308,3 +1311,529 @@ def test_publish_pending_workflow_is_inactive_safe_http_only():
         for item in config["parameters"]["assignments"]["assignments"]
     }
     assert values["dry_run"] is True
+
+
+def _assert_no_secrets_or_body_text(payload: object) -> None:
+    serialized = json.dumps(payload)
+    assert ACCESS_TOKEN not in serialized
+    assert "The real problem is not persistence" not in serialized
+    assert _artifact_content(TARGET_VARIANT) not in serialized
+
+
+# --- US-019 publication evidence / failure taxonomy / auto-queue evidence ---
+
+
+def test_us019_complete_evidence_after_real_publish_success(scheduled_base: Path):
+    _queue_variant(scheduled_base, publish_after_utc="2026-07-07T09:00:00Z")
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 201
+    mock_response.headers = {"x-restli-id": "urn:li:share:us019-success"}
+    mock_client.post.return_value = mock_response
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.status == "completed"
+    item = result.results[0]
+    assert item.publish_state == PUBLISH_STATE_PUBLISHED
+    assert item.linkedin_post_urn == "urn:li:share:us019-success"
+    assert item.published_at
+    assert item.published_at.endswith("Z")
+
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    entry = next(v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT)
+    assert entry["linkedin_post_urn"] == "urn:li:share:us019-success"
+    assert entry["published_at"] == item.published_at
+    publication = entry["linkedin_publication"]
+    assert publication["provider"] == "linkedin_rest_posts"
+    assert publication["post_urn"] == entry["linkedin_post_urn"]
+    assert publication["published_at"] == entry["published_at"]
+    assert publication["http_status"] == 201
+    assert isinstance(publication["http_status"], int)
+    _assert_no_secrets_or_body_text(result.to_dict())
+    _assert_no_secrets_or_body_text(entry)
+
+
+def test_us019_failure_context_shape_api_and_transport_errors(scheduled_base: Path):
+    _queue_variant(scheduled_base, publish_after_utc="2026-07-07T09:00:00Z")
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 403
+    mock_client.post.return_value = mock_response
+
+    api_failure = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+    assert api_failure.status == "failed"
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    failed_entry = next(
+        v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT
+    )
+    assert failed_entry["publish_state"] == PUBLISH_STATE_FAILED
+    failure_ctx = failed_entry["linkedin_publication"]
+    assert failure_ctx["last_error_code"] == "linkedin_publish_insufficient_permission"
+    assert failure_ctx["last_failed_at"].endswith("Z")
+    assert failure_ctx["retryable"] is False
+    assert failure_ctx["http_status"] == 403
+    assert isinstance(failure_ctx["http_status"], int)
+    _assert_no_secrets_or_body_text(api_failure.to_dict())
+    _assert_no_secrets_or_body_text(failed_entry)
+
+    _update_variant(
+        scheduled_base,
+        publish_state=PUBLISH_STATE_QUEUED,
+        linkedin_publication=None,
+    )
+    transport_client = MagicMock()
+    transport_client.post.side_effect = httpx.ConnectError("connection refused")
+
+    transport_failure = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=transport_client,
+        now=datetime(2026, 7, 7, 12, 5, 0, tzinfo=timezone.utc),
+    )
+    assert transport_failure.status == "failed"
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    transport_entry = next(
+        v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT
+    )
+    assert transport_entry["publish_state"] == PUBLISH_STATE_FAILED
+    transport_ctx = transport_entry["linkedin_publication"]
+    assert transport_ctx["last_error_code"] == LINKEDIN_PUBLISH_API_ERROR
+    assert transport_ctx["last_failed_at"].endswith("Z")
+    assert transport_ctx["retryable"] is True
+    assert "http_status" in transport_ctx
+    assert transport_ctx["http_status"] is None
+    _assert_no_secrets_or_body_text(transport_failure.to_dict())
+    _assert_no_secrets_or_body_text(transport_entry)
+
+
+def test_us019_content_rejection_uses_dedicated_stable_code(scheduled_base: Path):
+    _queue_variant(scheduled_base, publish_after_utc="2026-07-07T09:00:00Z")
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 422
+    mock_client.post.return_value = mock_response
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.status == "failed"
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    entry = next(v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_FAILED
+    assert entry["linkedin_publication"]["last_error_code"] == (
+        LINKEDIN_PUBLISH_CONTENT_INVALID
+    )
+    assert entry["linkedin_publication"]["last_error_code"] != LINKEDIN_PUBLISH_API_ERROR
+    assert entry["linkedin_publication"]["http_status"] == 422
+    assert isinstance(entry["linkedin_publication"]["http_status"], int)
+
+
+def test_us019_success_without_post_identifier_treated_as_failure(
+    scheduled_base: Path,
+):
+    _queue_variant(scheduled_base, publish_after_utc="2026-07-07T09:00:00Z")
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 201
+    mock_response.headers = {}
+    mock_client.post.return_value = mock_response
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.status == "failed"
+    assert LINKEDIN_PUBLISH_API_ERROR in result.errors
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    entry = next(v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_FAILED
+    assert entry.get("linkedin_post_urn") in (None, "")
+    assert entry["linkedin_publication"]["last_error_code"] == LINKEDIN_PUBLISH_API_ERROR
+    assert entry["linkedin_publication"]["http_status"] == 201
+
+
+@pytest.mark.parametrize(
+    "env_overrides,expected_error",
+    [
+        ({"SILVERMAN_LINKEDIN_PUBLICATION_ENABLED": "false"}, LINKEDIN_PUBLISH_NOT_ENABLED),
+        ({"SILVERMAN_LINKEDIN_MEMBER_URN": ""}, LINKEDIN_PUBLISH_MEMBER_URN_MISSING),
+        ({"SILVERMAN_LINKEDIN_ACCESS_TOKEN": ""}, LINKEDIN_PUBLISH_TOKEN_MISSING),
+    ],
+)
+def test_us019_blocked_conditions_leave_publish_state_unchanged(
+    scheduled_base: Path, env_overrides: dict[str, str], expected_error: str
+):
+    _queue_variant(scheduled_base, publish_after_utc="2026-07-07T09:00:00Z")
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        environ=_real_publish_env(**env_overrides),
+        now=datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+    assert result.status == "failed"
+    assert expected_error in result.errors
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    entry = next(v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+    assert entry["publish_state"] != PUBLISH_STATE_FAILED
+
+
+def test_us019_oauth_action_required_leaves_publish_state_unchanged(
+    scheduled_base: Path, tmp_path: Path
+):
+    _queue_variant(scheduled_base, publish_after_utc="2026-07-07T09:00:00Z")
+    token_store = tmp_path / "secrets" / "linkedin-oauth-tokens.json"
+    env = _real_publish_env(
+        SILVERMAN_LINKEDIN_TOKEN_STORE_PATH=str(token_store),
+        SILVERMAN_LINKEDIN_ACCESS_TOKEN="",
+        SILVERMAN_LINKEDIN_MEMBER_URN="",
+        SILVERMAN_LINKEDIN_CLIENT_ID="test-client",
+        SILVERMAN_LINKEDIN_CLIENT_SECRET="test-secret",
+        SILVERMAN_LINKEDIN_REDIRECT_URI="https://api.silverman.pro/linkedin/oauth/callback",
+    )
+    mock_client = MagicMock()
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        environ=env,
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+    assert result.status == "failed"
+    assert LINKEDIN_OAUTH_TOKEN_MISSING in result.errors
+    mock_client.post.assert_not_called()
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    entry = next(v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+
+
+def test_us019_response_carries_evidence_for_published_and_already_published(
+    scheduled_base: Path,
+):
+    _queue_variant(scheduled_base, publish_after_utc="2026-07-07T09:00:00Z")
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 201
+    mock_response.headers = {"x-restli-id": "urn:li:share:us019-response"}
+    mock_client.post.return_value = mock_response
+
+    first = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+    assert first.results[0].linkedin_post_urn == "urn:li:share:us019-response"
+    assert first.results[0].published_at
+
+    second = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 13, 0, 0, tzinfo=timezone.utc),
+    )
+    assert second.results[0].warnings == ["linkedin_publish_already_published"]
+    assert second.results[0].linkedin_post_urn == first.results[0].linkedin_post_urn
+    assert second.results[0].published_at == first.results[0].published_at
+    mock_client.post.assert_called_once()
+
+
+def test_us019_idempotency_preserves_evidence_across_rerun_modes(
+    scheduled_base: Path,
+):
+    _update_variant(scheduled_base, scheduled_at_utc="2026-07-07T11:00:00Z")
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 201
+    mock_response.headers = {"x-restli-id": "urn:li:share:us019-idempotent"}
+    mock_client.post.return_value = mock_response
+
+    first = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        publish_now=True,
+        auto_queue_pending=True,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+    assert first.status == "completed"
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    entry = next(v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT)
+    stored_urn = entry["linkedin_post_urn"]
+    stored_published_at = entry["published_at"]
+    assert stored_urn == "urn:li:share:us019-idempotent"
+    assert first.auto_queue_results[0].linkedin_post_urn == stored_urn
+    assert first.auto_queue_results[0].published_at == stored_published_at
+
+    direct = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 12, 30, 0, tzinfo=timezone.utc),
+    )
+    assert direct.results[0].linkedin_post_urn == stored_urn
+    assert direct.results[0].published_at == stored_published_at
+
+    with_publish_now = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        publish_now=True,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 12, 45, 0, tzinfo=timezone.utc),
+    )
+    assert with_publish_now.results[0].linkedin_post_urn == stored_urn
+    assert with_publish_now.results[0].published_at == stored_published_at
+
+    with_auto_queue = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        publish_now=True,
+        auto_queue_pending=True,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 13, 0, 0, tzinfo=timezone.utc),
+    )
+    assert with_auto_queue.auto_queue_results[0].skip_reason == (
+        LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_STATE
+    )
+    assert with_auto_queue.auto_queue_results[0].linkedin_post_urn == stored_urn
+    assert with_auto_queue.auto_queue_results[0].published_at == stored_published_at
+    assert with_auto_queue.results[0].linkedin_post_urn == stored_urn
+    assert with_auto_queue.results[0].published_at == stored_published_at
+
+    mock_client.post.assert_called_once()
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    final_entry = next(
+        v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT
+    )
+    assert final_entry["linkedin_post_urn"] == stored_urn
+    assert final_entry["published_at"] == stored_published_at
+
+
+def test_us019_auto_queue_results_carry_evidence_including_cross_campaign_scan(
+    scheduled_base: Path,
+):
+    _update_variant(scheduled_base, scheduled_at_utc="2026-07-07T11:00:00Z")
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 201
+    mock_response.headers = {"x-restli-id": "urn:li:share:us019-auto-queue"}
+    mock_client.post.return_value = mock_response
+
+    published = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        publish_now=True,
+        auto_queue_pending=True,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+    aq = published.auto_queue_results[0]
+    assert aq.linkedin_post_urn == "urn:li:share:us019-auto-queue"
+    assert aq.published_at
+    assert published.results[0].linkedin_post_urn == aq.linkedin_post_urn
+
+    already = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        publish_now=True,
+        auto_queue_pending=True,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 13, 0, 0, tzinfo=timezone.utc),
+    )
+    already_aq = already.auto_queue_results[0]
+    assert already_aq.skip_reason == LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_STATE
+    assert already_aq.linkedin_post_urn == aq.linkedin_post_urn
+    assert already_aq.published_at == aq.published_at
+
+    for variant_id in CANONICAL_VARIANT_IDS:
+        if variant_id == TARGET_VARIANT:
+            continue
+        _update_variant(
+            scheduled_base,
+            variant=variant_id,
+            scheduled_at_utc="2026-07-07T18:00:00Z",
+            publish_state=PUBLISH_STATE_PENDING,
+        )
+    other_variant = next(
+        variant_id
+        for variant_id in CANONICAL_VARIANT_IDS
+        if variant_id != TARGET_VARIANT
+    )
+
+    cross = publish_linkedin_due_variants(
+        scheduled_base,
+        dry_run=False,
+        publish_now=False,
+        auto_queue_pending=True,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 14, 0, 0, tzinfo=timezone.utc),
+    )
+    cross_entries = [
+        item
+        for item in cross.auto_queue_results
+        if item.campaign_id == CANONICAL_CAMPAIGN_ID
+        and item.variant == TARGET_VARIANT
+    ]
+    assert len(cross_entries) == 1
+    assert cross_entries[0].skip_reason == LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_STATE
+    assert cross_entries[0].linkedin_post_urn == aq.linkedin_post_urn
+    assert cross_entries[0].published_at == aq.published_at
+
+    no_evidence = next(
+        item
+        for item in cross.auto_queue_results
+        if item.variant == other_variant
+    )
+    assert no_evidence.skip_reason == LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_NOT_DUE
+    payload = no_evidence.to_dict()
+    assert payload["linkedin_post_urn"] is None
+    assert payload["published_at"] is None
+
+    mock_client.post.assert_called_once()
+
+
+def test_us019_no_automatic_retry_after_failed_real_attempt(scheduled_base: Path):
+    _update_variant(scheduled_base, scheduled_at_utc="2026-07-07T11:00:00Z")
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 500
+    mock_client.post.return_value = mock_response
+
+    first = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        publish_now=True,
+        auto_queue_pending=True,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+    assert first.status == "failed"
+    mock_client.post.assert_called_once()
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    entry = next(v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_FAILED
+
+    second = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        publish_now=True,
+        auto_queue_pending=True,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 13, 0, 0, tzinfo=timezone.utc),
+    )
+    assert second.auto_queue_results[0].skip_reason == (
+        LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_STATE
+    )
+    assert second.auto_queue_results[0].publish_state == PUBLISH_STATE_FAILED
+    assert second.auto_queue_results[0].linkedin_post_urn is None
+    assert second.auto_queue_results[0].published_at is None
+    mock_client.post.assert_called_once()
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    final_entry = next(
+        v for v in campaign["variants"] if v["variant"] == TARGET_VARIANT
+    )
+    assert final_entry["publish_state"] == PUBLISH_STATE_FAILED
+
+
+def test_us019_auto_queue_fields_null_when_no_publication_evidence(
+    scheduled_base: Path,
+):
+    _update_variant(
+        scheduled_base,
+        scheduled_at_utc="2026-07-07T13:00:00Z",
+    )
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=True,
+        auto_queue_pending=True,
+        now=datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+    assert result.auto_queue_results[0].skipped is True
+    payload = result.auto_queue_results[0].to_dict()
+    assert payload["linkedin_post_urn"] is None
+    assert payload["published_at"] is None
+    assert "linkedin_post_urn" in payload
+    assert "published_at" in payload
+    assert "publish_state" in payload
+    assert "skip_reason" in payload
