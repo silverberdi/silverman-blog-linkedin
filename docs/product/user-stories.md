@@ -199,7 +199,7 @@ As a content operator, I want to keep linkedin publication disabled until separa
 - [x] Failures or blocked states are clearly communicated.
 - [x] Existing completed work is not duplicated or unintentionally changed.
 
-**Validated:** 2026-07-15 — [us-011 LinkedIn publication-guard validation](../operations/us-011-linkedin-publication-guard-validation-2026-07-15.md). Baseline `true` → temporary `false` → fail-closed `linkedin_publish_not_enabled` → restore `true`. Flow A has no LinkedIn API nodes/paths. Not permanent LinkedIn-off; BL-005 remains open.
+**Validated:** 2026-07-15 — [us-011 LinkedIn publication-guard validation](../operations/us-011-linkedin-publication-guard-validation-2026-07-15.md). Baseline `true` → temporary `false` → fail-closed `linkedin_publish_not_enabled` → restore `true`. Flow A has no LinkedIn API nodes/paths. Not permanent LinkedIn-off. At US-011 close, BL-005 was still open (closed separately 2026-07-16).
 
 ## BL-005 — Run a Fully Unattended Flow A Test
 
@@ -215,12 +215,14 @@ As a content operator, I want to accept a new markdown post from the ready folde
 
 **Acceptance criteria**
 
-- [ ] Accept a new Markdown post from the ready folder.
-- [ ] Generate and validate the image.
-- [ ] Publish the blog post to the live site.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Accept a new Markdown post from the ready folder.
+- [x] Generate and validate the image.
+- [x] Publish the blog post to the live site.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
+
+**Validated:** 2026-07-15/16 — Manual Post A + Schedule Post B. Evidence: [bl-005 validation](../operations/bl-005-unattended-flow-a-validation-2026-07-15.md). Not LinkedIn API publish.
 
 ### US-013 — Run a Fully Unattended Flow A Test: Story 2
 
@@ -230,12 +232,14 @@ As a content operator, I want to generate linkedin variants, so that a new post 
 
 **Acceptance criteria**
 
-- [ ] Generate LinkedIn variants.
-- [ ] Schedule distribution.
-- [ ] Complete the source lifecycle.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Generate LinkedIn variants.
+- [x] Schedule distribution.
+- [x] Complete the source lifecycle.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
+
+**Validated:** 2026-07-15/16 — both campaigns `flow_a_complete` with package + staggered schedule + processed sources. Evidence: [bl-005 validation](../operations/bl-005-unattended-flow-a-validation-2026-07-15.md).
 
 ### US-014 — Run a Fully Unattended Flow A Test: Story 3
 
@@ -245,11 +249,13 @@ As a content operator, I want to complete campaign and calendar records, so that
 
 **Acceptance criteria**
 
-- [ ] Complete campaign and calendar records.
-- [ ] Require no technical intervention during execution.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Complete campaign and calendar records.
+- [x] Require no technical intervention during execution.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
+
+**Validated:** 2026-07-15/16 — campaign + calendar completed for both posts; Schedule fire unattended (no mid-run intervention); post-Pages-lag resume between executions only (same US-002 pattern as Post A). Evidence: [bl-005 validation](../operations/bl-005-unattended-flow-a-validation-2026-07-15.md). BL-006/BL-007 remain open.
 
 ## BL-006 — Define the LinkedIn Variant Review Process
 

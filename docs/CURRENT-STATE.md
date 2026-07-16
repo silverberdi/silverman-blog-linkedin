@@ -2,8 +2,8 @@
 
 Canonical project status for `silverman-blog-linkedin`. Authority rules: [CONTEXT-AUTHORITY.md](CONTEXT-AUTHORITY.md). Terminology: [GLOSSARY.md](GLOSSARY.md). Live flags: [RUNTIME-STATE.md](RUNTIME-STATE.md).
 
-**`last_verified_at_utc`:** `2026-07-15T05:34:43Z`
-**Last verified baseline revision:** `72be831` (verification timestamp above — **not** a permanent runtime requirement)
+**`last_verified_at_utc`:** `2026-07-16T14:26:47Z`
+**Last verified baseline revision:** `da21e99` (worker content serving BL-005 window — **not** a permanent runtime requirement)
 
 ## Purpose
 
@@ -78,12 +78,12 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 - Worker smoke and n8n import confirmed; n8n Flow A workflow is **activated on the Ubuntu server** under US-010 (repo export remains `active: false`; activation ≠ BL-005 unattended)
 - Canonical Flow A n8n identity (**US-009** / BL-004 identification slice): **validated 2026-07-15** — export `n8n/workflows/silverman-blog-linkedin-flow-a-publish.json`, stable id `silvermanFlowAPublish01`, name **Silverman Blog LinkedIn Flow A Publish**. Evidence: [us-009 validation](operations/us-009-canonical-flow-a-n8n-identity-validation-2026-07-15.md).
 - Flow A n8n activation (**US-010** / BL-004 activation slice): **validated 2026-07-15** — server `active: true`, Schedule Trigger `0 9 * * *` UTC, single-flight (static-data + shared-mount lockfile TTL 2h), idle restart + skip + TTL recovery with empty ready. Repo export `active: false`. Ready-folder HTTP path retained. Evidence: [us-010 validation](operations/us-010-flow-a-n8n-activation-validation-2026-07-15.md). *(Node count at US-010 was 31; later ready-path completion export is 35 — see implemented section.)*
-- Ready-path completion HTTP + n8n wiring (`flow-a-ready-path-completion-http`): **implemented** (unit/workflow tests) — `POST /complete-flow-a-ready-path` after schedule; Set Configuration opt-in `git_publication` / `live_site_confirmation` (export defaults `false`); calendar upsert when configured. **Not yet** deployed/re-imported/operationally validated; BL-005 Manual still FAIL pending deploy — see [bl-005-unattended-flow-a-validation-2026-07-15.md](operations/bl-005-unattended-flow-a-validation-2026-07-15.md).
-- LinkedIn publication guard (**US-011** / BL-004 story 3): **validated 2026-07-15** — Flow A schedule ≠ LinkedIn enablement; `distribution_scheduled` ≠ LinkedIn API published; fail-closed `linkedin_publish_not_enabled` with temporary flag `false` then restore of recorded baseline `true`. US-011 is not permanent LinkedIn-off. BL-004 closable; BL-005 remains open. Evidence: [us-011 validation](operations/us-011-linkedin-publication-guard-validation-2026-07-15.md).
+- Ready-path completion HTTP + n8n wiring (`flow-a-ready-path-completion-http`): **deployed and re-imported** on `192.168.0.194` — `POST /complete-flow-a-ready-path` after schedule; server Set Configuration `git_publication` / `live_site_confirmation` / `update_calendar` true (repo export defaults remain `false`); n8n **35** nodes active. Operationally validated under BL-005 — see [bl-005-unattended-flow-a-validation-2026-07-15.md](operations/bl-005-unattended-flow-a-validation-2026-07-15.md).
+- LinkedIn publication guard (**US-011** / BL-004 story 3): **validated 2026-07-15** — Flow A schedule ≠ LinkedIn enablement; `distribution_scheduled` ≠ LinkedIn API published; fail-closed `linkedin_publish_not_enabled` with temporary flag `false` then restore of recorded baseline `true`. US-011 is not permanent LinkedIn-off. Evidence: [us-011 validation](operations/us-011-linkedin-publication-guard-validation-2026-07-15.md).
+- Fully unattended Flow A (**BL-005** / US-012–US-014): **validated 2026-07-16** — Manual Post A + Schedule Post B on remediated 35-node ready-path; both campaigns `flow_a_complete` with git+live, package, schedule, lifecycle, calendar; no LinkedIn API publish (variants `pending`). Schedule fire hit Pages-lag 404 then post-lag resume (US-002 pattern). Evidence: [bl-005-unattended-flow-a-validation-2026-07-15.md](operations/bl-005-unattended-flow-a-validation-2026-07-15.md). BL-006/BL-007 remain open.
 
 ## Implemented but not operationally validated
 
-- Fully unattended Flow A (BL-005 — n8n may be active on schedule, but E2E unattended with real ready content is not proven)
 - OAuth LinkedIn token refresh in production (refresh token not present in current token store)
 
 ## Manual steps (by design)
@@ -112,7 +112,7 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 | Site published/live | Operationally validated via US-002 probe when `live_site_confirmation` opted in; manual Git still valid when automation disabled |
 | LinkedIn package/scheduling | Validated |
 | LinkedIn API publication | Operationally validated (US-003 controlled smoke; `executive-recruiter` on bounded-context campaign) |
-| Fully unattended Flow A | Not achieved (US-010 activated schedule; BL-005 open) |
+| Fully unattended Flow A | Operationally validated (BL-005 Manual + Schedule; not LinkedIn API publish) |
 
 Do not describe any single layer as "Flow A complete" without qualification. See [GLOSSARY.md](GLOSSARY.md).
 
