@@ -88,7 +88,7 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 ## Implemented but not operationally validated
 
 - OAuth LinkedIn token refresh in production (refresh token not present in current token store)
-- **BL-007 / US-018 scheduled LinkedIn publication execution:** opt-in `auto_queue_pending` on publish-due identifies due `pending` variants, applies US-017 supervision exclusions, queues through the existing safety-delay service, and preserves once-only publish behavior. Operator script and manual inactive HTTP-only n8n export are included. Implemented and tested locally; **not deployed or operationally validated**. BL-007 remains open; US-019 publication-evidence polish and US-020 cadence/sequence remain deferred.
+- **BL-007 / US-018 scheduled LinkedIn publication execution:** opt-in `auto_queue_pending` on publish-due identifies due `pending` variants, applies US-017 supervision exclusions, queues through the existing safety-delay service, and preserves once-only publish behavior. Operator script and manual inactive HTTP-only n8n export are included. **Operationally validated 2026-07-16** on `192.168.0.194` (`BUILD_REVISION=c7bce02`): dry-run smoke with zero campaign mutation, then controlled real window — one due variant queued+published once with URN evidence and idempotent repeat run. Evidence: [us-018 validation](operations/us-018-scheduled-linkedin-publication-validation-2026-07-16.md). BL-007 remains open; US-019 publication-evidence polish and US-020 cadence/sequence remain deferred. Not unattended: no cron/schedule wired; n8n publish-pending export stays `active: false`.
 
 ## Manual steps (by design)
 

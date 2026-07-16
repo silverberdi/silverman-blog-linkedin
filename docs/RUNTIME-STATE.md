@@ -6,13 +6,13 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 ## Snapshot
 
-**`verified_at_utc`:** `2026-07-16T14:26:47Z`
-**Evidence source:** BL-005 dual Manual+Schedule closure — Post A/B both `flow_a_complete`; Schedule fire `2026-07-16T09:01Z` + post-lag resume `14:26Z`; Ubuntu server `192.168.0.194`
+**`verified_at_utc`:** `2026-07-16T20:19:00Z`
+**Evidence source:** US-018 deploy — rsync + rebuild on Ubuntu `192.168.0.194`; container env `BUILD_REVISION`; OpenAPI `/publish-linkedin-due-variants` present
 
 | Fact | Value | Evidence |
 |------|-------|----------|
 | Worker URL | `http://192.168.0.194:8010` | Deploy + health check |
-| `BUILD_REVISION` | `1784157627` (timestamp fallback; target layout has no `.git`; content from clean HEAD `da21e99`) | Deploy 2026-07-15; still serving BL-005 window |
+| `BUILD_REVISION` | `c7bce027cc7dc2f9a685b117ecf90b31ad3db074` (HEAD after US-018 impl/sync/archive; includes impl `1b4a8fb`) | Container env after rebuild 2026-07-16; `.build_git_sha` on target |
 | Editorial mount | `/data/silverman-blog-linkedin` | `deploy-worker.sh` compose |
 | Public blog mount | `/public-blog` → host `/home/silverman/silverberdi.github.io` | Deploy verification |
 | n8n Flow A workflow | **Active** (`silvermanFlowAPublish01`, **35** nodes, Schedule `0 9 * * *` UTC, single-flight, includes `/complete-flow-a-ready-path`); repo export `active: false` | Post-resume export check |
@@ -44,5 +44,5 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 - Repo export stays `active: false`; server may be `active: true`.
 - Ready-path Set Configuration git/live defaults remain `false` in git; server prepared import patched to `true` for BL-005.
-- Do not mix BL-007 WIP into deploy trees; last deploy used `git archive` clean HEAD.
+- US-018 (`auto_queue_pending`) deployed at `c7bce02`; dry-run smoke + controlled real window validated 2026-07-16 (one variant published, URN recorded, repeat idempotent). Remaining `pending` variants untouched; publish-pending n8n export stays `active: false`.
 - Pages live-confirmation can 404 briefly after push; resume after HTTP 200 (documented in BL-005).

@@ -53,7 +53,7 @@
 
 ## 8. Operational validation (separate gated step — not implied by implementation commit)
 
-- [ ] 8.1 With explicit user approval: push, deploy to `192.168.0.194`, confirm `BUILD_REVISION` via `/health` matches the implementation commit
-- [ ] 8.2 Dry-run smoke on server via `run-publish-pending-linkedin-variants.sh` (no flags): verify identify/queue/publish plan, skip reasons, and zero mutation evidence
-- [ ] 8.3 With explicit user approval, controlled real window: verify once-only publish (URN evidence, repeat-run idempotency), supervision exclusions respected, then restore `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` per policy and record evidence in `docs/operations/`
-- [ ] 8.4 Business validation: demonstrate each US-018 acceptance criterion against evidence; update `docs/product/user-stories.md` US-018 checkboxes and `docs/product/progress-checklist.md` only for demonstrated criteria; keep BL-007 open (US-019/US-020 pending)
+- [x] 8.1 With explicit user approval: push, deploy to `192.168.0.194`, confirm `BUILD_REVISION` via `/health` matches the implementation commit
+- [x] 8.2 Dry-run smoke on server via `run-publish-pending-linkedin-variants.sh` (no flags): verify identify/queue/publish plan, skip reasons, and zero mutation evidence
+- [x] 8.3 With explicit user approval, controlled real window: verify once-only publish (URN evidence, repeat-run idempotency), supervision exclusions respected, then restore `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` per policy and record evidence in `docs/operations/`
+- [x] 8.4 Business validation: demonstrate each US-018 acceptance criterion against evidence; update `docs/product/user-stories.md` US-018 checkboxes and `docs/product/progress-checklist.md` only for demonstrated criteria; keep BL-007 open (US-019/US-020 pending)

@@ -334,12 +334,14 @@ As a content operator, I want to identify due variants, so that due variants are
 
 **Acceptance criteria**
 
-- [ ] Identify due variants.
-- [ ] Move only eligible variants to queued state.
-- [ ] Publish each variant once.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Identify due variants.
+- [x] Move only eligible variants to queued state.
+- [x] Publish each variant once.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
+
+**Validated:** 2026-07-16 — deploy `BUILD_REVISION=c7bce02` on `192.168.0.194`; dry-run smoke with zero campaign mutation; controlled real window published `engineering-leadership` of `flow-a-2026-07-06-why-i-did-not-start-with-the-database` once (URN `urn:li:share:7483618197204770818`), repeat run idempotent. Evidence: [us-018 validation](../operations/us-018-scheduled-linkedin-publication-validation-2026-07-16.md). BL-007 remains open (US-019/US-020 deferred).
 
 ### US-019 — Implement Scheduled LinkedIn Publication Execution: Story 2
 

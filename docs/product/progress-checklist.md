@@ -175,13 +175,14 @@ Use this checklist to track business progress. Mark items only when the stated b
 - [ ] **BL-007 — Implement Scheduled LinkedIn Publication Execution**
   - Business outcome: Due variants are published once, in order, with complete publication evidence.
   - Handoff: [bl-007-auto-queue-pending-handoff.md](bl-007-auto-queue-pending-handoff.md) (`auto_queue_pending` WIP deferred from 2026-07-11).
-  - [ ] **US-018**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
+  - [x] **US-018**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted
+    - Evidence: [us-018 validation](../operations/us-018-scheduled-linkedin-publication-validation-2026-07-16.md)
   - [ ] **US-019**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed
