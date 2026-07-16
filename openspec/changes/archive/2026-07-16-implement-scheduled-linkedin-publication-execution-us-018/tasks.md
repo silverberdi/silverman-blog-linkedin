@@ -49,7 +49,7 @@
 
 - [x] 7.1 Run targeted tests (`pytest tests/test_linkedin_publication.py`) then full `pytest`; zero new warnings; `git diff --check` clean; secrets audit on new/modified files
 - [x] 7.2 Run `/opsx-verify`; fix findings and re-run if any post-verify edits
-- [ ] 7.3 Implementation commit with explicit user approval (stage explicit paths only; exclude unrelated files); then `/opsx-sync` and `/opsx-archive` as separate approved commits
+- [x] 7.3 Implementation commit with explicit user approval (stage explicit paths only; exclude unrelated files); then `/opsx-sync` and `/opsx-archive` as separate approved commits
 
 ## 8. Operational validation (separate gated step — not implied by implementation commit)
 
