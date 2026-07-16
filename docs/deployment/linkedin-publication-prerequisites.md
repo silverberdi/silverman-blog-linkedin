@@ -2,9 +2,9 @@
 
 Flow A Core stops at `distribution_scheduled` with per-variant `publish_state: pending`. This document covers the **follow-up** LinkedIn publication slice: queue → safety delay → publish-due. Flow A n8n activation/schedule does **not** enable LinkedIn API publication; `distribution_scheduled` is not LinkedIn API published. US-011 publication-guard acceptance (see [us-011 validation template](../operations/us-011-linkedin-publication-guard-validation-TEMPLATE.md)) may temporarily disable then restore the prior operator-approved flag — it is not a permanent leave-false policy.
 
-**Implementation vs validation:** Worker endpoints (`/queue-linkedin-publication`, `/publish-linkedin-due-variants`, `/cancel-linkedin-publication`) are **implemented** and guarded by `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` (default `false`). First real API publication was **operationally validated** under BL-002 (controlled smoke); see [CURRENT-STATE.md](../CURRENT-STATE.md). Scheduled multi-variant execution remains **BL-007**.
+**Implementation vs validation:** Worker endpoints (`/queue-linkedin-publication`, `/publish-linkedin-due-variants`, `/cancel-linkedin-publication`) are **implemented** and guarded by `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` (default `false`). First real API publication was **operationally validated** under BL-002 (controlled smoke); see [CURRENT-STATE.md](../CURRENT-STATE.md). US-018 combined due identification and auto-queue is implemented but not operationally validated; BL-007 remains open for US-019 and US-020.
 
-**BL-007 handoff:** A local uncommitted opt-in `auto_queue_pending` path exists for construction convenience (queue+publish in one call). It is **deferred** — see [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md). Canonical contract on `main` remains separate queue then publish-due until BL-007 OpenSpec lands.
+**BL-007 handoff:** The former local `auto_queue_pending` construction WIP was absorbed and rewritten under the approved US-018 OpenSpec change; see [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md). The canonical two-step path remains available.
 
 Public site prerequisites for LinkedIn app configuration:
 
@@ -110,6 +110,29 @@ Scheduling is **worker-side only**. LinkedIn receives a post only when the worke
 4. **Publish due** — `POST /publish-linkedin-due-variants` with `dry_run: false` publishes `queued` variants where `publish_after_utc <= now`, or use `publish_now: true` to bypass the delay.
 
 All three endpoints default to `dry_run: true`. Dry-run publish-due does **not** refresh tokens or call LinkedIn OAuth endpoints.
+
+## Combined due identification and auto-queue (US-018)
+
+`POST /publish-linkedin-due-variants` accepts opt-in `auto_queue_pending: true`. The default remains `false`, so existing callers retain the two-step behavior above.
+
+The combined request scans only `metadata/campaigns/*.json` and only Flow A campaigns in `distribution_scheduled`. It considers `pending` variants due when `scheduled_at_utc <= now_utc`, queues eligible variants through the same queue service, then evaluates queued variants through publish-due.
+
+Two independent time gates apply:
+
+1. `scheduled_at_utc` controls when a `pending` variant may be auto-queued.
+2. Queueing computes `publish_after_utc` using `SILVERMAN_LINKEDIN_DEFAULT_SAFETY_DELAY_MINUTES`; publish-due respects that second gate.
+
+`publish_now: true` is an explicit operator override for the normal schedule and safety-delay gates. It does not override supervision: cancelled variants, variants blocked by `operator_supervision.auto_queue_eligible: false`, and deferred variants whose new schedule is still in the future remain excluded. A deferred `pending` variant becomes eligible at runtime when its new schedule is due; the worker does not persist a flip of `auto_queue_eligible` back to `true`. `failed` variants are never auto-requeued.
+
+Safe preview:
+
+```bash
+./deploy/server/run-publish-pending-linkedin-variants.sh
+```
+
+The script defaults to `dry_run: true`. Use `--respect-schedule` to set `publish_now: false`; optional `--campaign-id` and `--variant` filters narrow the run (`--variant` requires `--campaign-id`). `--real` requires `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=true` and a separately approved real publication window.
+
+The manual n8n export `n8n/workflows/silverman-blog-linkedin-publish-pending.json` performs health and publish-due calls over HTTP only. Its repository default is `dry_run: true` and `"active": false`. Importing it does not enable unattended automation; activation or scheduling requires separate approval.
 
 ## Safety delay and immediate mode
 

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from silverman_blog_linkedin.campaign_lifecycle import (
+    CampaignLifecycleError,
     FLOW_A,
     FLOW_B,
     METADATA_CAMPAIGNS_RELATIVE,
@@ -60,6 +61,15 @@ LINKEDIN_PUBLISH_API_ERROR = "linkedin_publish_api_error"
 LINKEDIN_PUBLISH_CONTENT_INVALID = "linkedin_publish_content_invalid"
 LINKEDIN_PUBLISH_METADATA_WRITE_FAILED = "linkedin_publish_metadata_write_failed"
 LINKEDIN_PUBLISH_CANCEL_NOT_ALLOWED = "linkedin_publish_cancel_not_allowed"
+LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_NOT_DUE = (
+    "linkedin_publish_auto_queue_skipped_not_due"
+)
+LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SUPERVISION = (
+    "linkedin_publish_auto_queue_skipped_supervision"
+)
+LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_STATE = (
+    "linkedin_publish_auto_queue_skipped_state"
+)
 LINKEDIN_SUPERVISION_ACTION_NOT_ALLOWED = "linkedin_supervision_action_not_allowed"
 LINKEDIN_OAUTH_TOKEN_MISSING = "linkedin_oauth_token_missing"
 LINKEDIN_OAUTH_REFRESH_FAILED = "linkedin_oauth_refresh_failed"
@@ -115,6 +125,23 @@ class LinkedInQueuePublicationResult:
 
 
 @dataclass
+class LinkedInAutoQueueVariantResult:
+    campaign_id: str
+    variant: str
+    publish_state: str
+    publish_after_utc: str | None = None
+    status: str = "completed"
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    skipped: bool = False
+    skip_reason: str | None = None
+    metadata_written: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class LinkedInPublishDueResult:
     status: str
     dry_run: bool = True
@@ -122,10 +149,25 @@ class LinkedInPublishDueResult:
     results: list[LinkedInPublicationVariantResult] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    auto_queue_pending: bool = False
+    auto_queue_results: list[LinkedInAutoQueueVariantResult] = field(
+        default_factory=list
+    )
 
     def to_dict(self) -> dict[str, Any]:
-        payload = asdict(self)
-        payload["results"] = [item.to_dict() for item in self.results]
+        payload = {
+            "status": self.status,
+            "dry_run": self.dry_run,
+            "publish_now": self.publish_now,
+            "results": [item.to_dict() for item in self.results],
+            "errors": list(self.errors),
+            "warnings": list(self.warnings),
+        }
+        if self.auto_queue_pending:
+            payload["auto_queue_pending"] = True
+            payload["auto_queue_results"] = [
+                item.to_dict() for item in self.auto_queue_results
+            ]
         return payload
 
 
@@ -631,6 +673,177 @@ def _collect_queued_targets(
     return targets
 
 
+def _collect_pending_targets(
+    base_path: Path,
+    *,
+    campaign_id: str | None,
+    variant: str | None,
+) -> list[tuple[str, str, dict[str, Any]]]:
+    campaign_ids = [campaign_id] if campaign_id else _list_campaign_ids(base_path)
+    targets: list[tuple[str, str, dict[str, Any]]] = []
+    for cid in campaign_ids:
+        campaign = read_campaign_metadata(base_path, cid)
+        if campaign is None:
+            continue
+        if campaign.get("flow") != FLOW_A:
+            continue
+        if campaign.get("state") != STATE_DISTRIBUTION_SCHEDULED:
+            continue
+        for entry in campaign.get("variants") or []:
+            if not isinstance(entry, dict):
+                continue
+            variant_id = entry.get("variant")
+            if not isinstance(variant_id, str) or not variant_id:
+                continue
+            if variant is not None and variant_id != variant:
+                continue
+            targets.append((cid, variant_id, entry))
+    return targets
+
+
+def _auto_queue_skip_reason(
+    entry: dict[str, Any],
+    *,
+    publish_now: bool,
+    now: datetime,
+) -> str | None:
+    publish_state = entry.get("publish_state")
+    if publish_state == PUBLISH_STATE_CANCELLED:
+        return LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SUPERVISION
+    if publish_state != PUBLISH_STATE_PENDING:
+        return LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_STATE
+
+    supervision = entry.get("operator_supervision")
+    if not isinstance(supervision, dict):
+        supervision = {}
+    last_action = supervision.get("last_action")
+    auto_queue_eligible = supervision.get("auto_queue_eligible")
+
+    scheduled_at = entry.get("scheduled_at_utc")
+    schedule_valid = False
+    try:
+        if isinstance(scheduled_at, str):
+            scheduled_due = _parse_utc(scheduled_at) <= now
+            schedule_valid = True
+        else:
+            scheduled_due = False
+    except (CampaignLifecycleError, TypeError, ValueError):
+        scheduled_due = False
+
+    if last_action == "defer":
+        if not scheduled_due:
+            return LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SUPERVISION
+        return None
+    if auto_queue_eligible is False:
+        return LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SUPERVISION
+    if not schedule_valid:
+        return LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_NOT_DUE
+    if not scheduled_due and not publish_now:
+        return LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_NOT_DUE
+    return None
+
+
+def _auto_queue_pending_variants(
+    base_path: Path,
+    *,
+    campaign_id: str | None,
+    variant: str | None,
+    dry_run: bool,
+    publish_now: bool,
+    environ: dict[str, str] | None,
+    now: datetime,
+) -> tuple[list[LinkedInAutoQueueVariantResult], list[tuple[str, str, str | None]]]:
+    outcomes: list[LinkedInAutoQueueVariantResult] = []
+    planned_targets: list[tuple[str, str, str | None]] = []
+    targets = _collect_pending_targets(
+        base_path, campaign_id=campaign_id, variant=variant
+    )
+
+    for target_campaign_id, target_variant, entry in targets:
+        publish_state = str(entry.get("publish_state") or "unknown")
+        skip_reason = _auto_queue_skip_reason(
+            entry, publish_now=publish_now, now=now
+        )
+        if skip_reason is not None:
+            outcomes.append(
+                LinkedInAutoQueueVariantResult(
+                    campaign_id=target_campaign_id,
+                    variant=target_variant,
+                    publish_state=publish_state,
+                    skipped=True,
+                    skip_reason=skip_reason,
+                    warnings=[skip_reason],
+                )
+            )
+            continue
+
+        queue_result = queue_linkedin_publication(
+            base_path,
+            campaign_id=target_campaign_id,
+            variant=target_variant,
+            dry_run=dry_run,
+            environ=environ,
+            now=now,
+        )
+        planned_state = (
+            PUBLISH_STATE_QUEUED
+            if queue_result.status == "completed"
+            else publish_state
+        )
+        outcomes.append(
+            LinkedInAutoQueueVariantResult(
+                campaign_id=target_campaign_id,
+                variant=target_variant,
+                publish_state=planned_state,
+                publish_after_utc=queue_result.publish_after_utc,
+                status=queue_result.status,
+                errors=list(queue_result.errors),
+                warnings=list(queue_result.warnings),
+                metadata_written=queue_result.metadata_written,
+            )
+        )
+        if queue_result.status == "completed":
+            planned_targets.append(
+                (
+                    target_campaign_id,
+                    target_variant,
+                    queue_result.publish_after_utc,
+                )
+            )
+
+    return outcomes, planned_targets
+
+
+def _planned_dry_run_publish_result(
+    *,
+    campaign_id: str,
+    variant: str,
+    publish_after_utc: str | None,
+    publish_now: bool,
+    now: datetime,
+) -> LinkedInPublicationVariantResult:
+    if not publish_now and publish_after_utc:
+        try:
+            if _parse_utc(publish_after_utc) > now:
+                return LinkedInPublicationVariantResult(
+                    campaign_id=campaign_id,
+                    variant=variant,
+                    publish_state=PUBLISH_STATE_QUEUED,
+                    publish_after_utc=publish_after_utc,
+                    skipped=True,
+                    skip_reason=LINKEDIN_PUBLISH_VARIANT_NOT_DUE,
+                )
+        except (TypeError, ValueError):
+            pass
+    return LinkedInPublicationVariantResult(
+        campaign_id=campaign_id,
+        variant=variant,
+        publish_state=PUBLISH_STATE_QUEUED,
+        publish_after_utc=publish_after_utc,
+        warnings=["linkedin_publish_dry_run"],
+    )
+
+
 def publish_linkedin_due_variants(
     base_path: Path,
     *,
@@ -638,6 +851,7 @@ def publish_linkedin_due_variants(
     variant: str | None = None,
     dry_run: bool = True,
     publish_now: bool = False,
+    auto_queue_pending: bool = False,
     environ: dict[str, str] | None = None,
     http_client: HttpClientProtocol | None = None,
     now: datetime | None = None,
@@ -649,11 +863,25 @@ def publish_linkedin_due_variants(
             status="failed",
             dry_run=dry_run,
             publish_now=publish_now,
+            auto_queue_pending=auto_queue_pending,
             errors=["linkedin_publish_config_invalid"],
         )
 
     settings = settings_load.settings
     current = now or datetime.now(timezone.utc)
+    auto_queue_results: list[LinkedInAutoQueueVariantResult] = []
+    planned_auto_queue_targets: list[tuple[str, str, str | None]] = []
+
+    if auto_queue_pending:
+        auto_queue_results, planned_auto_queue_targets = _auto_queue_pending_variants(
+            base_path,
+            campaign_id=campaign_id,
+            variant=variant,
+            dry_run=dry_run,
+            publish_now=publish_now,
+            environ=environ,
+            now=current,
+        )
 
     if campaign_id and not variant:
         campaign = read_campaign_metadata(base_path, campaign_id)
@@ -662,12 +890,25 @@ def publish_linkedin_due_variants(
                 status="failed",
                 dry_run=dry_run,
                 publish_now=publish_now,
+                auto_queue_pending=auto_queue_pending,
+                auto_queue_results=auto_queue_results,
                 errors=[LINKEDIN_PUBLISH_CAMPAIGN_NOT_FOUND],
             )
 
-    targets = _collect_queued_targets(
-        base_path, campaign_id=campaign_id, variant=variant
-    )
+    if auto_queue_pending and campaign_id and variant:
+        campaign = read_campaign_metadata(base_path, campaign_id)
+        entry = _find_variant_entry(campaign, variant) if campaign else None
+        targets = (
+            [(campaign_id, variant)]
+            if entry
+            and entry.get("publish_state")
+            in {PUBLISH_STATE_QUEUED, PUBLISH_STATE_PUBLISHED}
+            else []
+        )
+    else:
+        targets = _collect_queued_targets(
+            base_path, campaign_id=campaign_id, variant=variant
+        )
     if campaign_id and variant and not targets:
         campaign = read_campaign_metadata(base_path, campaign_id)
         if campaign is None:
@@ -675,20 +916,41 @@ def publish_linkedin_due_variants(
                 status="failed",
                 dry_run=dry_run,
                 publish_now=publish_now,
+                auto_queue_pending=auto_queue_pending,
+                auto_queue_results=auto_queue_results,
                 errors=[LINKEDIN_PUBLISH_CAMPAIGN_NOT_FOUND],
             )
 
-    if not targets:
+    if not targets and not (dry_run and planned_auto_queue_targets):
         return LinkedInPublishDueResult(
             status="completed",
             dry_run=dry_run,
             publish_now=publish_now,
             results=[],
             warnings=["linkedin_publish_no_queued_variants"],
+            auto_queue_pending=auto_queue_pending,
+            auto_queue_results=auto_queue_results,
         )
 
     results: list[LinkedInPublicationVariantResult] = []
     top_level_errors: list[str] = []
+
+    if dry_run:
+        queued_target_keys = set(targets)
+        for target_campaign_id, target_variant, publish_after_utc in (
+            planned_auto_queue_targets
+        ):
+            if (target_campaign_id, target_variant) in queued_target_keys:
+                continue
+            results.append(
+                _planned_dry_run_publish_result(
+                    campaign_id=target_campaign_id,
+                    variant=target_variant,
+                    publish_after_utc=publish_after_utc,
+                    publish_now=publish_now,
+                    now=current,
+                )
+            )
 
     for target_campaign_id, target_variant in targets:
         result = _publish_single_variant(
@@ -708,8 +970,17 @@ def publish_linkedin_due_variants(
                 if code not in top_level_errors:
                     top_level_errors.append(code)
 
+    for auto_queue_result in auto_queue_results:
+        if auto_queue_result.status != "failed":
+            continue
+        for code in auto_queue_result.errors:
+            if code not in top_level_errors:
+                top_level_errors.append(code)
+
     overall_status = "completed"
-    if any(item.status == "failed" for item in results):
+    if any(item.status == "failed" for item in results) or any(
+        item.status == "failed" for item in auto_queue_results
+    ):
         overall_status = "failed"
     elif not results:
         overall_status = "completed"
@@ -720,6 +991,8 @@ def publish_linkedin_due_variants(
         publish_now=publish_now,
         results=results,
         errors=top_level_errors,
+        auto_queue_pending=auto_queue_pending,
+        auto_queue_results=auto_queue_results,
     )
 
 

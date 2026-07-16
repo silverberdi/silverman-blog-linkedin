@@ -13,11 +13,11 @@ This document answers: **“How does the operator persist correction, rejection,
 - Worker HTTP routes for edit (`POST /correct-linkedin-variant`), defer (`POST /defer-linkedin-variant`), and extended cancel (`POST /cancel-linkedin-publication` accepts `pending` and `queued`).
 - `operator_supervision` metadata contract on campaign `variants[]`.
 - Blocked/invalid action table and stable error codes.
-- BL-007 auto-queue eligibility exclusions (documentation only — no BL-007 implementation).
+- BL-007 auto-queue eligibility exclusions consumed by the implemented US-018 worker path.
 
 **Out of scope (explicit non-goals):**
 
-- **BL-007** — `auto_queue_pending` WIP, publish-pending n8n workflow, deploy publish-pending scripts (see [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md) as future consumer only).
+- BL-007 US-019 publication-evidence polish and US-020 cadence/sequence. US-018 `auto_queue_pending` is implemented separately and consumes this supervision contract.
 - **BL-015** — supervision console UI (US-038–US-040).
 - Flow B mandatory review implementation.
 - New `publish_state` values (`deferred`, `rejected`) — supervision uses parallel `operator_supervision` metadata.
@@ -150,24 +150,24 @@ Absent `operator_supervision` ⇒ strategy-driven default for `pending` variants
 
 Supervision endpoints do **not** require `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=true` (pre-API actions).
 
-## BL-007 auto-queue eligibility (documentation only)
+## BL-007 auto-queue eligibility (implemented by US-018)
 
-Future BL-007 auto-queue **SHOULD** treat a variant as **not eligible** when any of:
+US-018 auto-queue treats a variant as **not eligible** when any of:
 
-- `publish_state` is not `pending` (except controlled re-queue from `failed` per existing rules).
+- `publish_state` is not `pending` (`failed` is never automatically re-queued; the manual queue endpoint remains available).
 - `publish_state` is `cancelled`.
-- `operator_supervision.auto_queue_eligible` is `false`.
+- `operator_supervision.auto_queue_eligible` is `false`, except for the due-time defer rule below.
 - `scheduled_at_utc` is after current UTC (`now`).
 
 A variant is **eligible** when `publish_state` is `pending`, not cancelled, `auto_queue_eligible` is not `false`, and `scheduled_at_utc <= now_utc`.
 
-**After defer:** `auto_queue_eligible` is set `false` until the new schedule is due. BL-007 evaluates eligibility at runtime: when `scheduled_at_utc <= now` and `auto_queue_eligible !== false`, the variant MAY be auto-queued without requiring a persisted flip back to `true`. Operators who defer to a future time should expect no auto-queue until that due window.
+**After defer:** `auto_queue_eligible` remains persisted as `false`. US-018 evaluates `last_action == "defer"` at runtime: once the deferred `scheduled_at_utc <= now`, the variant may be auto-queued without a persisted flip back to `true`. `publish_now` never bypasses a future deferred time. Operators who want a permanent stop must cancel.
 
 **After edit:** `auto_queue_eligible` is set `true` — correction does not block strategy-driven queueing when due.
 
 **After cancel:** `auto_queue_eligible` is `false` permanently for that variant.
 
-This policy does **not** instruct operators to merge, deploy, or run local `auto_queue_pending` WIP.
+Implementation does not imply deploy, workflow activation, or operational validation.
 
 Reference: [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md).
 
@@ -188,5 +188,5 @@ US-017 does **not** change:
 - [GLOSSARY.md](../GLOSSARY.md) — operator supervision override, `auto_queue_eligible`, supervision window
 - [user-stories.md](../product/user-stories.md) — US-017 acceptance criteria
 - [silverman-editorial-system.md](../../content-strategy/silverman-editorial-system.md) — `#flow-a-vs-flow-b`, `#linkedin-distribution-strategy`
-- [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md) — future auto-queue consumer (WIP, out of scope)
+- [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md) — construction WIP absorption record
 - [backlog.md](../product/backlog.md) — BL-015 supervision console (US-038–US-040)

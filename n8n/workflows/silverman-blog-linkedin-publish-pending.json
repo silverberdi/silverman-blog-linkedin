@@ -1,0 +1,232 @@
+{
+  "name": "Silverman Blog LinkedIn Publish Pending",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a1000001-0000-4000-8000-000000000001",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b1000001-0000-4000-8000-000000000001",
+              "name": "worker_base_url",
+              "value": "http://192.168.0.194:8010",
+              "type": "string"
+            },
+            {
+              "id": "b1000001-0000-4000-8000-000000000002",
+              "name": "worker_api_key",
+              "value": "CHANGE_ME_WORKER_API_KEY",
+              "type": "string"
+            },
+            {
+              "id": "b1000001-0000-4000-8000-000000000003",
+              "name": "campaign_id",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "b1000001-0000-4000-8000-000000000004",
+              "name": "variant",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "b1000001-0000-4000-8000-000000000005",
+              "name": "dry_run",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "b1000001-0000-4000-8000-000000000006",
+              "name": "publish_now",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "b1000001-0000-4000-8000-000000000007",
+              "name": "respect_schedule",
+              "value": false,
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000002-0000-4000-8000-000000000002",
+      "name": "Set Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ],
+      "notes": "Edit worker_base_url, worker_api_key, optional campaign_id/variant filters, dry_run, publish_now, and respect_schedule before running."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Set Configuration').first().json.worker_base_url }}/health",
+        "options": {}
+      },
+      "id": "a1000003-0000-4000-8000-000000000003",
+      "name": "Health Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1000001-0000-4000-8000-000000000001",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "healthy"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000004-0000-4000-8000-000000000004",
+      "name": "IF Health OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set Configuration').first().json.worker_base_url }}/publish-linkedin-due-variants",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Set Configuration').first().json.worker_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const config = $('Set Configuration').first().json; const body = { dry_run: config.dry_run !== false, publish_now: config.respect_schedule ? false : config.publish_now !== false, auto_queue_pending: true }; const campaignId = (config.campaign_id || '').trim(); const variant = (config.variant || '').trim(); if (campaignId) body.campaign_id = campaignId; if (variant) body.variant = variant; return JSON.stringify(body); })() }}",
+        "options": {}
+      },
+      "id": "a1000005-0000-4000-8000-000000000005",
+      "name": "Publish Pending LinkedIn Variants",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        220
+      ],
+      "notes": "Queues pending variants and publishes eligible queued variants. Requires SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=true for real publish."
+    },
+    {
+      "parameters": {},
+      "id": "a1000006-0000-4000-8000-000000000006",
+      "name": "Stop Health Not Ready",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        900,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Configuration": {
+      "main": [
+        [
+          {
+            "node": "Health Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Health Check": {
+      "main": [
+        [
+          {
+            "node": "IF Health OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Health OK": {
+      "main": [
+        [
+          {
+            "node": "Publish Pending LinkedIn Variants",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop Health Not Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "publish-pending-linkedin-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

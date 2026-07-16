@@ -1,22 +1,31 @@
-# BL-007 handoff — `auto_queue_pending` WIP (2026-07-11)
+# BL-007 handoff — `auto_queue_pending` WIP absorption record
 
-**Status:** Deferred construction WIP — **not** on `main`, **not** an approved OpenSpec change, **not** part of BL-003.  
-**Target backlog:** [BL-007 — Implement Scheduled LinkedIn Publication Execution](backlog.md#bl-007--implement-scheduled-linkedin-publication-execution) (US-018 / US-019 / US-020).  
+**Status:** Construction WIP from 2026-07-11 absorbed and rewritten under approved change `implement-scheduled-linkedin-publication-execution-us-018`. US-018 implementation does not close BL-007 and does not accept US-019 or US-020.
+**Target backlog:** [BL-007 — Implement Scheduled LinkedIn Publication Execution](backlog.md#bl-007--implement-scheduled-linkedin-publication-execution) (US-018 implemented but not operationally validated; US-019 / US-020 deferred).
 **Origin:** Operator request during BL-003 planning (*“haz que los post pendientes se puedan enviar”*) after BL-002 published only `executive-recruiter` and left sibling variants `pending`. Explicitly excluded from BL-003 OpenSpec scope.
+
+## Absorption outcome (2026-07-16)
+
+- Worker and HTTP code were recreated from `main` against the approved proposal, design D3, and delta spec; no unapproved worker WIP was merged.
+- The three untracked artifacts were reviewed and finalized: dry-run-first server runner, HTTP-only Mac helper, and manual inactive n8n export.
+- The approved rule excludes automatic re-queue from `failed`; that earlier WIP idea is superseded. Deferred variants are reevaluated at runtime only when their new schedule is due.
+- Implementation, tests, and docs belong to US-018 only. Commit, sync, archive, push, deploy, workflow activation, operational validation, and US-018 business acceptance remain separate gates.
+
+The remainder of this document preserves the construction history that was used as input to the approved change.
 
 ## Intent
 
 Provide a single worker call that, when opted in:
 
-1. Finds Flow A variants still in `pending` (and re-queue-eligible `failed` where queue rules already allow).
+1. Finds Flow A variants still in `pending`; `failed` variants require the existing manual queue path and are never automatically re-queued.
 2. Enqueues them (`pending` → `queued`) via the existing queue path.
 3. Publishes eligible `queued` variants via the existing publish-due path.
 
-Canonical v1 contract today (on `main` / specs) is still **two steps**: `POST /queue-linkedin-publication` then `POST /publish-linkedin-due-variants`. This WIP adds an **opt-in combine** (`auto_queue_pending=true`) for construction and scheduled-execution convenience — it must be formalized under BL-007 before merge.
+The canonical two-step contract remains available: `POST /queue-linkedin-publication` then `POST /publish-linkedin-due-variants`. US-018 adds an opt-in combined path (`auto_queue_pending=true`), default off.
 
-## Local uncommitted artifacts (handoff inventory)
+## Historical local artifact inventory
 
-Do **not** mix these into unrelated commits (BL-004, calendar, etc.). Treat as one future OpenSpec apply.
+These artifacts were kept out of unrelated commits and then absorbed as one approved US-018 OpenSpec apply.
 
 | Path | Role |
 |------|------|
@@ -27,9 +36,9 @@ Do **not** mix these into unrelated commits (BL-004, calendar, etc.). Treat as o
 | `deploy/server/finish-pending-linkedin-publication.sh` | Mac → server scp + run helper |
 | `n8n/workflows/silverman-blog-linkedin-publish-pending.json` | Manual inactive workflow calling publish-due with `auto_queue_pending: true` |
 
-**Git note (2026-07-15):** These files may appear modified/untracked in the working tree. They are **not** committed on `main` as of `ffa3101`. A server image may have been rebuilt with this WIP during construction smoke — do not treat server presence as product completion.
+**Historical Git note (2026-07-15):** The three tooling/workflow files were untracked and worker/test WIP was absent from `main`. A server image may have contained earlier construction code; server presence was not product completion and is not evidence for this implementation.
 
-## Proposed HTTP contract (from WIP)
+## Approved HTTP contract
 
 ```json
 {
@@ -43,7 +52,7 @@ Do **not** mix these into unrelated commits (BL-004, calendar, etc.). Treat as o
 
 - Default fail-closed: `auto_queue_pending=false` preserves current two-step behavior.
 - Real LinkedIn API still requires `dry_run=false` and `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=true`.
-- `--respect-schedule` / `publish_now=false` should honor `scheduled_at_utc` (cadence — US-020).
+- `--respect-schedule` / `publish_now=false` honors per-variant `scheduled_at_utc` for US-018 due identification. Normative cross-audience cadence and sequence remain US-020.
 
 ## Mapping to BL-007 acceptance criteria
 

@@ -133,7 +133,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Due variants are published once, in order, with complete publication evidence.
 
-**Construction handoff (not started as OpenSpec):** Uncommitted `auto_queue_pending` WIP from 2026-07-11 must be formalized here — see [bl-007-auto-queue-pending-handoff.md](bl-007-auto-queue-pending-handoff.md). Do not merge that WIP without an approved BL-007 change.
+**Implementation status:** US-018 `auto_queue_pending` WIP was absorbed and rewritten under the approved OpenSpec change; implementation is not operationally validated. BL-007 remains open for US-019 and US-020 — see [bl-007-auto-queue-pending-handoff.md](bl-007-auto-queue-pending-handoff.md).
 
 ### BL-008 — Define LinkedIn Retry and Recovery Rules
 

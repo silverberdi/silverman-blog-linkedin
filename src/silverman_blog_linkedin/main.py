@@ -369,6 +369,7 @@ class PublishLinkedInDueVariantsRequest(BaseModel):
     variant: str | None = None
     dry_run: bool = True
     publish_now: bool = False
+    auto_queue_pending: bool = False
 
     @field_validator("campaign_id")
     @classmethod
@@ -389,6 +390,14 @@ class PublishLinkedInDueVariantsRequest(BaseModel):
         if not stripped:
             raise ValueError("variant must not be empty")
         return stripped
+
+    @model_validator(mode="after")
+    def validate_variant_requires_campaign(
+        self,
+    ) -> PublishLinkedInDueVariantsRequest:
+        if self.variant is not None and self.campaign_id is None:
+            raise ValueError("variant requires campaign_id")
+        return self
 
 
 class CancelLinkedInPublicationRequest(BaseModel):
@@ -1651,13 +1660,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             variant=body.variant,
             dry_run=body.dry_run,
             publish_now=body.publish_now,
+            auto_queue_pending=body.auto_queue_pending,
             environ=os.environ,
         )
+        auto_queued = sum(
+            1
+            for item in result.auto_queue_results
+            if item.status == "completed" and not item.skipped
+        )
+        published = sum(
+            1
+            for item in result.results
+            if item.publish_state == "published" and item.status == "completed"
+        )
+        skipped = sum(item.skipped for item in result.auto_queue_results) + sum(
+            item.skipped for item in result.results
+        )
         logger.info(
-            "publish-linkedin-due-variants status=%s dry_run=%s publish_now=%s results=%s",
+            "publish-linkedin-due-variants status=%s dry_run=%s publish_now=%s "
+            "auto_queue_pending=%s queued=%s published=%s skipped=%s results=%s",
             result.status,
             result.dry_run,
             result.publish_now,
+            body.auto_queue_pending,
+            auto_queued,
+            published,
+            skipped,
             len(result.results),
         )
         return result.to_dict()

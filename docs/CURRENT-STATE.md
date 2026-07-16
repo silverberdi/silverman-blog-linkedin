@@ -88,6 +88,7 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 ## Implemented but not operationally validated
 
 - OAuth LinkedIn token refresh in production (refresh token not present in current token store)
+- **BL-007 / US-018 scheduled LinkedIn publication execution:** opt-in `auto_queue_pending` on publish-due identifies due `pending` variants, applies US-017 supervision exclusions, queues through the existing safety-delay service, and preserves once-only publish behavior. Operator script and manual inactive HTTP-only n8n export are included. Implemented and tested locally; **not deployed or operationally validated**. BL-007 remains open; US-019 publication-evidence polish and US-020 cadence/sequence remain deferred.
 
 ## Manual steps (by design)
 
@@ -101,7 +102,7 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 - Flow B automation beyond draft generation orchestration
 - Dairector content paths
 - **BL-015** Flow A LinkedIn variant supervision console (US-038–US-040) — backlog defined; not implemented. US-017 worker mechanics implemented. See [backlog.md](product/backlog.md). Mechanics: [linkedin-variant-supervision-mechanics.md](operations/linkedin-variant-supervision-mechanics.md)
-- **BL-007** scheduled LinkedIn publication execution — construction WIP `auto_queue_pending` (local/uncommitted; not OpenSpec-approved); handoff [bl-007-auto-queue-pending-handoff.md](product/bl-007-auto-queue-pending-handoff.md)
+- **BL-007** remains open after the implemented US-018 slice; US-019 publication identifier/failure evidence polish and US-020 audience cadence/sequence are deferred. Former construction WIP was absorbed under the approved US-018 change; record: [bl-007-auto-queue-pending-handoff.md](product/bl-007-auto-queue-pending-handoff.md)
 
 ## Completion layers (qualified)
 

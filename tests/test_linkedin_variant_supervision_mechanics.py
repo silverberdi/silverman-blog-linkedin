@@ -23,7 +23,7 @@ REQUIRED_HEADINGS = frozenset(
         "## Defer/delay mechanics",
         "## `operator_supervision` metadata contract",
         "## Blocked and invalid actions",
-        "## BL-007 auto-queue eligibility (documentation only)",
+        "## BL-007 auto-queue eligibility (implemented by US-018)",
         "## Preserved behavior (no duplication)",
     }
 )
@@ -76,5 +76,7 @@ def test_mechanics_contains_required_phrases(mechanics_text: str):
     assert not missing, f"Missing required phrases: {missing}"
 
 
-def test_mechanics_does_not_instruct_bl007_wip_merge(mechanics_text: str):
-    assert "do not merge or run" in mechanics_text.lower() or "does **not** instruct" in mechanics_text
+def test_mechanics_does_not_imply_deploy_or_activation(mechanics_text: str):
+    assert "does not imply deploy, workflow activation, or operational validation" in (
+        mechanics_text.lower()
+    )
