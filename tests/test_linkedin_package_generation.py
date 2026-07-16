@@ -366,6 +366,30 @@ def test_campaign_transitions_to_derivatives_generated(editorial_base: Path):
     assert STATE_DERIVATIVES_GENERATED in states
 
 
+def test_variant_metadata_includes_audience_and_objective(editorial_base: Path):
+    from silverman_blog_linkedin.linkedin_package_flow import DEFAULT_VARIANT_EDITORIAL_MAP
+
+    _blog_published_campaign(editorial_base)
+
+    result = _generate(editorial_base)
+    assert result.status == "completed"
+
+    campaign = read_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    metadata_by_variant = {
+        entry["variant"]: entry for entry in campaign.get("variants") or []
+    }
+    for variant_id in sorted(CANONICAL_VARIANT_IDS):
+        entry = metadata_by_variant[variant_id]
+        editorial = DEFAULT_VARIANT_EDITORIAL_MAP[variant_id]
+        assert entry["audience"] == editorial["audience"]
+        assert entry["objective"] == editorial["objective"]
+        assert entry["tone"] == editorial["tone"]
+        assert entry["audience_lens"] == editorial["audience_lens"]
+        summary = next(v for v in result.variants if v["variant"] == variant_id)
+        assert summary["objective"] == editorial["objective"]
+
+
 def test_each_variant_contains_url_exactly_once(editorial_base: Path):
     _blog_published_campaign(editorial_base)
 

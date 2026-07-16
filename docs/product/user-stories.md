@@ -287,13 +287,19 @@ As a content operator, I want to define whether all variants may eventually be p
 
 As a content operator, I want to establish quality and differentiation criteria, so that each linkedin variant has a clear review decision and publication purpose.
 
+**Policy artifact:** [linkedin-variant-review-policy.md](../operations/linkedin-variant-review-policy.md)
+
+**Criteria artifact:** [linkedin-variant-quality-criteria.md](../operations/linkedin-variant-quality-criteria.md)
+
 **Acceptance criteria**
 
-- [ ] Establish quality and differentiation criteria.
-- [ ] Associate each variant with an audience and objective.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Establish quality and differentiation criteria.
+- [x] Associate each variant with an audience and objective.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
+
+**Validated:** 2026-07-16 — US-016 criteria defined (docs/spec + campaign `variants[]` `objective` metadata); BL-006 remains open until US-017.
 
 ### US-017 — Define the LinkedIn Variant Review Process: Story 3
 
@@ -648,13 +654,65 @@ As a system operator, I want to test restoration, so that editorial state can be
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-015 — Define Flow B
+## BL-015 — Implement Flow A LinkedIn Variant Supervision Console
+
+**Priority:** P3
+
+**Business context:** Provide an operator-facing console to supervise Flow A LinkedIn variants after distribution scheduling and before LinkedIn API publication, per [linkedin-variant-review-policy.md](../operations/linkedin-variant-review-policy.md).
+
+**Prerequisites:** BL-006 US-015 (policy defined). US-017 SHOULD supply persisted edit/cancel/defer mechanics before console actions constrain BL-007 eligibility.
+
+### US-038 — Implement Flow A LinkedIn Variant Supervision Console: Story 1
+
+**Description**
+
+As a content operator, I want to see Flow A LinkedIn variants on a calendar or campaign view while they are pending, so that I can supervise scheduled publication without inspecting raw files.
+
+**Acceptance criteria**
+
+- [ ] Present `pending` variants with campaign id, variant id, audience, `scheduled_at_utc`, and `publish_state`.
+- [ ] Align the view with the editorial calendar where applicable.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-039 — Implement Flow A LinkedIn Variant Supervision Console: Story 2
+
+**Description**
+
+As a content operator, I want to edit variant text and adjust scheduled timing before queue, so that I can correct derivatives during the optional supervision window.
+
+**Acceptance criteria**
+
+- [ ] Edit variant content before queue authorization.
+- [ ] Defer or reschedule relative to distribution strategy rules.
+- [ ] Persist operator changes traceably (aligned with US-017 when implemented).
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-040 — Implement Flow A LinkedIn Variant Supervision Console: Story 3
+
+**Description**
+
+As a content operator, I want to cancel or defer variants and see why publication is blocked, so that operator overrides constrain future BL-007 auto-queue eligibility.
+
+**Acceptance criteria**
+
+- [ ] Cancel or defer variants before queue per the LinkedIn variant review policy.
+- [ ] Surface blocked states (publication enablement, integration failures, deferred capabilities).
+- [ ] Invoke worker capabilities over HTTP only (ADR-0001); do not bypass publication guards.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+## BL-016 — Define Flow B
 
 **Priority:** P4
 
 **Business context:** Define the complete business process for system-generated content that requires human review.
 
-### US-038 — Define Flow B: Story 1
+### US-041 — Define Flow B: Story 1
 
 **Description**
 
@@ -669,7 +727,7 @@ As a content reviewer, I want to define idea sources, so that flow b has an appr
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-039 — Define Flow B: Story 2
+### US-042 — Define Flow B: Story 2
 
 **Description**
 
@@ -684,13 +742,13 @@ As a content reviewer, I want to define publication eligibility, so that flow b 
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-016 — Generate Blog Drafts for Flow B
+## BL-017 — Generate Blog Drafts for Flow B
 
 **Priority:** P4
 
 **Business context:** Create high-quality blog drafts from approved ideas while preserving Silverio's voice and editorial standards.
 
-### US-040 — Generate Blog Drafts for Flow B: Story 1
+### US-043 — Generate Blog Drafts for Flow B: Story 1
 
 **Description**
 
@@ -705,7 +763,7 @@ As a content reviewer, I want to generate complete blog drafts, so that the syst
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-041 — Generate Blog Drafts for Flow B: Story 2
+### US-044 — Generate Blog Drafts for Flow B: Story 2
 
 **Description**
 
@@ -720,13 +778,13 @@ As a content reviewer, I want to create or request an image, so that the system 
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-017 — Implement Flow B Review and Approval
+## BL-018 — Implement Flow B Review and Approval
 
 **Priority:** P4
 
 **Business context:** Support human review and approval of system-generated content.
 
-### US-042 — Implement Flow B Review and Approval: Story 1
+### US-045 — Implement Flow B Review and Approval: Story 1
 
 **Description**
 
@@ -741,7 +799,7 @@ As a content reviewer, I want to present drafts for review, so that flow b conte
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-043 — Implement Flow B Review and Approval: Story 2
+### US-046 — Implement Flow B Review and Approval: Story 2
 
 **Description**
 
@@ -756,13 +814,13 @@ As a content reviewer, I want to approve or reject content, so that flow b conte
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-018 — Integrate Flow B with the Editorial Calendar
+## BL-019 — Integrate Flow B with the Editorial Calendar
 
 **Priority:** P4
 
 **Business context:** Plan Flow B content alongside approved Flow A content.
 
-### US-044 — Integrate Flow B with the Editorial Calendar: Story 1
+### US-047 — Integrate Flow B with the Editorial Calendar: Story 1
 
 **Description**
 
@@ -777,7 +835,7 @@ As a content reviewer, I want to schedule topics, so that flow b content is visi
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-045 — Integrate Flow B with the Editorial Calendar: Story 2
+### US-048 — Integrate Flow B with the Editorial Calendar: Story 2
 
 **Description**
 
@@ -792,13 +850,13 @@ As a content reviewer, I want to balance audiences, so that flow b content is vi
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-019 — Create the Editorial Content Backlog
+## BL-020 — Create the Editorial Content Backlog
 
 **Priority:** P5
 
 **Business context:** Maintain a prioritized business backlog of future content topics.
 
-### US-046 — Create the Editorial Content Backlog: Story 1
+### US-049 — Create the Editorial Content Backlog: Story 1
 
 **Description**
 
@@ -812,7 +870,7 @@ As a editorial manager, I want to capture topic, audience, objective, format, pr
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-047 — Create the Editorial Content Backlog: Story 2
+### US-050 — Create the Editorial Content Backlog: Story 2
 
 **Description**
 
@@ -826,13 +884,13 @@ As a editorial manager, I want to identify dependencies, so that the content pip
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-020 — Define Editorial Calendar and Publishing Cadence
+## BL-021 — Define Editorial Calendar and Publishing Cadence
 
 **Priority:** P5
 
 **Business context:** Establish a sustainable publishing rhythm for the blog and LinkedIn.
 
-### US-048 — Define Editorial Calendar and Publishing Cadence: Story 1
+### US-051 — Define Editorial Calendar and Publishing Cadence: Story 1
 
 **Description**
 
@@ -847,7 +905,7 @@ As a editorial manager, I want to define blog frequency, so that publications fo
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-049 — Define Editorial Calendar and Publishing Cadence: Story 2
+### US-052 — Define Editorial Calendar and Publishing Cadence: Story 2
 
 **Description**
 
@@ -862,13 +920,13 @@ As a editorial manager, I want to define publishing windows, so that publication
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-021 — Define Business and Content Metrics
+## BL-022 — Define Business and Content Metrics
 
 **Priority:** P5
 
 **Business context:** Measure whether the content program supports Silverio's professional goals.
 
-### US-050 — Define Business and Content Metrics: Story 1
+### US-053 — Define Business and Content Metrics: Story 1
 
 **Description**
 
@@ -883,7 +941,7 @@ As a business owner, I want to define blog traffic metrics, so that the content 
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-051 — Define Business and Content Metrics: Story 2
+### US-054 — Define Business and Content Metrics: Story 2
 
 **Description**
 
@@ -898,13 +956,13 @@ As a business owner, I want to track recruiter and executive conversations, so t
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-022 — Use Performance Feedback to Improve Future Content
+## BL-023 — Use Performance Feedback to Improve Future Content
 
 **Priority:** P5
 
 **Business context:** Turn performance data into better editorial decisions.
 
-### US-052 — Use Performance Feedback to Improve Future Content: Story 1
+### US-055 — Use Performance Feedback to Improve Future Content: Story 1
 
 **Description**
 
@@ -919,7 +977,7 @@ As a business owner, I want to collect metrics consistently, so that future edit
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-053 — Use Performance Feedback to Improve Future Content: Story 2
+### US-056 — Use Performance Feedback to Improve Future Content: Story 2
 
 **Description**
 
@@ -934,13 +992,13 @@ As a business owner, I want to feed insights into future planning, so that futur
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-023 — Rotate and Review Operational Secrets
+## BL-024 — Rotate and Review Operational Secrets
 
 **Priority:** P6
 
 **Business context:** Ensure operational credentials remain secure and appropriately managed.
 
-### US-054 — Rotate and Review Operational Secrets: Story 1
+### US-057 — Rotate and Review Operational Secrets: Story 1
 
 **Description**
 
@@ -954,7 +1012,7 @@ As a system owner, I want to rotate keys that may have been exposed during testi
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-055 — Rotate and Review Operational Secrets: Story 2
+### US-058 — Rotate and Review Operational Secrets: Story 2
 
 **Description**
 
@@ -968,7 +1026,7 @@ As a system owner, I want to review permissions, so that operational secrets are
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-056 — Rotate and Review Operational Secrets: Story 3
+### US-059 — Rotate and Review Operational Secrets: Story 3
 
 **Description**
 
@@ -981,13 +1039,13 @@ As a system owner, I want to define ownership and rotation cadence, so that oper
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-024 — Formalize LinkedIn Token Management
+## BL-025 — Formalize LinkedIn Token Management
 
 **Priority:** P6
 
 **Business context:** Define the full lifecycle of LinkedIn authentication tokens.
 
-### US-057 — Formalize LinkedIn Token Management: Story 1
+### US-060 — Formalize LinkedIn Token Management: Story 1
 
 **Description**
 
@@ -1002,7 +1060,7 @@ As a content operator, I want to store tokens securely, so that linkedin token m
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-058 — Formalize LinkedIn Token Management: Story 2
+### US-061 — Formalize LinkedIn Token Management: Story 2
 
 **Description**
 
@@ -1017,13 +1075,13 @@ As a content operator, I want to detect invalid tokens, so that linkedin token m
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-025 — Review Service Permissions and Exposure
+## BL-026 — Review Service Permissions and Exposure
 
 **Priority:** P6
 
 **Business context:** Reduce the attack surface of the worker, n8n, ComfyUI, Docker, shared filesystem, and public checkout.
 
-### US-059 — Review Service Permissions and Exposure: Story 1
+### US-062 — Review Service Permissions and Exposure: Story 1
 
 **Description**
 
@@ -1038,7 +1096,7 @@ As a system owner, I want to apply least privilege, so that services and files a
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-060 — Review Service Permissions and Exposure: Story 2
+### US-063 — Review Service Permissions and Exposure: Story 2
 
 **Description**
 
@@ -1053,13 +1111,13 @@ As a system owner, I want to review allowed paths, so that services and files ar
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-026 — Correct Stale Flow A Readiness Defaults
+## BL-027 — Correct Stale Flow A Readiness Defaults
 
 **Priority:** P7
 
 **Business context:** Remove obsolete revision assumptions from readiness validation.
 
-### US-061 — Correct Stale Flow A Readiness Defaults: Story 1
+### US-064 — Correct Stale Flow A Readiness Defaults: Story 1
 
 **Description**
 
@@ -1073,7 +1131,7 @@ As a content operator, I want to identify stale expected revisions, so that flow
 - [x] Failures or blocked states are clearly communicated.
 - [x] Existing completed work is not duplicated or unintentionally changed.
 
-### US-062 — Correct Stale Flow A Readiness Defaults: Story 2
+### US-065 — Correct Stale Flow A Readiness Defaults: Story 2
 
 **Description**
 
@@ -1087,7 +1145,7 @@ As a content operator, I want to avoid false failures, so that flow a readiness 
 - [x] Failures or blocked states are clearly communicated.
 - [x] Existing completed work is not duplicated or unintentionally changed.
 
-### US-063 — Correct Stale Flow A Readiness Defaults: Story 3
+### US-066 — Correct Stale Flow A Readiness Defaults: Story 3
 
 **Description**
 
@@ -1100,13 +1158,13 @@ As a content operator, I want to document the new baseline, so that flow a readi
 - [x] Failures or blocked states are clearly communicated.
 - [x] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-027 — Establish a Warning and Test Quality Baseline
+## BL-028 — Establish a Warning and Test Quality Baseline
 
 **Priority:** P7
 
 **Business context:** Create a known baseline for test-suite warnings and code-quality signals.
 
-### US-064 — Establish a Warning and Test Quality Baseline: Story 1
+### US-067 — Establish a Warning and Test Quality Baseline: Story 1
 
 **Description**
 
@@ -1121,7 +1179,7 @@ As a content operator, I want to run the full suite, so that the team can identi
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-065 — Establish a Warning and Test Quality Baseline: Story 2
+### US-068 — Establish a Warning and Test Quality Baseline: Story 2
 
 **Description**
 
@@ -1136,13 +1194,13 @@ As a content operator, I want to separate inherited warnings from new warnings, 
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-028 — Establish Continuous Integration
+## BL-029 — Establish Continuous Integration
 
 **Priority:** P7
 
 **Business context:** Run repository validation automatically on proposed changes.
 
-### US-066 — Establish Continuous Integration: Story 1
+### US-069 — Establish Continuous Integration: Story 1
 
 **Description**
 
@@ -1157,7 +1215,7 @@ As a content operator, I want to run tests, so that invalid changes are detected
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-067 — Establish Continuous Integration: Story 2
+### US-070 — Establish Continuous Integration: Story 2
 
 **Description**
 
@@ -1172,13 +1230,13 @@ As a content operator, I want to check whitespace and repository consistency, so
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-029 — Maintain Current Project and Runtime Context
+## BL-030 — Maintain Current Project and Runtime Context
 
 **Priority:** P7
 
 **Business context:** Keep business, technical, and operational documentation aligned with reality.
 
-### US-068 — Maintain Current Project and Runtime Context: Story 1
+### US-071 — Maintain Current Project and Runtime Context: Story 1
 
 **Description**
 
@@ -1192,7 +1250,7 @@ As a content operator, I want to update current-state documentation when capabil
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-069 — Maintain Current Project and Runtime Context: Story 2
+### US-072 — Maintain Current Project and Runtime Context: Story 2
 
 **Description**
 
@@ -1206,7 +1264,7 @@ As a content operator, I want to detect contradictions, so that project context 
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-070 — Maintain Current Project and Runtime Context: Story 3
+### US-073 — Maintain Current Project and Runtime Context: Story 3
 
 **Description**
 

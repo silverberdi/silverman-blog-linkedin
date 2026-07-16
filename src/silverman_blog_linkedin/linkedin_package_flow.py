@@ -82,18 +82,26 @@ PACKAGE_INVALID_STATES = frozenset(
 DEFAULT_VARIANT_EDITORIAL_MAP: dict[str, dict[str, str]] = {
     "executive-recruiter": {
         "audience": "recruiters and hiring managers for senior architecture roles",
+        "audience_lens": "recruiters-and-c-level",
+        "objective": "Signal seniority, scope, hireable judgment in 60-second read",
         "tone": "executive, hireable judgment",
     },
     "technical-architect": {
         "audience": "software architects and senior developers",
+        "audience_lens": "software-architects",
+        "objective": "Teach the design move; name trade-offs",
         "tone": "technical depth, design trade-offs",
     },
     "engineering-leadership": {
         "audience": "engineering managers and technical leaders",
+        "audience_lens": "engineering-managers",
+        "objective": "Team/delivery implications of the architectural choice",
         "tone": "leadership, delivery implications",
     },
     "short-provocative": {
         "audience": "senior ICs and architecture practitioners",
+        "audience_lens": "senior-ics-and-enthusiasts",
+        "objective": "One sharp insight; pattern interrupt",
         "tone": "concise, pattern-interrupt",
     },
 }
@@ -295,6 +303,8 @@ def _variant_metadata_entry(
     entry = {
         "variant": variant_id,
         "audience": editorial["audience"],
+        "audience_lens": editorial["audience_lens"],
+        "objective": editorial["objective"],
         "tone": editorial["tone"],
         "source_public_url": source_public_url,
         "source_relative_path": campaign["source_relative_path"],
@@ -335,6 +345,8 @@ def _variant_summary(entry: dict[str, Any]) -> dict[str, Any]:
         "article_description",
         "public_url",
         "audience",
+        "audience_lens",
+        "objective",
         "tone",
         "campaign_id",
     ):
