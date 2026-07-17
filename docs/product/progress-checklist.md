@@ -279,35 +279,35 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed
 
-- [-] **BL-011 — Add Operational Alerts**
+- [x] **BL-011 — Add Operational Alerts**
   - Business outcome: Important failures and blocked states generate timely, actionable alerts.
-  - [-] **US-028**
+  - [x] **US-028**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — controlled fixtures and authenticated HTTP tests show `item_moved_to_error`, `image_generation_failure`, and `blog_publication_failure` candidates with understandable secret-safe payloads; fail-closed emit; evaluate-only zero lifecycle mutation; preview checkout codes excluded
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-    - Implementation evidence: [flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md) — implemented and tested locally; not deployed or live operationally validated
-  - [-] **US-029**
+    - [x] Business outcome demonstrated — controlled fixtures and live smoke show `item_moved_to_error`, `image_generation_failure`, and `blog_publication_failure` candidates with understandable secret-safe payloads; fail-closed emit; evaluate-only zero lifecycle mutation; preview checkout codes excluded
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-17 (`BUILD_REVISION=b67c538`)
+    - [x] Story accepted — operator-accepted 2026-07-17
+    - Implementation evidence: [flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md)
+  - [x] **US-029**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — controlled fixtures show `partial_calendar_execution`, `linkedin_token_or_publication_failure`, and `stale_campaign` candidates with understandable secret-safe payloads and warning/error severity; six-type counts; US-028 coexistence; fail-closed emit; evaluate-only zero lifecycle mutation; preview checkout codes excluded from LinkedIn alerts
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-    - Implementation evidence: [flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md) — implemented and tested locally; not deployed or live operationally validated
-  - [-] **US-030**
+    - [x] Business outcome demonstrated — controlled fixtures show `partial_calendar_execution`, `linkedin_token_or_publication_failure`, and `stale_campaign`; live evaluate confirms eight-type counts and US-028 coexistence; fail-closed emit; evaluate-only zero lifecycle mutation
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-17 (`BUILD_REVISION=b67c538`)
+    - [x] Story accepted — operator-accepted 2026-07-17
+    - Implementation evidence: [flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md)
+  - [x] **US-030**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — controlled fixtures show `unhealthy_worker` (degraded folder readiness) and `failed_n8n_workflow` (after report ingest; failed runs alone do not); report auth/validation/idempotency; eight-type counts; US-028/US-029 coexistence; fail-closed emit for US-030 fingerprints; evaluate-only zero lifecycle mutation
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-    - Implementation evidence: [flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md) — implemented and tested locally; not deployed or live operationally validated; US-028/US-029 not re-accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+    - [x] Business outcome demonstrated — fixtures for `unhealthy_worker`; live report ingest for `failed_n8n_workflow`; eight-type counts; fail-closed emit; zero lifecycle mutation; smoke entry cleaned up
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-17 (`BUILD_REVISION=b67c538`)
+    - [x] Story accepted — operator-accepted 2026-07-17
+    - Implementation evidence: [flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md)
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated
+  - [x] Backlog item closed — 2026-07-17; webhook enablement and n8n Error Trigger wiring remain optional follow-ups
 
 - [ ] **BL-012 — Consolidate Recovery for Incomplete Campaigns**
   - Business outcome: Incomplete campaigns can be resumed or repaired safely and predictably.

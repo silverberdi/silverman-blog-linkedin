@@ -57,4 +57,4 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 - BL-008 closed 2026-07-17: US-021/US-022 accepted (primary recovery chain validated live); correction/cancel/exhaustion paths remain unit-test scope.
 - Pages live-confirmation can 404 briefly after push; resume after HTTP 200 (documented in BL-005).
 - BL-008 (US-021/US-022) and BL-009 (US-023/US-024/US-025) demonstrated and accepted 2026-07-17 — both backlog items closed.
-- BL-011 / US-028–US-030 code is deployed (`b67c538`) and **controlled live smoke passed** 2026-07-17 (evaluate + report + eight-type counts + fail-closed emit + zero lifecycle mutation); still **not** operator-accepted; webhook emission remains fail-closed (do not enable `SILVERMAN_FLOW_A_OPERATIONAL_ALERTS_ENABLED` without explicit approval).
+- BL-011 / US-028–US-030 code is deployed (`b67c538`) and **operator-accepted 2026-07-17** after controlled live smoke (evaluate + report + fail-closed emit + zero lifecycle mutation); **BL-011 closed**. Webhook emission remains fail-closed unless explicitly enabled (`SILVERMAN_FLOW_A_OPERATIONAL_ALERTS_ENABLED`).

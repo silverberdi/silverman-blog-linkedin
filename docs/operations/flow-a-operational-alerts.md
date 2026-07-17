@@ -10,7 +10,10 @@ emission, and authenticated orchestration-failure report ingest.
 - **US-030:** `unhealthy_worker`, `failed_n8n_workflow`
 
 This capability does **not** replace the observation endpoint, does not add
-BL-015 UI, and does not by itself accept US-028/US-029/US-030 or close BL-011.
+BL-015 UI, and does not embed Slack/email SDKs. US-028, US-029, and US-030 were
+operator-accepted and **BL-011 closed 2026-07-17** after deploy + controlled live
+smoke on `BUILD_REVISION=b67c538`. Production webhook enablement and n8n Error
+Trigger wiring remain optional follow-ups.
 
 ## Relationship to operational status and health
 
@@ -205,7 +208,8 @@ Local verification exercised authenticated evaluate/report responses for:
 - fail-closed emit when disabled/misconfigured
 - successful emit + ledger write and no re-emit for existing fingerprints (including US-030)
 
-This demonstrates US-028, US-029, and US-030 at controlled-fixture and
-automated-test scope only. Business acceptance, deployment, live webhook
-enablement, production n8n Error Trigger wiring, and BL-011 closure remain
-pending.
+This demonstrates US-028, US-029, and US-030 at controlled-fixture,
+automated-test, and controlled live-smoke scope on `192.168.0.194`
+(`BUILD_REVISION=b67c538`). **Operator-accepted 2026-07-17; BL-011 closed.**
+Production webhook enablement and n8n Error Trigger → report wiring remain
+optional follow-ups (not required for BL-011 closure).
