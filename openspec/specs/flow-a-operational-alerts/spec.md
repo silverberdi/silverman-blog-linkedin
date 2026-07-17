@@ -2,12 +2,12 @@
 
 ## Purpose
 
-BL-011 / US-028 Flow A operational-alert evaluation and optional fail-closed
-emission: authenticated `POST /flow-a/operational-alerts/evaluate` derives
-secret-safe alert candidates from the same confined operational-status evidence
-used by `GET /flow-a/operational-status`, with optional generic webhook delivery
-and a minimal idempotent emission ledger. Does not implement US-029/US-030 alert
-types, BL-015 UI, or Slack/email SDKs.
+BL-011 / US-028 + US-029 Flow A operational-alert evaluation and optional
+fail-closed emission: authenticated `POST /flow-a/operational-alerts/evaluate`
+derives secret-safe alert candidates from the same confined operational-status
+evidence used by `GET /flow-a/operational-status`, with optional generic webhook
+delivery and a minimal idempotent emission ledger. Does not implement US-030
+alert types, BL-015 UI, or Slack/email SDKs.
 
 ## Requirements
 
@@ -26,7 +26,7 @@ The response MUST include `status`, `observed_at_utc`, `alerts`, `summary`, `dat
 
 #### Scenario: Authenticated operator evaluates alerts
 - **WHEN** a client with a valid API key calls `POST /flow-a/operational-alerts/evaluate` with `emit` omitted or `false`
-- **THEN** the worker returns HTTP 200 with structured US-028 alert candidates and does not call a webhook
+- **THEN** the worker returns HTTP 200 with structured US-028 and US-029 alert candidates and does not call a webhook
 
 #### Scenario: Endpoint requires API-key authentication
 - **WHEN** a client calls `POST /flow-a/operational-alerts/evaluate` without a valid API key
@@ -38,9 +38,9 @@ The response MUST include `status`, `observed_at_utc`, `alerts`, `summary`, `dat
 
 ### Requirement: Derive US-028 alerts from operational-status evidence
 
-Alert evaluation SHALL derive candidates from the same confined operational-status evidence and classifications used by `GET /flow-a/operational-status` (runs, campaigns, dependency-failure buckets). It MUST NOT perform an ad-hoc independent scan of raw editorial folders as a parallel source of truth, and MUST NOT call ComfyUI, DeepSeek, LinkedIn, OAuth, Git, or live-site endpoints.
+Alert evaluation SHALL derive candidates from the same confined operational-status evidence and classifications used by `GET /flow-a/operational-status` (runs, campaigns, delayed calendar items, dependency-failure buckets, LinkedIn progress). It MUST NOT perform an ad-hoc independent scan of raw editorial folders or calendar files as a parallel source of truth, and MUST NOT call ComfyUI, DeepSeek, LinkedIn, OAuth, Git, or live-site endpoints.
 
-US-028 alert types MUST be exactly:
+US-028 alert types MUST continue to be produced exactly when:
 
 - `item_moved_to_error` when a Flow A campaign is classified failed with `source_file_status.location=error` (or the equivalent operational-status error-location health reason);
 - `image_generation_failure` when dependency-failure attribution exists in bucket `comfyui` for a campaign or run;
@@ -48,7 +48,7 @@ US-028 alert types MUST be exactly:
 
 `blog_publication_failure` MUST NOT be raised solely for LinkedIn-preview checkout codes (`linkedin_preview_validation_checkout_*` or exactly `linkedin_article_preview_public_repo_not_configured`).
 
-US-029 and US-030 alert types MUST NOT be produced by this capability.
+US-029 alert types are specified separately in this capability and MUST also be derived from the same operational-status evidence. US-030 alert types MUST NOT be produced by this capability.
 
 #### Scenario: Error-folder campaign produces item_moved_to_error
 - **WHEN** operational evidence includes a Flow A campaign with `source_file_status.location=error`
@@ -70,13 +70,51 @@ US-029 and US-030 alert types MUST NOT be produced by this capability.
 - **WHEN** alerts are evaluated
 - **THEN** no ComfyUI, DeepSeek, LinkedIn, OAuth, Git, or live-site client or command is invoked
 
+### Requirement: Derive US-029 alerts from operational-status evidence
+
+In addition to US-028 types, alert evaluation SHALL produce exactly these US-029 alert types from the same operational-status evidence:
+
+- `partial_calendar_execution` when operational-status includes a delayed calendar item (past-due non-terminal item with reason `calendar_item_past_due`); one alert per `item_id`;
+- `linkedin_token_or_publication_failure` when dependency-failure attribution exists in bucket `linkedin` for a campaign or failed run, or when a campaign’s LinkedIn progress exposes one or more validated `failure_codes`; one alert per campaign or run with sorted unique codes merged;
+- `stale_campaign` when a Flow A campaign is classified `stale=true`; one alert per `campaign_id`.
+
+`partial_calendar_execution` severity MUST be `warning`. `stale_campaign` severity MUST be `warning`. `linkedin_token_or_publication_failure` severity MUST be `error`.
+
+`linkedin_token_or_publication_failure` MUST set `dependency=linkedin`. It MUST NOT be raised solely for LinkedIn-preview checkout codes that belong to `github_pages_checkout`.
+
+Evaluation MUST still reuse operational-status aggregation and MUST NOT invent a parallel scanner.
+
+#### Scenario: Delayed calendar item produces partial_calendar_execution
+- **WHEN** operational evidence includes a delayed calendar item with reason `calendar_item_past_due`
+- **THEN** evaluation returns one `partial_calendar_execution` alert for that `calendar_item_id` with severity `warning`
+
+#### Scenario: LinkedIn dependency failure produces linkedin_token_or_publication_failure
+- **WHEN** operational dependency aggregation attributes validated code `linkedin_publish_api_error` or `linkedin_oauth_refresh_failed` to bucket `linkedin` for a campaign or run
+- **THEN** evaluation returns one `linkedin_token_or_publication_failure` alert referencing that artifact, `dependency=linkedin`, and the validated code(s)
+
+#### Scenario: LinkedIn progress failure codes produce linkedin_token_or_publication_failure
+- **WHEN** a campaign’s LinkedIn progress summary includes validated `failure_codes` such as `linkedin_publish_token_invalid`
+- **THEN** evaluation returns one `linkedin_token_or_publication_failure` alert for that `campaign_id` including those codes
+
+#### Scenario: Stale campaign produces stale_campaign
+- **WHEN** operational evidence classifies a Flow A campaign with `stale=true`
+- **THEN** evaluation returns one `stale_campaign` alert for that `campaign_id` with severity `warning`
+
+#### Scenario: LinkedIn preview checkout codes do not produce linkedin_token_or_publication_failure
+- **WHEN** the only relevant attribution is a LinkedIn-preview checkout code under `github_pages_checkout`
+- **THEN** evaluation does not produce `linkedin_token_or_publication_failure` for that code
+
+#### Scenario: US-028 and US-029 candidates coexist without lifecycle mutation
+- **WHEN** evidence includes an error-folder campaign and a delayed calendar item in the same evaluate-only request
+- **THEN** both corresponding alert types are returned and campaign/run/editorial lifecycle bytes remain unchanged
+
 ### Requirement: Safe understandable alert payloads
 
-Each alert object MUST include `alert_type`, `severity`, `fingerprint`, `observed_at_utc`, a short `summary`, and safe identifiers (`campaign_id` and/or `run_id` when known). When derived from dependency evidence, it MUST include `dependency` and sorted validated `error_codes`.
+Each alert object MUST include `alert_type`, `severity`, `fingerprint`, `observed_at_utc`, a short `summary`, and safe identifiers (`campaign_id` and/or `run_id` when known; `calendar_item_id` when the alert is `partial_calendar_execution`). When derived from dependency evidence, it MUST include `dependency` and sorted validated `error_codes`.
 
-Alert payloads MUST NOT include Markdown or draft bodies, API keys, tokens, client secrets, authorization headers, raw external API bodies, arbitrary environment values, webhook URLs, or the absolute editorial base path.
+Alert payloads MUST NOT include Markdown or draft bodies, API keys, tokens, client secrets, authorization headers, raw external API bodies, arbitrary environment values, webhook URLs, the absolute editorial base path, or calendar free-text titles.
 
-`summary.counts` MUST include integer counts for `item_moved_to_error`, `image_generation_failure`, and `blog_publication_failure`.
+`summary.counts` MUST include integer counts for `item_moved_to_error`, `image_generation_failure`, `blog_publication_failure`, `partial_calendar_execution`, `linkedin_token_or_publication_failure`, and `stale_campaign`.
 
 `alerts` MUST be ordered deterministically by `alert_type` ascending, then `fingerprint` ascending. Repeated evaluation with the same `now_utc` and unchanged evidence MUST return identical candidate sets and ordering.
 
@@ -92,6 +130,10 @@ Alert payloads MUST NOT include Markdown or draft bodies, API keys, tokens, clie
 - **WHEN** two authenticated evaluate requests use the same `now_utc` against unchanged evidence
 - **THEN** both responses contain identical `alerts` ordering and fingerprints
 
+#### Scenario: Partial-calendar alert identifies the calendar item safely
+- **WHEN** a `partial_calendar_execution` alert is returned
+- **THEN** it includes `calendar_item_id`, reason code `calendar_item_past_due`, and does not include the calendar item title
+
 ### Requirement: Fail-closed optional webhook emission
 
 When `emit` is `false` or omitted, the worker MUST NOT call any webhook and MUST NOT write the operational-alerts emission ledger.
@@ -103,7 +145,7 @@ When `emit` is `true`, emission SHALL be fail-closed:
 
 Successful webhook acceptance (HTTP 2xx) is required before recording a fingerprint as emitted. Failed webhook delivery MUST leave the fingerprint unemitted.
 
-The MVP channel is a generic HTTP webhook. The worker MUST NOT require Slack, email, or UI integrations for US-028.
+The MVP channel is a generic HTTP webhook. The worker MUST NOT require Slack, email, or UI integrations for US-028 or US-029.
 
 #### Scenario: Evaluate-only performs no emission
 - **WHEN** `emit` is false or omitted
@@ -141,18 +183,36 @@ Reads for evaluation evidence MUST remain confined to the same approved operatio
 
 ### Requirement: US-028 scope and verification
 
-Implementation SHALL satisfy BL-011 / US-028 alert criteria for items moved to error, image-generation failure, and blog publication failure through the evaluate/emit contract defined in this capability.
+Implementation SHALL continue to satisfy BL-011 / US-028 alert criteria for items moved to error, image-generation failure, and blog publication failure through the evaluate/emit contract defined in this capability.
 
-Focused behavioral tests MUST cover each US-028 alert type, exclusion of preview-only checkout codes from `blog_publication_failure`, auth failures, invalid `now_utc`, deterministic ordering, safe output, fail-closed emission, idempotent ledger behavior, evaluate-only zero lifecycle mutation, and no external integration calls during evaluation.
+Focused behavioral tests MUST continue to cover each US-028 alert type, exclusion of preview-only checkout codes from `blog_publication_failure`, auth failures, invalid `now_utc`, deterministic ordering, safe output, fail-closed emission, idempotent ledger behavior, evaluate-only zero lifecycle mutation, and no external integration calls during evaluation.
 
-This capability MUST NOT implement US-029 or US-030 alert types, MUST NOT add BL-015 UI behavior, MUST NOT deploy or mutate live systems as part of the change, and MUST NOT require a production n8n workflow activation to complete implementation.
+US-029 alert types are specified separately and MUST NOT regress US-028 behaviors. This capability MUST NOT implement US-030 alert types, MUST NOT add BL-015 UI behavior, MUST NOT deploy or mutate live systems as part of the change, and MUST NOT require a production n8n workflow activation to complete implementation.
 
-`docs/CURRENT-STATE.md` and product progress MUST be updated only to the level actually implemented and demonstrated. Proposal or code completion alone MUST NOT mark US-028 accepted or BL-011 closed.
+`docs/CURRENT-STATE.md` and product progress MUST be updated only to the level actually implemented and demonstrated. Proposal or code completion alone MUST NOT mark US-028 accepted, MUST NOT mark US-029 accepted, and MUST NOT close BL-011.
 
 #### Scenario: US-028 focused suite passes
 - **WHEN** the change is verified
 - **THEN** focused operational-alerts tests for the three US-028 types, fail-closed emission, and lifecycle non-mutation pass
 
-#### Scenario: Out-of-scope alert types remain absent
-- **WHEN** the US-028 capability is implemented
-- **THEN** no partial-calendar, LinkedIn-token, stale-campaign, unhealthy-worker, or failed-n8n-workflow alert types are produced, and no supervision UI is added
+#### Scenario: Out-of-scope US-030 alert types remain absent
+- **WHEN** the US-029 capability extension is implemented
+- **THEN** no unhealthy-worker or failed-n8n-workflow alert types are produced, and no supervision UI is added
+
+### Requirement: US-029 scope and verification
+
+Implementation SHALL satisfy BL-011 / US-029 alert criteria for partial calendar execution, LinkedIn token or publication failure, and stale campaigns through the existing evaluate/emit contract.
+
+Focused behavioral tests MUST cover each US-029 alert type, coexistence with US-028 types, exclusion of preview-only checkout codes from the LinkedIn alert type, summary counts for all six alert types, fail-closed emission for new fingerprints, evaluate-only zero lifecycle mutation, and no external integration calls during evaluation.
+
+This capability MUST NOT implement US-030 alert types, MUST NOT add BL-015 UI behavior, MUST NOT deploy or mutate live systems as part of the change, MUST NOT require production n8n workflow activation, and MUST NOT mark US-028 or US-029 accepted or close BL-011 from proposal or code alone.
+
+`docs/CURRENT-STATE.md` and product progress MUST be updated only to the level actually implemented and demonstrated.
+
+#### Scenario: US-029 focused suite passes
+- **WHEN** the change is verified
+- **THEN** focused operational-alerts tests for the three US-029 types, six-type summary counts, fail-closed emission, and lifecycle non-mutation pass
+
+#### Scenario: Out-of-scope behavior remains absent
+- **WHEN** the US-029 capability extension is implemented
+- **THEN** no unhealthy-worker or failed-n8n-workflow alert types are produced, no supervision UI is added, and US-028 alert behaviors remain intact

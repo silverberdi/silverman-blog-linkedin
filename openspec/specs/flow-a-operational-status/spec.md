@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Read-only aggregation contract for Flow A operational observability (BL-010 / US-026 + US-027): authenticated `GET /flow-a/operational-status`, deterministic execution/campaign/calendar/LinkedIn classifications from confined on-disk evidence, stage-duration derivation, external-dependency failure aggregation, partial-result handling, safe output, and zero-mutation guarantees. BL-011 / US-028 alerting is owned by the separate `flow-a-operational-alerts` capability. This capability does not send notifications, call webhooks, write alert ledgers, or implement BL-015 UI.
+Read-only aggregation contract for Flow A operational observability (BL-010 / US-026 + US-027): authenticated `GET /flow-a/operational-status`, deterministic execution/campaign/calendar/LinkedIn classifications from confined on-disk evidence, stage-duration derivation, external-dependency failure aggregation, partial-result handling, safe output, and zero-mutation guarantees. BL-011 / US-028 and US-029 alerting is owned by the separate `flow-a-operational-alerts` capability. This capability does not send notifications, call webhooks, write alert ledgers, or implement BL-015 UI.
 
 ## Requirements
 
@@ -350,7 +350,7 @@ Implementation SHALL extend the existing `flow-a-operational-status` capability 
 
 Focused behavioral tests MUST cover completed and open stage intervals, execution durations, each dependency bucket plus unclassified codes, invalid/inverted clocks, deterministic ordering of new collections, safe output, API-key authentication, and byte-for-byte zero mutation. Existing US-026 classification, calendar-delay, LinkedIn progress, confinement, and partial-result tests MUST continue to pass without weakened assertions.
 
-This capability MUST remain a read-only observation surface: it MUST NOT send notifications, call webhooks, or write alert ledgers. BL-011 / US-028 alerting is owned by the separate `flow-a-operational-alerts` capability. This capability MUST NOT implement US-029/US-030 alert behavior or BL-015 UI behavior, MUST NOT deploy or mutate live systems as part of a status-only change, and MUST NOT add n8n workflow changes as part of status observation.
+This capability MUST remain a read-only observation surface: it MUST NOT send notifications, call webhooks, or write alert ledgers. BL-011 / US-028 and US-029 alerting is owned by the separate `flow-a-operational-alerts` capability. This capability MUST NOT implement US-030 alert behavior or BL-015 UI behavior, MUST NOT deploy or mutate live systems as part of a status-only change, and MUST NOT add n8n workflow changes as part of status observation.
 
 Operator documentation MUST describe stage-duration derivation, dependency-bucket mapping, open-stage observation relativity, and the distinction between execution duration and lifecycle stage duration.
 
@@ -376,7 +376,7 @@ Implementation SHALL preserve behavioral service and HTTP tests for successful a
 
 The implementation MUST preserve existing Flow A lifecycle, queue, calendar, scheduling, and LinkedIn publication behavior and tests.
 
-US-027 stage-duration and dependency-failure requirements are specified separately in this capability and MUST NOT regress US-026 classifications. BL-011 alerting is not implemented by this observation capability; US-028 alert evaluation and emission are owned by `flow-a-operational-alerts`. BL-015 UI behavior remains out of scope for this capability.
+US-027 stage-duration and dependency-failure requirements are specified separately in this capability and MUST NOT regress US-026 classifications. BL-011 alerting is not implemented by this observation capability; US-028 and US-029 alert evaluation and emission are owned by `flow-a-operational-alerts`. BL-015 UI behavior remains out of scope for this capability.
 
 Operator documentation MUST continue to explain the endpoint contract, classification rules, legacy run-record limitation, campaign lifecycle versus LinkedIn publication distinction, and read-only guarantee, and MUST additionally cover US-027 fields when implemented.
 
@@ -391,5 +391,5 @@ Operator documentation MUST continue to explain the endpoint contract, classific
 - **THEN** successful/failed execution, blocked/stale/in-progress campaign, and delayed-calendar classifications still follow the US-026 rules without reinterpretation
 
 #### Scenario: Status observation does not perform alerting side effects
-- **WHEN** the operational-status endpoint reports failed, blocked, or dependency-failure items
+- **WHEN** the operational-status endpoint reports failed, blocked, delayed, stale, or dependency-failure items
 - **THEN** it does not emit alerts, call webhooks, or write `metadata/operational-alerts/` as part of the status request
