@@ -257,27 +257,27 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 ## P3 — Operations, Reliability, and Recovery
 
-- [-] **BL-010 — Add Operational Observability**
+- [x] **BL-010 — Add Operational Observability**
   - Business outcome: Operators can understand system health and campaign progress from one clear operational view.
-  - [-] **US-026**
+  - [x] **US-026**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — controlled fixtures and authenticated HTTP tests show successful/failed runs, blocked/stale campaigns, delayed calendar items, understandable reason codes, deterministic output, and byte-for-byte zero mutation
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-    - Implementation evidence: [flow-a-operational-status.md](../operations/flow-a-operational-status.md) — implemented and tested locally; not deployed or live operationally validated
-  - [-] **US-027**
+    - [x] Business outcome demonstrated — controlled fixtures and live smoke show successful/failed runs, blocked/stale/in-progress campaigns, delayed calendar field, understandable reason codes, deterministic output, and byte-for-byte zero mutation
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-17 (`BUILD_REVISION=b67c538`)
+    - [x] Story accepted — operator-accepted 2026-07-17
+    - Implementation evidence: [flow-a-operational-status.md](../operations/flow-a-operational-status.md)
+  - [x] **US-027**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — controlled fixtures and automated tests show stage durations (closed and observation-relative open lifecycle intervals, execution durations) and dependency-failure buckets (`comfyui`, `deepseek`, `linkedin`, `github_pages_checkout`, `unclassified`) in the single authenticated status response, with stable data issues for invalid clocks and byte-for-byte zero mutation
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-    - Implementation evidence: [flow-a-operational-status.md](../operations/flow-a-operational-status.md) — implemented and tested locally; not deployed or live operationally validated
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+    - [x] Business outcome demonstrated — live smoke shows stage durations and dependency-failure buckets in the same authenticated status response, with data issues counted and zero mutation
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-17 (`BUILD_REVISION=b67c538`)
+    - [x] Story accepted — operator-accepted 2026-07-17
+    - Implementation evidence: [flow-a-operational-status.md](../operations/flow-a-operational-status.md)
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated
+  - [x] Backlog item closed — 2026-07-17
 
 - [x] **BL-011 — Add Operational Alerts**
   - Business outcome: Important failures and blocked states generate timely, actionable alerts.

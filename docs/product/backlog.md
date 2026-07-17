@@ -186,6 +186,8 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Operators can understand system health and campaign progress from one clear operational view.
 
+**Status:** Closed 2026-07-17 after US-026 and US-027 acceptance on `192.168.0.194` (`BUILD_REVISION=b67c538`): controlled live smoke of `GET /flow-a/operational-status` (deterministic, auth 401, invalid `now_utc` 422, zero mutation). Evidence: [flow-a-operational-status.md](../operations/flow-a-operational-status.md).
+
 ### BL-011 — Add Operational Alerts
 
 **Business need:** Notify the operator when the system requires attention.

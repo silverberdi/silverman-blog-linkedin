@@ -500,9 +500,9 @@ As a content operator, I want to define a fallback when the preview is incorrect
 
 ### US-026 — Add Operational Observability: Story 1
 
-**Status:** Implemented, locally tested, and demonstrated against controlled
-fixtures on 2026-07-17. Business acceptance, deployment, and live operational
-validation remain pending. Evidence:
+**Status:** Accepted (operator-accepted 2026-07-17 on `192.168.0.194`,
+`BUILD_REVISION=b67c538` after controlled live smoke of
+`GET /flow-a/operational-status`). Evidence:
 [flow-a-operational-status.md](../operations/flow-a-operational-status.md).
 
 **Description**
@@ -511,20 +511,18 @@ As a system operator, I want to identify successful and failed executions, so th
 
 **Acceptance criteria**
 
-- [ ] Identify successful and failed executions.
-- [ ] Identify blocked or stale campaigns.
-- [ ] Show delayed calendar items.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Identify successful and failed executions. — Live smoke: 46 successful / 0 failed persisted runs in one authenticated response (`now_utc=2026-07-17T22:55:00Z`).
+- [x] Identify blocked or stale campaigns. — Live smoke: 6 campaigns with `failed_campaigns=1`, `blocked_campaigns=1`, `stale_campaigns=0`, `in_progress_campaigns=1`, `successful_campaigns=4`.
+- [x] Show delayed calendar items. — Live smoke: `delayed_calendar_items` present (count 0 at observation instant; field and summary exposed).
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: consolidated JSON with counts, LinkedIn publish_state breakdown, and secret-safe campaign/run summaries; no raw multi-file inspection required.
+- [x] Failures or blocked states are clearly communicated. — Live smoke: `status=partial` with 16 `data_issues`; failed/blocked campaign counts and `github_pages_checkout` dependency failure for an existing failed campaign.
+- [x] Existing completed work is not duplicated or unintentionally changed. — Live smoke: byte-for-byte zero mutation across 128 editorial files; auth 401; invalid `now_utc` 422; deterministic repeat GET.
 
 ### US-027 — Add Operational Observability: Story 2
 
-**Status:** Implemented, locally tested, and demonstrated against controlled
-fixtures on 2026-07-17 (stage durations from existing persisted evidence and
-dependency-failure buckets in the same `GET /flow-a/operational-status`
-response). Business acceptance, deployment, and live operational validation
-remain pending. Evidence:
+**Status:** Accepted (operator-accepted 2026-07-17 on `192.168.0.194`,
+`BUILD_REVISION=b67c538` after controlled live smoke of
+`GET /flow-a/operational-status`). Evidence:
 [flow-a-operational-status.md](../operations/flow-a-operational-status.md).
 
 **Description**
@@ -533,12 +531,12 @@ As a system operator, I want to capture stage duration, so that operators can un
 
 **Acceptance criteria**
 
-- [ ] Capture stage duration.
-- [ ] Surface failures by external dependency.
-- [ ] Allow status review without opening multiple raw files.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Capture stage duration. — Live smoke: `summary.stage_durations` reported `campaigns_with_stage_durations=6`, `executions_with_duration=46`, `stage_intervals_reported=47`; all 6 campaigns included `stage_durations`.
+- [x] Surface failures by external dependency. — Live smoke: top-level `dependency_failures` and summary buckets; `github_pages_checkout` count 1 with `blog_publish_target_exists`.
+- [x] Allow status review without opening multiple raw files. — Demonstrated: single authenticated GET returns executions, campaigns, calendar delay, stage durations, and dependency buckets together.
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: whole-second durations and named dependency buckets in the same response as US-026 classifications.
+- [x] Failures or blocked states are clearly communicated. — Live smoke: dependency failure entry names campaign id and error codes; `data_issues` counted in summary.
+- [x] Existing completed work is not duplicated or unintentionally changed. — Live smoke: zero mutation; no alert ledger write; no external integration calls as part of status.
 
 ## BL-011 — Add Operational Alerts
 

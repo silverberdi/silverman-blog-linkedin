@@ -6,8 +6,8 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 ## Snapshot
 
-**`verified_at_utc`:** `2026-07-17T22:50:00Z`
-**Evidence source:** BL-011 follow-up enablement on Ubuntu `192.168.0.194` — operational-alerts webhook + n8n Error Trigger wired; controlled emit smoke `emission.status=emitted` (2 live fingerprints); worker joined `local-ai-stack_backend` for internal `http://n8n:5678/webhook/...`
+**`verified_at_utc`:** `2026-07-17T22:55:00Z`
+**Evidence source:** BL-010 live smoke of `GET /flow-a/operational-status` on Ubuntu `192.168.0.194` (`BUILD_REVISION=b67c538`) — deterministic, auth 401, invalid `now_utc` 422, zero mutation; prior BL-011 webhook enablement remains active
 
 | Fact | Value | Evidence |
 |------|-------|----------|
@@ -16,6 +16,7 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 | Editorial mount | `/data/silverman-blog-linkedin` → host `/home/silverman/compartido_mac/silverman-blog-linkedin` | Deploy compose |
 | Public blog mount | `/public-blog` → host `/home/silverman/silverberdi.github.io` | Deploy verification |
 | n8n Flow A workflow | **Active** (`silvermanFlowAPublish01`, **35** nodes, Schedule `0 9 * * *` UTC, single-flight, includes `/complete-flow-a-ready-path`); `settings.errorWorkflow=silvermanFlowAErrorReport01`; repo export `active: false` | Post-enablement export check 2026-07-17 |
+| Flow A operational status | **Validated** — `GET /flow-a/operational-status` live smoke PASS (US-026 + US-027); BL-010 closed | Live smoke 2026-07-17 `now_utc=2026-07-17T22:55:00Z` |
 | Flow A operational alerts emission | **Enabled** — `SILVERMAN_FLOW_A_OPERATIONAL_ALERTS_ENABLED=true`; webhook `http://n8n:5678/webhook/silverman-flow-a-operational-alerts` (internal DNS; worker on `local-ai-stack_backend`) | Server `.env` + container env; emit smoke `emitted` |
 | n8n alerts workflows | **Active** — `silvermanFlowAAlertsWebhook01`, `silvermanFlowAErrorReport01`, `silvermanFlowAAlertsEvaluate01` (cron `30 9 * * *` UTC) | n8n export + activation logs |
 | Set Configuration opt-ins (server) | `git_publication=true`, `live_site_confirmation=true`, `update_calendar=true` | Post-activate export check |
@@ -59,5 +60,6 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 - BL-008 closed 2026-07-17: US-021/US-022 accepted (primary recovery chain validated live); correction/cancel/exhaustion paths remain unit-test scope.
 - Pages live-confirmation can 404 briefly after push; resume after HTTP 200 (documented in BL-005).
 - BL-008 (US-021/US-022) and BL-009 (US-023/US-024/US-025) demonstrated and accepted 2026-07-17 — both backlog items closed.
+- BL-010 / US-026–US-027 operator-accepted 2026-07-17 after controlled live smoke of `GET /flow-a/operational-status` (zero mutation); **BL-010 closed**.
 - BL-011 / US-028–US-030 code is deployed (`b67c538`) and **operator-accepted 2026-07-17** after controlled live smoke (evaluate + report + fail-closed emit + zero lifecycle mutation); **BL-011 closed**.
 - BL-011 follow-up enablement 2026-07-17: production emit **on**; n8n webhook receiver + Error Trigger report + daily evaluate/emit schedule active; Flow A `errorWorkflow` linked. Public gateway `/webhook/*` still requires `X-Avatares-Api-Key` — worker uses internal `n8n` DNS instead.

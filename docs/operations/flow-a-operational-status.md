@@ -2,10 +2,11 @@
 
 Operator contract for the read-only status view covering US-026
 (execution/campaign/calendar classifications) and US-027 (stage durations and
-dependency-failure aggregation). Both slices are implemented and tested
-locally. The capability is not deployed or operationally validated, does not
-send notifications or write alert ledgers, and does not by itself close BL-010.
-BL-011 / US-028, US-029, and US-030 alerting is owned by the separate
+dependency-failure aggregation). US-026 and US-027 were operator-accepted and
+**BL-010 closed 2026-07-17** after controlled live smoke on
+`BUILD_REVISION=b67c538`. The capability does not send notifications or write
+alert ledgers. BL-011 / US-028, US-029, and US-030 alerting is owned by the
+separate
 [`POST /flow-a/operational-alerts/evaluate`](flow-a-operational-alerts.md)
 contract (plus US-030 report ingest).
 
@@ -211,6 +212,19 @@ open lifecycle stage intervals, execution durations, every dependency bucket
 inverted and missing clocks as stable data issues, and byte-for-byte zero
 mutation with no external client invocation.
 
-This demonstrates US-026 and US-027 at controlled-fixture and automated-test
-scope only. Business acceptance, deployment, and live operational validation
-remain pending.
+This demonstrates US-026 and US-027 at controlled-fixture, automated-test, and
+controlled live-smoke scope on `192.168.0.194` (`BUILD_REVISION=b67c538`).
+**Operator-accepted 2026-07-17; BL-010 closed.**
+
+### Live smoke evidence (2026-07-17)
+
+Authenticated `GET /flow-a/operational-status?now_utc=2026-07-17T22:55:00Z`:
+
+- HTTP 200; `read_only=true`; `status=partial` (`data_issues=16`)
+- Executions: 46 successful / 0 failed
+- Campaigns: 6 total (4 successful / 1 failed / 1 blocked / 0 stale / 1 in progress)
+- Delayed calendar items: 0 at observation instant (field present)
+- Stage durations: 6 campaigns / 46 executions with duration / 47 intervals
+- Dependency failures: `github_pages_checkout=1` (`blog_publish_target_exists`)
+- Auth without key → 401; invalid `now_utc` → 422
+- Repeat GET identical; 128 editorial files byte-for-byte unchanged
