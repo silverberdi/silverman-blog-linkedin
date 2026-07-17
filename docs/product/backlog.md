@@ -248,10 +248,26 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Editorial state can be restored from a verified backup.
 
+### BL-015 — Implement Flow A LinkedIn Variant Supervision Console
+
+**Business need:** Provide an operator-facing console to supervise Flow A LinkedIn variants after distribution scheduling and before LinkedIn API publication.
+
+**Expected outcomes:**
+
+- Present pending variants in a campaign or calendar view.
+- Show campaign, variant, audience, schedule, and publication state.
+- Allow operators to edit variant content before queue authorization.
+- Allow operators to defer, reschedule, or cancel variants before queue.
+- Persist operator changes traceably.
+- Surface publication blocks and integration failures.
+- Use worker HTTP capabilities without bypassing publication guards.
+
+**Completion outcome:** Operators can supervise Flow A LinkedIn variants during the optional pre-send window without opening multiple raw files.
+
 
 ## P4 — Flow B
 
-### BL-015 — Define Flow B
+### BL-016 — Define Flow B
 
 **Business need:** Define the complete business process for system-generated content that requires human review.
 
@@ -266,7 +282,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Flow B has an approved business process and clear human approval boundaries.
 
-### BL-016 — Generate Blog Drafts for Flow B
+### BL-017 — Generate Blog Drafts for Flow B
 
 **Business need:** Create high-quality blog drafts from approved ideas while preserving Silverio's voice and editorial standards.
 
@@ -281,7 +297,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** The system produces review-ready Flow B blog drafts.
 
-### BL-017 — Implement Flow B Review and Approval
+### BL-018 — Implement Flow B Review and Approval
 
 **Business need:** Support human review and approval of system-generated content.
 
@@ -296,7 +312,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Flow B content cannot proceed to publication without recorded approval.
 
-### BL-018 — Integrate Flow B with the Editorial Calendar
+### BL-019 — Integrate Flow B with the Editorial Calendar
 
 **Business need:** Plan Flow B content alongside approved Flow A content.
 
@@ -314,7 +330,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 ## P5 — Editorial Strategy and Measurement
 
-### BL-019 — Create the Editorial Content Backlog
+### BL-020 — Create the Editorial Content Backlog
 
 **Business need:** Maintain a prioritized business backlog of future content topics.
 
@@ -327,7 +343,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** The content pipeline has a clear, prioritized source of future topics.
 
-### BL-020 — Define Editorial Calendar and Publishing Cadence
+### BL-021 — Define Editorial Calendar and Publishing Cadence
 
 **Business need:** Establish a sustainable publishing rhythm for the blog and LinkedIn.
 
@@ -342,7 +358,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Publications follow an approved cadence that avoids saturation and redundancy.
 
-### BL-021 — Define Business and Content Metrics
+### BL-022 — Define Business and Content Metrics
 
 **Business need:** Measure whether the content program supports Silverio's professional goals.
 
@@ -357,7 +373,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** The content program has measurable business and editorial outcomes.
 
-### BL-022 — Use Performance Feedback to Improve Future Content
+### BL-023 — Use Performance Feedback to Improve Future Content
 
 **Business need:** Turn performance data into better editorial decisions.
 
@@ -375,7 +391,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 ## P6 — Security and Administration
 
-### BL-023 — Rotate and Review Operational Secrets
+### BL-024 — Rotate and Review Operational Secrets
 
 **Business need:** Ensure operational credentials remain secure and appropriately managed.
 
@@ -389,7 +405,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Operational secrets are current, protected, and auditable.
 
-### BL-024 — Formalize LinkedIn Token Management
+### BL-025 — Formalize LinkedIn Token Management
 
 **Business need:** Define the full lifecycle of LinkedIn authentication tokens.
 
@@ -404,7 +420,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** LinkedIn token management is secure, predictable, and recoverable.
 
-### BL-025 — Review Service Permissions and Exposure
+### BL-026 — Review Service Permissions and Exposure
 
 **Business need:** Reduce the attack surface of the worker, n8n, ComfyUI, Docker, shared filesystem, and public checkout.
 
@@ -422,7 +438,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 ## P7 — Technical Debt and Maintenance
 
-### BL-026 — Correct Stale Flow A Readiness Defaults
+### BL-027 — Correct Stale Flow A Readiness Defaults
 
 **Business need:** Remove obsolete revision assumptions from readiness validation.
 
@@ -436,7 +452,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Flow A readiness checks remain accurate as the repository evolves.
 
-### BL-027 — Establish a Warning and Test Quality Baseline
+### BL-028 — Establish a Warning and Test Quality Baseline
 
 **Business need:** Create a known baseline for test-suite warnings and code-quality signals.
 
@@ -451,7 +467,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** The team can identify whether a change introduces new quality problems.
 
-### BL-028 — Establish Continuous Integration
+### BL-029 — Establish Continuous Integration
 
 **Business need:** Run repository validation automatically on proposed changes.
 
@@ -466,7 +482,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Invalid changes are detected before they reach the main branch.
 
-### BL-029 — Maintain Current Project and Runtime Context
+### BL-030 — Maintain Current Project and Runtime Context
 
 **Business need:** Keep business, technical, and operational documentation aligned with reality.
 
