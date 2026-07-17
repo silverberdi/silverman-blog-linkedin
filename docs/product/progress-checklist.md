@@ -257,15 +257,16 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 ## P3 — Operations, Reliability, and Recovery
 
-- [ ] **BL-010 — Add Operational Observability**
+- [-] **BL-010 — Add Operational Observability**
   - Business outcome: Operators can understand system health and campaign progress from one clear operational view.
-  - [ ] **US-026**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+  - [-] **US-026**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — controlled fixtures and authenticated HTTP tests show successful/failed runs, blocked/stale campaigns, delayed calendar items, understandable reason codes, deterministic output, and byte-for-byte zero mutation
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
+    - Implementation evidence: [flow-a-operational-status.md](../operations/flow-a-operational-status.md) — implemented and tested locally; not deployed or live operationally validated
   - [ ] **US-027**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed

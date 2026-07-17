@@ -500,6 +500,11 @@ As a content operator, I want to define a fallback when the preview is incorrect
 
 ### US-026 — Add Operational Observability: Story 1
 
+**Status:** Implemented, locally tested, and demonstrated against controlled
+fixtures on 2026-07-17. Business acceptance, deployment, and live operational
+validation remain pending. Evidence:
+[flow-a-operational-status.md](../operations/flow-a-operational-status.md).
+
 **Description**
 
 As a system operator, I want to identify successful and failed executions, so that operators can understand system health and campaign progress from one clear operational view.

@@ -9,7 +9,7 @@ import os
 from typing import Literal
 from urllib.parse import urlparse
 
-from fastapi import Depends, FastAPI, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
@@ -34,6 +34,9 @@ from silverman_blog_linkedin.editorial_calendar_plan import (
 )
 from silverman_blog_linkedin.flow_a_ready_path_completion import (
     complete_flow_a_ready_path,
+)
+from silverman_blog_linkedin.flow_a_operational_status import (
+    get_flow_a_operational_status,
 )
 from silverman_blog_linkedin.file_reader import (
     derive_filename,
@@ -1921,6 +1924,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "editorial-calendar/status status=%s calendar_present=%s",
             result.status,
             result.calendar_present,
+        )
+        return result.to_dict()
+
+    @app.get("/flow-a/operational-status")
+    def flow_a_operational_status(
+        now_utc: str | None = Query(default=None),
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        try:
+            validated_now = (
+                validate_canonical_utc_timestamp(now_utc)
+                if now_utc is not None
+                else None
+            )
+        except ValueError:
+            raise HTTPException(
+                status_code=422,
+                detail="now_utc must be a canonical UTC timestamp",
+            ) from None
+        result = get_flow_a_operational_status(
+            settings.base_path,
+            now_utc=validated_now,
+        )
+        logger.info(
+            "flow-a/operational-status status=%s executions=%s campaigns=%s "
+            "delayed=%s data_issues=%s",
+            result.status,
+            sum(len(items) for items in result.executions.values()),
+            len(result.campaigns),
+            len(result.delayed_calendar_items),
+            len(result.data_issues),
         )
         return result.to_dict()
 
