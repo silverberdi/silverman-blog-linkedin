@@ -62,6 +62,7 @@ RUN_STATUS_INVALID = "run_status_invalid"
 RUN_TRIGGER_INVALID = "run_trigger_invalid"
 RUN_TIMESTAMP_INVALID = "run_timestamp_invalid"
 RUN_ERROR_CODE_INVALID = "run_error_code_invalid"
+RUN_CLOCK_INVERTED = "run_clock_inverted"
 
 CAMPAIGNS_DIRECTORY_NOT_FOUND = "campaigns_directory_not_found"
 CAMPAIGNS_DIRECTORY_INVALID = "campaigns_directory_invalid"
@@ -74,6 +75,12 @@ CAMPAIGN_SOURCE_STATUS_INVALID = "campaign_source_status_invalid"
 CAMPAIGN_TIMESTAMP_INVALID = "campaign_timestamp_invalid"
 CAMPAIGN_ATTEMPT_EVIDENCE_INVALID = "campaign_attempt_evidence_invalid"
 CAMPAIGN_ERROR_CODE_INVALID = "campaign_error_code_invalid"
+CAMPAIGN_STAGE_HISTORY_INVALID = "campaign_stage_history_invalid"
+CAMPAIGN_STAGE_CLOCK_INVERTED = "campaign_stage_clock_inverted"
+CAMPAIGN_STAGE_HISTORY_STATE_INCONSISTENT = (
+    "campaign_stage_history_state_inconsistent"
+)
+CAMPAIGN_ATTEMPT_CLOCK_INVERTED = "campaign_attempt_clock_inverted"
 
 LINKEDIN_DISTRIBUTION_INVALID = "linkedin_distribution_invalid"
 LINKEDIN_VARIANTS_INVALID = "linkedin_variants_invalid"
@@ -86,6 +93,33 @@ CALENDAR_PATH_OUTSIDE_SOURCE = "calendar_path_outside_source"
 CALENDAR_ITEM_PAST_DUE = "calendar_item_past_due"
 
 PUBLISH_STATES = ("pending", "queued", "published", "failed", "cancelled")
+
+DEPENDENCY_COMFYUI = "comfyui"
+DEPENDENCY_DEEPSEEK = "deepseek"
+DEPENDENCY_LINKEDIN = "linkedin"
+DEPENDENCY_GITHUB_PAGES_CHECKOUT = "github_pages_checkout"
+DEPENDENCY_UNCLASSIFIED = "unclassified"
+DEPENDENCY_BUCKETS = (
+    DEPENDENCY_COMFYUI,
+    DEPENDENCY_DEEPSEEK,
+    DEPENDENCY_GITHUB_PAGES_CHECKOUT,
+    DEPENDENCY_LINKEDIN,
+    DEPENDENCY_UNCLASSIFIED,
+)
+
+# Checkout-named families take precedence over the general linkedin_* family.
+_GITHUB_PAGES_CHECKOUT_PREFIXES = (
+    "blog_publish_",
+    "blog_git_publication_",
+    "checkout_",
+    "linkedin_preview_validation_checkout_",
+)
+_GITHUB_PAGES_CHECKOUT_EXACT = frozenset(
+    {"linkedin_article_preview_public_repo_not_configured"}
+)
+_COMFYUI_PREFIXES = ("comfyui_", "blog_image_generation_")
+_DEEPSEEK_PREFIXES = ("deepseek_",)
+_LINKEDIN_PREFIXES = ("linkedin_",)
 DELAY_ELIGIBLE_STATUSES = frozenset(
     {"planned", "scheduled", "due", "in_progress"}
 )
@@ -121,7 +155,43 @@ class ExecutionSummary:
     outcome: str
     started_at: str | None
     completed_at: str | None
+    duration_seconds: int | None = None
     error_codes: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class StageDurationSummary:
+    stage: str
+    started_at: str
+    ended_at: str | None
+    duration_seconds: int | None
+    open: bool
+    from_state: str | None = None
+    to_state: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class CampaignDependencyFailureSummary:
+    dependency: str
+    error_codes: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class DependencyFailureEntry:
+    dependency: str
+    failure_count: int
+    error_codes: list[str] = field(default_factory=list)
+    campaign_ids: list[str] = field(default_factory=list)
+    run_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -166,6 +236,11 @@ class CampaignSummary:
     last_transition_at: str | None
     last_error_code: str | None
     linkedin: LinkedInProgressSummary
+    attempt_duration_seconds: int | None = None
+    stage_durations: list[StageDurationSummary] = field(default_factory=list)
+    dependency_failures: list[CampaignDependencyFailureSummary] = field(
+        default_factory=list
+    )
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -194,6 +269,7 @@ class FlowAOperationalStatusResult:
     executions: dict[str, list[ExecutionSummary]]
     campaigns: list[CampaignSummary]
     delayed_calendar_items: list[DelayedCalendarItemSummary]
+    dependency_failures: list[DependencyFailureEntry]
     data_issues: list[DataIssue]
     read_only: bool = True
 
@@ -211,6 +287,9 @@ class FlowAOperationalStatusResult:
             "campaigns": [item.to_dict() for item in self.campaigns],
             "delayed_calendar_items": [
                 item.to_dict() for item in self.delayed_calendar_items
+            ],
+            "dependency_failures": [
+                item.to_dict() for item in self.dependency_failures
             ],
             "data_issues": [item.to_dict() for item in self.data_issues],
         }
@@ -258,6 +337,273 @@ def _safe_error_code(value: Any) -> str | None:
 
 def _safe_artifact_identifier(path: Path) -> str | None:
     return path.name if _SAFE_IDENTIFIER.fullmatch(path.name) else None
+
+
+def _whole_seconds_between(
+    start: Any,
+    end: Any,
+    *,
+    source: str,
+    identifier: str | None,
+    inverted_reason: str,
+    issues: list[DataIssue],
+) -> int | None:
+    """Whole-second difference between canonical UTC clocks.
+
+    Returns None without an issue when either clock is absent or unparsable
+    (unparsable values are reported by the callers' timestamp validation).
+    Inverted clocks are rejected with a stable data issue.
+    """
+    start_parsed = _parse_canonical_utc(start)
+    end_parsed = _parse_canonical_utc(end)
+    if start_parsed is None or end_parsed is None:
+        return None
+    if end_parsed < start_parsed:
+        issues.append(DataIssue(source, identifier, inverted_reason))
+        return None
+    return int((end_parsed - start_parsed).total_seconds())
+
+
+def _classify_dependency(error_code: str) -> str:
+    if error_code in _GITHUB_PAGES_CHECKOUT_EXACT or error_code.startswith(
+        _GITHUB_PAGES_CHECKOUT_PREFIXES
+    ):
+        return DEPENDENCY_GITHUB_PAGES_CHECKOUT
+    if error_code.startswith(_COMFYUI_PREFIXES):
+        return DEPENDENCY_COMFYUI
+    if error_code.startswith(_DEEPSEEK_PREFIXES):
+        return DEPENDENCY_DEEPSEEK
+    if error_code.startswith(_LINKEDIN_PREFIXES):
+        return DEPENDENCY_LINKEDIN
+    return DEPENDENCY_UNCLASSIFIED
+
+
+def _lifecycle_state_or_none(value: Any) -> str | None:
+    if isinstance(value, str) and value in LIFECYCLE_STATES:
+        return value
+    return None
+
+
+def _stage_durations(
+    campaign: dict[str, Any],
+    *,
+    campaign_id: str,
+    campaign_state: str,
+    observed_at: datetime,
+    issues: list[DataIssue],
+) -> list[StageDurationSummary]:
+    raw_history = campaign.get("state_history")
+    if raw_history is None:
+        return []
+    if not isinstance(raw_history, list):
+        issues.append(
+            DataIssue(
+                CAMPAIGNS_SOURCE,
+                campaign_id,
+                CAMPAIGN_STAGE_HISTORY_INVALID,
+            )
+        )
+        return []
+
+    valid_entries: list[tuple[str, str | None, str]] = []
+    for entry in raw_history:
+        if not isinstance(entry, dict):
+            issues.append(
+                DataIssue(
+                    CAMPAIGNS_SOURCE,
+                    campaign_id,
+                    CAMPAIGN_STAGE_HISTORY_INVALID,
+                )
+            )
+            continue
+        at = _parse_canonical_utc(entry.get("at"))
+        to_state = _lifecycle_state_or_none(entry.get("to_state"))
+        from_state_raw = entry.get("from_state")
+        from_state = _lifecycle_state_or_none(from_state_raw)
+        if (
+            at is None
+            or to_state is None
+            or (from_state_raw is not None and from_state is None)
+        ):
+            issues.append(
+                DataIssue(
+                    CAMPAIGNS_SOURCE,
+                    campaign_id,
+                    CAMPAIGN_STAGE_HISTORY_INVALID,
+                )
+            )
+            continue
+        valid_entries.append(
+            (at.strftime("%Y-%m-%dT%H:%M:%SZ"), from_state, to_state)
+        )
+
+    if not valid_entries:
+        return []
+
+    intervals: list[StageDurationSummary] = []
+    for earlier, later in zip(valid_entries, valid_entries[1:]):
+        duration = _whole_seconds_between(
+            earlier[0],
+            later[0],
+            source=CAMPAIGNS_SOURCE,
+            identifier=campaign_id,
+            inverted_reason=CAMPAIGN_STAGE_CLOCK_INVERTED,
+            issues=issues,
+        )
+        if duration is None:
+            continue
+        intervals.append(
+            StageDurationSummary(
+                stage=earlier[2],
+                started_at=earlier[0],
+                ended_at=later[0],
+                duration_seconds=duration,
+                open=False,
+                from_state=later[1],
+                to_state=later[2],
+            )
+        )
+
+    last_at, _, last_to_state = valid_entries[-1]
+    open_stage = last_to_state
+    if campaign_state != last_to_state:
+        issues.append(
+            DataIssue(
+                CAMPAIGNS_SOURCE,
+                campaign_id,
+                CAMPAIGN_STAGE_HISTORY_STATE_INCONSISTENT,
+            )
+        )
+    open_duration = _whole_seconds_between(
+        last_at,
+        observed_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        source=CAMPAIGNS_SOURCE,
+        identifier=campaign_id,
+        inverted_reason=CAMPAIGN_STAGE_CLOCK_INVERTED,
+        issues=issues,
+    )
+    intervals.append(
+        StageDurationSummary(
+            stage=open_stage,
+            started_at=last_at,
+            ended_at=None,
+            duration_seconds=open_duration,
+            open=True,
+        )
+    )
+
+    intervals.sort(key=lambda item: (item.started_at, item.stage))
+    return intervals
+
+
+def _campaign_dependency_failures(
+    campaign: dict[str, Any],
+    *,
+    campaign_id: str,
+    failed: bool,
+    blocked: bool,
+    last_error_code: str | None,
+    linkedin_failure_codes: list[str],
+    issues: list[DataIssue],
+) -> list[CampaignDependencyFailureSummary]:
+    codes: set[str] = set(linkedin_failure_codes)
+    if failed or blocked:
+        if last_error_code is not None:
+            codes.add(last_error_code)
+        raw_errors = campaign.get("errors")
+        if isinstance(raw_errors, list):
+            for raw_code in raw_errors:
+                code = _safe_error_code(raw_code)
+                if code is None:
+                    issues.append(
+                        DataIssue(
+                            CAMPAIGNS_SOURCE,
+                            campaign_id,
+                            CAMPAIGN_ERROR_CODE_INVALID,
+                        )
+                    )
+                else:
+                    codes.add(code)
+        elif raw_errors is not None:
+            issues.append(
+                DataIssue(
+                    CAMPAIGNS_SOURCE,
+                    campaign_id,
+                    CAMPAIGN_ERROR_CODE_INVALID,
+                )
+            )
+        history = campaign.get("state_history")
+        if isinstance(history, list):
+            for entry in history:
+                if not isinstance(entry, dict):
+                    continue  # Malformed entries already reported by stage derivation.
+                raw_code = entry.get("error_code")
+                if raw_code is None:
+                    continue
+                code = _safe_error_code(raw_code)
+                if code is None:
+                    issues.append(
+                        DataIssue(
+                            CAMPAIGNS_SOURCE,
+                            campaign_id,
+                            CAMPAIGN_ERROR_CODE_INVALID,
+                        )
+                    )
+                else:
+                    codes.add(code)
+
+    buckets: dict[str, set[str]] = {}
+    for code in codes:
+        buckets.setdefault(_classify_dependency(code), set()).add(code)
+    return [
+        CampaignDependencyFailureSummary(
+            dependency=dependency,
+            error_codes=sorted(buckets[dependency]),
+        )
+        for dependency in sorted(buckets)
+    ]
+
+
+def _aggregate_dependency_failures(
+    executions: list[ExecutionSummary],
+    campaigns: list[CampaignSummary],
+) -> list[DependencyFailureEntry]:
+    attributions: dict[str, set[tuple[str, str]]] = {}
+    campaign_ids: dict[str, set[str]] = {}
+    run_ids: dict[str, set[str]] = {}
+
+    for execution in executions:
+        if execution.outcome != "failed":
+            continue
+        for code in execution.error_codes:
+            dependency = _classify_dependency(code)
+            attributions.setdefault(dependency, set()).add(
+                (code, execution.run_id)
+            )
+            run_ids.setdefault(dependency, set()).add(execution.run_id)
+
+    for campaign in campaigns:
+        for entry in campaign.dependency_failures:
+            for code in entry.error_codes:
+                attributions.setdefault(entry.dependency, set()).add(
+                    (code, campaign.campaign_id)
+                )
+                campaign_ids.setdefault(entry.dependency, set()).add(
+                    campaign.campaign_id
+                )
+
+    return [
+        DependencyFailureEntry(
+            dependency=dependency,
+            failure_count=len(attributions[dependency]),
+            error_codes=sorted(
+                {code for code, _ in attributions[dependency]}
+            ),
+            campaign_ids=sorted(campaign_ids.get(dependency, set())),
+            run_ids=sorted(run_ids.get(dependency, set())),
+        )
+        for dependency in sorted(attributions)
+    ]
 
 
 def _resolved_source_directory(
@@ -433,6 +779,15 @@ def _load_executions(
         elif raw_errors is not None:
             issues.append(DataIssue(RUNS_SOURCE, run_id, RUN_ERROR_CODE_INVALID))
 
+        duration_seconds = _whole_seconds_between(
+            started_at,
+            completed_at,
+            source=RUNS_SOURCE,
+            identifier=run_id,
+            inverted_reason=RUN_CLOCK_INVERTED,
+            issues=issues,
+        )
+
         executions.append(
             ExecutionSummary(
                 run_id=run_id,
@@ -441,6 +796,7 @@ def _load_executions(
                 outcome=outcome,
                 started_at=started_at,
                 completed_at=completed_at,
+                duration_seconds=duration_seconds,
                 error_codes=sorted(error_codes),
             )
         )
@@ -916,6 +1272,42 @@ def _load_campaigns(
             issues=issues,
         )
 
+        last_error_code = _last_error_code(
+            source_status,
+            campaign_id=persisted_id,
+            issues=issues,
+        )
+        linkedin = _linkedin_progress(
+            campaign,
+            campaign_id=persisted_id,
+            observed_at=observed_at,
+            issues=issues,
+        )
+        stage_durations = _stage_durations(
+            campaign,
+            campaign_id=persisted_id,
+            campaign_state=state,
+            observed_at=observed_at,
+            issues=issues,
+        )
+        attempt_duration_seconds = _whole_seconds_between(
+            source_status.get("processing_started_at"),
+            source_status.get("last_progress_at"),
+            source=CAMPAIGNS_SOURCE,
+            identifier=persisted_id,
+            inverted_reason=CAMPAIGN_ATTEMPT_CLOCK_INVERTED,
+            issues=issues,
+        )
+        dependency_failures = _campaign_dependency_failures(
+            campaign,
+            campaign_id=persisted_id,
+            failed=failed,
+            blocked=blocked,
+            last_error_code=last_error_code,
+            linkedin_failure_codes=linkedin.failure_codes,
+            issues=issues,
+        )
+
         campaigns.append(
             CampaignSummary(
                 campaign_id=persisted_id,
@@ -946,17 +1338,11 @@ def _load_campaigns(
                 last_progress_at=last_progress_at,
                 processing_lease_expires_at=processing_lease_expires_at,
                 last_transition_at=last_transition_at,
-                last_error_code=_last_error_code(
-                    source_status,
-                    campaign_id=persisted_id,
-                    issues=issues,
-                ),
-                linkedin=_linkedin_progress(
-                    campaign,
-                    campaign_id=persisted_id,
-                    observed_at=observed_at,
-                    issues=issues,
-                ),
+                last_error_code=last_error_code,
+                linkedin=linkedin,
+                attempt_duration_seconds=attempt_duration_seconds,
+                stage_durations=stage_durations,
+                dependency_failures=dependency_failures,
             )
         )
 
@@ -1069,12 +1455,16 @@ def _build_summary(
     executions: list[ExecutionSummary],
     campaigns: list[CampaignSummary],
     delayed: list[DelayedCalendarItemSummary],
+    dependency_failures: list[DependencyFailureEntry],
     issues: list[DataIssue],
 ) -> dict[str, Any]:
     linkedin_counts = {state: 0 for state in PUBLISH_STATES}
     for campaign in campaigns:
         for state, count in campaign.linkedin.publish_state_counts.items():
             linkedin_counts[state] += count
+    dependency_counts = {bucket: 0 for bucket in DEPENDENCY_BUCKETS}
+    for entry in dependency_failures:
+        dependency_counts[entry.dependency] = entry.failure_count
     return {
         "successful_executions": sum(
             item.outcome == "successful" for item in executions
@@ -1088,6 +1478,18 @@ def _build_summary(
         "in_progress_campaigns": sum(item.in_progress for item in campaigns),
         "delayed_calendar_items": len(delayed),
         "linkedin_variants_by_publish_state": linkedin_counts,
+        "stage_durations": {
+            "campaigns_with_stage_durations": sum(
+                bool(item.stage_durations) for item in campaigns
+            ),
+            "executions_with_duration": sum(
+                item.duration_seconds is not None for item in executions
+            ),
+            "stage_intervals_reported": sum(
+                len(item.stage_durations) for item in campaigns
+            ),
+        },
+        "dependency_failures": dependency_counts,
         "data_issues": len(issues),
     }
 
@@ -1119,6 +1521,7 @@ def get_flow_a_operational_status(
         observed_at=observed_at,
         issues=issues,
     )
+    dependency_failures = _aggregate_dependency_failures(executions, campaigns)
     issues = sorted(
         set(issues),
         key=lambda item: (item.source, item.identifier or "", item.reason),
@@ -1134,10 +1537,13 @@ def get_flow_a_operational_status(
         status="partial" if issues else "ok",
         observed_at_utc=observed_at_utc,
         stale_after_seconds=stale_after_seconds,
-        summary=_build_summary(executions, campaigns, delayed, issues),
+        summary=_build_summary(
+            executions, campaigns, delayed, dependency_failures, issues
+        ),
         executions=partitioned,
         campaigns=campaigns,
         delayed_calendar_items=delayed,
+        dependency_failures=dependency_failures,
         data_issues=issues,
         read_only=True,
     )

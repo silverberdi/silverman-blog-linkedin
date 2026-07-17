@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -19,10 +20,15 @@ from silverman_blog_linkedin.flow_a_config import (
 from silverman_blog_linkedin.flow_a_operational_status import (
     CALENDAR_FILE_NOT_FOUND,
     CALENDAR_ITEM_PAST_DUE,
+    CAMPAIGN_ATTEMPT_CLOCK_INVERTED,
     CAMPAIGN_FILE_PATH_OUTSIDE_SOURCE,
     CAMPAIGN_ID_FILENAME_MISMATCH,
+    CAMPAIGN_STAGE_CLOCK_INVERTED,
+    CAMPAIGN_STAGE_HISTORY_INVALID,
+    CAMPAIGN_STAGE_HISTORY_STATE_INCONSISTENT,
     LINKEDIN_PUBLISH_STATE_INVALID,
     LINKEDIN_TIMESTAMP_INVALID,
+    RUN_CLOCK_INVERTED,
     RUN_DOCUMENT_INVALID,
     RUN_STATUS_INVALID,
     FlowAOperationalStatusResult,
@@ -243,6 +249,7 @@ def test_run_classification_safe_fields_ordering_and_no_synthetic_history(
         "outcome",
         "started_at",
         "completed_at",
+        "duration_seconds",
         "error_codes",
     }
 
@@ -709,22 +716,482 @@ def test_repeated_service_calls_are_byte_for_byte_read_only(
     external_http.assert_not_called()
 
 
+def test_stage_durations_completed_open_intervals_and_execution_duration(
+    operational_base: Path,
+):
+    _write_run(
+        operational_base,
+        "run-timed",
+        started_at="2026-07-17T10:00:00Z",
+        completed_at="2026-07-17T10:01:30Z",
+    )
+    _write_campaign(
+        operational_base,
+        state="blog_publish_pending",
+        source_status={
+            "location": "queued",
+            "execution_state": "idle",
+            "recovery_classification": "no_action",
+            "processing_started_at": "2026-07-17T09:00:00Z",
+            "last_progress_at": "2026-07-17T09:05:00Z",
+        },
+        state_history=[
+            {
+                "at": "2026-07-17T08:00:00Z",
+                "from_state": None,
+                "to_state": "ready",
+                "reason": "Campaign created",
+            },
+            {
+                "at": "2026-07-17T08:00:30Z",
+                "from_state": "ready",
+                "to_state": "validated",
+                "reason": "FORBIDDEN-REASON-TEXT",
+            },
+            {
+                "at": "2026-07-17T08:10:30Z",
+                "from_state": "validated",
+                "to_state": "blog_publish_pending",
+                "reason": "FORBIDDEN-REASON-TEXT",
+            },
+        ],
+    )
+
+    result = get_flow_a_operational_status(operational_base, now_utc=NOW)
+    body = result.to_dict()
+
+    assert result.status == "ok"
+    assert body["executions"]["successful"][0]["duration_seconds"] == 90
+
+    campaign = _campaign(result, CAMPAIGN_ID)
+    assert campaign["attempt_duration_seconds"] == 300
+    assert campaign["stage_durations"] == [
+        {
+            "stage": "ready",
+            "started_at": "2026-07-17T08:00:00Z",
+            "ended_at": "2026-07-17T08:00:30Z",
+            "duration_seconds": 30,
+            "open": False,
+            "from_state": "ready",
+            "to_state": "validated",
+        },
+        {
+            "stage": "validated",
+            "started_at": "2026-07-17T08:00:30Z",
+            "ended_at": "2026-07-17T08:10:30Z",
+            "duration_seconds": 600,
+            "open": False,
+            "from_state": "validated",
+            "to_state": "blog_publish_pending",
+        },
+        {
+            "stage": "blog_publish_pending",
+            "started_at": "2026-07-17T08:10:30Z",
+            "ended_at": None,
+            "duration_seconds": 13770,
+            "open": True,
+            "from_state": None,
+            "to_state": None,
+        },
+    ]
+    assert body["summary"]["stage_durations"] == {
+        "campaigns_with_stage_durations": 1,
+        "executions_with_duration": 1,
+        "stage_intervals_reported": 3,
+    }
+    assert "FORBIDDEN-REASON-TEXT" not in json.dumps(body)
+
+
+def test_open_stage_duration_is_observation_relative(operational_base: Path):
+    _write_campaign(
+        operational_base,
+        state="derivatives_pending",
+        state_history=[
+            {
+                "at": "2026-07-17T11:00:00Z",
+                "from_state": None,
+                "to_state": "derivatives_pending",
+            },
+        ],
+    )
+
+    earlier = _campaign(
+        get_flow_a_operational_status(
+            operational_base, now_utc="2026-07-17T11:30:00Z"
+        ),
+        CAMPAIGN_ID,
+    )
+    later = _campaign(
+        get_flow_a_operational_status(operational_base, now_utc=NOW),
+        CAMPAIGN_ID,
+    )
+
+    assert earlier["stage_durations"][0]["open"] is True
+    assert earlier["stage_durations"][0]["duration_seconds"] == 1800
+    assert later["stage_durations"][0]["duration_seconds"] == 3600
+
+
+def test_dependency_buckets_precedence_dedupe_and_no_external_calls(
+    operational_base: Path,
+):
+    _write_run(
+        operational_base,
+        "run-failed-deps",
+        status="failed",
+        errors=[
+            "deepseek_timeout",
+            "deepseek_timeout",
+            "comfyui_connection_refused",
+        ],
+    )
+    _write_campaign(
+        operational_base,
+        state="error",
+        source_status={
+            "location": "error",
+            "execution_state": "idle",
+            "recovery_classification": "manual_intervention_required",
+            "last_error": {
+                "error_code": "blog_git_publication_push_failed",
+            },
+        },
+        errors=[
+            "blog_image_generation_comfyui_failed",
+            "deepseek_timeout",
+            "mystery_code",
+        ],
+        state_history=[
+            {
+                "at": "2026-07-17T08:00:00Z",
+                "from_state": None,
+                "to_state": "ready",
+            },
+            {
+                "at": "2026-07-17T08:05:00Z",
+                "from_state": "ready",
+                "to_state": "error",
+                "error_code": "linkedin_oauth_refresh_failed",
+            },
+        ],
+        variants=[
+            {
+                "variant": "executive-recruiter",
+                "publish_state": "failed",
+                "linkedin_publication": {
+                    "last_error_code": "linkedin_publish_api_error"
+                },
+            },
+            {
+                "variant": "technical-architect",
+                "publish_state": "failed",
+                "linkedin_publication": {
+                    "last_error_code": (
+                        "linkedin_article_preview_public_repo_not_configured"
+                    )
+                },
+            },
+            {
+                "variant": "engineering-leadership",
+                "publish_state": "failed",
+                "linkedin_publication": {
+                    "last_error_code": (
+                        "linkedin_preview_validation_checkout_missing"
+                    )
+                },
+            },
+        ],
+    )
+
+    with (
+        patch("subprocess.run") as git_or_shell,
+        patch("httpx.request") as external_http,
+    ):
+        result = get_flow_a_operational_status(operational_base, now_utc=NOW)
+    git_or_shell.assert_not_called()
+    external_http.assert_not_called()
+
+    body = result.to_dict()
+    assert body["summary"]["dependency_failures"] == {
+        "comfyui": 2,
+        "deepseek": 2,
+        "github_pages_checkout": 3,
+        "linkedin": 2,
+        "unclassified": 1,
+    }
+    entries = {
+        entry["dependency"]: entry for entry in body["dependency_failures"]
+    }
+    assert [entry["dependency"] for entry in body["dependency_failures"]] == [
+        "comfyui",
+        "deepseek",
+        "github_pages_checkout",
+        "linkedin",
+        "unclassified",
+    ]
+    assert entries["comfyui"]["error_codes"] == [
+        "blog_image_generation_comfyui_failed",
+        "comfyui_connection_refused",
+    ]
+    assert entries["deepseek"] == {
+        "dependency": "deepseek",
+        "failure_count": 2,
+        "error_codes": ["deepseek_timeout"],
+        "campaign_ids": [CAMPAIGN_ID],
+        "run_ids": ["run-failed-deps"],
+    }
+    assert entries["github_pages_checkout"]["error_codes"] == [
+        "blog_git_publication_push_failed",
+        "linkedin_article_preview_public_repo_not_configured",
+        "linkedin_preview_validation_checkout_missing",
+    ]
+    assert entries["linkedin"]["error_codes"] == [
+        "linkedin_oauth_refresh_failed",
+        "linkedin_publish_api_error",
+    ]
+    assert entries["unclassified"] == {
+        "dependency": "unclassified",
+        "failure_count": 1,
+        "error_codes": ["mystery_code"],
+        "campaign_ids": [CAMPAIGN_ID],
+        "run_ids": [],
+    }
+    campaign = _campaign(result, CAMPAIGN_ID)
+    assert campaign["dependency_failures"] == [
+        {
+            "dependency": "comfyui",
+            "error_codes": ["blog_image_generation_comfyui_failed"],
+        },
+        {"dependency": "deepseek", "error_codes": ["deepseek_timeout"]},
+        {
+            "dependency": "github_pages_checkout",
+            "error_codes": [
+                "blog_git_publication_push_failed",
+                "linkedin_article_preview_public_repo_not_configured",
+                "linkedin_preview_validation_checkout_missing",
+            ],
+        },
+        {
+            "dependency": "linkedin",
+            "error_codes": [
+                "linkedin_oauth_refresh_failed",
+                "linkedin_publish_api_error",
+            ],
+        },
+        {"dependency": "unclassified", "error_codes": ["mystery_code"]},
+    ]
+
+
+def test_healthy_campaign_history_error_codes_are_not_dependency_failures(
+    operational_base: Path,
+):
+    _write_campaign(
+        operational_base,
+        state="flow_a_complete",
+        source_status={
+            "location": "processed",
+            "execution_state": "idle",
+            "recovery_classification": "no_action",
+        },
+        errors=["deepseek_timeout"],
+        state_history=[
+            {
+                "at": "2026-07-17T08:00:00Z",
+                "from_state": None,
+                "to_state": "flow_a_complete",
+                "error_code": "comfyui_connection_refused",
+            },
+        ],
+    )
+
+    result = get_flow_a_operational_status(operational_base, now_utc=NOW)
+
+    assert result.campaigns[0].successful is True
+    assert result.dependency_failures == []
+    assert result.summary["dependency_failures"] == {
+        "comfyui": 0,
+        "deepseek": 0,
+        "github_pages_checkout": 0,
+        "linkedin": 0,
+        "unclassified": 0,
+    }
+
+
+def test_inverted_missing_clocks_and_inconsistent_history_data_issues(
+    operational_base: Path,
+):
+    _write_run(
+        operational_base,
+        "run-inverted",
+        started_at="2026-07-17T10:02:00Z",
+        completed_at="2026-07-17T10:01:00Z",
+    )
+    _write_run(
+        operational_base,
+        "run-open",
+        started_at="2026-07-17T10:00:00Z",
+        completed_at=None,
+    )
+    _write_campaign(
+        operational_base,
+        state="validated",
+        source_status={
+            "location": "queued",
+            "execution_state": "idle",
+            "recovery_classification": "no_action",
+            "processing_started_at": "2026-07-17T10:00:00Z",
+            "last_progress_at": "2026-07-17T09:00:00Z",
+        },
+        state_history=[
+            "not-a-dict",
+            {
+                "at": "2026-07-17T08:10:00Z",
+                "from_state": None,
+                "to_state": "ready",
+            },
+            {
+                "at": "2026-07-17T08:00:00Z",
+                "from_state": "ready",
+                "to_state": "validated",
+            },
+            {
+                "at": "2026-07-17T08:20:00Z",
+                "from_state": "validated",
+                "to_state": "blog_publish_pending",
+            },
+        ],
+    )
+    _write_campaign(
+        operational_base,
+        _campaign_id("future-history"),
+        state="derivatives_pending",
+        state_history=[
+            {
+                "at": "2099-01-01T00:00:00Z",
+                "from_state": None,
+                "to_state": "derivatives_pending",
+            },
+        ],
+    )
+
+    result = get_flow_a_operational_status(operational_base, now_utc=NOW)
+    body = result.to_dict()
+
+    assert result.status == "partial"
+    reasons = {issue.reason for issue in result.data_issues}
+    assert {
+        RUN_CLOCK_INVERTED,
+        CAMPAIGN_STAGE_HISTORY_INVALID,
+        CAMPAIGN_STAGE_CLOCK_INVERTED,
+        CAMPAIGN_STAGE_HISTORY_STATE_INCONSISTENT,
+        CAMPAIGN_ATTEMPT_CLOCK_INVERTED,
+    } <= reasons
+
+    inverted_run = body["executions"]["successful"][0]
+    assert inverted_run["run_id"] == "run-inverted"
+    assert inverted_run["duration_seconds"] is None
+    open_run = next(
+        item
+        for item in body["executions"]["successful"]
+        if item["run_id"] == "run-open"
+    )
+    assert open_run["duration_seconds"] is None
+
+    campaign = _campaign(result, CAMPAIGN_ID)
+    assert campaign["attempt_duration_seconds"] is None
+    # The inverted pair is omitted; the valid pair and the open stage remain.
+    assert [
+        (item["stage"], item["open"]) for item in campaign["stage_durations"]
+    ] == [
+        ("validated", False),
+        ("blog_publish_pending", True),
+    ]
+    assert campaign["stage_durations"][0]["duration_seconds"] == 1200
+
+    future = _campaign(result, _campaign_id("future-history"))
+    assert future["stage_durations"] == [
+        {
+            "stage": "derivatives_pending",
+            "started_at": "2099-01-01T00:00:00Z",
+            "ended_at": None,
+            "duration_seconds": None,
+            "open": True,
+            "from_state": None,
+            "to_state": None,
+        }
+    ]
+
+
+def test_stage_and_dependency_collections_sort_deterministically(
+    operational_base: Path,
+):
+    _write_campaign(
+        operational_base,
+        state="validated",
+        state_history=[
+            {
+                "at": "2026-07-17T08:00:00Z",
+                "from_state": None,
+                "to_state": "ready",
+            },
+            {
+                "at": "2026-07-17T08:00:00Z",
+                "from_state": "ready",
+                "to_state": "validation_failed",
+            },
+            {
+                "at": "2026-07-17T08:00:00Z",
+                "from_state": "validation_failed",
+                "to_state": "validated",
+            },
+        ],
+    )
+    before = _snapshot_tree(operational_base)
+
+    first = get_flow_a_operational_status(operational_base, now_utc=NOW)
+    second = get_flow_a_operational_status(operational_base, now_utc=NOW)
+
+    assert first.to_dict() == second.to_dict()
+    assert _snapshot_tree(operational_base) == before
+    stages = [item.stage for item in first.campaigns[0].stage_durations]
+    # Equal started_at values fall back to stage-name ascending order.
+    assert stages == ["ready", "validated", "validation_failed"]
+    open_flags = [item.open for item in first.campaigns[0].stage_durations]
+    assert open_flags == [False, True, False]
+
+
 def test_aggregation_module_has_no_mutating_or_external_service_imports():
+    # US-027 requires dependency-bucket name constants such as "comfyui" and
+    # "github_pages_checkout" in the module, so this guard inspects actual
+    # imports instead of raw substrings while keeping the same intent: no
+    # mutating helpers and no external-service clients.
     source = Path(operational_status_module.__file__).read_text(encoding="utf-8")
     for forbidden in (
         "write_campaign_metadata",
         "save_calendar_atomic",
         "detect_stale_flow_a_execution",
-        "flow_a_operational_queue",
-        "linkedin_publication_flow",
-        "github_pages",
-        "httpx",
-        "requests",
-        "subprocess",
-        "deepseek",
-        "comfyui",
     ):
         assert forbidden not in source
+
+    imported_modules: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            imported_modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            imported_modules.add(node.module)
+    for module_name in imported_modules:
+        for forbidden in (
+            "flow_a_operational_queue",
+            "linkedin_publication_flow",
+            "linkedin_client",
+            "linkedin_oauth",
+            "github_pages",
+            "httpx",
+            "requests",
+            "subprocess",
+            "deepseek",
+            "comfyui",
+        ):
+            assert forbidden not in module_name
 
 
 def test_http_auth_validation_shape_determinism_secrets_and_zero_mutation(
@@ -778,7 +1245,20 @@ def test_http_auth_validation_shape_determinism_secrets_and_zero_mutation(
         "executions",
         "campaigns",
         "delayed_calendar_items",
+        "dependency_failures",
         "data_issues",
+    }
+    assert set(body["summary"]["dependency_failures"]) == {
+        "comfyui",
+        "deepseek",
+        "github_pages_checkout",
+        "linkedin",
+        "unclassified",
+    }
+    assert set(body["summary"]["stage_durations"]) == {
+        "campaigns_with_stage_durations",
+        "executions_with_duration",
+        "stage_intervals_reported",
     }
     serialized = first.text
     for forbidden in (

@@ -520,6 +520,13 @@ As a system operator, I want to identify successful and failed executions, so th
 
 ### US-027 — Add Operational Observability: Story 2
 
+**Status:** Implemented, locally tested, and demonstrated against controlled
+fixtures on 2026-07-17 (stage durations from existing persisted evidence and
+dependency-failure buckets in the same `GET /flow-a/operational-status`
+response). Business acceptance, deployment, and live operational validation
+remain pending. Evidence:
+[flow-a-operational-status.md](../operations/flow-a-operational-status.md).
+
 **Description**
 
 As a system operator, I want to capture stage duration, so that operators can understand system health and campaign progress from one clear operational view.

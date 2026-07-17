@@ -1,8 +1,10 @@
 # Flow A Operational Status
 
-Operator contract for the read-only US-026 status view. This capability is
-implemented and tested locally. It is not deployed or operationally validated,
-does not provide alerts, and does not close US-027 or BL-010.
+Operator contract for the read-only status view covering US-026
+(execution/campaign/calendar classifications) and US-027 (stage durations and
+dependency-failure aggregation). Both slices are implemented and tested
+locally. The capability is not deployed or operationally validated, does not
+provide alerts, and does not by itself close BL-010.
 
 ## Request
 
@@ -33,20 +35,30 @@ intrinsically read-only.
   `SILVERMAN_FLOW_A_PROCESSING_STALE_SECONDS` value.
 - `summary`: successful/failed execution counts; total, successful, failed,
   blocked, stale, and in-progress campaign counts; delayed calendar count;
-  LinkedIn counts by persisted `publish_state`; and data-issue count.
+  LinkedIn counts by persisted `publish_state`; `stage_durations` evidence
+  counts (`campaigns_with_stage_durations`, `executions_with_duration`,
+  `stage_intervals_reported`); `dependency_failures` counts for `comfyui`,
+  `deepseek`, `github_pages_checkout`, `linkedin`, and `unclassified`; and
+  data-issue count.
 - `executions`: safe persisted run records partitioned into `successful` and
-  `failed`.
+  `failed`, each with `duration_seconds` when both run clocks are valid.
 - `campaigns`: lifecycle, operational, current-attempt, health-reason, and
-  LinkedIn schedule/publication summaries.
+  LinkedIn schedule/publication summaries, plus `stage_durations`, optional
+  `attempt_duration_seconds`, and per-campaign `dependency_failures`.
 - `delayed_calendar_items`: safe summaries of non-terminal past-due items.
+- `dependency_failures`: top-level aggregation of validated failure codes by
+  external dependency, with counts, safe codes, and contributing
+  `campaign_ids` / `run_ids`.
 - `data_issues`: stable source, safe identifier when available, and
   machine-readable reason. Raw documents and exception text are not returned.
 
 Results are deterministic for unchanged files and the same `now_utc`.
 Executions sort by available completion/start time then run ID descending;
 campaigns by valid `updated_at` then campaign ID descending; delayed items by
-`due_at_utc` then item ID ascending; issues by source, identifier, and reason
-ascending.
+`due_at_utc` then item ID ascending; per-campaign `stage_durations` by
+`started_at` then `stage` ascending; dependency entries by dependency name
+ascending with error codes ascending; issues by source, identifier, and
+reason ascending.
 
 ## Classification rules
 
@@ -96,6 +108,69 @@ A calendar item is delayed only when its status is `planned`, `scheduled`,
 `observed_at_utc`. Equality is due now, not delayed. `completed`, `skipped`, and
 `failed` items are excluded. LinkedIn timing is never a calendar-delay anchor.
 
+## Stage durations (US-027)
+
+All durations are derived read-only from existing persisted timestamps and
+reported in whole seconds. No new timing field is persisted.
+
+Execution duration and lifecycle stage duration are distinct measurements:
+
+- Execution `duration_seconds` measures one worker HTTP run
+  (`started_at` to `completed_at` on a `metadata/runs` record). It is not a
+  Flow A lifecycle stage. Missing clocks omit the field silently; present but
+  invalid or inverted clocks omit it with a stable data issue
+  (`run_timestamp_invalid` / `run_clock_inverted`).
+- Campaign `stage_durations` measure lifecycle stages derived from
+  `state_history`. Each consecutive pair of valid entries yields one closed
+  interval: `stage` is the state entered by the earlier entry, `started_at` /
+  `ended_at` are the two `at` clocks, and `from_state` / `to_state` record the
+  transition that closed the stage. After the last valid entry, exactly one
+  open interval is reported with `open=true` and `ended_at=null`; its
+  `duration_seconds` is measured to `observed_at_utc`, so open-stage durations
+  are observation-relative and grow between requests unless a fixed `now_utc`
+  is supplied.
+
+Malformed history entries produce `campaign_stage_history_invalid`;
+non-chronological pairs (or a future-dated open stage) produce
+`campaign_stage_clock_inverted` and omit only the affected interval. When the
+campaign `state` disagrees with the last history `to_state`, the open stage
+reports the last `to_state` and adds
+`campaign_stage_history_state_inconsistent`. Missing history is never
+fabricated.
+
+`attempt_duration_seconds` is supplemental current-attempt evidence
+(`processing_started_at` to `last_progress_at`) and never replaces lifecycle
+stage intervals. Inverted attempt clocks produce
+`campaign_attempt_clock_inverted`.
+
+Lifecycle stage durations are campaign metadata clocks. They are not
+live-site deploy latency and not LinkedIn API network round-trip time.
+
+## Dependency-failure buckets (US-027)
+
+Validated machine-readable failure codes are classified by their persisted
+code family, without calling any integration:
+
+| Bucket | Code families |
+|--------|---------------|
+| `comfyui` | `comfyui_*`, `blog_image_generation_*` |
+| `deepseek` | `deepseek_*` |
+| `github_pages_checkout` | `blog_publish_*`, `blog_git_publication_*`, `checkout_*`, `linkedin_preview_validation_checkout_*`, exactly `linkedin_article_preview_public_repo_not_configured` |
+| `linkedin` | remaining `linkedin_*` |
+| `unclassified` | any other validated failure code |
+
+Checkout-named patterns are evaluated before the general `linkedin_*` family.
+Classification follows the persisted code as written; causal roots are never
+inferred (`linkedin_package_generation_failed` stays `linkedin` even when
+DeepSeek failed upstream).
+
+Evidence sources are limited to validated codes from failed run records,
+failed or blocked campaigns (top-level `errors`, last-error evidence, and
+`state_history[].error_code`), and LinkedIn variant publication failure codes.
+Repeated identical codes on one artifact count once per response. Unclassified
+codes stay visible in the `unclassified` bucket and are never silently
+dropped.
+
 ## Sources and safety
 
 The worker reads only:
@@ -127,6 +202,12 @@ inspection. Repeated service and authenticated HTTP calls with the same
 `now_utc` produced identical responses, while complete fixture inventory,
 bytes, and modification timestamps remained unchanged.
 
-This demonstrates US-026 at controlled-fixture and automated-test scope only.
-Business acceptance, deployment, and live operational validation remain
-pending.
+US-027 controlled-fixture verification on the same date exercised closed and
+open lifecycle stage intervals, execution durations, every dependency bucket
+(including checkout-named LinkedIn preview codes and unclassified codes),
+inverted and missing clocks as stable data issues, and byte-for-byte zero
+mutation with no external client invocation.
+
+This demonstrates US-026 and US-027 at controlled-fixture and automated-test
+scope only. Business acceptance, deployment, and live operational validation
+remain pending.
