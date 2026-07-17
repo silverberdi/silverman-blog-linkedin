@@ -30,6 +30,7 @@ from silverman_blog_linkedin.linkedin_config import (
     LinkedInPublicationSettings,
     load_linkedin_publication_settings,
 )
+from silverman_blog_linkedin.linkedin_distribution_schedule import AUDIENCE_SEQUENCE
 from silverman_blog_linkedin.linkedin_token_provider import resolve_linkedin_access_token
 from silverman_blog_linkedin.run_metadata import utc_now_iso
 
@@ -70,12 +71,27 @@ LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SUPERVISION = (
 LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_STATE = (
     "linkedin_publish_auto_queue_skipped_state"
 )
+LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SEQUENCE = (
+    "linkedin_publish_auto_queue_skipped_sequence"
+)
+LINKEDIN_PUBLISH_BLOCKED_SEQUENCE = "linkedin_publish_blocked_sequence"
+LINKEDIN_PUBLISH_BLOCKED_CADENCE = "linkedin_publish_blocked_cadence"
+LINKEDIN_PUBLISH_BLOCKED_EVIDENCE_INVALID = (
+    "linkedin_publish_blocked_evidence_invalid"
+)
 LINKEDIN_SUPERVISION_ACTION_NOT_ALLOWED = "linkedin_supervision_action_not_allowed"
 LINKEDIN_OAUTH_TOKEN_MISSING = "linkedin_oauth_token_missing"
 LINKEDIN_OAUTH_REFRESH_FAILED = "linkedin_oauth_refresh_failed"
 LINKEDIN_OAUTH_REAUTHORIZATION_REQUIRED = "linkedin_oauth_reauthorization_required"
 
 QUEUE_ELIGIBLE_PUBLISH_STATES = frozenset({PUBLISH_STATE_PENDING, PUBLISH_STATE_FAILED})
+
+# US-020 publish-time guard: earlier variants in these states block later ones.
+AWAITING_PUBLICATION_STATES = frozenset({PUBLISH_STATE_PENDING, PUBLISH_STATE_QUEUED})
+
+# US-020 cadence rule: real minimum interval between successful publications
+# within one campaign, anchored to stored `published_at` evidence (US-019).
+CADENCE_MINIMUM_INTERVAL = timedelta(hours=72)
 
 PUBLICATION_ELIGIBLE_CAMPAIGN_STATES = frozenset(
     {
@@ -255,6 +271,76 @@ def _resolve_source_public_url(campaign: dict[str, Any]) -> str | None:
 def _parse_utc(value: str) -> datetime:
     normalized = normalize_scheduled_at_utc(value)
     return datetime.strptime(normalized, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+
+def _campaign_variants_in_sequence(campaign: dict[str, Any]) -> list[dict[str, Any]]:
+    """Campaign variants ordered by the canonical audience sequence.
+
+    Non-canonical variant ids order deterministically after canonical ones by
+    ascending `scheduled_at_utc`, then variant id.
+    """
+    entries = [
+        entry
+        for entry in campaign.get("variants") or []
+        if isinstance(entry, dict) and entry.get("variant")
+    ]
+    order_index = {
+        variant_id: index for index, variant_id in enumerate(AUDIENCE_SEQUENCE)
+    }
+
+    def sort_key(entry: dict[str, Any]) -> tuple[int, int, str, str]:
+        variant_id = str(entry["variant"])
+        if variant_id in order_index:
+            return (0, order_index[variant_id], "", "")
+        return (1, 0, str(entry.get("scheduled_at_utc") or ""), variant_id)
+
+    return sorted(entries, key=sort_key)
+
+
+def _earlier_variant_awaiting_publication(
+    campaign: dict[str, Any], variant: str
+) -> bool:
+    for entry in _campaign_variants_in_sequence(campaign):
+        if entry.get("variant") == variant:
+            return False
+        if entry.get("publish_state") in AWAITING_PUBLICATION_STATES:
+            return True
+    return False
+
+
+def _publish_guard_block_reason(
+    campaign: dict[str, Any],
+    variant: str,
+    *,
+    now: datetime,
+) -> str | None:
+    """US-020 per-campaign publish-time guard: sequence -> evidence -> cadence.
+
+    Returns a stable block reason, or None when the variant may proceed to the
+    existing publish rules. Read-only: never mutates sibling or supervision
+    metadata.
+    """
+    if _earlier_variant_awaiting_publication(campaign, variant):
+        return LINKEDIN_PUBLISH_BLOCKED_SEQUENCE
+
+    published_at_values: list[datetime] = []
+    for entry in _campaign_variants_in_sequence(campaign):
+        if entry.get("variant") == variant:
+            continue
+        if entry.get("publish_state") != PUBLISH_STATE_PUBLISHED:
+            continue
+        published_at = entry.get("published_at")
+        if not isinstance(published_at, str) or not published_at.strip():
+            return LINKEDIN_PUBLISH_BLOCKED_EVIDENCE_INVALID
+        try:
+            published_at_values.append(_parse_utc(published_at))
+        except (CampaignLifecycleError, TypeError, ValueError):
+            return LINKEDIN_PUBLISH_BLOCKED_EVIDENCE_INVALID
+
+    for published_dt in published_at_values:
+        if published_dt + CADENCE_MINIMUM_INTERVAL > now:
+            return LINKEDIN_PUBLISH_BLOCKED_CADENCE
+    return None
 
 
 def _compute_publish_after_utc(
@@ -506,6 +592,22 @@ def _publish_single_variant(
                 skip_reason=LINKEDIN_PUBLISH_VARIANT_NOT_DUE,
             )
 
+    # US-020 publish-time guard: evaluated in every invocation mode, after the
+    # existing state and publish_after_utc handling and before dry-run
+    # reporting, config validation, token resolution, or any LinkedIn call.
+    # `publish_now` bypasses only the timing gates above, never this guard.
+    guard_reason = _publish_guard_block_reason(campaign, variant, now=now)
+    if guard_reason is not None:
+        return LinkedInPublicationVariantResult(
+            campaign_id=campaign_id,
+            variant=variant,
+            publish_state=PUBLISH_STATE_QUEUED,
+            publish_after_utc=publish_after,
+            status="completed",
+            skipped=True,
+            skip_reason=guard_reason,
+        )
+
     artifact_text, artifact_error = _verify_artifact(base_path, entry)
     if artifact_error:
         return LinkedInPublicationVariantResult(
@@ -680,9 +782,9 @@ def _collect_pending_targets(
     *,
     campaign_id: str | None,
     variant: str | None,
-) -> list[tuple[str, str, dict[str, Any]]]:
+) -> list[tuple[str, str, dict[str, Any], dict[str, Any]]]:
     campaign_ids = [campaign_id] if campaign_id else _list_campaign_ids(base_path)
-    targets: list[tuple[str, str, dict[str, Any]]] = []
+    targets: list[tuple[str, str, dict[str, Any], dict[str, Any]]] = []
     for cid in campaign_ids:
         campaign = read_campaign_metadata(base_path, cid)
         if campaign is None:
@@ -699,7 +801,7 @@ def _collect_pending_targets(
                 continue
             if variant is not None and variant_id != variant:
                 continue
-            targets.append((cid, variant_id, entry))
+            targets.append((cid, variant_id, entry, campaign))
     return targets
 
 
@@ -708,6 +810,7 @@ def _auto_queue_skip_reason(
     *,
     publish_now: bool,
     now: datetime,
+    sequence_blocked: bool = False,
 ) -> str | None:
     publish_state = entry.get("publish_state")
     if publish_state == PUBLISH_STATE_CANCELLED:
@@ -735,13 +838,18 @@ def _auto_queue_skip_reason(
     if last_action == "defer":
         if not scheduled_due:
             return LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SUPERVISION
-        return None
-    if auto_queue_eligible is False:
-        return LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SUPERVISION
-    if not schedule_valid:
-        return LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_NOT_DUE
-    if not scheduled_due and not publish_now:
-        return LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_NOT_DUE
+    else:
+        if auto_queue_eligible is False:
+            return LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SUPERVISION
+        if not schedule_valid:
+            return LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_NOT_DUE
+        if not scheduled_due and not publish_now:
+            return LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_NOT_DUE
+
+    # US-020 sequence pre-filter: evaluated last so pre-existing skip reasons
+    # (state -> supervision -> not-due) are reported exactly as before.
+    if sequence_blocked:
+        return LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SEQUENCE
     return None
 
 
@@ -761,10 +869,18 @@ def _auto_queue_pending_variants(
         base_path, campaign_id=campaign_id, variant=variant
     )
 
-    for target_campaign_id, target_variant, entry in targets:
+    for target_campaign_id, target_variant, entry, campaign_document in targets:
         publish_state = str(entry.get("publish_state") or "unknown")
+        # An earlier variant queued earlier in this same request was `pending`
+        # in the snapshot, so it still counts as awaiting publication here.
+        sequence_blocked = _earlier_variant_awaiting_publication(
+            campaign_document, target_variant
+        )
         skip_reason = _auto_queue_skip_reason(
-            entry, publish_now=publish_now, now=now
+            entry,
+            publish_now=publish_now,
+            now=now,
+            sequence_blocked=sequence_blocked,
         )
         if skip_reason is not None:
             linkedin_post_urn: str | None = None
@@ -838,6 +954,7 @@ def _planned_dry_run_publish_result(
     publish_after_utc: str | None,
     publish_now: bool,
     now: datetime,
+    guard_reason: str | None = None,
 ) -> LinkedInPublicationVariantResult:
     if not publish_now and publish_after_utc:
         try:
@@ -852,6 +969,15 @@ def _planned_dry_run_publish_result(
                 )
         except (TypeError, ValueError):
             pass
+    if guard_reason is not None:
+        return LinkedInPublicationVariantResult(
+            campaign_id=campaign_id,
+            variant=variant,
+            publish_state=PUBLISH_STATE_QUEUED,
+            publish_after_utc=publish_after_utc,
+            skipped=True,
+            skip_reason=guard_reason,
+        )
     return LinkedInPublicationVariantResult(
         campaign_id=campaign_id,
         variant=variant,
@@ -959,6 +1085,14 @@ def publish_linkedin_due_variants(
         ):
             if (target_campaign_id, target_variant) in queued_target_keys:
                 continue
+            guard_campaign = read_campaign_metadata(base_path, target_campaign_id)
+            guard_reason = (
+                _publish_guard_block_reason(
+                    guard_campaign, target_variant, now=current
+                )
+                if guard_campaign is not None
+                else None
+            )
             results.append(
                 _planned_dry_run_publish_result(
                     campaign_id=target_campaign_id,
@@ -966,6 +1100,7 @@ def publish_linkedin_due_variants(
                     publish_after_utc=publish_after_utc,
                     publish_now=publish_now,
                     now=current,
+                    guard_reason=guard_reason,
                 )
             )
 

@@ -190,12 +190,12 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Business outcome demonstrated (unit/integration evidence only — see user-stories US-019 mapping)
     - [ ] Acceptance criteria validated (operational / authorized closure deferred)
     - [ ] Story accepted
-  - [ ] **US-020** — incomplete / deferred
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+  - [ ] **US-020** — **in progress / not complete** (implemented, not deployed, not operationally validated; BL-007 remains open)
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated (unit/integration evidence only — see user-stories US-020 mapping; business validation deferred to the separate authorized validation step)
+    - [ ] Acceptance criteria validated (operational / authorized closure deferred)
     - [ ] Story accepted
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated

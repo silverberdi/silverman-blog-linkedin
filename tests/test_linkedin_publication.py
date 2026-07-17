@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -40,8 +41,12 @@ from silverman_blog_linkedin.linkedin_publication_flow import (
     LINKEDIN_OAUTH_REAUTHORIZATION_REQUIRED,
     LINKEDIN_OAUTH_TOKEN_MISSING,
     LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_NOT_DUE,
+    LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SEQUENCE,
     LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_STATE,
     LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SUPERVISION,
+    LINKEDIN_PUBLISH_BLOCKED_CADENCE,
+    LINKEDIN_PUBLISH_BLOCKED_EVIDENCE_INVALID,
+    LINKEDIN_PUBLISH_BLOCKED_SEQUENCE,
     LINKEDIN_PUBLISH_ARTIFACT_HASH_CHANGED,
     LINKEDIN_PUBLISH_ARTIFACT_MISSING,
     LINKEDIN_PUBLISH_CANCEL_NOT_ALLOWED,
@@ -1837,3 +1842,667 @@ def test_us019_auto_queue_fields_null_when_no_publication_evidence(
     assert "published_at" in payload
     assert "publish_state" in payload
     assert "skip_reason" in payload
+
+
+# --- US-020 publish-time sequence and cadence guard ---
+
+SECOND_VARIANT = "engineering-leadership"
+THIRD_VARIANT = "technical-architect"
+US020_NOW = datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc)
+PAST_DUE_UTC = "2026-07-07T09:00:00Z"
+
+
+def _mock_success_client(urn: str) -> MagicMock:
+    client = MagicMock()
+    response = MagicMock()
+    response.status_code = 201
+    response.headers = {"x-restli-id": urn}
+    client.post.return_value = response
+    return client
+
+
+def _read_variant_entry(base: Path, campaign_id: str, variant: str) -> dict:
+    campaign = read_campaign_metadata(base, campaign_id)
+    assert campaign is not None
+    return next(v for v in campaign["variants"] if v["variant"] == variant)
+
+
+def _update_campaign_variant(
+    base: Path,
+    campaign_id: str,
+    variant: str,
+    *,
+    remove: tuple[str, ...] = (),
+    **updates: object,
+) -> dict:
+    campaign = read_campaign_metadata(base, campaign_id)
+    assert campaign is not None
+    entry = next(v for v in campaign["variants"] if v["variant"] == variant)
+    for key in remove:
+        entry.pop(key, None)
+    entry.update(updates)
+    assert write_campaign_metadata(base, campaign_id, campaign).written
+    return entry
+
+
+def _queue_campaign_variant(
+    base: Path, campaign_id: str, variant: str, *, publish_after_utc: str
+) -> None:
+    result = queue_linkedin_publication(
+        base,
+        campaign_id=campaign_id,
+        variant=variant,
+        dry_run=False,
+        publish_after_utc=publish_after_utc,
+    )
+    assert result.status == "completed", result.errors
+
+
+def _clone_campaign(base: Path, new_campaign_id: str) -> None:
+    campaign = read_campaign_metadata(base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    clone = deepcopy(campaign)
+    clone["campaign_id"] = new_campaign_id
+    src_dir = base / GENERATED_RELATIVE / CANONICAL_CAMPAIGN_ID
+    dst_dir = base / GENERATED_RELATIVE / new_campaign_id
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    for entry in clone["variants"]:
+        variant_id = entry["variant"]
+        (dst_dir / f"{variant_id}.md").write_bytes(
+            (src_dir / f"{variant_id}.md").read_bytes()
+        )
+        entry["artifact_relative_path"] = (
+            f"{GENERATED_RELATIVE}/{new_campaign_id}/{variant_id}.md"
+        )
+        entry["campaign_id"] = new_campaign_id
+    assert write_campaign_metadata(base, new_campaign_id, clone).written
+
+
+def test_us020_sequence_blocks_later_queued_variant_while_earlier_queued(
+    scheduled_base: Path,
+):
+    _queue_variant(
+        scheduled_base, variant=TARGET_VARIANT, publish_after_utc=PAST_DUE_UTC
+    )
+    _queue_variant(
+        scheduled_base, variant=SECOND_VARIANT, publish_after_utc=PAST_DUE_UTC
+    )
+    mock_client = _mock_success_client("urn:li:share:us020-sequence")
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        dry_run=False,
+        auto_queue_pending=True,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=US020_NOW,
+    )
+
+    assert result.status == "completed"
+    by_variant = {item.variant: item for item in result.results}
+    assert by_variant[TARGET_VARIANT].publish_state == PUBLISH_STATE_PUBLISHED
+    blocked = by_variant[SECOND_VARIANT]
+    assert blocked.skipped is True
+    assert blocked.skip_reason == LINKEDIN_PUBLISH_BLOCKED_SEQUENCE
+    assert blocked.publish_state == PUBLISH_STATE_QUEUED
+    mock_client.post.assert_called_once()
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, SECOND_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+
+
+def test_us020_plain_publish_due_enforces_sequence_guard(scheduled_base: Path):
+    _queue_variant(
+        scheduled_base, variant=TARGET_VARIANT, publish_after_utc=PAST_DUE_UTC
+    )
+    _queue_variant(
+        scheduled_base, variant=SECOND_VARIANT, publish_after_utc=PAST_DUE_UTC
+    )
+    mock_client = _mock_success_client("urn:li:share:us020-plain")
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=US020_NOW,
+    )
+
+    assert result.status == "completed"
+    by_variant = {item.variant: item for item in result.results}
+    assert by_variant[TARGET_VARIANT].publish_state == PUBLISH_STATE_PUBLISHED
+    assert by_variant[SECOND_VARIANT].skip_reason == LINKEDIN_PUBLISH_BLOCKED_SEQUENCE
+    mock_client.post.assert_called_once()
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, SECOND_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+
+
+def test_us020_publish_now_bypasses_neither_sequence_nor_cadence(
+    scheduled_base: Path,
+):
+    _queue_variant(
+        scheduled_base,
+        variant=TARGET_VARIANT,
+        publish_after_utc="2026-07-08T09:00:00Z",
+    )
+    _queue_variant(
+        scheduled_base,
+        variant=SECOND_VARIANT,
+        publish_after_utc="2026-07-08T09:00:00Z",
+    )
+    mock_client = MagicMock()
+
+    sequence_blocked = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=SECOND_VARIANT,
+        dry_run=False,
+        publish_now=True,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=US020_NOW,
+    )
+    assert sequence_blocked.status == "completed"
+    assert sequence_blocked.results[0].skipped is True
+    assert sequence_blocked.results[0].skip_reason == LINKEDIN_PUBLISH_BLOCKED_SEQUENCE
+    mock_client.post.assert_not_called()
+
+    _update_variant(
+        scheduled_base,
+        variant=TARGET_VARIANT,
+        publish_state=PUBLISH_STATE_PUBLISHED,
+        published_at="2026-07-06T12:00:00Z",
+        linkedin_post_urn="urn:li:share:us020-recent",
+    )
+
+    cadence_blocked = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=SECOND_VARIANT,
+        dry_run=False,
+        publish_now=True,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=US020_NOW,
+    )
+    assert cadence_blocked.status == "completed"
+    assert cadence_blocked.results[0].skipped is True
+    assert cadence_blocked.results[0].skip_reason == LINKEDIN_PUBLISH_BLOCKED_CADENCE
+    mock_client.post.assert_not_called()
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, SECOND_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+
+
+def test_us020_cadence_blocks_publication_under_72_hours(scheduled_base: Path):
+    _update_variant(
+        scheduled_base,
+        variant=TARGET_VARIANT,
+        publish_state=PUBLISH_STATE_PUBLISHED,
+        published_at="2026-07-06T12:00:00Z",
+        linkedin_post_urn="urn:li:share:us020-under-72h",
+    )
+    _queue_variant(
+        scheduled_base, variant=SECOND_VARIANT, publish_after_utc=PAST_DUE_UTC
+    )
+    mock_client = MagicMock()
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=US020_NOW,
+    )
+
+    assert result.status == "completed"
+    assert result.results[0].variant == SECOND_VARIANT
+    assert result.results[0].skipped is True
+    assert result.results[0].skip_reason == LINKEDIN_PUBLISH_BLOCKED_CADENCE
+    mock_client.post.assert_not_called()
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, SECOND_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+
+
+def test_us020_cadence_allows_publication_at_or_after_72_hours(
+    scheduled_base: Path,
+):
+    _update_variant(
+        scheduled_base,
+        variant=TARGET_VARIANT,
+        publish_state=PUBLISH_STATE_PUBLISHED,
+        published_at="2026-07-04T11:00:00Z",
+        linkedin_post_urn="urn:li:share:us020-over-72h",
+    )
+    _queue_variant(
+        scheduled_base, variant=SECOND_VARIANT, publish_after_utc=PAST_DUE_UTC
+    )
+    mock_client = _mock_success_client("urn:li:share:us020-next")
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=US020_NOW,
+    )
+
+    assert result.status == "completed"
+    assert result.results[0].variant == SECOND_VARIANT
+    assert result.results[0].publish_state == PUBLISH_STATE_PUBLISHED
+    mock_client.post.assert_called_once()
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, SECOND_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_PUBLISHED
+
+
+def test_us020_within_run_cadence_blocks_second_same_campaign_publish(
+    scheduled_base: Path,
+):
+    _update_variant(
+        scheduled_base,
+        variant=SECOND_VARIANT,
+        publish_state=PUBLISH_STATE_CANCELLED,
+    )
+    _queue_variant(
+        scheduled_base, variant=TARGET_VARIANT, publish_after_utc=PAST_DUE_UTC
+    )
+    _queue_variant(
+        scheduled_base, variant=THIRD_VARIANT, publish_after_utc=PAST_DUE_UTC
+    )
+    mock_client = _mock_success_client("urn:li:share:us020-within-run")
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        dry_run=False,
+        auto_queue_pending=True,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=US020_NOW,
+    )
+
+    assert result.status == "completed"
+    by_variant = {item.variant: item for item in result.results}
+    assert by_variant[TARGET_VARIANT].publish_state == PUBLISH_STATE_PUBLISHED
+    blocked = by_variant[THIRD_VARIANT]
+    assert blocked.skipped is True
+    assert blocked.skip_reason == LINKEDIN_PUBLISH_BLOCKED_CADENCE
+    mock_client.post.assert_called_once()
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, THIRD_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+
+
+def test_us020_failed_and_cancelled_release_sequence_without_retry(
+    scheduled_base: Path,
+):
+    failure_evidence = {
+        "last_error_code": LINKEDIN_PUBLISH_API_ERROR,
+        "last_failed_at": "2026-07-06T10:00:00Z",
+        "retryable": True,
+        "http_status": 500,
+    }
+    _update_variant(
+        scheduled_base,
+        variant=TARGET_VARIANT,
+        publish_state=PUBLISH_STATE_FAILED,
+        linkedin_publication=failure_evidence,
+    )
+    _update_variant(
+        scheduled_base,
+        variant=SECOND_VARIANT,
+        publish_state=PUBLISH_STATE_CANCELLED,
+    )
+    _queue_variant(
+        scheduled_base, variant=THIRD_VARIANT, publish_after_utc=PAST_DUE_UTC
+    )
+    failed_before = json.dumps(
+        _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT),
+        sort_keys=True,
+    )
+    mock_client = _mock_success_client("urn:li:share:us020-released")
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=US020_NOW,
+    )
+
+    assert result.status == "completed"
+    assert result.results[0].variant == THIRD_VARIANT
+    assert result.results[0].publish_state == PUBLISH_STATE_PUBLISHED
+    mock_client.post.assert_called_once()
+    failed_after = json.dumps(
+        _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT),
+        sort_keys=True,
+    )
+    assert failed_after == failed_before
+
+
+def test_us020_deferred_earlier_variant_blocks_followers_without_mutation(
+    scheduled_base: Path,
+):
+    deferred_supervision = {"last_action": "defer", "auto_queue_eligible": False}
+    _update_variant(
+        scheduled_base,
+        variant=TARGET_VARIANT,
+        scheduled_at_utc="2026-07-09T14:00:00Z",
+        operator_supervision=deferred_supervision,
+    )
+    _queue_variant(
+        scheduled_base, variant=SECOND_VARIANT, publish_after_utc=PAST_DUE_UTC
+    )
+    _update_variant(
+        scheduled_base,
+        variant=THIRD_VARIANT,
+        scheduled_at_utc="2026-07-07T11:00:00Z",
+    )
+    deferred_before = json.dumps(
+        _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT),
+        sort_keys=True,
+    )
+    mock_client = MagicMock()
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        dry_run=False,
+        publish_now=True,
+        auto_queue_pending=True,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=US020_NOW,
+    )
+
+    assert result.status == "completed"
+    auto_by_variant = {item.variant: item for item in result.auto_queue_results}
+    assert auto_by_variant[TARGET_VARIANT].skip_reason == (
+        LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SUPERVISION
+    )
+    assert auto_by_variant[THIRD_VARIANT].skip_reason == (
+        LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SEQUENCE
+    )
+    assert result.results[0].variant == SECOND_VARIANT
+    assert result.results[0].skipped is True
+    assert result.results[0].skip_reason == LINKEDIN_PUBLISH_BLOCKED_SEQUENCE
+    mock_client.post.assert_not_called()
+    deferred_after = json.dumps(
+        _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT),
+        sort_keys=True,
+    )
+    assert deferred_after == deferred_before
+    assert (
+        _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, THIRD_VARIANT)[
+            "publish_state"
+        ]
+        == PUBLISH_STATE_PENDING
+    )
+    assert (
+        _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, SECOND_VARIANT)[
+            "publish_state"
+        ]
+        == PUBLISH_STATE_QUEUED
+    )
+
+
+def test_us020_cross_campaign_scan_evaluates_campaigns_independently(
+    scheduled_base: Path,
+):
+    other_campaign_id = "flow-a-2026-07-06-other-campaign"
+    _clone_campaign(scheduled_base, other_campaign_id)
+    _update_variant(
+        scheduled_base,
+        variant=TARGET_VARIANT,
+        publish_state=PUBLISH_STATE_PUBLISHED,
+        published_at="2026-07-06T12:00:00Z",
+        linkedin_post_urn="urn:li:share:us020-campaign-a",
+    )
+    _queue_variant(
+        scheduled_base, variant=SECOND_VARIANT, publish_after_utc=PAST_DUE_UTC
+    )
+    _queue_campaign_variant(
+        scheduled_base,
+        other_campaign_id,
+        TARGET_VARIANT,
+        publish_after_utc=PAST_DUE_UTC,
+    )
+    mock_client = _mock_success_client("urn:li:share:us020-campaign-b")
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=US020_NOW,
+    )
+
+    assert result.status == "completed"
+    by_key = {(item.campaign_id, item.variant): item for item in result.results}
+    blocked = by_key[(CANONICAL_CAMPAIGN_ID, SECOND_VARIANT)]
+    assert blocked.skipped is True
+    assert blocked.skip_reason == LINKEDIN_PUBLISH_BLOCKED_CADENCE
+    published = by_key[(other_campaign_id, TARGET_VARIANT)]
+    assert published.publish_state == PUBLISH_STATE_PUBLISHED
+    mock_client.post.assert_called_once()
+    entry = _read_variant_entry(scheduled_base, other_campaign_id, TARGET_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_PUBLISHED
+
+
+def test_us020_dry_run_reports_guard_blocks_without_mutation_or_calls(
+    scheduled_base: Path,
+):
+    evidence_campaign_id = "flow-a-2026-07-06-evidence-campaign"
+    cadence_campaign_id = "flow-a-2026-07-06-cadence-campaign"
+    _clone_campaign(scheduled_base, evidence_campaign_id)
+    _clone_campaign(scheduled_base, cadence_campaign_id)
+
+    _queue_variant(
+        scheduled_base, variant=TARGET_VARIANT, publish_after_utc=PAST_DUE_UTC
+    )
+    _queue_variant(
+        scheduled_base, variant=SECOND_VARIANT, publish_after_utc=PAST_DUE_UTC
+    )
+
+    _queue_campaign_variant(
+        scheduled_base,
+        evidence_campaign_id,
+        SECOND_VARIANT,
+        publish_after_utc=PAST_DUE_UTC,
+    )
+    _update_campaign_variant(
+        scheduled_base,
+        evidence_campaign_id,
+        TARGET_VARIANT,
+        publish_state=PUBLISH_STATE_PUBLISHED,
+        published_at="not-a-timestamp",
+        linkedin_post_urn="urn:li:share:us020-evidence",
+    )
+
+    _queue_campaign_variant(
+        scheduled_base,
+        cadence_campaign_id,
+        SECOND_VARIANT,
+        publish_after_utc=PAST_DUE_UTC,
+    )
+    _update_campaign_variant(
+        scheduled_base,
+        cadence_campaign_id,
+        TARGET_VARIANT,
+        publish_state=PUBLISH_STATE_PUBLISHED,
+        published_at="2026-07-06T12:00:00Z",
+        linkedin_post_urn="urn:li:share:us020-cadence",
+    )
+
+    metadata_dir = scheduled_base / METADATA_CAMPAIGNS_RELATIVE
+    snapshots = {
+        path.name: path.read_bytes() for path in metadata_dir.glob("*.json")
+    }
+    mock_client = MagicMock()
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        dry_run=True,
+        http_client=mock_client,
+        now=US020_NOW,
+    )
+
+    assert result.status == "completed"
+    by_key = {(item.campaign_id, item.variant): item for item in result.results}
+    assert by_key[(CANONICAL_CAMPAIGN_ID, SECOND_VARIANT)].skip_reason == (
+        LINKEDIN_PUBLISH_BLOCKED_SEQUENCE
+    )
+    assert by_key[(evidence_campaign_id, SECOND_VARIANT)].skip_reason == (
+        LINKEDIN_PUBLISH_BLOCKED_EVIDENCE_INVALID
+    )
+    assert by_key[(cadence_campaign_id, SECOND_VARIANT)].skip_reason == (
+        LINKEDIN_PUBLISH_BLOCKED_CADENCE
+    )
+    assert by_key[(CANONICAL_CAMPAIGN_ID, TARGET_VARIANT)].warnings == (
+        ["linkedin_publish_dry_run"]
+    )
+    mock_client.post.assert_not_called()
+    for path in metadata_dir.glob("*.json"):
+        assert path.read_bytes() == snapshots[path.name]
+
+
+def test_us020_missing_published_at_fails_closed_and_visibly(
+    scheduled_base: Path,
+):
+    other_campaign_id = "flow-a-2026-07-06-healthy-campaign"
+    _clone_campaign(scheduled_base, other_campaign_id)
+
+    _queue_variant(
+        scheduled_base, variant=SECOND_VARIANT, publish_after_utc=PAST_DUE_UTC
+    )
+    _update_variant(
+        scheduled_base,
+        variant=TARGET_VARIANT,
+        publish_state=PUBLISH_STATE_PUBLISHED,
+        linkedin_post_urn="urn:li:share:us020-missing-evidence",
+    )
+    _update_campaign_variant(
+        scheduled_base,
+        CANONICAL_CAMPAIGN_ID,
+        TARGET_VARIANT,
+        remove=("published_at",),
+    )
+    _queue_campaign_variant(
+        scheduled_base,
+        other_campaign_id,
+        TARGET_VARIANT,
+        publish_after_utc=PAST_DUE_UTC,
+    )
+    mock_client = _mock_success_client("urn:li:share:us020-healthy")
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=US020_NOW,
+    )
+
+    assert result.status == "completed"
+    by_key = {(item.campaign_id, item.variant): item for item in result.results}
+    blocked = by_key[(CANONICAL_CAMPAIGN_ID, SECOND_VARIANT)]
+    assert blocked.skipped is True
+    assert blocked.skip_reason == LINKEDIN_PUBLISH_BLOCKED_EVIDENCE_INVALID
+    healthy = by_key[(other_campaign_id, TARGET_VARIANT)]
+    assert healthy.publish_state == PUBLISH_STATE_PUBLISHED
+    mock_client.post.assert_called_once()
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, SECOND_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+
+
+def test_us020_manually_queued_out_of_order_variant_blocked_at_publish_time(
+    scheduled_base: Path,
+):
+    _queue_variant(
+        scheduled_base, variant=SECOND_VARIANT, publish_after_utc=PAST_DUE_UTC
+    )
+    mock_client = MagicMock()
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=SECOND_VARIANT,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=US020_NOW,
+    )
+
+    assert result.status == "completed"
+    assert result.results[0].skipped is True
+    assert result.results[0].skip_reason == LINKEDIN_PUBLISH_BLOCKED_SEQUENCE
+    mock_client.post.assert_not_called()
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, SECOND_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+    assert (
+        _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT)[
+            "publish_state"
+        ]
+        == PUBLISH_STATE_PENDING
+    )
+
+
+def test_us020_not_due_precedence_over_sequence_at_auto_queue(
+    scheduled_base: Path,
+):
+    _update_variant(
+        scheduled_base,
+        variant=TARGET_VARIANT,
+        scheduled_at_utc="2026-07-07T11:00:00Z",
+    )
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        dry_run=True,
+        auto_queue_pending=True,
+        now=US020_NOW,
+    )
+
+    auto_by_variant = {item.variant: item for item in result.auto_queue_results}
+    assert auto_by_variant[SECOND_VARIANT].skipped is True
+    assert auto_by_variant[SECOND_VARIANT].skip_reason == (
+        LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_NOT_DUE
+    )
+
+
+def test_us020_auto_queue_sequence_pre_filter_skips_later_pending(
+    scheduled_base: Path,
+):
+    _update_variant(
+        scheduled_base,
+        variant=TARGET_VARIANT,
+        scheduled_at_utc="2026-07-07T11:00:00Z",
+    )
+    _update_variant(
+        scheduled_base,
+        variant=SECOND_VARIANT,
+        scheduled_at_utc="2026-07-07T11:00:00Z",
+    )
+
+    result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        dry_run=False,
+        auto_queue_pending=True,
+        environ=_real_publish_env(),
+        now=US020_NOW,
+    )
+
+    assert result.status == "completed"
+    auto_by_variant = {item.variant: item for item in result.auto_queue_results}
+    assert auto_by_variant[TARGET_VARIANT].publish_state == PUBLISH_STATE_QUEUED
+    assert auto_by_variant[SECOND_VARIANT].skipped is True
+    assert auto_by_variant[SECOND_VARIANT].skip_reason == (
+        LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SEQUENCE
+    )
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, SECOND_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_PENDING

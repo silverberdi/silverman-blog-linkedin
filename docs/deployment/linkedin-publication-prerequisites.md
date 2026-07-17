@@ -2,7 +2,7 @@
 
 Flow A Core stops at `distribution_scheduled` with per-variant `publish_state: pending`. This document covers the **follow-up** LinkedIn publication slice: queue → safety delay → publish-due. Flow A n8n activation/schedule does **not** enable LinkedIn API publication; `distribution_scheduled` is not LinkedIn API published. US-011 publication-guard acceptance (see [us-011 validation template](../operations/us-011-linkedin-publication-guard-validation-TEMPLATE.md)) may temporarily disable then restore the prior operator-approved flag — it is not a permanent leave-false policy.
 
-**Implementation vs validation:** Worker endpoints (`/queue-linkedin-publication`, `/publish-linkedin-due-variants`, `/cancel-linkedin-publication`) are **implemented** and guarded by `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` (default `false`). First real API publication was **operationally validated** under BL-002 (controlled smoke); see [CURRENT-STATE.md](../CURRENT-STATE.md). US-018 combined due identification and auto-queue is **operationally validated**. US-019 publication-evidence formalization (spec + tests + additive `auto_queue_results` evidence fields) is **implemented, not deployed**. BL-007 remains open; US-020 is deferred.
+**Implementation vs validation:** Worker endpoints (`/queue-linkedin-publication`, `/publish-linkedin-due-variants`, `/cancel-linkedin-publication`) are **implemented** and guarded by `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` (default `false`). First real API publication was **operationally validated** under BL-002 (controlled smoke); see [CURRENT-STATE.md](../CURRENT-STATE.md). US-018 combined due identification and auto-queue is **operationally validated**. US-019 publication-evidence formalization (spec + tests + additive `auto_queue_results` evidence fields) is **implemented, not deployed**. US-020 publish-time sequence and cadence guard is **implemented, not deployed**. BL-007 remains open; US-019/US-020 closure is a separate authorized validation step.
 
 **BL-007 handoff:** The former local `auto_queue_pending` construction WIP was absorbed and rewritten under the approved US-018 OpenSpec change; see [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md). The canonical two-step path remains available.
 
@@ -158,6 +158,39 @@ After a **real failed** API attempt, `publish_state` becomes `failed` and `linke
 - Under `auto_queue_pending: true`, matching `auto_queue_results[]` entries also carry those fields for published and already-published outcomes (including cross-campaign scan skips with `linkedin_publish_auto_queue_skipped_state`). Entries without publication evidence serialize both fields as `null`.
 
 Metadata and HTTP responses never include tokens, variant body text, or raw API response bodies.
+
+## Publish-time sequence and cadence guard (US-020)
+
+Every publish-due evaluation of a `queued` variant — plain publish-due, the combined `auto_queue_pending` flow, targeted requests, and the cross-campaign scan — enforces a per-campaign guard with two rules:
+
+1. **Sequence rule.** A variant is never published while an earlier variant in the canonical audience sequence (`executive-recruiter` → `engineering-leadership` → `technical-architect` → `short-provocative`) is still awaiting publication (`pending` — including operator-deferred — or `queued` and unpublished).
+2. **Cadence rule.** Successful publications within one campaign are separated by a real minimum of 3 days (72 hours), measured against stored `published_at` evidence — not schedule intent. A publish completed earlier in the same request counts, so at most one variant per campaign publishes per run. A campaign with no `published` variants has no cadence constraint.
+
+**Blocking vs releasing states** for an earlier-sequence variant E relative to a later candidate V:
+
+| E's condition | Effect on V |
+|---|---|
+| `pending` (including operator-deferred) | **Blocks** — defer means "this audience goes later, order preserved" |
+| `queued` unpublished (auto- or manually queued) | **Blocks** |
+| `published` with valid `published_at` | **Releases** the sequence; `published_at` feeds the cadence rule |
+| `published` with missing/invalid `published_at` | **Blocks** the whole campaign with `linkedin_publish_blocked_evidence_invalid` (fail closed) |
+| `failed` | **Releases** — never retried automatically; stored failure evidence untouched |
+| `cancelled` | **Releases** — operator removed it from the plan |
+
+**Stable reasons** reported per variant, without failing the overall operation and without any `publish_state` change, LinkedIn call, or OAuth call for the blocked variant:
+
+- `linkedin_publish_blocked_sequence` — blocked by the sequence rule at publish time
+- `linkedin_publish_blocked_cadence` — blocked by the 72-hour cadence rule
+- `linkedin_publish_blocked_evidence_invalid` — a `published` sibling lacks a parsable `published_at`
+- `linkedin_publish_auto_queue_skipped_sequence` — auto-queue pre-filter: a due `pending` variant is not queued while an earlier variant awaits publication (visibility only; the publish-time guard is the normative enforcement point)
+
+**`publish_now` scope:** `publish_now: true` bypasses only the ordinary timing gates (`scheduled_at_utc` at auto-queue, `publish_after_utc` at publish). It never bypasses the sequence rule, the cadence rule, the evidence fail-closed rule, supervision exclusions, or a deferred time. Campaign-wide `publish_now` catch-up therefore proceeds at most one variant per campaign per run, 72 hours apart.
+
+**No out-of-order escape hatch:** manually queueing a later-sequence variant via `POST /queue-linkedin-publication` does not bypass the guard — the queue remains an authorization, and the guard blocks the manually queued variant at publish time while an earlier variant is awaiting publication.
+
+**Invalid `published_at` repair:** a `published` variant with missing, empty, or unparsable `published_at` blocks its whole campaign (other campaigns in the scan are unaffected). Repair is a deliberate manual metadata fix in `metadata/campaigns/<campaign-id>.json` — restore the correct UTC ISO8601 `Z` timestamp of the real publication (cross-check the LinkedIn post) and re-run publish-due. The worker never guesses or auto-repairs evidence.
+
+The guard is evaluated per campaign document; campaigns never gate each other in the cross-campaign scan. Dry-run reports planned blocks with the same stable reasons, with zero metadata writes and zero LinkedIn/OAuth calls.
 
 ## Safety delay and immediate mode
 
