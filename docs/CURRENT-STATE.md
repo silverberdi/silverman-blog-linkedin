@@ -22,7 +22,7 @@ n8n (orchestrator, HTTP only) → Worker (FastAPI) → Editorial dirs + public b
                               ComfyUI (optional images), DeepSeek (LLM)
 ```
 
-- **42** canonical OpenSpec specs (strict validation passing after US-027 sync of `flow-a-operational-status`; US-028 alerts delta pending sync/archive)
+- **43** canonical OpenSpec specs (strict validation passing after US-028 sync of `flow-a-operational-alerts` and status scope clarification)
 - **1,097** automated tests collected after US-028 operational-alerts implementation (11 focused alerts tests + prior suite)
 - Worker deployed at `http://192.168.0.194:8010` (see [RUNTIME-STATE.md](RUNTIME-STATE.md))
 - Editorial base: `/data/silverman-blog-linkedin` (container); public GitHub Pages checkout: `/public-blog`
