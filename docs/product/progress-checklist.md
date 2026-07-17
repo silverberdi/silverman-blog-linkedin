@@ -214,12 +214,13 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [ ] Story accepted
     - Policy: [linkedin-retry-recovery-classification.md](../operations/linkedin-retry-recovery-classification.md)
   - [ ] **US-022**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — at implemented + unit-test scope (2026-07-16); not deployed, not operationally validated
+    - [x] Acceptance criteria validated — against unit suites and operator docs (see [user-stories.md](user-stories.md) US-022 mapping); operational validation pending
     - [ ] Story accepted
+    - Policy: [linkedin-retry-recovery-classification.md](../operations/linkedin-retry-recovery-classification.md)
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed

@@ -20,14 +20,23 @@ from silverman_blog_linkedin.campaign_lifecycle import (
 from silverman_blog_linkedin.linkedin_publication_flow import (
     LINKEDIN_PUBLISH_ARTIFACT_HASH_CHANGED,
     LINKEDIN_PUBLISH_ARTIFACT_MISSING,
+    LINKEDIN_PUBLISH_CONTENT_INVALID,
     LINKEDIN_PUBLISH_METADATA_WRITE_FAILED,
+    LINKEDIN_PUBLISH_RECOVERY_EVIDENCE_INVALID,
     LINKEDIN_PUBLISH_VARIANT_NOT_FOUND,
+    PUBLISH_STATE_FAILED,
     PUBLISH_STATE_PENDING,
+    RECOVERY_ACTION_CONTENT_CORRECTED,
+    RECOVERY_CLASS_CONTENT_INVALID,
+    _append_recovery_event,
     _find_variant_entry,
     _get_variant_metadata_map,
+    _normalized_failed_attempt_history,
     _parse_utc,
     _validate_campaign_eligibility,
+    _validated_failure_evidence,
     _verify_artifact,
+    classify_linkedin_recovery,
 )
 from silverman_blog_linkedin.run_metadata import utc_now_iso
 
@@ -42,6 +51,8 @@ SUPERVISION_ACTION_DEFER = "defer"
 SUPERVISION_ACTION_CANCEL = "cancel"
 SUPERVISION_PHASE_PRE_QUEUE = "pre_queue"
 SUPERVISION_PHASE_POST_QUEUE = "post_queue"
+# US-022 failed-state recovery actions (correction/cancel on `failed`).
+SUPERVISION_PHASE_RECOVERY = "recovery"
 SUPERVISION_ACTOR_OPERATOR = "operator"
 
 
@@ -61,6 +72,7 @@ class LinkedInSupervisionResult:
     warnings: list[str] = field(default_factory=list)
     metadata_written: bool = False
     artifact_written: bool = False
+    recovery_classification: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -193,7 +205,13 @@ def correct_linkedin_variant(
     idempotency_key: str | None = None,
     auto_queue_eligible: bool | None = None,
 ) -> LinkedInSupervisionResult:
-    """Atomically update a pending variant draft and supervision metadata."""
+    """Atomically update a pending or content-rejected failed variant draft.
+
+    Pending behavior is unchanged. A `failed` variant is eligible only when
+    its latest US-019 evidence classifies as non-recoverable as-is with
+    `last_error_code=linkedin_publish_content_invalid` (US-022); the variant
+    stays `failed` and is never made auto-queue eligible.
+    """
     campaign, entry, errors = _supervision_eligibility(
         base_path, campaign_id=campaign_id, variant=variant
     )
@@ -209,17 +227,60 @@ def correct_linkedin_variant(
     assert campaign is not None and entry is not None
 
     publish_state = entry.get("publish_state")
-    pending_errors = _validate_pending_supervision(entry)
-    if pending_errors:
-        return LinkedInSupervisionResult(
-            status="failed",
-            campaign_id=campaign_id,
-            variant=variant,
-            state=campaign.get("state"),
-            publish_state=publish_state,
-            dry_run=dry_run,
-            errors=pending_errors,
+    is_failed_correction = publish_state == PUBLISH_STATE_FAILED
+    normalized_attempts: list[dict[str, Any]] | None = None
+    recovery_classification: str | None = None
+    if is_failed_correction:
+        evidence, evidence_error = _validated_failure_evidence(entry)
+        attempts, history_error = _normalized_failed_attempt_history(entry)
+        if evidence_error or history_error:
+            return LinkedInSupervisionResult(
+                status="failed",
+                campaign_id=campaign_id,
+                variant=variant,
+                state=campaign.get("state"),
+                publish_state=publish_state,
+                dry_run=dry_run,
+                errors=[LINKEDIN_PUBLISH_RECOVERY_EVIDENCE_INVALID],
+            )
+        assert evidence is not None and attempts is not None
+        classification = classify_linkedin_recovery(
+            evidence["last_error_code"], evidence["http_status"]
         )
+        if (
+            classification != RECOVERY_CLASS_CONTENT_INVALID
+            or evidence["last_error_code"] != LINKEDIN_PUBLISH_CONTENT_INVALID
+        ):
+            return LinkedInSupervisionResult(
+                status="failed",
+                campaign_id=campaign_id,
+                variant=variant,
+                state=campaign.get("state"),
+                publish_state=publish_state,
+                dry_run=dry_run,
+                errors=[LINKEDIN_SUPERVISION_ACTION_NOT_ALLOWED],
+                recovery_classification=classification,
+            )
+        normalized_attempts = attempts
+        recovery_classification = classification
+    else:
+        pending_errors = _validate_pending_supervision(entry)
+        if pending_errors:
+            return LinkedInSupervisionResult(
+                status="failed",
+                campaign_id=campaign_id,
+                variant=variant,
+                state=campaign.get("state"),
+                publish_state=publish_state,
+                dry_run=dry_run,
+                errors=pending_errors,
+            )
+
+    supervision_phase = (
+        SUPERVISION_PHASE_RECOVERY
+        if is_failed_correction
+        else SUPERVISION_PHASE_PRE_QUEUE
+    )
 
     normalized_content = _normalize_draft_content(draft_content)
     if not normalized_content:
@@ -296,11 +357,12 @@ def correct_linkedin_variant(
             state=campaign.get("state"),
             publish_state=publish_state,
             dry_run=False,
-            phase=SUPERVISION_PHASE_PRE_QUEUE,
+            phase=supervision_phase,
             derivative_content_sha256=new_hash,
             operator_supervision=supervision,
             metadata_written=False,
             artifact_written=False,
+            recovery_classification=recovery_classification,
         )
 
     if dry_run:
@@ -311,10 +373,11 @@ def correct_linkedin_variant(
             state=campaign.get("state"),
             publish_state=publish_state,
             dry_run=True,
-            phase=SUPERVISION_PHASE_PRE_QUEUE,
+            phase=supervision_phase,
             derivative_content_sha256=new_hash,
             metadata_written=False,
             artifact_written=False,
+            recovery_classification=recovery_classification,
         )
 
     artifact_path = base_path / artifact_relative
@@ -348,13 +411,18 @@ def correct_linkedin_variant(
     supervision["edit_history"] = history
     supervision["last_action"] = SUPERVISION_ACTION_EDIT
     supervision["last_action_at_utc"] = edited_at
-    supervision["phase"] = SUPERVISION_PHASE_PRE_QUEUE
+    supervision["phase"] = supervision_phase
     supervision["actor"] = SUPERVISION_ACTOR_OPERATOR
     if reason:
         supervision["reason"] = reason
-    supervision["auto_queue_eligible"] = (
-        auto_queue_eligible if auto_queue_eligible is not None else True
-    )
+    if is_failed_correction:
+        # A corrected failed variant is never auto-queue eligible; explicit
+        # manual re-queue remains the only path to another attempt.
+        supervision["auto_queue_eligible"] = False
+    else:
+        supervision["auto_queue_eligible"] = (
+            auto_queue_eligible if auto_queue_eligible is not None else True
+        )
     _record_idempotency_proof(
         supervision,
         action=SUPERVISION_ACTION_EDIT,
@@ -368,6 +436,21 @@ def correct_linkedin_variant(
     updated_entry = dict(metadata_map[variant])
     updated_entry["derivative_content_sha256"] = new_hash
     updated_entry["operator_supervision"] = supervision
+    if is_failed_correction:
+        assert normalized_attempts is not None
+        assert recovery_classification is not None
+        updated_entry["linkedin_publication_attempts"] = normalized_attempts
+        _append_recovery_event(
+            updated_entry,
+            action=RECOVERY_ACTION_CONTENT_CORRECTED,
+            recorded_at=edited_at,
+            attempt_number=len(normalized_attempts),
+            classification=recovery_classification,
+            details={
+                "previous_content_sha256": stored_hash,
+                "new_content_sha256": new_hash,
+            },
+        )
     metadata_map[variant] = updated_entry
     working["variants"] = list(metadata_map.values())
 
@@ -383,6 +466,7 @@ def correct_linkedin_variant(
             errors=[LINKEDIN_PUBLISH_METADATA_WRITE_FAILED],
             metadata_written=False,
             artifact_written=True,
+            recovery_classification=recovery_classification,
         )
 
     return LinkedInSupervisionResult(
@@ -392,11 +476,12 @@ def correct_linkedin_variant(
         state=working.get("state"),
         publish_state=publish_state,
         dry_run=False,
-        phase=SUPERVISION_PHASE_PRE_QUEUE,
+        phase=supervision_phase,
         derivative_content_sha256=new_hash,
         operator_supervision=supervision,
         metadata_written=True,
         artifact_written=True,
+        recovery_classification=recovery_classification,
     )
 
 

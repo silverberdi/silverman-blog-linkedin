@@ -40,6 +40,18 @@ from silverman_blog_linkedin.linkedin_package_flow import (
 from silverman_blog_linkedin.linkedin_publication_flow import (
     LINKEDIN_OAUTH_REAUTHORIZATION_REQUIRED,
     LINKEDIN_OAUTH_TOKEN_MISSING,
+    LINKEDIN_PUBLISH_CONTENT_CORRECTION_REQUIRED,
+    LINKEDIN_PUBLISH_RECOVERY_CONFIRMATION_INVALID,
+    LINKEDIN_PUBLISH_RECOVERY_CONFIRMATION_REQUIRED,
+    LINKEDIN_PUBLISH_RECOVERY_EVIDENCE_INVALID,
+    LINKEDIN_PUBLISH_RETRY_LIMIT_EXHAUSTED,
+    LINKEDIN_PUBLISH_TOKEN_INVALID,
+    RECOVERY_CLASS_CONTENT_INVALID,
+    RECOVERY_CLASS_REMEDIATION,
+    RECOVERY_CLASS_TRANSIENT,
+    RECOVERY_CLASS_UNCERTAIN,
+    RECOVERY_CONFIRMATION_POST_ABSENCE_VERIFIED,
+    RECOVERY_CONFIRMATION_REMEDIATION_COMPLETED,
     LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_NOT_DUE,
     LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_SEQUENCE,
     LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_STATE,
@@ -913,7 +925,8 @@ def test_flow_b_rejected(editorial_base: Path):
 
 
 def test_cancel_wrong_state_rejected(scheduled_base: Path):
-    _update_variant(scheduled_base, publish_state=PUBLISH_STATE_FAILED)
+    # US-022 extended cancel to `failed`; `cancelled` remains ineligible.
+    _update_variant(scheduled_base, publish_state=PUBLISH_STATE_CANCELLED)
     result = cancel_linkedin_publication(
         scheduled_base,
         campaign_id=CANONICAL_CAMPAIGN_ID,
@@ -2506,3 +2519,700 @@ def test_us020_auto_queue_sequence_pre_filter_skips_later_pending(
     )
     entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, SECOND_VARIANT)
     assert entry["publish_state"] == PUBLISH_STATE_PENDING
+
+
+# --- US-022 retry limits, append-only evidence, class-aware manual re-queue ---
+
+US022_NOW = datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc)
+US022_FAILED_AT = "2026-07-07T10:00:00Z"
+
+
+def _failure_evidence(
+    *,
+    error_code: str = LINKEDIN_PUBLISH_API_ERROR,
+    http_status: int | None = 500,
+    retryable: bool = True,
+    failed_at: str = US022_FAILED_AT,
+) -> dict:
+    return {
+        "last_error_code": error_code,
+        "last_failed_at": failed_at,
+        "retryable": retryable,
+        "http_status": http_status,
+    }
+
+
+def _make_failed_variant(
+    base: Path,
+    *,
+    variant: str = TARGET_VARIANT,
+    error_code: str = LINKEDIN_PUBLISH_API_ERROR,
+    http_status: int | None = 500,
+    retryable: bool = True,
+    attempt_count: int = 1,
+    with_history: bool = True,
+) -> dict:
+    """Craft a failed variant with US-019 evidence and optional US-022 history."""
+    entry = _read_variant_entry(base, CANONICAL_CAMPAIGN_ID, variant)
+    content_hash = entry["derivative_content_sha256"]
+    evidence = _failure_evidence(
+        error_code=error_code, http_status=http_status, retryable=retryable
+    )
+    updates: dict[str, object] = {
+        "publish_state": PUBLISH_STATE_FAILED,
+        "linkedin_publication": evidence,
+    }
+    if with_history:
+        updates["linkedin_publication_attempts"] = [
+            {
+                "attempt_number": index,
+                "attempted_at": US022_FAILED_AT,
+                "outcome": "failed",
+                "derivative_content_sha256": content_hash,
+                "last_error_code": error_code,
+                "last_failed_at": US022_FAILED_AT,
+                "retryable": retryable,
+                "http_status": http_status,
+            }
+            for index in range(1, attempt_count + 1)
+        ]
+    return _update_variant(base, variant=variant, **updates)
+
+
+def _requeue(
+    base: Path,
+    *,
+    variant: str = TARGET_VARIANT,
+    recovery_confirmation: str | None = None,
+    dry_run: bool = False,
+    publish_after_utc: str | None = PAST_DUE_UTC,
+):
+    return queue_linkedin_publication(
+        base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=variant,
+        dry_run=dry_run,
+        publish_after_utc=publish_after_utc,
+        recovery_confirmation=recovery_confirmation,
+        now=US022_NOW,
+    )
+
+
+def _real_publish_failure(
+    base: Path,
+    *,
+    variant: str = TARGET_VARIANT,
+    status_code: int | None = 500,
+    now: datetime = US022_NOW,
+    headers: dict | None = None,
+):
+    mock_client = MagicMock()
+    if status_code is None:
+        mock_client.post.side_effect = httpx.ConnectError("connection refused")
+    else:
+        mock_response = MagicMock()
+        mock_response.status_code = status_code
+        mock_response.headers = headers if headers is not None else {}
+        mock_client.post.return_value = mock_response
+    return publish_linkedin_due_variants(
+        base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=variant,
+        dry_run=False,
+        publish_now=True,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=now,
+    )
+
+
+def test_us022_failure_then_success_retains_both_attempts(scheduled_base: Path):
+    _queue_variant(scheduled_base, publish_after_utc=PAST_DUE_UTC, now=US022_NOW)
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT)
+    original_hash = entry["derivative_content_sha256"]
+
+    first = _real_publish_failure(scheduled_base, status_code=500)
+    assert first.status == "failed"
+    assert first.results[0].publication_attempt_count == 1
+    assert first.results[0].manual_retries_used == 0
+    assert first.results[0].manual_retries_remaining == 2
+
+    requeue = _requeue(scheduled_base)
+    assert requeue.status == "completed", requeue.errors
+    assert requeue.recovery_classification == RECOVERY_CLASS_TRANSIENT
+
+    mock_client = _mock_success_client("urn:li:share:us022-second-attempt")
+    second = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        publish_now=True,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=US022_NOW,
+    )
+    assert second.status == "completed"
+    assert second.results[0].publish_state == PUBLISH_STATE_PUBLISHED
+    assert second.results[0].publication_attempt_count == 2
+    assert second.results[0].manual_retries_used == 1
+    assert second.results[0].manual_retries_remaining == 1
+
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT)
+    attempts = entry["linkedin_publication_attempts"]
+    assert [item["attempt_number"] for item in attempts] == [1, 2]
+    failed_attempt, published_attempt = attempts
+    assert failed_attempt["outcome"] == "failed"
+    assert failed_attempt["last_error_code"] == LINKEDIN_PUBLISH_API_ERROR
+    assert failed_attempt["http_status"] == 500
+    assert failed_attempt["retryable"] is True
+    assert failed_attempt["derivative_content_sha256"] == original_hash
+    assert failed_attempt["attempted_at"].endswith("Z")
+    assert published_attempt["outcome"] == "published"
+    assert published_attempt["provider"] == "linkedin_rest_posts"
+    assert published_attempt["post_urn"] == "urn:li:share:us022-second-attempt"
+    assert published_attempt["published_at"].endswith("Z")
+    assert published_attempt["http_status"] == 201
+    assert entry["linkedin_publication"]["post_urn"] == (
+        "urn:li:share:us022-second-attempt"
+    )
+    _assert_no_secrets_or_body_text(entry)
+    _assert_no_secrets_or_body_text(second.to_dict())
+
+
+@pytest.mark.parametrize(
+    ("status_code", "headers", "expected_code", "expected_http_status"),
+    [
+        (None, None, LINKEDIN_PUBLISH_API_ERROR, None),
+        (201, {}, LINKEDIN_PUBLISH_API_ERROR, 201),
+        (422, {}, LINKEDIN_PUBLISH_CONTENT_INVALID, 422),
+        (401, {}, LINKEDIN_PUBLISH_TOKEN_INVALID, 401),
+    ],
+)
+def test_us022_attempt_appended_for_each_real_failure_shape(
+    scheduled_base: Path,
+    status_code: int | None,
+    headers: dict | None,
+    expected_code: str,
+    expected_http_status: int | None,
+):
+    _queue_variant(scheduled_base, publish_after_utc=PAST_DUE_UTC, now=US022_NOW)
+    result = _real_publish_failure(
+        scheduled_base, status_code=status_code, headers=headers
+    )
+    assert result.status == "failed"
+
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT)
+    attempts = entry["linkedin_publication_attempts"]
+    assert len(attempts) == 1
+    attempt = attempts[0]
+    assert attempt["attempt_number"] == 1
+    assert attempt["outcome"] == "failed"
+    assert attempt["last_error_code"] == expected_code
+    assert attempt["http_status"] == expected_http_status
+    assert attempt["last_failed_at"] == entry["linkedin_publication"]["last_failed_at"]
+    _assert_no_secrets_or_body_text(entry)
+
+
+def test_us022_requeue_preserves_latest_failure_context(scheduled_base: Path):
+    _make_failed_variant(
+        scheduled_base,
+        error_code="linkedin_publish_insufficient_permission",
+        http_status=403,
+        retryable=False,
+    )
+    before = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT)
+    evidence_before = json.dumps(before["linkedin_publication"], sort_keys=True)
+    attempts_before = json.dumps(
+        before["linkedin_publication_attempts"], sort_keys=True
+    )
+
+    result = _requeue(
+        scheduled_base,
+        recovery_confirmation=RECOVERY_CONFIRMATION_REMEDIATION_COMPLETED,
+    )
+    assert result.status == "completed", result.errors
+    assert result.publish_state == PUBLISH_STATE_QUEUED
+    assert result.recovery_classification == RECOVERY_CLASS_REMEDIATION
+    assert result.publication_attempt_count == 1
+    assert result.manual_retries_used == 0
+    assert result.manual_retries_remaining == 2
+
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+    assert json.dumps(entry["linkedin_publication"], sort_keys=True) == evidence_before
+    assert (
+        json.dumps(entry["linkedin_publication_attempts"], sort_keys=True)
+        == attempts_before
+    )
+    events = entry["linkedin_recovery_history"]
+    assert len(events) == 1
+    event = events[0]
+    assert event["event_number"] == 1
+    assert event["action"] == "manual_requeue"
+    assert event["attempt_number"] == 1
+    assert event["classification"] == RECOVERY_CLASS_REMEDIATION
+    assert event["recovery_confirmation"] == (
+        RECOVERY_CONFIRMATION_REMEDIATION_COMPLETED
+    )
+    assert event["recorded_at"].endswith("Z")
+    _assert_no_secrets_or_body_text(entry)
+    _assert_no_secrets_or_body_text(result.to_dict())
+
+
+def test_us022_two_manual_retries_allowed_third_requeue_blocked(
+    scheduled_base: Path,
+):
+    _queue_variant(scheduled_base, publish_after_utc=PAST_DUE_UTC, now=US022_NOW)
+
+    first = _real_publish_failure(scheduled_base, status_code=500)
+    assert first.results[0].publication_attempt_count == 1
+
+    second_queue = _requeue(scheduled_base)
+    assert second_queue.status == "completed", second_queue.errors
+    assert second_queue.manual_retries_used == 0
+    assert second_queue.manual_retries_remaining == 2
+
+    second = _real_publish_failure(scheduled_base, status_code=500)
+    assert second.results[0].publication_attempt_count == 2
+    assert second.results[0].manual_retries_used == 1
+    assert second.results[0].manual_retries_remaining == 1
+
+    third_queue = _requeue(scheduled_base)
+    assert third_queue.status == "completed", third_queue.errors
+    assert third_queue.manual_retries_used == 1
+    assert third_queue.manual_retries_remaining == 1
+
+    third = _real_publish_failure(scheduled_base, status_code=500)
+    assert third.results[0].publication_attempt_count == 3
+    assert third.results[0].manual_retries_used == 2
+    assert third.results[0].manual_retries_remaining == 0
+
+    entry_before = _read_variant_entry(
+        scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT
+    )
+    snapshot = json.dumps(entry_before, sort_keys=True)
+    exhausted = _requeue(scheduled_base)
+    assert exhausted.status == "failed"
+    assert LINKEDIN_PUBLISH_RETRY_LIMIT_EXHAUSTED in exhausted.errors
+    assert exhausted.publication_attempt_count == 3
+    assert exhausted.manual_retries_remaining == 0
+    assert exhausted.metadata_written is False
+    entry_after = _read_variant_entry(
+        scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT
+    )
+    assert json.dumps(entry_after, sort_keys=True) == snapshot
+    assert len(entry_after["linkedin_publication_attempts"]) == 3
+
+
+def test_us022_blocked_dry_run_and_queue_operations_consume_no_attempts(
+    scheduled_base: Path,
+):
+    _queue_variant(scheduled_base, publish_after_utc=PAST_DUE_UTC, now=US022_NOW)
+    _real_publish_failure(scheduled_base, status_code=500)
+    requeue = _requeue(scheduled_base)
+    assert requeue.status == "completed", requeue.errors
+
+    dry_run = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=True,
+        publish_now=True,
+        now=US022_NOW,
+    )
+    assert dry_run.results[0].warnings == ["linkedin_publish_dry_run"]
+    assert dry_run.results[0].publication_attempt_count == 1
+    assert dry_run.results[0].manual_retries_remaining == 2
+
+    disabled = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        publish_now=True,
+        environ=_real_publish_env(
+            SILVERMAN_LINKEDIN_PUBLICATION_ENABLED="false"
+        ),
+        now=US022_NOW,
+    )
+    assert LINKEDIN_PUBLISH_NOT_ENABLED in disabled.errors
+    assert disabled.results[0].publication_attempt_count == 1
+
+    token_missing = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        publish_now=True,
+        environ=_real_publish_env(SILVERMAN_LINKEDIN_ACCESS_TOKEN=""),
+        now=US022_NOW,
+    )
+    assert LINKEDIN_PUBLISH_TOKEN_MISSING in token_missing.errors
+    assert token_missing.results[0].publication_attempt_count == 1
+
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT)
+    assert len(entry["linkedin_publication_attempts"]) == 1
+    assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+
+
+def test_us022_variants_do_not_share_campaign_retry_pool(scheduled_base: Path):
+    _make_failed_variant(scheduled_base, variant=TARGET_VARIANT, attempt_count=3)
+    _make_failed_variant(scheduled_base, variant=SECOND_VARIANT, attempt_count=1)
+
+    exhausted = _requeue(scheduled_base, variant=TARGET_VARIANT)
+    assert exhausted.status == "failed"
+    assert LINKEDIN_PUBLISH_RETRY_LIMIT_EXHAUSTED in exhausted.errors
+    assert exhausted.manual_retries_remaining == 0
+
+    sibling = _requeue(scheduled_base, variant=SECOND_VARIANT)
+    assert sibling.status == "completed", sibling.errors
+    assert sibling.publication_attempt_count == 1
+    assert sibling.manual_retries_used == 0
+    assert sibling.manual_retries_remaining == 2
+
+
+def test_us022_no_automatic_retry_and_failed_excluded_from_auto_queue(
+    scheduled_base: Path,
+):
+    _queue_variant(scheduled_base, publish_after_utc=PAST_DUE_UTC, now=US022_NOW)
+    failure = _real_publish_failure(scheduled_base, status_code=500)
+    assert failure.status == "failed"
+
+    rerun = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        publish_now=True,
+        auto_queue_pending=True,
+        environ=_real_publish_env(),
+        now=US022_NOW,
+    )
+    assert rerun.auto_queue_results[0].skip_reason == (
+        LINKEDIN_PUBLISH_AUTO_QUEUE_SKIPPED_STATE
+    )
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_FAILED
+    assert len(entry["linkedin_publication_attempts"]) == 1
+
+
+@pytest.mark.parametrize(
+    (
+        "error_code",
+        "http_status",
+        "confirmation",
+        "expected_status",
+        "expected_error",
+        "expected_class",
+    ),
+    [
+        # Transient: no confirmation needed; any confirmation is inapplicable.
+        (LINKEDIN_PUBLISH_API_ERROR, 429, None, "completed", None, RECOVERY_CLASS_TRANSIENT),
+        (LINKEDIN_PUBLISH_API_ERROR, 500, None, "completed", None, RECOVERY_CLASS_TRANSIENT),
+        (
+            LINKEDIN_PUBLISH_API_ERROR,
+            500,
+            RECOVERY_CONFIRMATION_REMEDIATION_COMPLETED,
+            "failed",
+            LINKEDIN_PUBLISH_RECOVERY_CONFIRMATION_INVALID,
+            RECOVERY_CLASS_TRANSIENT,
+        ),
+        # Recoverable after remediation: requires remediation_completed.
+        (
+            LINKEDIN_PUBLISH_TOKEN_INVALID,
+            401,
+            None,
+            "failed",
+            LINKEDIN_PUBLISH_RECOVERY_CONFIRMATION_REQUIRED,
+            RECOVERY_CLASS_REMEDIATION,
+        ),
+        (
+            LINKEDIN_PUBLISH_TOKEN_INVALID,
+            401,
+            RECOVERY_CONFIRMATION_POST_ABSENCE_VERIFIED,
+            "failed",
+            LINKEDIN_PUBLISH_RECOVERY_CONFIRMATION_INVALID,
+            RECOVERY_CLASS_REMEDIATION,
+        ),
+        (
+            LINKEDIN_PUBLISH_TOKEN_INVALID,
+            401,
+            RECOVERY_CONFIRMATION_REMEDIATION_COMPLETED,
+            "completed",
+            None,
+            RECOVERY_CLASS_REMEDIATION,
+        ),
+        # Uncertain: transport, success-without-URN, and unlisted fallback.
+        (
+            LINKEDIN_PUBLISH_API_ERROR,
+            None,
+            None,
+            "failed",
+            LINKEDIN_PUBLISH_RECOVERY_CONFIRMATION_REQUIRED,
+            RECOVERY_CLASS_UNCERTAIN,
+        ),
+        (
+            LINKEDIN_PUBLISH_API_ERROR,
+            201,
+            RECOVERY_CONFIRMATION_POST_ABSENCE_VERIFIED,
+            "completed",
+            None,
+            RECOVERY_CLASS_UNCERTAIN,
+        ),
+        (
+            LINKEDIN_PUBLISH_API_ERROR,
+            426,
+            RECOVERY_CONFIRMATION_REMEDIATION_COMPLETED,
+            "failed",
+            LINKEDIN_PUBLISH_RECOVERY_CONFIRMATION_INVALID,
+            RECOVERY_CLASS_UNCERTAIN,
+        ),
+        (
+            "linkedin_publish_unknown_future_code",
+            400,
+            RECOVERY_CONFIRMATION_POST_ABSENCE_VERIFIED,
+            "completed",
+            None,
+            RECOVERY_CLASS_UNCERTAIN,
+        ),
+        # Content-invalid: mechanical correction required; confirmation never
+        # substitutes for it.
+        (
+            LINKEDIN_PUBLISH_CONTENT_INVALID,
+            422,
+            None,
+            "failed",
+            LINKEDIN_PUBLISH_CONTENT_CORRECTION_REQUIRED,
+            RECOVERY_CLASS_CONTENT_INVALID,
+        ),
+        (
+            LINKEDIN_PUBLISH_CONTENT_INVALID,
+            400,
+            RECOVERY_CONFIRMATION_POST_ABSENCE_VERIFIED,
+            "failed",
+            LINKEDIN_PUBLISH_RECOVERY_CONFIRMATION_INVALID,
+            RECOVERY_CLASS_CONTENT_INVALID,
+        ),
+    ],
+)
+def test_us022_class_specific_requeue_authorization(
+    scheduled_base: Path,
+    error_code: str,
+    http_status: int | None,
+    confirmation: str | None,
+    expected_status: str,
+    expected_error: str | None,
+    expected_class: str,
+):
+    _make_failed_variant(
+        scheduled_base, error_code=error_code, http_status=http_status
+    )
+    before = json.dumps(
+        _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT),
+        sort_keys=True,
+    )
+
+    result = _requeue(scheduled_base, recovery_confirmation=confirmation)
+
+    assert result.status == expected_status, result.errors
+    assert result.recovery_classification == expected_class
+    if expected_error is not None:
+        assert expected_error in result.errors
+        after = json.dumps(
+            _read_variant_entry(
+                scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT
+            ),
+            sort_keys=True,
+        )
+        assert after == before
+    else:
+        entry = _read_variant_entry(
+            scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT
+        )
+        assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+        assert entry["linkedin_recovery_history"][-1]["action"] == "manual_requeue"
+
+
+def test_us022_pending_queue_rejects_recovery_confirmation(scheduled_base: Path):
+    result = _requeue(
+        scheduled_base,
+        recovery_confirmation=RECOVERY_CONFIRMATION_REMEDIATION_COMPLETED,
+    )
+    assert result.status == "failed"
+    assert LINKEDIN_PUBLISH_RECOVERY_CONFIRMATION_INVALID in result.errors
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT)
+    assert entry["publish_state"] == PUBLISH_STATE_PENDING
+
+
+def test_us022_pending_queue_reports_zero_counters_and_no_class(
+    scheduled_base: Path,
+):
+    result = queue_linkedin_publication(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        now=US022_NOW,
+    )
+    assert result.status == "completed"
+    assert result.publication_attempt_count == 0
+    assert result.manual_retries_used == 0
+    assert result.manual_retries_remaining == 2
+    assert result.recovery_classification is None
+
+
+def test_us022_failed_requeue_dry_run_reports_plan_without_mutation(
+    scheduled_base: Path,
+):
+    _make_failed_variant(scheduled_base, error_code=LINKEDIN_PUBLISH_API_ERROR)
+    before = json.dumps(
+        _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT),
+        sort_keys=True,
+    )
+
+    result = _requeue(scheduled_base, dry_run=True)
+
+    assert result.status == "completed"
+    assert result.dry_run is True
+    assert result.metadata_written is False
+    assert result.recovery_classification == RECOVERY_CLASS_TRANSIENT
+    assert result.publication_attempt_count == 1
+    assert result.manual_retries_remaining == 2
+    after = json.dumps(
+        _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT),
+        sort_keys=True,
+    )
+    assert after == before
+
+
+def test_us022_legacy_failed_variant_normalizes_on_first_requeue(
+    scheduled_base: Path,
+):
+    entry = _make_failed_variant(
+        scheduled_base,
+        error_code=LINKEDIN_PUBLISH_API_ERROR,
+        http_status=500,
+        with_history=False,
+    )
+    assert "linkedin_publication_attempts" not in entry
+    content_hash = entry["derivative_content_sha256"]
+
+    result = _requeue(scheduled_base)
+    assert result.status == "completed", result.errors
+    assert result.publication_attempt_count == 1
+
+    entry = _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT)
+    attempts = entry["linkedin_publication_attempts"]
+    assert len(attempts) == 1
+    normalized = attempts[0]
+    assert normalized["attempt_number"] == 1
+    assert normalized["attempted_at"] == US022_FAILED_AT
+    assert normalized["last_failed_at"] == US022_FAILED_AT
+    assert normalized["outcome"] == "failed"
+    assert normalized["derivative_content_sha256"] == content_hash
+    assert entry["linkedin_publication"]["last_error_code"] == (
+        LINKEDIN_PUBLISH_API_ERROR
+    )
+    assert entry["linkedin_recovery_history"][0]["attempt_number"] == 1
+
+
+@pytest.mark.parametrize(
+    "evidence",
+    [
+        None,
+        {"last_error_code": "", "last_failed_at": US022_FAILED_AT, "retryable": True, "http_status": 500},
+        {"last_error_code": LINKEDIN_PUBLISH_API_ERROR, "retryable": True, "http_status": 500},
+        {"last_error_code": LINKEDIN_PUBLISH_API_ERROR, "last_failed_at": US022_FAILED_AT, "http_status": 500},
+        {"last_error_code": LINKEDIN_PUBLISH_API_ERROR, "last_failed_at": US022_FAILED_AT, "retryable": True},
+        {"last_error_code": LINKEDIN_PUBLISH_API_ERROR, "last_failed_at": "not-a-timestamp", "retryable": True, "http_status": 500},
+    ],
+)
+def test_us022_invalid_legacy_evidence_fails_closed(
+    scheduled_base: Path, evidence: dict | None
+):
+    _update_variant(
+        scheduled_base,
+        publish_state=PUBLISH_STATE_FAILED,
+        linkedin_publication=evidence,
+    )
+    before = json.dumps(
+        _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT),
+        sort_keys=True,
+    )
+
+    result = _requeue(scheduled_base)
+
+    assert result.status == "failed"
+    assert LINKEDIN_PUBLISH_RECOVERY_EVIDENCE_INVALID in result.errors
+    after = json.dumps(
+        _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT),
+        sort_keys=True,
+    )
+    assert after == before
+
+
+def test_us022_queue_endpoint_rejects_unknown_confirmation_with_422(
+    client: TestClient, scheduled_base: Path
+):
+    before = json.dumps(
+        _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT),
+        sort_keys=True,
+    )
+    response = client.post(
+        "/queue-linkedin-publication",
+        headers=auth_header(),
+        json={
+            "campaign_id": CANONICAL_CAMPAIGN_ID,
+            "variant": TARGET_VARIANT,
+            "recovery_confirmation": "post_definitely_absent",
+        },
+    )
+    assert response.status_code == 422
+    after = json.dumps(
+        _read_variant_entry(scheduled_base, CANONICAL_CAMPAIGN_ID, TARGET_VARIANT),
+        sort_keys=True,
+    )
+    assert after == before
+
+
+def test_us022_queue_endpoint_exposes_counters_and_requires_auth(
+    client: TestClient, scheduled_base: Path
+):
+    unauthorized = client.post(
+        "/queue-linkedin-publication",
+        json={
+            "campaign_id": CANONICAL_CAMPAIGN_ID,
+            "variant": TARGET_VARIANT,
+            "recovery_confirmation": RECOVERY_CONFIRMATION_REMEDIATION_COMPLETED,
+        },
+    )
+    assert unauthorized.status_code == 401
+
+    _make_failed_variant(
+        scheduled_base,
+        error_code=LINKEDIN_PUBLISH_TOKEN_INVALID,
+        http_status=401,
+        retryable=False,
+    )
+    response = client.post(
+        "/queue-linkedin-publication",
+        headers=auth_header(),
+        json={
+            "campaign_id": CANONICAL_CAMPAIGN_ID,
+            "variant": TARGET_VARIANT,
+            "recovery_confirmation": RECOVERY_CONFIRMATION_REMEDIATION_COMPLETED,
+            "dry_run": True,
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "completed"
+    assert body["dry_run"] is True
+    assert body["publication_attempt_count"] == 1
+    assert body["manual_retries_used"] == 0
+    assert body["manual_retries_remaining"] == 2
+    assert body["recovery_classification"] == RECOVERY_CLASS_REMEDIATION
+    serialized = json.dumps(body)
+    assert ACCESS_TOKEN not in serialized
+    assert _artifact_content(TARGET_VARIANT) not in serialized

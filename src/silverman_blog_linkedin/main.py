@@ -6,6 +6,7 @@ import hashlib
 import html
 import logging
 import os
+from typing import Literal
 from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, Query
@@ -325,6 +326,10 @@ class QueueLinkedInPublicationRequest(BaseModel):
     dry_run: bool = True
     safety_delay_minutes: int | None = None
     publish_after_utc: str | None = None
+    # US-022 failed-state recovery only; any other value is rejected with 422.
+    recovery_confirmation: (
+        Literal["remediation_completed", "linkedin_post_absence_verified"] | None
+    ) = None
 
     @field_validator("campaign_id")
     @classmethod
@@ -1638,6 +1643,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             dry_run=body.dry_run,
             safety_delay_minutes=body.safety_delay_minutes,
             publish_after_utc=body.publish_after_utc,
+            recovery_confirmation=body.recovery_confirmation,
             environ=os.environ,
         )
         logger.info(

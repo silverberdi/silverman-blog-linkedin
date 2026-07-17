@@ -106,7 +106,7 @@ Scheduling is **worker-side only**. LinkedIn receives a post only when the worke
 
 1. **Queue** — `POST /queue-linkedin-publication` with `dry_run: false` moves `pending` → `queued`, sets `publish_after_utc`, does **not** call LinkedIn.
 2. **Review window** — default safety delay is 120 minutes (`SILVERMAN_LINKEDIN_DEFAULT_SAFETY_DELAY_MINUTES`). Inspect generated artifacts under `linkedin-posts/generated/`.
-3. **Cancel (optional)** — `POST /cancel-linkedin-publication` with `dry_run: false` moves `queued` → `cancelled` before publish. Cannot cancel `published` variants.
+3. **Cancel (optional)** — `POST /cancel-linkedin-publication` with `dry_run: false` moves `queued` → `cancelled` before publish, or `failed` → `cancelled` during recovery (US-022, evidence preserved). Cannot cancel `published` variants.
 4. **Publish due** — `POST /publish-linkedin-due-variants` with `dry_run: false` publishes `queued` variants where `publish_after_utc <= now`, or use `publish_now: true` to bypass the delay.
 
 All three endpoints default to `dry_run: true`. Dry-run publish-due does **not** refresh tokens or call LinkedIn OAuth endpoints.
@@ -150,7 +150,7 @@ After a **real successful** LinkedIn publish, campaign variant metadata MUST con
 
 After a **real failed** API attempt, `publish_state` becomes `failed` and `linkedin_publication` records at minimum: `last_error_code`, `last_failed_at`, `retryable` (descriptive evidence only — retry policy is BL-008), and `http_status` (nullable only when no HTTP response was received). Content rejection uses dedicated code `linkedin_publish_content_invalid` (distinct from generic `linkedin_publish_api_error`). A 201 without a usable post URN is treated as `linkedin_publish_api_error`, never as `published` with missing evidence.
 
-**Blocked conditions** fail the HTTP response with a stable code but **never** mark the variant `failed`: enablement off (`linkedin_publish_not_enabled`), OAuth reauthorization / token provider `action_required`, missing member URN, missing token, and dry-run. There is no automatic retry of a failed real attempt within the same request or via auto-queue; manual re-queue via `POST /queue-linkedin-publication` is the only retry path. Evidence behavior after manual re-queue of a `failed` variant is BL-008 (neither authorized nor prohibited here).
+**Blocked conditions** fail the HTTP response with a stable code but **never** mark the variant `failed`: enablement off (`linkedin_publish_not_enabled`), OAuth reauthorization / token provider `action_required`, missing member URN, missing token, and dry-run. There is no automatic retry of a failed real attempt within the same request or via auto-queue; manual re-queue via `POST /queue-linkedin-publication` is the only retry path. Under US-022, manual re-queue of a `failed` variant preserves the stored `linkedin_publication` evidence and records append-only attempt/recovery history (see the US-021/US-022 section below).
 
 **Where operators see preserved URN evidence on re-runs:**
 
@@ -192,25 +192,91 @@ Every publish-due evaluation of a `queued` variant — plain publish-due, the co
 
 The guard is evaluated per campaign document; campaigns never gate each other in the cross-campaign scan. Dry-run reports planned blocks with the same stable reasons, with zero metadata writes and zero LinkedIn/OAuth calls.
 
-## Retry and recovery classification (US-021)
+## Retry, recovery classification, and bounded manual retry (US-021 / US-022)
 
-Full normative policy: [linkedin-retry-recovery-classification.md](../operations/linkedin-retry-recovery-classification.md) (policy defined ≠ operationally validated). Classification is a deterministic function of the stored US-019 evidence (`last_error_code` + `http_status`); `retryable` is descriptive only. Summary:
+Full normative policy: [linkedin-retry-recovery-classification.md](../operations/linkedin-retry-recovery-classification.md) (US-021 policy defined; US-022 mechanics implemented and unit-tested — not deployed, not operationally validated). Classification is a deterministic function of the stored US-019 evidence (`last_error_code` + `http_status`); `retryable` is descriptive only. Summary:
 
 | Class | Evidence | Recovery |
 |---|---|---|
-| Recoverable (transient) | `linkedin_publish_api_error` with `http_status` `429` or `>= 500` | Wait, then manual re-queue via `POST /queue-linkedin-publication` |
-| Recoverable after remediation | `linkedin_publish_token_invalid`, `linkedin_publish_token_expired` (token renewal first) or `linkedin_publish_insufficient_permission` (scope/product fix + reauthorization first) | Complete the named remediation, then manual re-queue |
-| Non-recoverable as-is | `linkedin_publish_content_invalid` (`400`/`422`) | Do **not** re-queue unchanged content; no supported correction path for `failed` variants (US-022 candidate) |
-| Uncertain (duplicate risk) | `linkedin_publish_api_error` with `http_status` `null` (transport failure) or `201` (success without usable URN); **any unlisted code/status combination fails safe here** | Mandatory LinkedIn verification before any re-queue (below) |
+| Recoverable (transient) | `linkedin_publish_api_error` with `http_status` `429` or `>= 500` | Wait, then manual re-queue (no `recovery_confirmation`) |
+| Recoverable after remediation | `linkedin_publish_token_invalid`, `linkedin_publish_token_expired` (token renewal first) or `linkedin_publish_insufficient_permission` (scope/product fix + reauthorization first) | Complete the named remediation, then re-queue with `recovery_confirmation: "remediation_completed"` |
+| Non-recoverable as-is | `linkedin_publish_content_invalid` (`400`/`422`) | Correct content via `POST /correct-linkedin-variant` (supported for this failed class), then re-queue — never re-queue unchanged content |
+| Uncertain (duplicate risk) | `linkedin_publish_api_error` with `http_status` `null` (transport failure) or `201` (success without usable URN); **any unlisted code/status combination fails safe here** | Mandatory LinkedIn verification (below), then re-queue with `recovery_confirmation: "linkedin_post_absence_verified"` |
 
-Blocked outcomes (enablement off, OAuth `action_required`, missing token/URN, US-020 guard blocks, dry-run) are a separate non-failure class: `publish_state` unchanged, no re-queue involved — resolve the named condition and re-run publish-due.
+Blocked outcomes (enablement off, OAuth `action_required`, missing token/URN, US-020 guard blocks, dry-run) are a separate non-failure class: `publish_state` unchanged, no re-queue involved, **no retry attempt consumed** — resolve the named condition and re-run publish-due.
 
-**Mandatory verification step before manual re-queue of an uncertain-class `failed` variant:** check the operator LinkedIn profile feed/activity for a matching post within the `last_failed_at` window.
+### Retry budget (US-022)
+
+Each variant allows **max 3 real LinkedIn API attempts** (initial + 2 manual retries). Only real API calls count — dry-runs, queue operations, blocked outcomes, corrections, cancellations, and manual evidence repair never consume the budget. The budget is per variant; variants never share a campaign pool. Queue and per-variant publish responses expose `publication_attempt_count`, `manual_retries_used`, and `manual_retries_remaining`; failed-state queue/correction/cancel responses also expose `recovery_classification`. When the budget is exhausted, re-queue fails with `linkedin_publish_retry_limit_exhausted` — cancel the variant or repair evidence manually.
+
+Every real API attempt appends one immutable entry to `linkedin_publication_attempts`; every successful failed-state recovery action (`manual_requeue`, `content_corrected`, `recovery_cancelled`) appends one event to `linkedin_recovery_history`. Re-queue no longer clears `linkedin_publication`. Legacy `failed` variants without attempt history are normalized from their US-019 evidence on the first recovery action; invalid/missing evidence fails closed with `linkedin_publish_recovery_evidence_invalid` (manual metadata repair required).
+
+### Operator steps and HTTP examples per class
+
+All examples default-safe: run first with `"dry_run": true` to preview counters and planned actions with zero mutation; all endpoints require the API key header. `recovery_confirmation` accepts only the two enum values shown (anything else → HTTP 422) and is rejected on pending (non-failed) queue requests.
+
+**Transient (429/5xx)** — wait, then re-queue directly:
+
+```bash
+curl -s -X POST http://localhost:8010/queue-linkedin-publication \
+  -H "Authorization: Bearer $SILVERMAN_BLOG_LINKEDIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"campaign_id": "<campaign-id>", "variant": "<variant>", "dry_run": false}'
+```
+
+**Recoverable after remediation (token/permission)** — first confirm remediation via `GET /linkedin/oauth/status` (renew/reauthorize per the sections above), then:
+
+```bash
+curl -s -X POST http://localhost:8010/queue-linkedin-publication \
+  -H "Authorization: Bearer $SILVERMAN_BLOG_LINKEDIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"campaign_id": "<campaign-id>", "variant": "<variant>", "dry_run": false,
+       "recovery_confirmation": "remediation_completed"}'
+```
+
+Omitting the confirmation returns `linkedin_publish_recovery_confirmation_required`; sending it for the wrong class (or on a pending queue) returns `linkedin_publish_recovery_confirmation_invalid`.
+
+**Uncertain (duplicate risk)** — perform the mandatory manual verification first: check the operator LinkedIn profile feed/activity for a matching post within the `last_failed_at` window.
 
 - Post **exists** → re-queue is forbidden (it would create a duplicate that no existing safeguard catches, since no `published_at`/URN evidence was stored). Recovery is deliberate manual evidence repair in `metadata/campaigns/<campaign-id>.json` to `published` with the real URN and UTC `published_at` (same manual-repair pattern as invalid `published_at` under US-020).
-- Post **absent** → manual re-queue via `POST /queue-linkedin-publication` is safe.
+- Post **absent** → re-queue with the attestation:
 
-For token-class failures, confirm token validity via `GET /linkedin/oauth/status` (renew/reauthorize if needed) **before** re-queue. There is no automatic retry (retry limits are US-022). Known divergence recorded for US-022: re-queueing a `failed` variant currently clears the stored `linkedin_publication` failure evidence — note the evidence before re-queue if traceability matters.
+```bash
+curl -s -X POST http://localhost:8010/queue-linkedin-publication \
+  -H "Authorization: Bearer $SILVERMAN_BLOG_LINKEDIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"campaign_id": "<campaign-id>", "variant": "<variant>", "dry_run": false,
+       "recovery_confirmation": "linkedin_post_absence_verified"}'
+```
+
+**Content-invalid (400/422)** — correct the content first (allowed on `failed` only for this class; variant stays `failed` and is never auto-queued), then re-queue explicitly without a confirmation:
+
+```bash
+curl -s -X POST http://localhost:8010/correct-linkedin-variant \
+  -H "Authorization: Bearer $SILVERMAN_BLOG_LINKEDIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"campaign_id": "<campaign-id>", "variant": "<variant>", "dry_run": false,
+       "draft_content": "<corrected variant text>"}'
+
+curl -s -X POST http://localhost:8010/queue-linkedin-publication \
+  -H "Authorization: Bearer $SILVERMAN_BLOG_LINKEDIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"campaign_id": "<campaign-id>", "variant": "<variant>", "dry_run": false}'
+```
+
+Re-queueing without a recorded correction matching the current artifact hash returns `linkedin_publish_content_correction_required`. Correction of a failed variant in any other class is rejected with `linkedin_supervision_action_not_allowed`.
+
+**Cancel a failed variant (any class, including exhausted)** — no LinkedIn call, all evidence preserved:
+
+```bash
+curl -s -X POST http://localhost:8010/cancel-linkedin-publication \
+  -H "Authorization: Bearer $SILVERMAN_BLOG_LINKEDIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"campaign_id": "<campaign-id>", "variant": "<variant>", "dry_run": false,
+       "reason": "retry budget exhausted"}'
+```
+
+There is no automatic retry of any kind; manual re-queue remains the only retry path, over existing endpoints only (ADR-0001 HTTP-only boundary). Real publication still requires `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=true` — the fail-closed guard is unchanged by US-022.
 
 ## Safety delay and immediate mode
 

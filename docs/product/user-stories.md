@@ -404,22 +404,28 @@ As a content operator, I want to classify recoverable and non-recoverable errors
 - [x] Failures or blocked states are clearly communicated. — Spec requirement "Blocked outcomes are a separate non-failure class": blocked codes listed with no-`publish_state`-change statement and per-condition recovery, distinct from the four failure classes.
 - [x] Existing completed work is not duplicated or unintentionally changed. — No modified capabilities; zero changes under `src/`, `tests/`, `n8n/`, `deploy/`; US-018/US-019/US-020 contracts referenced additively (BL-007 stays closed).
 
-**Defined:** 2026-07-16 — US-021 policy defined (docs + canonical spec); acceptance criteria demonstrated at policy-definition scope only, not operationally validated. Known divergence recorded for US-022: manual re-queue of a `failed` variant clears stored `linkedin_publication` failure evidence.
+**Defined:** 2026-07-16 — US-021 policy defined (docs + canonical spec); acceptance criteria demonstrated at policy-definition scope only, not operationally validated. Known divergence recorded for US-022 (manual re-queue of a `failed` variant cleared stored `linkedin_publication` failure evidence) — resolved by the US-022 implementation: re-queue now preserves evidence.
 
 ### US-022 — Define LinkedIn Retry and Recovery Rules: Story 2
+
+**Status:** Implemented + unit-tested (2026-07-16) — not deployed, not operationally validated; story **not accepted**; BL-008 remains open pending post-implementation review.
 
 **Description**
 
 As a content operator, I want to set retry limits, so that linkedin failures can be recovered without losing traceability or duplicating content.
 
-**Acceptance criteria**
+**Policy artifact:** [linkedin-retry-recovery-classification.md](../operations/linkedin-retry-recovery-classification.md) (US-022 sections)
 
-- [ ] Set retry limits.
-- [ ] Preserve operational evidence.
-- [ ] Support safe manual intervention.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+**Acceptance criteria** (demonstrated at implemented + unit-test scope only)
+
+- [x] Set retry limits. — Per-variant budget of 3 real LinkedIn API attempts (initial + 2 manual retries); only real API calls count (dry-runs, queue ops, blocked outcomes, corrections, cancellations never consume); no shared campaign pool; exhausted re-queue fails with `linkedin_publish_retry_limit_exhausted`. Unit evidence: `test_us022_two_manual_retries_allowed_third_requeue_blocked`, `test_us022_blocked_dry_run_and_queue_operations_consume_no_attempts`, `test_us022_variants_do_not_share_campaign_retry_pool`, `test_us022_no_automatic_retry_and_failed_excluded_from_auto_queue`.
+- [x] Preserve operational evidence. — Append-only `linkedin_publication_attempts` (one immutable entry per real API call) and `linkedin_recovery_history` (one event per mutating failed-state action); re-queue no longer clears `linkedin_publication` (US-021 divergence resolved); legacy failed variants lazily normalized, invalid evidence fails closed (`linkedin_publish_recovery_evidence_invalid`). Unit evidence: `test_us022_failure_then_success_retains_both_attempts`, `test_us022_requeue_preserves_latest_failure_context`, `test_us022_legacy_failed_variant_normalizes_on_first_requeue`, `test_us022_invalid_legacy_evidence_fails_closed`.
+- [x] Support safe manual intervention. — Class-aware re-queue confirmations (`remediation_completed`, `linkedin_post_absence_verified`), content correction of failed content-invalid variants via `POST /correct-linkedin-variant` (stays `failed`, never auto-queued), `failed → cancelled` with full evidence preservation and no LinkedIn call. Unit evidence: `test_us022_class_specific_requeue_authorization`, `test_us022_correct_failed_content_invalid_keeps_failed_and_audits`, `test_us022_cancel_exhausted_failed_variant_preserves_all_evidence`, `test_cancel_failed_variant_now_supported_preserves_evidence`.
+- [x] The outcome is visible and understandable to the intended user. — Additive `publication_attempt_count` / `manual_retries_used` / `manual_retries_remaining` on queue and per-variant publish results, `recovery_classification` on failed-state results; operator procedures with per-class HTTP examples in [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md#retry-recovery-classification-and-bounded-manual-retry-us-021--us-022). Unit evidence: `test_us022_queue_endpoint_exposes_counters_and_requires_auth`, `test_us022_pending_queue_reports_zero_counters_and_no_class`.
+- [x] Failures or blocked states are clearly communicated. — Stable codes `linkedin_publish_retry_limit_exhausted`, `linkedin_publish_recovery_confirmation_required` / `_invalid`, `linkedin_publish_content_correction_required`, `linkedin_publish_recovery_evidence_invalid`; unknown `recovery_confirmation` values → HTTP 422; third failed publish reports zero retries remaining. Unit evidence: `test_us022_class_specific_requeue_authorization`, `test_us022_queue_endpoint_rejects_unknown_confirmation_with_422`.
+- [x] Existing completed work is not duplicated or unintentionally changed. — No new endpoints/env vars/`publish_state` values; enablement guard fail-closed; US-018/US-019/US-020 suites pass unmodified except two assertions superseded by the approved failed-cancellation contract; full pytest green (1033 passed). BL-007 unchanged.
+
+**Implemented:** 2026-07-16 — worker code + unit suites (`tests/test_linkedin_publication.py`, `tests/test_linkedin_supervision_flow.py`); acceptance demonstrated at implemented/unit-test scope only. Story acceptance and BL-008 closure require a separate business review and operational validation.
 
 ## BL-009 — Validate LinkedIn Article Preview Rendering
 
