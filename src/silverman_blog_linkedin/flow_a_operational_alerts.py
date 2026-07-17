@@ -1,4 +1,4 @@
-"""Evaluate US-028 Flow A operational alerts from operational-status evidence."""
+"""Evaluate US-028/US-029 Flow A operational alerts from operational-status evidence."""
 
 from __future__ import annotations
 
@@ -16,10 +16,13 @@ from silverman_blog_linkedin.flow_a_operational_alerts_config import (
     load_flow_a_operational_alerts_settings,
 )
 from silverman_blog_linkedin.flow_a_operational_status import (
+    CALENDAR_ITEM_PAST_DUE,
     DEPENDENCY_COMFYUI,
     DEPENDENCY_GITHUB_PAGES_CHECKOUT,
+    DEPENDENCY_LINKEDIN,
     CampaignSummary,
     DataIssue,
+    DelayedCalendarItemSummary,
     ExecutionSummary,
     FlowAOperationalStatusResult,
     get_flow_a_operational_status,
@@ -31,13 +34,25 @@ logger = logging.getLogger(__name__)
 ALERT_ITEM_MOVED_TO_ERROR = "item_moved_to_error"
 ALERT_IMAGE_GENERATION_FAILURE = "image_generation_failure"
 ALERT_BLOG_PUBLICATION_FAILURE = "blog_publication_failure"
+ALERT_PARTIAL_CALENDAR_EXECUTION = "partial_calendar_execution"
+ALERT_LINKEDIN_TOKEN_OR_PUBLICATION_FAILURE = (
+    "linkedin_token_or_publication_failure"
+)
+ALERT_STALE_CAMPAIGN = "stale_campaign"
 US028_ALERT_TYPES = (
     ALERT_ITEM_MOVED_TO_ERROR,
     ALERT_IMAGE_GENERATION_FAILURE,
     ALERT_BLOG_PUBLICATION_FAILURE,
 )
+US029_ALERT_TYPES = (
+    ALERT_PARTIAL_CALENDAR_EXECUTION,
+    ALERT_LINKEDIN_TOKEN_OR_PUBLICATION_FAILURE,
+    ALERT_STALE_CAMPAIGN,
+)
+ALL_ALERT_TYPES = US028_ALERT_TYPES + US029_ALERT_TYPES
 
 SEVERITY_ERROR = "error"
+SEVERITY_WARNING = "warning"
 
 EMISSION_STATUS_NOT_REQUESTED = "not_requested"
 EMISSION_STATUS_DISABLED = "disabled"
@@ -52,6 +67,18 @@ LEDGER_FILENAME = "emissions.json"
 LEDGER_VERSION = 1
 
 _BLOG_PUBLICATION_PREFIXES = ("blog_publish_", "blog_git_publication_")
+_LINKEDIN_PREVIEW_CHECKOUT_PREFIXES = ("linkedin_preview_validation_checkout_",)
+_LINKEDIN_PREVIEW_CHECKOUT_EXACT = frozenset(
+    {"linkedin_article_preview_public_repo_not_configured"}
+)
+_STALE_HEALTH_REASONS = frozenset(
+    {
+        "execution_state_stale",
+        "processing_last_progress_at_missing",
+        "processing_last_progress_at_invalid",
+        "processing_inactivity_threshold_reached",
+    }
+)
 _WEBHOOK_TIMEOUT_SECONDS = 15.0
 
 
@@ -64,6 +91,7 @@ class OperationalAlert:
     summary: str
     campaign_id: str | None = None
     run_id: str | None = None
+    calendar_item_id: str | None = None
     dependency: str | None = None
     error_codes: list[str] = field(default_factory=list)
 
@@ -77,6 +105,8 @@ class OperationalAlert:
             del payload["campaign_id"]
         if payload["run_id"] is None:
             del payload["run_id"]
+        if payload["calendar_item_id"] is None:
+            del payload["calendar_item_id"]
         return payload
 
     def webhook_payload(self) -> dict[str, Any]:
@@ -135,9 +165,10 @@ def _build_fingerprint(
     *,
     campaign_id: str | None,
     run_id: str | None,
+    calendar_item_id: str | None,
     primary_error_code: str,
 ) -> str:
-    artifact = campaign_id or run_id or "unknown"
+    artifact = campaign_id or run_id or calendar_item_id or "unknown"
     return f"{alert_type}:{artifact}:{primary_error_code}"
 
 
@@ -146,6 +177,7 @@ def _build_summary_text(
     *,
     campaign_id: str | None,
     run_id: str | None,
+    calendar_item_id: str | None,
     error_codes: list[str],
     dependency: str | None,
 ) -> str:
@@ -154,6 +186,8 @@ def _build_summary_text(
         parts.append(f"campaign_id={campaign_id}")
     if run_id:
         parts.append(f"run_id={run_id}")
+    if calendar_item_id:
+        parts.append(f"calendar_item_id={calendar_item_id}")
     if dependency:
         parts.append(f"dependency={dependency}")
     if error_codes:
@@ -169,14 +203,34 @@ def _filter_blog_publication_codes(codes: list[str]) -> list[str]:
     return sorted({code for code in codes if _is_blog_publication_code(code)})
 
 
+def _is_linkedin_preview_checkout_code(code: str) -> bool:
+    return (
+        code in _LINKEDIN_PREVIEW_CHECKOUT_EXACT
+        or code.startswith(_LINKEDIN_PREVIEW_CHECKOUT_PREFIXES)
+    )
+
+
+def _is_linkedin_alert_code(code: str) -> bool:
+    """True for linkedin_* codes that are not github_pages_checkout preview codes."""
+    if _is_linkedin_preview_checkout_code(code):
+        return False
+    return code.startswith("linkedin_")
+
+
+def _filter_linkedin_alert_codes(codes: list[str]) -> list[str]:
+    return sorted({code for code in codes if _is_linkedin_alert_code(code)})
+
+
 def _alert_from_parts(
     alert_type: str,
     *,
     observed_at_utc: str,
     campaign_id: str | None = None,
     run_id: str | None = None,
+    calendar_item_id: str | None = None,
     dependency: str | None = None,
     error_codes: list[str] | None = None,
+    severity: str = SEVERITY_ERROR,
 ) -> OperationalAlert:
     codes = sorted(set(error_codes or []))
     primary = _primary_error_code(codes)
@@ -184,22 +238,25 @@ def _alert_from_parts(
         alert_type,
         campaign_id=campaign_id,
         run_id=run_id,
+        calendar_item_id=calendar_item_id,
         primary_error_code=primary,
     )
     return OperationalAlert(
         alert_type=alert_type,
-        severity=SEVERITY_ERROR,
+        severity=severity,
         fingerprint=fingerprint,
         observed_at_utc=observed_at_utc,
         summary=_build_summary_text(
             alert_type,
             campaign_id=campaign_id,
             run_id=run_id,
+            calendar_item_id=calendar_item_id,
             error_codes=codes,
             dependency=dependency,
         ),
         campaign_id=campaign_id,
         run_id=run_id,
+        calendar_item_id=calendar_item_id,
         dependency=dependency,
         error_codes=codes,
     )
@@ -298,13 +355,78 @@ def _derive_run_dependency_alerts(
                 error_codes=blog_codes,
             )
         )
+    linkedin_codes = _filter_linkedin_alert_codes(execution.error_codes)
+    if linkedin_codes:
+        alerts.append(
+            _alert_from_parts(
+                ALERT_LINKEDIN_TOKEN_OR_PUBLICATION_FAILURE,
+                observed_at_utc=observed_at_utc,
+                run_id=execution.run_id,
+                dependency=DEPENDENCY_LINKEDIN,
+                error_codes=linkedin_codes,
+            )
+        )
     return alerts
+
+
+def _partial_calendar_alert(
+    item: DelayedCalendarItemSummary, *, observed_at_utc: str
+) -> OperationalAlert:
+    return _alert_from_parts(
+        ALERT_PARTIAL_CALENDAR_EXECUTION,
+        observed_at_utc=observed_at_utc,
+        campaign_id=item.campaign_id,
+        calendar_item_id=item.item_id,
+        error_codes=[CALENDAR_ITEM_PAST_DUE],
+        severity=SEVERITY_WARNING,
+    )
+
+
+def _linkedin_alert_for_campaign(
+    campaign: CampaignSummary, *, observed_at_utc: str
+) -> OperationalAlert | None:
+    codes = set(
+        _campaign_codes_for_dependency(campaign, DEPENDENCY_LINKEDIN)
+    )
+    codes.update(
+        _filter_linkedin_alert_codes(list(campaign.linkedin.failure_codes))
+    )
+    if not codes:
+        return None
+    return _alert_from_parts(
+        ALERT_LINKEDIN_TOKEN_OR_PUBLICATION_FAILURE,
+        observed_at_utc=observed_at_utc,
+        campaign_id=campaign.campaign_id,
+        dependency=DEPENDENCY_LINKEDIN,
+        error_codes=sorted(codes),
+    )
+
+
+def _stale_campaign_alert(
+    campaign: CampaignSummary, *, observed_at_utc: str
+) -> OperationalAlert | None:
+    if not campaign.stale:
+        return None
+    stale_codes = sorted(
+        reason
+        for reason in campaign.health_reasons
+        if reason in _STALE_HEALTH_REASONS
+    )
+    if not stale_codes:
+        stale_codes = ["stale"]
+    return _alert_from_parts(
+        ALERT_STALE_CAMPAIGN,
+        observed_at_utc=observed_at_utc,
+        campaign_id=campaign.campaign_id,
+        error_codes=stale_codes,
+        severity=SEVERITY_WARNING,
+    )
 
 
 def derive_operational_alerts(
     status: FlowAOperationalStatusResult,
 ) -> list[OperationalAlert]:
-    """Derive US-028 alert candidates from operational-status evidence only."""
+    """Derive US-028/US-029 alert candidates from operational-status evidence only."""
     observed_at_utc = status.observed_at_utc
     by_fingerprint: dict[str, OperationalAlert] = {}
 
@@ -318,12 +440,28 @@ def derive_operational_alerts(
             campaign, observed_at_utc=observed_at_utc
         ):
             by_fingerprint[alert.fingerprint] = alert
+        linkedin_alert = _linkedin_alert_for_campaign(
+            campaign, observed_at_utc=observed_at_utc
+        )
+        if linkedin_alert is not None:
+            by_fingerprint[linkedin_alert.fingerprint] = linkedin_alert
+        stale_alert = _stale_campaign_alert(
+            campaign, observed_at_utc=observed_at_utc
+        )
+        if stale_alert is not None:
+            by_fingerprint[stale_alert.fingerprint] = stale_alert
 
     for execution in status.executions.get("failed", []):
         for alert in _derive_run_dependency_alerts(
             execution, observed_at_utc=observed_at_utc
         ):
             by_fingerprint[alert.fingerprint] = alert
+
+    for delayed in status.delayed_calendar_items:
+        calendar_alert = _partial_calendar_alert(
+            delayed, observed_at_utc=observed_at_utc
+        )
+        by_fingerprint[calendar_alert.fingerprint] = calendar_alert
 
     return sorted(
         by_fingerprint.values(),
@@ -332,7 +470,7 @@ def derive_operational_alerts(
 
 
 def _summary_counts(alerts: list[OperationalAlert]) -> dict[str, Any]:
-    counts = {alert_type: 0 for alert_type in US028_ALERT_TYPES}
+    counts = {alert_type: 0 for alert_type in ALL_ALERT_TYPES}
     for alert in alerts:
         if alert.alert_type in counts:
             counts[alert.alert_type] += 1
@@ -442,6 +580,11 @@ def _emit_alerts(
                 else {}
             ),
             **({"run_id": alert.run_id} if alert.run_id is not None else {}),
+            **(
+                {"calendar_item_id": alert.calendar_item_id}
+                if alert.calendar_item_id is not None
+                else {}
+            ),
         }
         emitted.append(fingerprint)
         ledger_changed = True
@@ -483,7 +626,7 @@ def evaluate_flow_a_operational_alerts(
     settings: FlowAOperationalAlertsSettings | None = None,
     http_client: httpx.Client | None = None,
 ) -> FlowAOperationalAlertsResult:
-    """Evaluate US-028 alerts; optionally emit via fail-closed webhook."""
+    """Evaluate US-028/US-029 alerts; optionally emit via fail-closed webhook."""
     status = get_flow_a_operational_status(base_path, now_utc=now_utc)
     alerts = derive_operational_alerts(status)
     summary = _summary_counts(alerts)
@@ -518,6 +661,10 @@ __all__ = [
     "ALERT_BLOG_PUBLICATION_FAILURE",
     "ALERT_IMAGE_GENERATION_FAILURE",
     "ALERT_ITEM_MOVED_TO_ERROR",
+    "ALERT_LINKEDIN_TOKEN_OR_PUBLICATION_FAILURE",
+    "ALERT_PARTIAL_CALENDAR_EXECUTION",
+    "ALERT_STALE_CAMPAIGN",
+    "ALL_ALERT_TYPES",
     "EMISSION_STATUS_ALREADY_EMITTED",
     "EMISSION_STATUS_DISABLED",
     "EMISSION_STATUS_EMITTED",
@@ -527,7 +674,10 @@ __all__ = [
     "EMISSION_STATUS_PARTIAL",
     "LEDGER_FILENAME",
     "LEDGER_RELATIVE_DIR",
+    "SEVERITY_ERROR",
+    "SEVERITY_WARNING",
     "US028_ALERT_TYPES",
+    "US029_ALERT_TYPES",
     "EmissionResult",
     "FlowAOperationalAlertsResult",
     "OperationalAlert",

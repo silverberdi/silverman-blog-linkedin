@@ -289,13 +289,14 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
     - Implementation evidence: [flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md) — implemented and tested locally; not deployed or live operationally validated
-  - [ ] **US-029**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+  - [-] **US-029**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — controlled fixtures show `partial_calendar_execution`, `linkedin_token_or_publication_failure`, and `stale_campaign` candidates with understandable secret-safe payloads and warning/error severity; six-type counts; US-028 coexistence; fail-closed emit; evaluate-only zero lifecycle mutation; preview checkout codes excluded from LinkedIn alerts
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
+    - Implementation evidence: [flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md) — implemented and tested locally; not deployed or live operationally validated
   - [ ] **US-030**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed

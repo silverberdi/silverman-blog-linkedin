@@ -1,4 +1,4 @@
-"""Behavioral tests for Flow A operational alerts (US-028)."""
+"""Behavioral tests for Flow A operational alerts (US-028 / US-029)."""
 
 from __future__ import annotations
 
@@ -14,6 +14,10 @@ from silverman_blog_linkedin.flow_a_operational_alerts import (
     ALERT_BLOG_PUBLICATION_FAILURE,
     ALERT_IMAGE_GENERATION_FAILURE,
     ALERT_ITEM_MOVED_TO_ERROR,
+    ALERT_LINKEDIN_TOKEN_OR_PUBLICATION_FAILURE,
+    ALERT_PARTIAL_CALENDAR_EXECUTION,
+    ALERT_STALE_CAMPAIGN,
+    ALL_ALERT_TYPES,
     EMISSION_STATUS_ALREADY_EMITTED,
     EMISSION_STATUS_DISABLED,
     EMISSION_STATUS_EMITTED,
@@ -21,6 +25,8 @@ from silverman_blog_linkedin.flow_a_operational_alerts import (
     EMISSION_STATUS_NOT_REQUESTED,
     LEDGER_FILENAME,
     LEDGER_RELATIVE_DIR,
+    SEVERITY_ERROR,
+    SEVERITY_WARNING,
     evaluate_flow_a_operational_alerts,
 )
 from silverman_blog_linkedin.flow_a_operational_alerts_config import (
@@ -36,6 +42,8 @@ CAMPAIGN_ERROR = "flow-a-2026-07-17-alerts-error"
 CAMPAIGN_COMFYUI = "flow-a-2026-07-17-alerts-comfyui"
 CAMPAIGN_BLOG = "flow-a-2026-07-17-alerts-blog"
 CAMPAIGN_PREVIEW = "flow-a-2026-07-17-alerts-preview"
+CAMPAIGN_LINKEDIN = "flow-a-2026-07-17-alerts-linkedin"
+CAMPAIGN_STALE = "flow-a-2026-07-17-alerts-stale"
 WEBHOOK_URL = "https://hooks.example.test/flow-a-alerts"
 
 
@@ -119,6 +127,42 @@ def _write_campaign(
         base / "metadata/campaigns" / f"{campaign_id}.json",
         payload,
     )
+
+
+def _write_calendar(base: Path, items: list[dict]) -> Path:
+    return _write_json(
+        base / "editorial-calendar/calendar.json",
+        {
+            "schema_version": "1",
+            "updated_at_utc": "2026-07-17T09:00:00Z",
+            "items": items,
+        },
+    )
+
+
+def _calendar_item(
+    item_id: str,
+    *,
+    status: str = "scheduled",
+    due_at_utc: str = "2026-07-17T11:00:00Z",
+    campaign_id: str | None = None,
+    title: str | None = None,
+) -> dict:
+    item = {
+        "item_id": item_id,
+        "title": title if title is not None else f"Item {item_id}",
+        "status": status,
+        "due_at_utc": due_at_utc,
+        "source_folder": "blog-posts/ready",
+        "source_relative_path": f"blog-posts/ready/{item_id}.md",
+        "flow_type": "flow_a_ready_blog_post",
+        "content_mode": "user_provided_approved_blog",
+        "target_audience": "executive-recruiter",
+        "topic_theme": "architecture",
+    }
+    if campaign_id is not None:
+        item["campaign_id"] = campaign_id
+    return item
 
 
 def _snapshot_tree(base: Path) -> dict[str, tuple[bytes, int]]:
@@ -238,7 +282,7 @@ def test_blog_publication_failure_alert(alerts_base: Path):
     assert ALERT_ITEM_MOVED_TO_ERROR not in by_type
 
 
-def test_preview_checkout_codes_excluded_and_no_us029_us030_types(
+def test_preview_checkout_codes_excluded_from_blog_and_linkedin_alerts(
     alerts_base: Path,
 ):
     _write_campaign(
@@ -290,15 +334,12 @@ def test_preview_checkout_codes_excluded_and_no_us029_us030_types(
     body = result.to_dict()
     alert_types = {alert["alert_type"] for alert in body["alerts"]}
     assert ALERT_BLOG_PUBLICATION_FAILURE not in alert_types
-    forbidden = {
-        "partial_calendar_execution",
-        "linkedin_token_failure",
-        "linkedin_publication_failure",
-        "stale_campaign",
+    assert ALERT_LINKEDIN_TOKEN_OR_PUBLICATION_FAILURE not in alert_types
+    forbidden_us030 = {
         "unhealthy_worker",
         "failed_n8n_workflow",
     }
-    assert alert_types.isdisjoint(forbidden)
+    assert alert_types.isdisjoint(forbidden_us030)
 
 
 def test_http_auth_invalid_now_determinism_and_safe_output(alerts_base: Path):
@@ -507,3 +548,269 @@ def test_failed_webhook_does_not_write_ledger(
     assert result.emission.failed_fingerprints
     assert result.emission.emitted_fingerprints == []
     assert not (alerts_base / LEDGER_RELATIVE_DIR / LEDGER_FILENAME).exists()
+
+
+def test_partial_calendar_execution_alert(alerts_base: Path):
+    secret_title = "SECRET-CALENDAR-TITLE-NEVER-RETURN"
+    _write_calendar(
+        alerts_base,
+        [
+            _calendar_item(
+                "delayed-item-1",
+                status="scheduled",
+                due_at_utc="2026-07-17T10:00:00Z",
+                campaign_id=CAMPAIGN_ERROR,
+                title=secret_title,
+            ),
+            _calendar_item(
+                "future-item",
+                status="scheduled",
+                due_at_utc="2026-07-17T13:00:00Z",
+                title="Future title",
+            ),
+        ],
+    )
+    result = evaluate_flow_a_operational_alerts(alerts_base, now_utc=NOW)
+    body = result.to_dict()
+    by_type = _alerts_by_type(body)
+    alerts = by_type[ALERT_PARTIAL_CALENDAR_EXECUTION]
+    assert len(alerts) == 1
+    alert = alerts[0]
+    assert alert["calendar_item_id"] == "delayed-item-1"
+    assert alert["campaign_id"] == CAMPAIGN_ERROR
+    assert alert["severity"] == SEVERITY_WARNING
+    assert alert["error_codes"] == ["calendar_item_past_due"]
+    assert alert["fingerprint"].startswith(f"{ALERT_PARTIAL_CALENDAR_EXECUTION}:")
+    assert "title" not in alert
+    serialized = json.dumps(body)
+    assert secret_title not in serialized
+    assert body["summary"]["counts"][ALERT_PARTIAL_CALENDAR_EXECUTION] == 1
+
+
+def test_linkedin_token_or_publication_failure_from_dependency_and_progress(
+    alerts_base: Path,
+):
+    _write_campaign(
+        alerts_base,
+        CAMPAIGN_LINKEDIN,
+        state="error",
+        source_status={
+            "location": "processed",
+            "execution_state": "idle",
+            "recovery_classification": "manual_intervention_required",
+            "last_error": {"error_code": "linkedin_oauth_refresh_failed"},
+        },
+        errors=["linkedin_oauth_refresh_failed"],
+        variants=[
+            {
+                "variant": "executive-recruiter",
+                "publish_state": "failed",
+                "linkedin_publication": {
+                    "last_error_code": "linkedin_publish_token_invalid"
+                },
+            },
+            {
+                "variant": "technical-architect",
+                "publish_state": "failed",
+                "linkedin_publication": {
+                    "last_error_code": "linkedin_publish_api_error"
+                },
+            },
+        ],
+    )
+    _write_run(
+        alerts_base,
+        "run-linkedin-failed",
+        errors=["linkedin_publish_api_error"],
+    )
+    result = evaluate_flow_a_operational_alerts(alerts_base, now_utc=NOW)
+    body = result.to_dict()
+    by_type = _alerts_by_type(body)
+    linkedin_alerts = by_type[ALERT_LINKEDIN_TOKEN_OR_PUBLICATION_FAILURE]
+    assert len(linkedin_alerts) == 2
+    campaign_alert = next(a for a in linkedin_alerts if a.get("campaign_id"))
+    run_alert = next(a for a in linkedin_alerts if a.get("run_id"))
+    assert campaign_alert["dependency"] == "linkedin"
+    assert campaign_alert["severity"] == SEVERITY_ERROR
+    assert campaign_alert["error_codes"] == [
+        "linkedin_oauth_refresh_failed",
+        "linkedin_publish_api_error",
+        "linkedin_publish_token_invalid",
+    ]
+    assert run_alert["dependency"] == "linkedin"
+    assert run_alert["error_codes"] == ["linkedin_publish_api_error"]
+
+
+def test_stale_campaign_alert(alerts_base: Path):
+    _write_campaign(
+        alerts_base,
+        CAMPAIGN_STALE,
+        state="validated",
+        source_status={
+            "location": "queued",
+            "execution_state": "stale",
+            "recovery_classification": "requeue_required",
+        },
+    )
+    result = evaluate_flow_a_operational_alerts(alerts_base, now_utc=NOW)
+    body = result.to_dict()
+    by_type = _alerts_by_type(body)
+    alerts = by_type[ALERT_STALE_CAMPAIGN]
+    assert len(alerts) == 1
+    alert = alerts[0]
+    assert alert["campaign_id"] == CAMPAIGN_STALE
+    assert alert["severity"] == SEVERITY_WARNING
+    assert "execution_state_stale" in alert["error_codes"]
+    assert body["summary"]["counts"][ALERT_STALE_CAMPAIGN] == 1
+
+
+def test_six_type_summary_counts_and_us028_us029_coexistence(alerts_base: Path):
+    _write_campaign(
+        alerts_base,
+        CAMPAIGN_ERROR,
+        source_status={
+            "location": "error",
+            "execution_state": "idle",
+            "recovery_classification": "manual_intervention_required",
+            "last_error": {"error_code": "validation_failed"},
+        },
+        errors=["blog_image_generation_comfyui_failed"],
+    )
+    _write_campaign(
+        alerts_base,
+        CAMPAIGN_BLOG,
+        state="error",
+        source_status={
+            "location": "processed",
+            "execution_state": "idle",
+            "recovery_classification": "manual_intervention_required",
+            "last_error": {"error_code": "blog_git_publication_push_failed"},
+        },
+        errors=["blog_publish_handoff_failed"],
+    )
+    _write_campaign(
+        alerts_base,
+        CAMPAIGN_LINKEDIN,
+        state="error",
+        source_status={
+            "location": "processed",
+            "execution_state": "idle",
+            "recovery_classification": "manual_intervention_required",
+            "last_error": {"error_code": "linkedin_publish_api_error"},
+        },
+        errors=["linkedin_publish_api_error"],
+    )
+    _write_campaign(
+        alerts_base,
+        CAMPAIGN_STALE,
+        state="validated",
+        source_status={
+            "location": "queued",
+            "execution_state": "stale",
+            "recovery_classification": "requeue_required",
+        },
+    )
+    _write_calendar(
+        alerts_base,
+        [
+            _calendar_item(
+                "delayed-coexist",
+                status="due",
+                due_at_utc="2026-07-17T09:00:00Z",
+                title="DO-NOT-ECHO-TITLE",
+            )
+        ],
+    )
+    before = _snapshot_tree(alerts_base)
+    result = evaluate_flow_a_operational_alerts(
+        alerts_base, now_utc=NOW, emit=False
+    )
+    body = result.to_dict()
+    counts = body["summary"]["counts"]
+    assert set(counts) == set(ALL_ALERT_TYPES)
+    assert counts[ALERT_ITEM_MOVED_TO_ERROR] >= 1
+    assert counts[ALERT_IMAGE_GENERATION_FAILURE] >= 1
+    assert counts[ALERT_BLOG_PUBLICATION_FAILURE] >= 1
+    assert counts[ALERT_PARTIAL_CALENDAR_EXECUTION] == 1
+    assert counts[ALERT_LINKEDIN_TOKEN_OR_PUBLICATION_FAILURE] >= 1
+    assert counts[ALERT_STALE_CAMPAIGN] == 1
+    assert body["summary"]["total"] == sum(counts.values())
+    alert_types = {alert["alert_type"] for alert in body["alerts"]}
+    assert alert_types.isdisjoint({"unhealthy_worker", "failed_n8n_workflow"})
+    assert "DO-NOT-ECHO-TITLE" not in json.dumps(body)
+    assert _snapshot_tree(alerts_base) == before
+    assert not (alerts_base / LEDGER_RELATIVE_DIR / LEDGER_FILENAME).exists()
+
+
+def test_us029_emit_fail_closed_and_idempotent_ledger(
+    alerts_base: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv(ENV_OPERATIONAL_ALERTS_ENABLED, "false")
+    _write_campaign(
+        alerts_base,
+        CAMPAIGN_STALE,
+        state="validated",
+        source_status={
+            "location": "queued",
+            "execution_state": "stale",
+            "recovery_classification": "requeue_required",
+        },
+    )
+    _write_calendar(
+        alerts_base,
+        [
+            _calendar_item(
+                "delayed-emit",
+                status="scheduled",
+                due_at_utc="2026-07-17T10:00:00Z",
+            )
+        ],
+    )
+    before = _snapshot_tree(alerts_base)
+    mock_client = MagicMock()
+    disabled = evaluate_flow_a_operational_alerts(
+        alerts_base,
+        now_utc=NOW,
+        emit=True,
+        http_client=mock_client,
+    )
+    mock_client.post.assert_not_called()
+    assert disabled.emission.status == EMISSION_STATUS_DISABLED
+    assert any(
+        a.alert_type == ALERT_PARTIAL_CALENDAR_EXECUTION for a in disabled.alerts
+    )
+    assert any(a.alert_type == ALERT_STALE_CAMPAIGN for a in disabled.alerts)
+    assert _snapshot_tree(alerts_base) == before
+
+    monkeypatch.setenv(ENV_OPERATIONAL_ALERTS_ENABLED, "true")
+    monkeypatch.setenv(ENV_OPERATIONAL_ALERTS_WEBHOOK_URL, WEBHOOK_URL)
+    mock_client.post.return_value = httpx.Response(200, json={"ok": True})
+    first = evaluate_flow_a_operational_alerts(
+        alerts_base,
+        now_utc=NOW,
+        emit=True,
+        http_client=mock_client,
+    )
+    assert first.emission.status == EMISSION_STATUS_EMITTED
+    us029_fingerprints = {
+        a.fingerprint
+        for a in first.alerts
+        if a.alert_type
+        in {
+            ALERT_PARTIAL_CALENDAR_EXECUTION,
+            ALERT_STALE_CAMPAIGN,
+        }
+    }
+    assert us029_fingerprints
+    assert us029_fingerprints <= set(first.emission.emitted_fingerprints)
+
+    mock_client.reset_mock()
+    second = evaluate_flow_a_operational_alerts(
+        alerts_base,
+        now_utc=NOW,
+        emit=True,
+        http_client=mock_client,
+    )
+    mock_client.post.assert_not_called()
+    assert second.emission.status == EMISSION_STATUS_ALREADY_EMITTED
+    assert us029_fingerprints <= set(second.emission.already_emitted_fingerprints)

@@ -564,7 +564,7 @@ As a system operator, I want to alert on items moved to error, so that important
 - [x] Alert on blog publication failure. — Demonstrated: `blog_publish_*` / `blog_git_publication_*` codes produce `blog_publication_failure`; LinkedIn-preview checkout codes are excluded.
 - [x] The outcome is visible and understandable to the intended user. — Demonstrated: secret-safe alert objects include type, severity, fingerprint, identifiers, codes, dependency, and short summary.
 - [x] Failures or blocked states are clearly communicated. — Demonstrated: evaluate responses label alert types and emission status (`not_requested` / `disabled` / `misconfigured` / emitted); evaluate-only leaves lifecycle bytes unchanged.
-- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: derivation reuses operational-status evidence (no parallel folder scan); evaluate-only and emit paths do not mutate campaign/run/editorial lifecycle; US-029/US-030 types and BL-015 UI are absent.
+- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: derivation reuses operational-status evidence (no parallel folder scan); evaluate-only and emit paths do not mutate campaign/run/editorial lifecycle; US-030 types and BL-015 UI remain absent (US-029 types are specified separately).
 
 **Remaining acceptance gaps (explicit):** operator business acceptance; deploy and live operational validation; production webhook enablement under fail-closed flags; BL-011 remains open until US-029/US-030 are also satisfied and accepted. Code completion alone does not accept US-028 or close BL-011.
 
@@ -574,14 +574,21 @@ As a system operator, I want to alert on items moved to error, so that important
 
 As a system operator, I want to alert on partial calendar execution, so that important failures and blocked states generate timely, actionable alerts.
 
+**Status:** Implemented and tested locally (controlled fixtures); **not** operator-accepted,
+deployed, or live operationally validated. US-030, BL-015 UI, Slack/email SDKs,
+production webhook enablement, and BL-011 closure remain pending. Evidence:
+[flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md).
+
 **Acceptance criteria**
 
-- [ ] Alert on partial calendar execution.
-- [ ] Alert on LinkedIn token or publication failure.
-- [ ] Alert on stale campaigns.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Alert on partial calendar execution. — Demonstrated via controlled fixtures: delayed calendar items produce `partial_calendar_execution` (severity `warning`, reason `calendar_item_past_due`, `calendar_item_id`; titles omitted) from `POST /flow-a/operational-alerts/evaluate`.
+- [x] Alert on LinkedIn token or publication failure. — Demonstrated: `linkedin` dependency-bucket / LinkedIn progress `failure_codes` produce `linkedin_token_or_publication_failure` (`dependency=linkedin`, severity `error`); preview checkout codes excluded.
+- [x] Alert on stale campaigns. — Demonstrated: campaigns with `stale=true` produce `stale_campaign` (severity `warning`).
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: structured alert type, severity, fingerprint, safe identifiers, codes/reasons, and short summaries without secrets or content bodies; six-type `summary.counts`.
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: severity differentiation (`warning` vs `error`); emission status remains explicit when emit is requested.
+- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: reuses operational-status evidence and the US-028 evaluate/emit path; evaluate-only zero lifecycle mutation; US-028 types still produced; US-030 types and BL-015 UI absent.
+
+**Remaining acceptance gaps (explicit):** operator business acceptance; deploy and live operational validation; production webhook enablement under fail-closed flags; BL-011 remains open until US-030 is also satisfied and accepted. Code completion alone does not accept US-029 or close BL-011.
 
 ### US-030 — Add Operational Alerts: Story 3
 

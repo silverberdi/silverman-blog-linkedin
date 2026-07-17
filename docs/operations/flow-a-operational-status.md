@@ -5,7 +5,7 @@ Operator contract for the read-only status view covering US-026
 dependency-failure aggregation). Both slices are implemented and tested
 locally. The capability is not deployed or operationally validated, does not
 send notifications or write alert ledgers, and does not by itself close BL-010.
-BL-011 / US-028 alerting is owned by the separate
+BL-011 / US-028 and US-029 alerting is owned by the separate
 [`POST /flow-a/operational-alerts/evaluate`](flow-a-operational-alerts.md)
 contract.
 
