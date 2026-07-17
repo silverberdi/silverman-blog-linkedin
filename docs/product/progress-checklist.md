@@ -236,12 +236,13 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [ ] Story accepted
     - Operator procedure: [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md#article-preview-input-verification-us-023)
   - [ ] **US-024**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — procedure defined 2026-07-17 (docs + canonical procedure-spec, no worker code); not operationally validated; demonstration depends on pending US-023 deploy + operational validation
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
+    - Operator procedure: [linkedin-preview-rendering-confirmation.md](../operations/linkedin-preview-rendering-confirmation.md)
   - [ ] **US-025**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed

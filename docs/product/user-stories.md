@@ -455,17 +455,23 @@ As a content operator, I want to verify title and description, so that published
 
 ### US-024 — Validate LinkedIn Article Preview Rendering: Story 2
 
+**Status:** Procedure defined (2026-07-17) — not operationally validated; story **not accepted**; BL-009 remains open. No worker code: US-024 is an operator procedure + evidence-capture story (docs + canonical procedure-spec only). Acceptance requires operator demonstration of the procedure on a real campaign, which depends on the pending US-023 deploy + operational validation on `192.168.0.194` (archived US-023 task 6.2, still pending).
+
 **Description**
 
 As a content operator, I want to confirm preview behavior on linkedin, so that published linkedin posts display the intended article preview.
 
-**Acceptance criteria**
+**Operator procedure:** [linkedin-preview-rendering-confirmation.md](../operations/linkedin-preview-rendering-confirmation.md)
 
-- [ ] Confirm preview behavior on LinkedIn.
-- [ ] Identify cache or metadata issues.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+**Acceptance criteria** (mapped at procedure-defined scope only; none operationally demonstrated)
+
+- [ ] Confirm preview behavior on LinkedIn. — Mechanism: two documented observation points — pre-publish LinkedIn Post Inspector inspection of the campaign's `public_url` and post-publish observation of the real post via stored `linkedin_post_urn` — compared against recorded `linkedin_package.article_preview` metadata (procedure §"Observation points"; spec requirement "Rendering confirmation procedure").
+- [ ] Identify cache or metadata issues. — Mechanism: decision matrix keyed on the US-023 input verification result × observed LinkedIn rendering, distinguishing `preview_stale_cache` (inputs pass, card wrong — safe Post Inspector re-scrape, new posts only) from `preview_inputs_incorrect` (US-023 failed — remediate per `linkedin_preview_validation_*` codes) in every case (procedure §"Decision matrix" and §"Safe re-scrape procedure"; spec requirements "Cache vs input decision matrix" and "Safe re-scrape procedure").
+- [ ] The outcome is visible and understandable to the intended user. — Mechanism: fixed documented outcome vocabulary (`preview_confirmed`, `preview_stale_cache`, `preview_inputs_incorrect`, `preview_not_rendered_post_format`, `confirmation_blocked`) plus a per-confirmation evidence-record template (campaign id, `public_url`, US-023 run reference, observations with UTC timestamps, outcome label, operator); no worker codes — labels are documented checklist values (procedure §"Evidence record template"; spec requirement "Outcome vocabulary and evidence record").
+- [ ] Failures or blocked states are clearly communicated. — Mechanism: blocked-state table with the named next action per condition (US-023 not run/failed/not trusted, site not live, Post Inspector unavailable, no published variant for post-publish observation); blocked outcomes recorded as `confirmation_blocked`, never as input or rendering failures (procedure §"Blocked states"; spec requirement "Blocked states and operator communication").
+- [ ] Existing completed work is not duplicated or unintentionally changed. — Mechanism: zero changes under `src/`, `tests/`, `n8n/`, `deploy/`; US-023 endpoint consumed as the sole input-truth source (no input check re-defined); package generation, publication, variant states, scheduling, and US-022 semantics untouched; no new env vars, no LinkedIn API usage (spec requirements "Scope, actors, and boundaries" and "Existing capabilities unchanged").
+
+**Defined:** 2026-07-17 — procedure + canonical procedure-spec only; procedure defined does not mean operationally validated or accepted. Criteria checkboxes remain unchecked until the operator demonstrates the procedure end-to-end on a real campaign (passing US-023 real run, Post Inspector confirmation, decision-matrix classification, completed evidence record). US-025 (fallback when the preview is incorrect) remains a separate open story; `preview_not_rendered_post_format` is recorded as an observation only.
 
 ### US-025 — Validate LinkedIn Article Preview Rendering: Story 3
 
