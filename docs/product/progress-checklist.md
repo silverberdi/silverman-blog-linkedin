@@ -238,17 +238,17 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] **US-024**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [x] Work started — procedure defined 2026-07-17 (docs + canonical procedure-spec, no worker code); not operationally validated; demonstration depends on pending US-023 deploy + operational validation
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+    - [x] Work started — procedure defined 2026-07-17 (docs + canonical procedure-spec, no worker code)
+    - [x] Business outcome demonstrated — 2026-07-17 post-publish observation of real post `urn:li:share:7483953784612786177` (`keep-contracts-boring`), outcome `preview_not_rendered_post_format`; Post Inspector outage honestly recorded as `confirmation_blocked`
+    - [x] Acceptance criteria validated — against completed evidence records ([blocked](../operations/us-024-preview-confirmation-blocked-2026-07-17.md), [post-publish](../operations/us-024-preview-confirmation-keep-contracts-boring-2026-07-17.md))
     - [ ] Story accepted
     - Operator procedure: [linkedin-preview-rendering-confirmation.md](../operations/linkedin-preview-rendering-confirmation.md)
   - [ ] **US-025**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [x] Work started — fallback policy defined 2026-07-17 (docs + canonical procedure-spec, no worker code); not operationally validated; demonstration depends on pending US-023 deploy + operational validation and a US-024 confirmation producing a fallback-triggering outcome
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+    - [x] Work started — fallback policy defined 2026-07-17 (docs + canonical procedure-spec, no worker code)
+    - [x] Business outcome demonstrated — 2026-07-17 fallback decision on the recorded `preview_not_rendered_post_format` trigger: accept-and-record (`fallback_accept_rendering`) with zero endpoint calls, zero metadata change, zero retry-budget consumption; escalation recorded as `fallback_format_change_deferred`
+    - [x] Acceptance criteria validated — against the completed evidence record ([us-025 fallback decision](../operations/us-025-preview-fallback-decision-keep-contracts-boring-2026-07-17.md))
     - [ ] Story accepted
     - Operator policy: [linkedin-preview-fallback-policy.md](../operations/linkedin-preview-fallback-policy.md)
   - [ ] All user stories completed

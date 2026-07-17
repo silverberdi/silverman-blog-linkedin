@@ -34,6 +34,9 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 | Calendar LinkedIn summaries (BL-003) | Validated — calendar items include BL-005 completed rows with `flow_a_completion` | Reconcile + BL-005 upserts |
 | Scheduled LinkedIn publication (BL-007 / US-018–US-020) | **Closed** — US-018 + US-019 evidence + US-020 sequence/cadence validated on `BUILD_REVISION=3c4d9f5`; n8n publish-pending export stays `active: false` | [us-018](operations/us-018-scheduled-linkedin-publication-validation-2026-07-16.md); [us-019/us-020](operations/us-019-us-020-linkedin-publication-validation-2026-07-17.md) |
 | Preview input verification US-023 | Validated — real failure detected, live-site OG remediation (`silverberdi.github.io` `e4d10de`), passing real runs with persisted evidence on both 2026-07-15 campaigns | [us-023 validation](operations/us-023-linkedin-preview-input-validation-2026-07-17.md) |
+| Preview rendering confirmation US-024 | Demonstrated — post-publish observation `preview_not_rendered_post_format` on `keep-contracts-boring`; Post Inspector outage recorded as `confirmation_blocked` | [blocked](operations/us-024-preview-confirmation-blocked-2026-07-17.md); [post-publish](operations/us-024-preview-confirmation-keep-contracts-boring-2026-07-17.md) |
+| Preview fallback decision US-025 | Demonstrated — `fallback_accept_rendering` + `fallback_format_change_deferred`, zero metadata/budget impact | [us-025 decision](operations/us-025-preview-fallback-decision-keep-contracts-boring-2026-07-17.md) |
+| Real publishes 2026-07-17 (targeted, operator-approved) | `domain-first :: executive-recruiter` → `urn:li:share:7483952071243898881` (18:33:39Z); `keep-contracts-boring :: executive-recruiter` → `urn:li:share:7483953784612786177` (18:40:27Z); both replay-idempotent | Publish-due responses + stored US-019 evidence |
 | Public blog OG metadata | `og:image` + description from front matter + `site.url=https://silverman.pro` live since `e4d10de` (2026-07-17) | Live OG tag check post-deploy |
 
 ## Unverified / unknown
@@ -49,5 +52,6 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 - Ready-path Set Configuration git/live defaults remain `false` in git; server prepared import patched to `true` for BL-005.
 - US-018 (`auto_queue_pending`) previously deployed at `c7bce02`; superseded by `3c4d9f5` for US-019/US-020; superseded by `d15d85b` for accumulated US-022/US-023 (+ US-025 archive HEAD). Docs-only RUNTIME-STATE follow-up is `b3eba03` and does not require redeploy.
 - After US-019/US-020 validation: `technical-architect` on the 2026-07-06 campaign and `engineering-leadership` on the deferring campaign remain `queued` (cadence-blocked, no URN) until ≥72h after their campaign’s last `published_at`.
+- New cadence anchors from 2026-07-17 publishes: `domain-first` next variant eligible ~2026-07-20T18:33Z; `keep-contracts-boring` next variant eligible ~2026-07-20T18:40Z.
 - Pages live-confirmation can 404 briefly after push; resume after HTTP 200 (documented in BL-005).
 - Deployed ≠ operationally validated: US-022 and US-023 still need controlled demonstration before story acceptance; US-024/US-025 remain procedure/policy-defined pending demonstration.
