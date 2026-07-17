@@ -393,3 +393,47 @@ Flow A `POST /generate-linkedin-package` records **article preview metadata** de
 - **Validation:** when `SILVERMAN_GITHUB_PAGES_REPO_PATH` is configured, the worker checks that the public image file exists before marking preview status `available`. Missing assets yield status `missing` with stable code `linkedin_article_preview_public_image_missing` in `warnings[]` — package generation still completes.
 - **Link preview semantics:** `public_image_url` is metadata for LinkedIn link/card preview behavior when publication is enabled later. The worker does not upload image bytes to LinkedIn during package generation.
 - **Publication remains disabled:** `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=false` by default. Preview metadata does not publish posts or require a LinkedIn token.
+
+## Article preview input verification (US-023)
+
+Status: **implemented and unit-tested — not deployed, not operationally validated.** No LinkedIn API involvement: the endpoint makes no calls to `api.linkedin.com` and reads no OAuth tokens.
+
+`POST /validate-linkedin-article-preview` verifies, on demand, the article preview **inputs** for one Flow A campaign with a generated LinkedIn package: recorded package metadata, public-checkout front matter consistency, live Open Graph tags, and HTTP availability of the public preview image. Outbound HTTP goes only to the campaign's recorded `public_url` / `public_image_url` (HTTPS, bounded ~10 s timeout).
+
+**US-024 boundary (explicit):** a passing run means the inputs LinkedIn would scrape are correct. It does **not** confirm how LinkedIn actually renders the preview, and it does not diagnose LinkedIn cache/metadata issues (Post Inspector territory). Those are US-024.
+
+### Operator procedure
+
+1. **Dry-run first** (default; identical checks, zero metadata mutation):
+
+```bash
+curl -s -X POST http://localhost:8010/validate-linkedin-article-preview \
+  -H "Authorization: Bearer $SILVERMAN_BLOG_LINKEDIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"campaign_id": "<campaign-id>"}'
+```
+
+2. **Run after live-site confirmation** (US-002 probe) has passed. GitHub Pages deploy lag means a run immediately after push can legitimately fail with `linkedin_preview_validation_public_url_unreachable` — that is a Pages-lag false negative, not a metadata problem. Re-run once the site is confirmed live.
+3. **Real run** persists a `linkedin_article_preview_validation` evidence block (last-run snapshot with `validated_at_utc`) on the campaign document:
+
+```bash
+curl -s -X POST http://localhost:8010/validate-linkedin-article-preview \
+  -H "Authorization: Bearer $SILVERMAN_BLOG_LINKEDIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"campaign_id": "<campaign-id>", "dry_run": false}'
+```
+
+The response reports overall `status` (`passed` / `failed` / `blocked`), per-check results under `checks{}`, and a flat `codes[]` list. Unreachable is always a distinct code from mismatch, so transient network issues are never reported as metadata drift. Blocked runs (campaign or package missing) execute no network checks and persist nothing.
+
+### Checks and stable codes
+
+| Check | Verifies | Failure / blocked codes |
+|---|---|---|
+| `package_metadata` | `linkedin_package.article_preview` has non-empty title, description, `public_image_url`, `public_url` | `linkedin_preview_validation_metadata_missing`, `linkedin_preview_validation_title_missing`, `linkedin_preview_validation_description_missing`, `linkedin_preview_validation_image_url_missing` |
+| `checkout_consistency` | recorded title/description match `_posts/` front matter under `SILVERMAN_GITHUB_PAGES_REPO_PATH` (whitespace-normalized exact compare) | `linkedin_preview_validation_title_mismatch`, `linkedin_preview_validation_description_mismatch`, `linkedin_preview_validation_checkout_post_missing`; `skipped` + `linkedin_preview_validation_checkout_not_configured` when the repo path is unset (never fails the run) |
+| `live_og_metadata` | HTTPS GET of `public_url`; `og:title` / `og:description` / `og:image` match recorded metadata | `linkedin_preview_validation_public_url_unreachable`, `linkedin_preview_validation_og_tags_missing`, `linkedin_preview_validation_og_title_mismatch`, `linkedin_preview_validation_og_description_mismatch`, `linkedin_preview_validation_og_image_mismatch` |
+| `public_image_availability` | `public_image_url` responds 2xx with `image/*` content type (no image bytes retained) | `linkedin_preview_validation_public_image_unreachable`, `linkedin_preview_validation_public_image_not_image` |
+
+Prerequisite blocked codes: `linkedin_preview_validation_campaign_not_found`, `linkedin_preview_validation_package_not_generated`.
+
+The endpoint never mutates variant `publish_state`, scheduling metadata, editorial lifecycle folders, or the public site, and responses contain no secrets, variant body text, or image bytes.

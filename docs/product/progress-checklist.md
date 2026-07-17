@@ -228,12 +228,13 @@ Use this checklist to track business progress. Mark items only when the stated b
 - [ ] **BL-009 — Validate LinkedIn Article Preview Rendering**
   - Business outcome: Published LinkedIn posts display the intended article preview.
   - [ ] **US-023**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — implemented + unit-tested 2026-07-17 (`POST /validate-linkedin-article-preview`); not deployed, not operationally validated
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
+    - Operator procedure: [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md#article-preview-input-verification-us-023)
   - [ ] **US-024**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed

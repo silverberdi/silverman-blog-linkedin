@@ -59,6 +59,9 @@ from silverman_blog_linkedin.linkedin_supervision_flow import (
     defer_linkedin_variant,
 )
 from silverman_blog_linkedin.linkedin_package_flow import generate_linkedin_package
+from silverman_blog_linkedin.linkedin_preview_validation import (
+    validate_linkedin_article_preview,
+)
 from silverman_blog_linkedin.linkedin_prompt import build_chat_messages
 from silverman_blog_linkedin.paths import validate_folders
 from silverman_blog_linkedin.ready_scan import ScanResult, scan_ready_folder
@@ -545,6 +548,21 @@ class DeferLinkedInVariantRequest(BaseModel):
         stripped = value.strip()
         if not stripped:
             raise ValueError("idempotency_key must not be empty or whitespace-only")
+        return stripped
+
+
+class ValidateLinkedInArticlePreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str
+    dry_run: bool = True
+
+    @field_validator("campaign_id")
+    @classmethod
+    def validate_campaign_id(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("campaign_id must not be empty")
         return stripped
 
 
@@ -1763,6 +1781,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             result.campaign_id,
             result.variant,
             result.dry_run,
+        )
+        return result.to_dict()
+
+    @app.post("/validate-linkedin-article-preview")
+    def validate_linkedin_article_preview_endpoint(
+        body: ValidateLinkedInArticlePreviewRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = validate_linkedin_article_preview(
+            settings.base_path,
+            campaign_id=body.campaign_id,
+            dry_run=body.dry_run,
+            environ=os.environ,
+        )
+        logger.info(
+            "validate-linkedin-article-preview status=%s campaign_id=%s dry_run=%s codes=%s",
+            result.status,
+            result.campaign_id,
+            result.dry_run,
+            len(result.codes),
         )
         return result.to_dict()
 
