@@ -12,8 +12,8 @@ emission, and authenticated orchestration-failure report ingest.
 This capability does **not** replace the observation endpoint, does not add
 BL-015 UI, and does not embed Slack/email SDKs. US-028, US-029, and US-030 were
 operator-accepted and **BL-011 closed 2026-07-17** after deploy + controlled live
-smoke on `BUILD_REVISION=b67c538`. Production webhook enablement and n8n Error
-Trigger wiring remain optional follow-ups.
+smoke on `BUILD_REVISION=b67c538`. **Production webhook + n8n Error Trigger
+wiring enabled 2026-07-17** (see Emission and n8n wiring below).
 
 ## Relationship to operational status and health
 
@@ -158,7 +158,7 @@ Fingerprints:
 | Env | Role | Default |
 |-----|------|---------|
 | `SILVERMAN_FLOW_A_OPERATIONAL_ALERTS_ENABLED` | Master switch | off / false |
-| `SILVERMAN_FLOW_A_OPERATIONAL_ALERTS_WEBHOOK_URL` | Generic HTTPS webhook target | unset |
+| `SILVERMAN_FLOW_A_OPERATIONAL_ALERTS_WEBHOOK_URL` | Generic http(s) webhook target | unset |
 
 When `emit=false` (default): `emission.status=not_requested`; no webhook; no
 ledger I/O; no orchestration-failure write.
@@ -175,6 +175,23 @@ MVP channel is a **generic HTTP webhook**. The worker does not embed Slack,
 email, or UI SDKs. n8n (or another operator client) may map evaluate JSON or
 webhook payloads to any downstream channel outside this contract. Webhook
 consumers must accept both `error` and `warning` severities.
+
+### Live enablement on `192.168.0.194` (2026-07-17)
+
+| Item | Value |
+|------|-------|
+| Enabled | `SILVERMAN_FLOW_A_OPERATIONAL_ALERTS_ENABLED=true` |
+| Webhook URL | `http://n8n:5678/webhook/silverman-flow-a-operational-alerts` |
+| Why internal DNS | Public gateway `192.168.0.194:5678/webhook/*` requires `X-Avatares-Api-Key`; worker emit client has no custom headers |
+| Compose | Worker joins external network `local-ai-stack_backend` |
+| Receiver workflow | `silvermanFlowAAlertsWebhook01` (path `silverman-flow-a-operational-alerts`) |
+| Error report workflow | `silvermanFlowAErrorReport01` — Flow A `settings.errorWorkflow` |
+| Evaluate/emit schedule | `silvermanFlowAAlertsEvaluate01` — cron `30 9 * * *` UTC + Manual |
+| Enable script | `deploy/server/enable-flow-a-operational-alerts-n8n.sh` |
+
+Controlled enablement smoke: internal webhook probe HTTP 200; evaluate
+`emit=true` → `emission.status=emitted` for live US-028 fingerprints; report
+ingest with `n8n_error_trigger` accepted then smoke entry removed.
 
 ## Persistence under `metadata/operational-alerts/`
 
@@ -211,5 +228,5 @@ Local verification exercised authenticated evaluate/report responses for:
 This demonstrates US-028, US-029, and US-030 at controlled-fixture,
 automated-test, and controlled live-smoke scope on `192.168.0.194`
 (`BUILD_REVISION=b67c538`). **Operator-accepted 2026-07-17; BL-011 closed.**
-Production webhook enablement and n8n Error Trigger → report wiring remain
-optional follow-ups (not required for BL-011 closure).
+Production webhook + n8n Error Trigger wiring were enabled as the documented
+follow-up on 2026-07-17 (see Emission / Live enablement above).

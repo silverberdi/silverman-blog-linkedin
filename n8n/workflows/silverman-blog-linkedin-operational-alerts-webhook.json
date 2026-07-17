@@ -1,0 +1,110 @@
+{
+  "name": "Silverman Flow A Operational Alerts Webhook",
+  "id": "silvermanFlowAAlertsWebhook01",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "silverman-flow-a-operational-alerts",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1000001-0001-4001-8001-000000000001",
+      "name": "Alerts Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "webhookId": "silverman-flow-a-operational-alerts",
+      "notes": "Receives fail-closed worker emit payloads: {observed_at_utc, alert}. Production URL: /webhook/silverman-flow-a-operational-alerts"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1000001-0001-4001-8001-000000000011",
+              "name": "received",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "a1000001-0001-4001-8001-000000000012",
+              "name": "alert_type",
+              "value": "={{ $json.body?.alert?.alert_type || $json.alert?.alert_type || 'unknown' }}",
+              "type": "string"
+            },
+            {
+              "id": "a1000001-0001-4001-8001-000000000013",
+              "name": "fingerprint",
+              "value": "={{ $json.body?.alert?.fingerprint || $json.alert?.fingerprint || 'unknown' }}",
+              "type": "string"
+            },
+            {
+              "id": "a1000001-0001-4001-8001-000000000014",
+              "name": "severity",
+              "value": "={{ $json.body?.alert?.severity || $json.alert?.severity || 'unknown' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000001-0001-4001-8001-000000000002",
+      "name": "Normalize Alert Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [240, 300],
+      "notes": "Keep only secret-safe identifiers for execution history visibility. No content bodies or tokens."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, received: true, alert_type: $json.alert_type, fingerprint: $json.fingerprint }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "a1000001-0001-4001-8001-000000000003",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [480, 300]
+    }
+  ],
+  "connections": {
+    "Alerts Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Alert Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Alert Fields": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

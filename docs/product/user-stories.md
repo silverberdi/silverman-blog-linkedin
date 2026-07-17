@@ -595,7 +595,7 @@ As a system operator, I want to alert on unhealthy worker or failed n8n workflow
 - [x] Failures or blocked states are clearly communicated. — Demonstrated: evaluate responses label alert types and emission status; report returns structured acknowledgment; evaluate-only leaves lifecycle bytes unchanged; live emit fail-closed → `disabled`.
 - [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: reuses evaluate/emit/ledger; US-028 types still produced on live smoke; no BL-015 UI; no parallel alerts channel.
 
-**Out of BL-011 closure scope (explicit follow-ups, not blockers):** production webhook enablement (`SILVERMAN_FLOW_A_OPERATIONAL_ALERTS_ENABLED`); optional n8n Error Trigger → report wiring.
+**Follow-ups (completed 2026-07-17):** production webhook enablement (`SILVERMAN_FLOW_A_OPERATIONAL_ALERTS_ENABLED=true`, internal `http://n8n:5678/webhook/silverman-flow-a-operational-alerts`); n8n Error Trigger → `report-orchestration-failure` via `silvermanFlowAErrorReport01` as Flow A `errorWorkflow`; daily evaluate/emit schedule `silvermanFlowAAlertsEvaluate01`.
 
 ## BL-012 — Consolidate Recovery for Incomplete Campaigns
 

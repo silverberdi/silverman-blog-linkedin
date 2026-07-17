@@ -37,3 +37,12 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    # Reach n8n production webhooks on the compose DNS name `n8n` (bypasses
+    # gateway /webhook/ Avatares API-key gate used by public 192.168.0.194:5678).
+    networks:
+      - default
+      - local-ai-stack_backend
+
+networks:
+  local-ai-stack_backend:
+    external: true

@@ -202,7 +202,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Important failures and blocked states generate timely, actionable alerts.
 
-**Status:** Closed 2026-07-17 after US-028, US-029, and US-030 acceptance on `192.168.0.194` (`BUILD_REVISION=b67c538`): controlled live smoke for evaluate/report/fail-closed emit plus fixture coverage for all eight alert types. Production webhook enablement and n8n Error Trigger → report wiring remain optional follow-ups (not required to close BL-011). Evidence: [flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md).
+**Status:** Closed 2026-07-17 after US-028, US-029, and US-030 acceptance on `192.168.0.194` (`BUILD_REVISION=b67c538`): controlled live smoke for evaluate/report/fail-closed emit plus fixture coverage for all eight alert types. Follow-up enabled 2026-07-17: production webhook emit + n8n Error Trigger → report + daily evaluate/emit schedule. Evidence: [flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md).
 
 ### BL-012 — Consolidate Recovery for Incomplete Campaigns
 

@@ -1,0 +1,131 @@
+{
+  "name": "Silverman Flow A Error Report",
+  "id": "silvermanFlowAErrorReport01",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b2000002-0002-4002-8002-000000000001",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [0, 300],
+      "notes": "Configured as errorWorkflow for silvermanFlowAPublish01. Posts secret-safe report to worker; never forwards stacks or raw bodies."
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b2000002-0002-4002-8002-000000000011",
+              "name": "worker_base_url",
+              "value": "http://192.168.0.194:8010",
+              "type": "string"
+            },
+            {
+              "id": "b2000002-0002-4002-8002-000000000012",
+              "name": "worker_api_key",
+              "value": "CHANGE_ME_WORKER_API_KEY",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2000002-0002-4002-8002-000000000002",
+      "name": "Set Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 300],
+      "notes": "Import script replaces worker_api_key from worker .env. Repo export keeps placeholder."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Build secret-safe orchestration-failure report body (US-030).\nconst cfg = $('Set Configuration').first().json;\nconst src = $input.first().json || {};\nconst execution = src.execution || {};\nconst workflow = src.workflow || {};\n\nfunction safeToken(value, fallback) {\n  const raw = String(value == null ? '' : value).trim().replace(/\\s+/g, '-');\n  const cleaned = raw.replace(/[^A-Za-z0-9._:-]/g, '');\n  if (!cleaned || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/.test(cleaned)) {\n    return fallback;\n  }\n  return cleaned.slice(0, 200);\n}\n\nconst workflowId = safeToken(workflow.id, 'silvermanFlowAPublish01');\nconst executionId = safeToken(execution.id, null);\nconst nodeName = safeToken(execution.lastNodeExecuted, null);\n\nconst body = {\n  workflow_id: workflowId,\n  reason_code: 'n8n_error_trigger',\n};\nif (executionId) body.execution_id = executionId;\nif (nodeName) body.node_name = nodeName;\n\nreturn [{\n  json: {\n    worker_base_url: cfg.worker_base_url,\n    worker_api_key: cfg.worker_api_key,\n    report_body: body,\n  },\n}];\n"
+      },
+      "id": "b2000002-0002-4002-8002-000000000003",
+      "name": "Build Safe Report Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.worker_base_url }}/flow-a/operational-alerts/report-orchestration-failure",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.worker_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.report_body }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b2000002-0002-4002-8002-000000000004",
+      "name": "Report Orchestration Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 300],
+      "notes": "POST /flow-a/operational-alerts/report-orchestration-failure — ADR-0001 HTTP only."
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Configuration": {
+      "main": [
+        [
+          {
+            "node": "Build Safe Report Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Safe Report Body": {
+      "main": [
+        [
+          {
+            "node": "Report Orchestration Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

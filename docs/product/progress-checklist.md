@@ -307,7 +307,7 @@ Use this checklist to track business progress. Mark items only when the stated b
     - Implementation evidence: [flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md)
   - [x] All user stories completed
   - [x] Backlog item business outcome validated
-  - [x] Backlog item closed — 2026-07-17; webhook enablement and n8n Error Trigger wiring remain optional follow-ups
+  - [x] Backlog item closed — 2026-07-17; webhook + n8n Error Trigger follow-up enabled 2026-07-17
 
 - [ ] **BL-012 — Consolidate Recovery for Incomplete Campaigns**
   - Business outcome: Incomplete campaigns can be resumed or repaired safely and predictably.

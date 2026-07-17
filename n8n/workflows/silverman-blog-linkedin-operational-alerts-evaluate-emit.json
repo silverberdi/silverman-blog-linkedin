@@ -1,0 +1,139 @@
+{
+  "name": "Silverman Flow A Operational Alerts Evaluate Emit",
+  "id": "silvermanFlowAAlertsEvaluate01",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 9 * * *"
+            }
+          ]
+        },
+        "options": {
+          "timezone": "UTC"
+        }
+      },
+      "id": "c3000003-0003-4003-8003-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 200],
+      "notes": "Daily 09:30 UTC — after Flow A schedule (09:00). Calls evaluate with emit=true."
+    },
+    {
+      "parameters": {},
+      "id": "c3000003-0003-4003-8003-000000000002",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 400]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c3000003-0003-4003-8003-000000000011",
+              "name": "worker_base_url",
+              "value": "http://192.168.0.194:8010",
+              "type": "string"
+            },
+            {
+              "id": "c3000003-0003-4003-8003-000000000012",
+              "name": "worker_api_key",
+              "value": "CHANGE_ME_WORKER_API_KEY",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c3000003-0003-4003-8003-000000000003",
+      "name": "Set Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set Configuration').first().json.worker_base_url }}/flow-a/operational-alerts/evaluate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Set Configuration').first().json.worker_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ emit: true }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "c3000003-0003-4003-8003-000000000004",
+      "name": "Evaluate And Emit Alerts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 300],
+      "notes": "POST /flow-a/operational-alerts/evaluate with emit=true. Worker posts new fingerprints to configured webhook."
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Configuration": {
+      "main": [
+        [
+          {
+            "node": "Evaluate And Emit Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}
