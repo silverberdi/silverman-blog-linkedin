@@ -192,6 +192,26 @@ Every publish-due evaluation of a `queued` variant — plain publish-due, the co
 
 The guard is evaluated per campaign document; campaigns never gate each other in the cross-campaign scan. Dry-run reports planned blocks with the same stable reasons, with zero metadata writes and zero LinkedIn/OAuth calls.
 
+## Retry and recovery classification (US-021)
+
+Full normative policy: [linkedin-retry-recovery-classification.md](../operations/linkedin-retry-recovery-classification.md) (policy defined ≠ operationally validated). Classification is a deterministic function of the stored US-019 evidence (`last_error_code` + `http_status`); `retryable` is descriptive only. Summary:
+
+| Class | Evidence | Recovery |
+|---|---|---|
+| Recoverable (transient) | `linkedin_publish_api_error` with `http_status` `429` or `>= 500` | Wait, then manual re-queue via `POST /queue-linkedin-publication` |
+| Recoverable after remediation | `linkedin_publish_token_invalid`, `linkedin_publish_token_expired` (token renewal first) or `linkedin_publish_insufficient_permission` (scope/product fix + reauthorization first) | Complete the named remediation, then manual re-queue |
+| Non-recoverable as-is | `linkedin_publish_content_invalid` (`400`/`422`) | Do **not** re-queue unchanged content; no supported correction path for `failed` variants (US-022 candidate) |
+| Uncertain (duplicate risk) | `linkedin_publish_api_error` with `http_status` `null` (transport failure) or `201` (success without usable URN); **any unlisted code/status combination fails safe here** | Mandatory LinkedIn verification before any re-queue (below) |
+
+Blocked outcomes (enablement off, OAuth `action_required`, missing token/URN, US-020 guard blocks, dry-run) are a separate non-failure class: `publish_state` unchanged, no re-queue involved — resolve the named condition and re-run publish-due.
+
+**Mandatory verification step before manual re-queue of an uncertain-class `failed` variant:** check the operator LinkedIn profile feed/activity for a matching post within the `last_failed_at` window.
+
+- Post **exists** → re-queue is forbidden (it would create a duplicate that no existing safeguard catches, since no `published_at`/URN evidence was stored). Recovery is deliberate manual evidence repair in `metadata/campaigns/<campaign-id>.json` to `published` with the real URN and UTC `published_at` (same manual-repair pattern as invalid `published_at` under US-020).
+- Post **absent** → manual re-queue via `POST /queue-linkedin-publication` is safe.
+
+For token-class failures, confirm token validity via `GET /linkedin/oauth/status` (renew/reauthorize if needed) **before** re-queue. There is no automatic retry (retry limits are US-022). Known divergence recorded for US-022: re-queueing a `failed` variant currently clears the stored `linkedin_publication` failure evidence — note the evidence before re-queue if traceability matters.
+
 ## Safety delay and immediate mode
 
 - Default safety delay: **120 minutes** after queue before a variant is eligible for real publish.

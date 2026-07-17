@@ -387,18 +387,24 @@ As a content operator, I want to respect audience cadence and sequence, so that 
 
 ### US-021 — Define LinkedIn Retry and Recovery Rules: Story 1
 
+**Status:** Policy defined (docs + canonical spec, 2026-07-16) — policy defined ≠ operationally validated; story not accepted as complete; BL-008 remains open until US-022.
+
 **Description**
 
 As a content operator, I want to classify recoverable and non-recoverable errors, so that linkedin failures can be recovered without losing traceability or duplicating content.
 
+**Policy artifact:** [linkedin-retry-recovery-classification.md](../operations/linkedin-retry-recovery-classification.md)
+
 **Acceptance criteria**
 
-- [ ] Classify recoverable and non-recoverable errors.
-- [ ] Define token-renewal behavior.
-- [ ] Prevent duplicate posts after timeouts.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Classify recoverable and non-recoverable errors. — Spec requirement "Recovery classification of failure outcomes" (`linkedin-retry-recovery-classification`); classification table keyed on `last_error_code` + `http_status` (incl. `null` and `201`; unlisted combinations fail safe to uncertain) in [linkedin-retry-recovery-classification.md](../operations/linkedin-retry-recovery-classification.md) and summarized in [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md#retry-and-recovery-classification-us-021).
+- [x] Define token-renewal behavior. — Spec requirement "Token-renewal behavior": existing OAuth refresh/reauthorization mechanics as only token recovery paths; never a reaction within a failed request; renewal precedes manual re-queue for token-class failures.
+- [x] Prevent duplicate posts after timeouts. — Spec requirement "Duplicate prevention after timeouts and uncertain outcomes": mandatory operator verification on LinkedIn before re-queue of uncertain outcomes; post exists → manual evidence repair to `published` (re-queue forbidden); post absent → manual re-queue safe. Defined policy only — no automatic mechanism added.
+- [x] The outcome is visible and understandable to the intended user. — Spec requirement "Operator-visible classification and recovery documentation": policy document plus classification summary and verification step at the manual re-queue touchpoint in the prerequisites doc.
+- [x] Failures or blocked states are clearly communicated. — Spec requirement "Blocked outcomes are a separate non-failure class": blocked codes listed with no-`publish_state`-change statement and per-condition recovery, distinct from the four failure classes.
+- [x] Existing completed work is not duplicated or unintentionally changed. — No modified capabilities; zero changes under `src/`, `tests/`, `n8n/`, `deploy/`; US-018/US-019/US-020 contracts referenced additively (BL-007 stays closed).
+
+**Defined:** 2026-07-16 — US-021 policy defined (docs + canonical spec); acceptance criteria demonstrated at policy-definition scope only, not operationally validated. Known divergence recorded for US-022: manual re-queue of a `failed` variant clears stored `linkedin_publication` failure evidence.
 
 ### US-022 — Define LinkedIn Retry and Recovery Rules: Story 2
 

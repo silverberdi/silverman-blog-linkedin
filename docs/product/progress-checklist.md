@@ -206,12 +206,13 @@ Use this checklist to track business progress. Mark items only when the stated b
 - [ ] **BL-008 — Define LinkedIn Retry and Recovery Rules**
   - Business outcome: LinkedIn failures can be recovered without losing traceability or duplicating content.
   - [ ] **US-021**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — at policy-definition scope (docs + canonical spec, 2026-07-16); policy defined ≠ operationally validated
+    - [x] Acceptance criteria validated — against spec requirements and operator docs (see [user-stories.md](user-stories.md) US-021 mapping)
     - [ ] Story accepted
+    - Policy: [linkedin-retry-recovery-classification.md](../operations/linkedin-retry-recovery-classification.md)
   - [ ] **US-022**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed
