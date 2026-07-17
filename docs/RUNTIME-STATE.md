@@ -6,13 +6,13 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 ## Snapshot
 
-**`verified_at_utc`:** `2026-07-17T02:11:28Z`
-**Evidence source:** US-019/US-020 deploy + controlled validation — rsync + rebuild on Ubuntu `192.168.0.194`; container env `BUILD_REVISION`; dry-run zero mutation; cadence/sequence blocks; one real LinkedIn publish with complete evidence
+**`verified_at_utc`:** `2026-07-17T18:00:01Z`
+**Evidence source:** Post-US-025 archive deploy of accumulated code (US-022 + US-023 worker surface + US-024/US-025 docs already in git) — rsync + rebuild on Ubuntu `192.168.0.194`; container env `BUILD_REVISION`; `verify-worker-deploy.sh` OVERALL PASS; OpenAPI exposes `/validate-linkedin-article-preview`
 
 | Fact | Value | Evidence |
 |------|-------|----------|
 | Worker URL | `http://192.168.0.194:8010` | Deploy + health check |
-| `BUILD_REVISION` | `3c4d9f58c0e3a490e0f7b26ed97399aaf877eec6` (HEAD after US-020 archive) | Container env after pin rebuild 2026-07-17; `.build_git_sha` on target |
+| `BUILD_REVISION` | `d15d85b0c5827cc8d0a4fdb5038b01530a009f87` (HEAD after US-025 archive) | Container env after pin rebuild 2026-07-17; `.build_git_sha` on target |
 | Editorial mount | `/data/silverman-blog-linkedin` → host `/home/silverman/compartido_mac/silverman-blog-linkedin` | Deploy compose |
 | Public blog mount | `/public-blog` → host `/home/silverman/silverberdi.github.io` | Deploy verification |
 | n8n Flow A workflow | **Active** (`silvermanFlowAPublish01`, **35** nodes, Schedule `0 9 * * *` UTC, single-flight, includes `/complete-flow-a-ready-path`); repo export `active: false` | Post-resume export check |
