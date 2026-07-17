@@ -6,8 +6,8 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 ## Snapshot
 
-**`verified_at_utc`:** `2026-07-17T22:24:54Z`
-**Evidence source:** Post-US-030 archive deploy (`b67c538`) — rsync + rebuild on Ubuntu `192.168.0.194`; container env `BUILD_REVISION`; `verify-worker-deploy.sh` OVERALL PASS; OpenAPI exposes `/flow-a/operational-alerts/evaluate` and `/flow-a/operational-alerts/report-orchestration-failure`
+**`verified_at_utc`:** `2026-07-17T22:30:00Z`
+**Evidence source:** Post-US-030 archive deploy (`b67c538`) + controlled live smoke on Ubuntu `192.168.0.194` — evaluate/report/evaluate, zero lifecycle mutation, fail-closed emit (`disabled`), auth 401; smoke orchestration-failure entry removed after verification
 
 | Fact | Value | Evidence |
 |------|-------|----------|
@@ -57,4 +57,4 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 - BL-008 closed 2026-07-17: US-021/US-022 accepted (primary recovery chain validated live); correction/cancel/exhaustion paths remain unit-test scope.
 - Pages live-confirmation can 404 briefly after push; resume after HTTP 200 (documented in BL-005).
 - BL-008 (US-021/US-022) and BL-009 (US-023/US-024/US-025) demonstrated and accepted 2026-07-17 — both backlog items closed.
-- BL-011 / US-028–US-030 code is deployed (`b67c538`) but **not** operator-accepted; webhook emission remains fail-closed (do not enable `SILVERMAN_FLOW_A_OPERATIONAL_ALERTS_ENABLED` without explicit approval).
+- BL-011 / US-028–US-030 code is deployed (`b67c538`) and **controlled live smoke passed** 2026-07-17 (evaluate + report + eight-type counts + fail-closed emit + zero lifecycle mutation); still **not** operator-accepted; webhook emission remains fail-closed (do not enable `SILVERMAN_FLOW_A_OPERATIONAL_ALERTS_ENABLED` without explicit approval).
