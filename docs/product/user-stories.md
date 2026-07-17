@@ -548,18 +548,25 @@ As a system operator, I want to capture stage duration, so that operators can un
 
 ### US-028 — Add Operational Alerts: Story 1
 
+**Status:** Implemented, locally tested, and demonstrated against controlled
+fixtures on 2026-07-17. Business acceptance, deployment, live webhook
+enablement, and BL-011 closure remain pending. Evidence:
+[flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md).
+
 **Description**
 
 As a system operator, I want to alert on items moved to error, so that important failures and blocked states generate timely, actionable alerts.
 
 **Acceptance criteria**
 
-- [ ] Alert on items moved to error.
-- [ ] Alert on image-generation failure.
-- [ ] Alert on blog publication failure.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Alert on items moved to error. — Demonstrated via controlled fixtures: failed campaigns with `source_file_status.location=error` produce `item_moved_to_error` from `POST /flow-a/operational-alerts/evaluate`.
+- [x] Alert on image-generation failure. — Demonstrated: `comfyui` / `blog_image_generation_*` dependency evidence produces `image_generation_failure`.
+- [x] Alert on blog publication failure. — Demonstrated: `blog_publish_*` / `blog_git_publication_*` codes produce `blog_publication_failure`; LinkedIn-preview checkout codes are excluded.
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: secret-safe alert objects include type, severity, fingerprint, identifiers, codes, dependency, and short summary.
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: evaluate responses label alert types and emission status (`not_requested` / `disabled` / `misconfigured` / emitted); evaluate-only leaves lifecycle bytes unchanged.
+- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: derivation reuses operational-status evidence (no parallel folder scan); evaluate-only and emit paths do not mutate campaign/run/editorial lifecycle; US-029/US-030 types and BL-015 UI are absent.
+
+**Remaining acceptance gaps (explicit):** operator business acceptance; deploy and live operational validation; production webhook enablement under fail-closed flags; BL-011 remains open until US-029/US-030 are also satisfied and accepted. Code completion alone does not accept US-028 or close BL-011.
 
 ### US-029 — Add Operational Alerts: Story 2
 

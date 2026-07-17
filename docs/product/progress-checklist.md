@@ -279,15 +279,16 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed
 
-- [ ] **BL-011 — Add Operational Alerts**
+- [-] **BL-011 — Add Operational Alerts**
   - Business outcome: Important failures and blocked states generate timely, actionable alerts.
-  - [ ] **US-028**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+  - [-] **US-028**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — controlled fixtures and authenticated HTTP tests show `item_moved_to_error`, `image_generation_failure`, and `blog_publication_failure` candidates with understandable secret-safe payloads; fail-closed emit; evaluate-only zero lifecycle mutation; preview checkout codes excluded
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
+    - Implementation evidence: [flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md) — implemented and tested locally; not deployed or live operationally validated
   - [ ] **US-029**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed

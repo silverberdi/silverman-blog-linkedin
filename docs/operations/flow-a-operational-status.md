@@ -4,7 +4,10 @@ Operator contract for the read-only status view covering US-026
 (execution/campaign/calendar classifications) and US-027 (stage durations and
 dependency-failure aggregation). Both slices are implemented and tested
 locally. The capability is not deployed or operationally validated, does not
-provide alerts, and does not by itself close BL-010.
+send notifications or write alert ledgers, and does not by itself close BL-010.
+BL-011 / US-028 alerting is owned by the separate
+[`POST /flow-a/operational-alerts/evaluate`](flow-a-operational-alerts.md)
+contract.
 
 ## Request
 

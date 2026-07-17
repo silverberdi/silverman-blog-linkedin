@@ -35,6 +35,9 @@ from silverman_blog_linkedin.editorial_calendar_plan import (
 from silverman_blog_linkedin.flow_a_ready_path_completion import (
     complete_flow_a_ready_path,
 )
+from silverman_blog_linkedin.flow_a_operational_alerts import (
+    evaluate_flow_a_operational_alerts,
+)
 from silverman_blog_linkedin.flow_a_operational_status import (
     get_flow_a_operational_status,
 )
@@ -675,6 +678,20 @@ class ExecuteEditorialCalendarFlowADueRequest(BaseModel):
         if value <= 0:
             raise ValueError("limit must be a positive integer")
         return value
+
+
+class EvaluateFlowAOperationalAlertsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    now_utc: str | None = None
+    emit: bool = False
+
+    @field_validator("now_utc")
+    @classmethod
+    def validate_now_utc(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return validate_canonical_utc_timestamp(value)
 
 
 def _generate_linkedin_draft_editorial_fields(
@@ -1954,6 +1971,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             sum(len(items) for items in result.executions.values()),
             len(result.campaigns),
             len(result.delayed_calendar_items),
+            len(result.data_issues),
+        )
+        return result.to_dict()
+
+    @app.post("/flow-a/operational-alerts/evaluate")
+    def flow_a_operational_alerts_evaluate(
+        body: EvaluateFlowAOperationalAlertsRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = evaluate_flow_a_operational_alerts(
+            settings.base_path,
+            now_utc=body.now_utc,
+            emit=body.emit,
+        )
+        logger.info(
+            "flow-a/operational-alerts/evaluate status=%s emit=%s alerts=%s "
+            "emission=%s data_issues=%s",
+            result.status,
+            body.emit,
+            len(result.alerts),
+            result.emission.status,
             len(result.data_issues),
         )
         return result.to_dict()
