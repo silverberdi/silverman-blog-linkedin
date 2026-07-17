@@ -297,13 +297,14 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
     - Implementation evidence: [flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md) — implemented and tested locally; not deployed or live operationally validated
-  - [ ] **US-030**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+  - [-] **US-030**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — controlled fixtures show `unhealthy_worker` (degraded folder readiness) and `failed_n8n_workflow` (after report ingest; failed runs alone do not); report auth/validation/idempotency; eight-type counts; US-028/US-029 coexistence; fail-closed emit for US-030 fingerprints; evaluate-only zero lifecycle mutation
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
+    - Implementation evidence: [flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md) — implemented and tested locally; not deployed or live operationally validated; US-028/US-029 not re-accepted
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed

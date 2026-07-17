@@ -1,4 +1,4 @@
-"""Behavioral tests for Flow A operational alerts (US-028 / US-029)."""
+"""Behavioral tests for Flow A operational alerts (US-028 / US-029 / US-030)."""
 
 from __future__ import annotations
 
@@ -12,11 +12,13 @@ from fastapi.testclient import TestClient
 
 from silverman_blog_linkedin.flow_a_operational_alerts import (
     ALERT_BLOG_PUBLICATION_FAILURE,
+    ALERT_FAILED_N8N_WORKFLOW,
     ALERT_IMAGE_GENERATION_FAILURE,
     ALERT_ITEM_MOVED_TO_ERROR,
     ALERT_LINKEDIN_TOKEN_OR_PUBLICATION_FAILURE,
     ALERT_PARTIAL_CALENDAR_EXECUTION,
     ALERT_STALE_CAMPAIGN,
+    ALERT_UNHEALTHY_WORKER,
     ALL_ALERT_TYPES,
     EMISSION_STATUS_ALREADY_EMITTED,
     EMISSION_STATUS_DISABLED,
@@ -25,9 +27,12 @@ from silverman_blog_linkedin.flow_a_operational_alerts import (
     EMISSION_STATUS_NOT_REQUESTED,
     LEDGER_FILENAME,
     LEDGER_RELATIVE_DIR,
+    ORCHESTRATION_FAILURES_FILENAME,
+    ORCHESTRATION_REASON_N8N_WORKFLOW_FAILED,
     SEVERITY_ERROR,
     SEVERITY_WARNING,
     evaluate_flow_a_operational_alerts,
+    report_orchestration_failure,
 )
 from silverman_blog_linkedin.flow_a_operational_alerts_config import (
     ENV_OPERATIONAL_ALERTS_ENABLED,
@@ -35,6 +40,7 @@ from silverman_blog_linkedin.flow_a_operational_alerts_config import (
     load_flow_a_operational_alerts_settings,
 )
 from silverman_blog_linkedin.main import create_app
+from silverman_blog_linkedin.paths import EXPECTED_FOLDERS
 from tests.conftest import auth_header, make_settings
 
 NOW = "2026-07-17T12:00:00Z"
@@ -45,11 +51,25 @@ CAMPAIGN_PREVIEW = "flow-a-2026-07-17-alerts-preview"
 CAMPAIGN_LINKEDIN = "flow-a-2026-07-17-alerts-linkedin"
 CAMPAIGN_STALE = "flow-a-2026-07-17-alerts-stale"
 WEBHOOK_URL = "https://hooks.example.test/flow-a-alerts"
+WORKFLOW_ID = "silvermanFlowAPublish01"
 
 
 @pytest.fixture
 def alerts_base(tmp_path: Path) -> Path:
     base = tmp_path / "editorial"
+    for relative in EXPECTED_FOLDERS:
+        (base / relative).mkdir(parents=True, exist_ok=True)
+    _write_json(
+        base / "editorial-calendar/calendar.json",
+        {"version": 1, "items": []},
+    )
+    return base
+
+
+@pytest.fixture
+def degraded_alerts_base(tmp_path: Path) -> Path:
+    """Editorial layout missing required folders (folders_ready=false)."""
+    base = tmp_path / "editorial-degraded"
     for relative in (
         "metadata/runs",
         "metadata/campaigns",
@@ -335,11 +355,8 @@ def test_preview_checkout_codes_excluded_from_blog_and_linkedin_alerts(
     alert_types = {alert["alert_type"] for alert in body["alerts"]}
     assert ALERT_BLOG_PUBLICATION_FAILURE not in alert_types
     assert ALERT_LINKEDIN_TOKEN_OR_PUBLICATION_FAILURE not in alert_types
-    forbidden_us030 = {
-        "unhealthy_worker",
-        "failed_n8n_workflow",
-    }
-    assert alert_types.isdisjoint(forbidden_us030)
+    assert ALERT_UNHEALTHY_WORKER not in alert_types
+    assert ALERT_FAILED_N8N_WORKFLOW not in alert_types
 
 
 def test_http_auth_invalid_now_determinism_and_safe_output(alerts_base: Path):
@@ -664,7 +681,7 @@ def test_stale_campaign_alert(alerts_base: Path):
     assert body["summary"]["counts"][ALERT_STALE_CAMPAIGN] == 1
 
 
-def test_six_type_summary_counts_and_us028_us029_coexistence(alerts_base: Path):
+def test_eight_type_summary_counts_and_us028_us029_coexistence(alerts_base: Path):
     _write_campaign(
         alerts_base,
         CAMPAIGN_ERROR,
@@ -728,15 +745,19 @@ def test_six_type_summary_counts_and_us028_us029_coexistence(alerts_base: Path):
     body = result.to_dict()
     counts = body["summary"]["counts"]
     assert set(counts) == set(ALL_ALERT_TYPES)
+    assert len(ALL_ALERT_TYPES) == 8
     assert counts[ALERT_ITEM_MOVED_TO_ERROR] >= 1
     assert counts[ALERT_IMAGE_GENERATION_FAILURE] >= 1
     assert counts[ALERT_BLOG_PUBLICATION_FAILURE] >= 1
     assert counts[ALERT_PARTIAL_CALENDAR_EXECUTION] == 1
     assert counts[ALERT_LINKEDIN_TOKEN_OR_PUBLICATION_FAILURE] >= 1
     assert counts[ALERT_STALE_CAMPAIGN] == 1
+    assert counts[ALERT_UNHEALTHY_WORKER] == 0
+    assert counts[ALERT_FAILED_N8N_WORKFLOW] == 0
     assert body["summary"]["total"] == sum(counts.values())
     alert_types = {alert["alert_type"] for alert in body["alerts"]}
-    assert alert_types.isdisjoint({"unhealthy_worker", "failed_n8n_workflow"})
+    assert ALERT_UNHEALTHY_WORKER not in alert_types
+    assert ALERT_FAILED_N8N_WORKFLOW not in alert_types
     assert "DO-NOT-ECHO-TITLE" not in json.dumps(body)
     assert _snapshot_tree(alerts_base) == before
     assert not (alerts_base / LEDGER_RELATIVE_DIR / LEDGER_FILENAME).exists()
@@ -814,3 +835,258 @@ def test_us029_emit_fail_closed_and_idempotent_ledger(
     mock_client.post.assert_not_called()
     assert second.emission.status == EMISSION_STATUS_ALREADY_EMITTED
     assert us029_fingerprints <= set(second.emission.already_emitted_fingerprints)
+
+
+def test_unhealthy_worker_alert_when_folders_not_ready(degraded_alerts_base: Path):
+    with (
+        patch("httpx.request") as external_http,
+        patch("httpx.Client") as http_client_cls,
+        patch(
+            "silverman_blog_linkedin.flow_a_operational_alerts.validate_folders",
+            wraps=__import__(
+                "silverman_blog_linkedin.paths", fromlist=["validate_folders"]
+            ).validate_folders,
+        ) as validate_folders_mock,
+    ):
+        result = evaluate_flow_a_operational_alerts(
+            degraded_alerts_base, now_utc=NOW, emit=False
+        )
+    validate_folders_mock.assert_called()
+    external_http.assert_not_called()
+    http_client_cls.assert_not_called()
+    body = result.to_dict()
+    by_type = _alerts_by_type(body)
+    assert len(by_type[ALERT_UNHEALTHY_WORKER]) == 1
+    alert = by_type[ALERT_UNHEALTHY_WORKER][0]
+    assert alert["severity"] == SEVERITY_ERROR
+    assert alert["error_codes"] == sorted(alert["error_codes"])
+    assert "editorial_folder_not_ready:metadata/backups" in alert["error_codes"]
+    assert "editorial_folder_not_ready:prompts" in alert["error_codes"]
+    assert alert["fingerprint"].startswith(
+        f"{ALERT_UNHEALTHY_WORKER}:folders_not_ready:"
+    )
+    assert "campaign_id" not in alert
+    assert str(degraded_alerts_base) not in json.dumps(body)
+    assert body["summary"]["counts"][ALERT_UNHEALTHY_WORKER] == 1
+
+
+def test_healthy_folders_produce_no_unhealthy_worker(alerts_base: Path):
+    result = evaluate_flow_a_operational_alerts(alerts_base, now_utc=NOW)
+    body = result.to_dict()
+    assert ALERT_UNHEALTHY_WORKER not in _alerts_by_type(body)
+    assert body["summary"]["counts"][ALERT_UNHEALTHY_WORKER] == 0
+
+
+def test_failed_n8n_workflow_after_report_not_from_failed_run_alone(
+    alerts_base: Path,
+):
+    _write_run(
+        alerts_base,
+        "run-failed-alone",
+        status="failed",
+        errors=["blog_image_generation_comfyui_failed"],
+    )
+    before_report = evaluate_flow_a_operational_alerts(alerts_base, now_utc=NOW)
+    before_body = before_report.to_dict()
+    assert ALERT_FAILED_N8N_WORKFLOW not in _alerts_by_type(before_body)
+    assert before_body["summary"]["counts"][ALERT_FAILED_N8N_WORKFLOW] == 0
+
+    report = report_orchestration_failure(
+        alerts_base,
+        workflow_id=WORKFLOW_ID,
+        reason_code=ORCHESTRATION_REASON_N8N_WORKFLOW_FAILED,
+        observed_at_utc=NOW,
+        execution_id="exec-123",
+    )
+    assert report.created is True
+    store_path = alerts_base / LEDGER_RELATIVE_DIR / ORCHESTRATION_FAILURES_FILENAME
+    assert store_path.is_file()
+    assert not (alerts_base / LEDGER_RELATIVE_DIR / LEDGER_FILENAME).exists()
+
+    after = evaluate_flow_a_operational_alerts(alerts_base, now_utc=NOW)
+    body = after.to_dict()
+    by_type = _alerts_by_type(body)
+    alerts = by_type[ALERT_FAILED_N8N_WORKFLOW]
+    assert len(alerts) == 1
+    alert = alerts[0]
+    assert alert["workflow_id"] == WORKFLOW_ID
+    assert alert["execution_id"] == "exec-123"
+    assert alert["error_codes"] == [ORCHESTRATION_REASON_N8N_WORKFLOW_FAILED]
+    assert alert["severity"] == SEVERITY_ERROR
+    assert alert["fingerprint"] == (
+        f"{ALERT_FAILED_N8N_WORKFLOW}:{WORKFLOW_ID}:"
+        f"{ORCHESTRATION_REASON_N8N_WORKFLOW_FAILED}:exec-123"
+    )
+    assert body["summary"]["counts"][ALERT_FAILED_N8N_WORKFLOW] == 1
+
+
+def test_report_orchestration_failure_http_auth_validation_idempotency(
+    alerts_base: Path,
+):
+    client = TestClient(create_app(make_settings(alerts_base)))
+    campaign_path = alerts_base / "metadata/campaigns"
+    campaign_before = _snapshot_tree(alerts_base)
+
+    with patch(
+        "silverman_blog_linkedin.main.report_orchestration_failure"
+    ) as report:
+        assert (
+            client.post(
+                "/flow-a/operational-alerts/report-orchestration-failure",
+                json={
+                    "workflow_id": WORKFLOW_ID,
+                    "reason_code": ORCHESTRATION_REASON_N8N_WORKFLOW_FAILED,
+                },
+            ).status_code
+            == 401
+        )
+        report.assert_not_called()
+
+    invalid_reason = client.post(
+        "/flow-a/operational-alerts/report-orchestration-failure",
+        headers=auth_header(),
+        json={
+            "workflow_id": WORKFLOW_ID,
+            "reason_code": "not_allowlisted",
+        },
+    )
+    assert invalid_reason.status_code == 422
+
+    invalid_observed = client.post(
+        "/flow-a/operational-alerts/report-orchestration-failure",
+        headers=auth_header(),
+        json={
+            "workflow_id": WORKFLOW_ID,
+            "reason_code": ORCHESTRATION_REASON_N8N_WORKFLOW_FAILED,
+            "observed_at_utc": "2026-07-17T12:00:00+00:00",
+        },
+    )
+    assert invalid_observed.status_code == 422
+
+    payload = {
+        "workflow_id": WORKFLOW_ID,
+        "reason_code": ORCHESTRATION_REASON_N8N_WORKFLOW_FAILED,
+        "observed_at_utc": NOW,
+        "execution_id": "exec-http-1",
+        "node_name": "HTTP-Request",
+        "api_key": "NEVER-PERSIST-THIS",
+    }
+    # extra=forbid should reject secrets-shaped extra fields
+    forbidden_extra = client.post(
+        "/flow-a/operational-alerts/report-orchestration-failure",
+        headers=auth_header(),
+        json=payload,
+    )
+    assert forbidden_extra.status_code == 422
+
+    safe_payload = {
+        "workflow_id": WORKFLOW_ID,
+        "reason_code": ORCHESTRATION_REASON_N8N_WORKFLOW_FAILED,
+        "observed_at_utc": NOW,
+        "execution_id": "exec-http-1",
+        "node_name": "HTTP-Request",
+    }
+    first = client.post(
+        "/flow-a/operational-alerts/report-orchestration-failure",
+        headers=auth_header(),
+        json=safe_payload,
+    )
+    assert first.status_code == 200
+    first_body = first.json()
+    assert first_body["created"] is True
+    assert first_body["workflow_id"] == WORKFLOW_ID
+    assert "fingerprint" in first_body
+
+    second = client.post(
+        "/flow-a/operational-alerts/report-orchestration-failure",
+        headers=auth_header(),
+        json=safe_payload,
+    )
+    assert second.status_code == 200
+    assert second.json()["created"] is False
+    assert second.json()["fingerprint"] == first_body["fingerprint"]
+
+    store = json.loads(
+        (
+            alerts_base / LEDGER_RELATIVE_DIR / ORCHESTRATION_FAILURES_FILENAME
+        ).read_text(encoding="utf-8")
+    )
+    assert len(store["entries"]) == 1
+    assert not (alerts_base / LEDGER_RELATIVE_DIR / LEDGER_FILENAME).exists()
+    # Lifecycle campaign/run folders unchanged aside from orchestration-failures store
+    after = _snapshot_tree(alerts_base)
+    for relative, meta in campaign_before.items():
+        if relative.startswith("metadata/operational-alerts/"):
+            continue
+        assert after[relative] == meta
+    assert list(campaign_path.iterdir()) == []
+
+
+def test_us030_emit_fail_closed_and_idempotent_ledger(
+    degraded_alerts_base: Path, monkeypatch: pytest.MonkeyPatch
+):
+    report_orchestration_failure(
+        degraded_alerts_base,
+        workflow_id=WORKFLOW_ID,
+        reason_code=ORCHESTRATION_REASON_N8N_WORKFLOW_FAILED,
+        observed_at_utc=NOW,
+        execution_id="exec-emit-1",
+    )
+    monkeypatch.setenv(ENV_OPERATIONAL_ALERTS_ENABLED, "false")
+    mock_client = MagicMock()
+    disabled = evaluate_flow_a_operational_alerts(
+        degraded_alerts_base,
+        now_utc=NOW,
+        emit=True,
+        http_client=mock_client,
+    )
+    mock_client.post.assert_not_called()
+    assert disabled.emission.status == EMISSION_STATUS_DISABLED
+    us030_types = {
+        a.alert_type
+        for a in disabled.alerts
+        if a.alert_type in {ALERT_UNHEALTHY_WORKER, ALERT_FAILED_N8N_WORKFLOW}
+    }
+    assert us030_types == {ALERT_UNHEALTHY_WORKER, ALERT_FAILED_N8N_WORKFLOW}
+
+    monkeypatch.setenv(ENV_OPERATIONAL_ALERTS_ENABLED, "true")
+    monkeypatch.setenv(ENV_OPERATIONAL_ALERTS_WEBHOOK_URL, WEBHOOK_URL)
+    mock_client.post.return_value = httpx.Response(200, json={"ok": True})
+    first = evaluate_flow_a_operational_alerts(
+        degraded_alerts_base,
+        now_utc=NOW,
+        emit=True,
+        http_client=mock_client,
+    )
+    assert first.emission.status == EMISSION_STATUS_EMITTED
+    us030_fingerprints = {
+        a.fingerprint
+        for a in first.alerts
+        if a.alert_type in {ALERT_UNHEALTHY_WORKER, ALERT_FAILED_N8N_WORKFLOW}
+    }
+    assert us030_fingerprints
+    assert us030_fingerprints <= set(first.emission.emitted_fingerprints)
+    campaign_files = list((degraded_alerts_base / "metadata/campaigns").iterdir())
+    assert campaign_files == []
+
+    mock_client.reset_mock()
+    second = evaluate_flow_a_operational_alerts(
+        degraded_alerts_base,
+        now_utc=NOW,
+        emit=True,
+        http_client=mock_client,
+    )
+    mock_client.post.assert_not_called()
+    assert second.emission.status == EMISSION_STATUS_ALREADY_EMITTED
+    assert us030_fingerprints <= set(second.emission.already_emitted_fingerprints)
+
+
+def test_evaluate_does_not_http_loopback_to_health(alerts_base: Path):
+    with patch(
+        "silverman_blog_linkedin.main.validate_folders"
+    ) as health_route_validate:
+        # evaluate uses paths.validate_folders via alerts module, not main route
+        result = evaluate_flow_a_operational_alerts(alerts_base, now_utc=NOW)
+    health_route_validate.assert_not_called()
+    assert result.summary["counts"][ALERT_UNHEALTHY_WORKER] == 0
+    assert result.summary["counts"][ALERT_FAILED_N8N_WORKFLOW] == 0

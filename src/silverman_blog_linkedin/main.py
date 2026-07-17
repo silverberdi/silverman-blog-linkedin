@@ -6,16 +6,21 @@ import hashlib
 import html
 import logging
 import os
+import re
 from typing import Literal
 from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator, model_validator
 
 from silverman_blog_linkedin import SERVICE_NAME, __version__
 from silverman_blog_linkedin.auth import require_api_key
 from silverman_blog_linkedin.blog_publish_flow import publish_blog_post
+from silverman_blog_linkedin.campaign_lifecycle import (
+    CampaignLifecycleError,
+    validate_campaign_id,
+)
 from silverman_blog_linkedin.config import Settings, load_settings
 from silverman_blog_linkedin.deepseek_client import generate_linkedin_draft_content
 from silverman_blog_linkedin.deepseek_config import load_deepseek_settings
@@ -36,7 +41,9 @@ from silverman_blog_linkedin.flow_a_ready_path_completion import (
     complete_flow_a_ready_path,
 )
 from silverman_blog_linkedin.flow_a_operational_alerts import (
+    ORCHESTRATION_REASON_CODES,
     evaluate_flow_a_operational_alerts,
+    report_orchestration_failure,
 )
 from silverman_blog_linkedin.flow_a_operational_status import (
     get_flow_a_operational_status,
@@ -692,6 +699,72 @@ class EvaluateFlowAOperationalAlertsRequest(BaseModel):
         if value is None:
             return None
         return validate_canonical_utc_timestamp(value)
+
+
+_SAFE_ORCHESTRATION_TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
+
+
+class ReportOrchestrationFailureRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    workflow_id: str
+    reason_code: str
+    observed_at_utc: str | None = None
+    execution_id: str | None = None
+    node_name: str | None = None
+    campaign_id: str | None = None
+    run_id: str | None = None
+
+    @staticmethod
+    def _require_safe_token(value: str, field_name: str) -> str:
+        stripped = value.strip()
+        if not stripped or not _SAFE_ORCHESTRATION_TOKEN.fullmatch(stripped):
+            raise ValueError(f"{field_name} must be a non-empty safe opaque token")
+        return stripped
+
+    @field_validator("workflow_id")
+    @classmethod
+    def validate_workflow_id(cls, value: str) -> str:
+        return cls._require_safe_token(value, "workflow_id")
+
+    @field_validator("reason_code")
+    @classmethod
+    def validate_reason_code(cls, value: str) -> str:
+        stripped = value.strip()
+        if stripped not in ORCHESTRATION_REASON_CODES:
+            raise ValueError(
+                "reason_code must be one of: "
+                + ", ".join(sorted(ORCHESTRATION_REASON_CODES))
+            )
+        return stripped
+
+    @field_validator("observed_at_utc")
+    @classmethod
+    def validate_observed_at_utc(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return validate_canonical_utc_timestamp(value)
+
+    @field_validator("execution_id", "node_name", "run_id")
+    @classmethod
+    def validate_optional_tokens(
+        cls, value: str | None, info: ValidationInfo
+    ) -> str | None:
+        if value is None:
+            return None
+        return cls._require_safe_token(value, info.field_name)
+
+    @field_validator("campaign_id")
+    @classmethod
+    def validate_campaign_id_field(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        try:
+            validate_campaign_id(stripped)
+        except CampaignLifecycleError as exc:
+            raise ValueError(f"invalid campaign_id: {exc}") from exc
+        return stripped
 
 
 def _generate_linkedin_draft_editorial_fields(
@@ -1993,6 +2066,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             len(result.alerts),
             result.emission.status,
             len(result.data_issues),
+        )
+        return result.to_dict()
+
+    @app.post("/flow-a/operational-alerts/report-orchestration-failure")
+    def flow_a_operational_alerts_report_orchestration_failure(
+        body: ReportOrchestrationFailureRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = report_orchestration_failure(
+            settings.base_path,
+            workflow_id=body.workflow_id,
+            reason_code=body.reason_code,
+            observed_at_utc=body.observed_at_utc,
+            execution_id=body.execution_id,
+            node_name=body.node_name,
+            campaign_id=body.campaign_id,
+            run_id=body.run_id,
+        )
+        logger.info(
+            "flow-a/operational-alerts/report-orchestration-failure "
+            "fingerprint=%s workflow_id=%s reason_code=%s created=%s",
+            result.fingerprint,
+            result.workflow_id,
+            result.reason_code,
+            result.created,
         )
         return result.to_dict()
 

@@ -566,7 +566,7 @@ As a system operator, I want to alert on items moved to error, so that important
 - [x] Failures or blocked states are clearly communicated. — Demonstrated: evaluate responses label alert types and emission status (`not_requested` / `disabled` / `misconfigured` / emitted); evaluate-only leaves lifecycle bytes unchanged.
 - [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: derivation reuses operational-status evidence (no parallel folder scan); evaluate-only and emit paths do not mutate campaign/run/editorial lifecycle; US-030 types and BL-015 UI remain absent (US-029 types are specified separately).
 
-**Remaining acceptance gaps (explicit):** operator business acceptance; deploy and live operational validation; production webhook enablement under fail-closed flags; BL-011 remains open until US-029/US-030 are also satisfied and accepted. Code completion alone does not accept US-028 or close BL-011.
+**Remaining acceptance gaps (explicit):** operator business acceptance; deploy and live operational validation; production webhook enablement under fail-closed flags; BL-011 remains open until US-029/US-030 are also accepted (US-029 and US-030 are now implemented/demonstrated locally but not accepted). Code completion alone does not accept US-028 or close BL-011.
 
 ### US-029 — Add Operational Alerts: Story 2
 
@@ -588,9 +588,16 @@ production webhook enablement, and BL-011 closure remain pending. Evidence:
 - [x] Failures or blocked states are clearly communicated. — Demonstrated: severity differentiation (`warning` vs `error`); emission status remains explicit when emit is requested.
 - [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: reuses operational-status evidence and the US-028 evaluate/emit path; evaluate-only zero lifecycle mutation; US-028 types still produced; US-030 types and BL-015 UI absent.
 
-**Remaining acceptance gaps (explicit):** operator business acceptance; deploy and live operational validation; production webhook enablement under fail-closed flags; BL-011 remains open until US-030 is also satisfied and accepted. Code completion alone does not accept US-029 or close BL-011.
+**Remaining acceptance gaps (explicit):** operator business acceptance; deploy and live operational validation; production webhook enablement under fail-closed flags; BL-011 remains open until US-030 is also accepted (US-030 is now implemented/demonstrated locally but not accepted). Code completion alone does not accept US-029 or close BL-011.
 
 ### US-030 — Add Operational Alerts: Story 3
+
+**Status:** Implemented, locally tested, and demonstrated against controlled
+fixtures on 2026-07-17. Business acceptance, deployment, live webhook
+enablement, production n8n Error Trigger wiring, and BL-011 closure remain
+pending. US-028 and US-029 remain implemented/tested locally and are **not**
+re-accepted by this work. Evidence:
+[flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md).
 
 **Description**
 
@@ -598,10 +605,12 @@ As a system operator, I want to alert on unhealthy worker or failed n8n workflow
 
 **Acceptance criteria**
 
-- [ ] Alert on unhealthy worker or failed n8n workflow.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Alert on unhealthy worker or failed n8n workflow. — Demonstrated via controlled fixtures: degraded folder readiness produces `unhealthy_worker` from in-process `validate_folders`; authenticated report ingest produces `failed_n8n_workflow`; failed runs alone do not.
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: secret-safe alert objects include type, severity, fingerprint, `workflow_id` / optional `execution_id`, sorted reason codes, and short summaries; eight-type `summary.counts`.
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: evaluate responses label alert types and emission status; report returns structured acknowledgment; evaluate-only leaves lifecycle bytes unchanged.
+- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: reuses evaluate/emit/ledger; US-028 and US-029 types still produced; no BL-015 UI; no parallel alerts channel.
+
+**Remaining acceptance gaps (explicit):** operator business acceptance of US-030 (and still-pending acceptance of US-028/US-029); deploy and live operational validation; production webhook enablement under fail-closed flags; optional production n8n Error Trigger → report wiring (not required for implementation completeness). Code completion alone does not accept US-030 or close BL-011.
 
 ## BL-012 — Consolidate Recovery for Incomplete Campaigns
 
