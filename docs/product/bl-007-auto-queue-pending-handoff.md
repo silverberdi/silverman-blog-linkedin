@@ -1,7 +1,7 @@
 # BL-007 handoff — `auto_queue_pending` WIP absorption record
 
-**Status:** Construction WIP from 2026-07-11 absorbed and rewritten under approved change `implement-scheduled-linkedin-publication-execution-us-018`. US-018 implementation does not close BL-007 and does not accept US-019 or US-020.
-**Target backlog:** [BL-007 — Implement Scheduled LinkedIn Publication Execution](backlog.md#bl-007--implement-scheduled-linkedin-publication-execution) (US-018 implemented but not operationally validated; US-019 / US-020 deferred).
+**Status:** Historical absorption record. Construction WIP from 2026-07-11 was absorbed under US-018; US-019/US-020 completed afterward. **BL-007 closed 2026-07-17** — see [us-019/us-020 validation](../operations/us-019-us-020-linkedin-publication-validation-2026-07-17.md).
+**Target backlog:** [BL-007 — Implement Scheduled LinkedIn Publication Execution](backlog.md#bl-007--implement-scheduled-linkedin-publication-execution) (closed).
 **Origin:** Operator request during BL-003 planning (*“haz que los post pendientes se puedan enviar”*) after BL-002 published only `executive-recruiter` and left sibling variants `pending`. Explicitly excluded from BL-003 OpenSpec scope.
 
 ## Absorption outcome (2026-07-16)

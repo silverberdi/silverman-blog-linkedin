@@ -255,7 +255,7 @@ As a content operator, I want to complete campaign and calendar records, so that
 - [x] Failures or blocked states are clearly communicated.
 - [x] Existing completed work is not duplicated or unintentionally changed.
 
-**Validated:** 2026-07-15/16 — campaign + calendar completed for both posts; Schedule fire unattended (no mid-run intervention); post-Pages-lag resume between executions only (same US-002 pattern as Post A). Evidence: [bl-005 validation](../operations/bl-005-unattended-flow-a-validation-2026-07-15.md). BL-006/BL-007 remain open.
+**Validated:** 2026-07-15/16 — campaign + calendar completed for both posts; Schedule fire unattended (no mid-run intervention); post-Pages-lag resume between executions only (same US-002 pattern as Post A). Evidence: [bl-005 validation](../operations/bl-005-unattended-flow-a-validation-2026-07-15.md). BL-006 closed; BL-007 closed 2026-07-17.
 
 ## BL-006 — Define the LinkedIn Variant Review Process
 
@@ -341,11 +341,11 @@ As a content operator, I want to identify due variants, so that due variants are
 - [x] Failures or blocked states are clearly communicated.
 - [x] Existing completed work is not duplicated or unintentionally changed.
 
-**Validated:** 2026-07-16 — deploy `BUILD_REVISION=c7bce02` on `192.168.0.194`; dry-run smoke with zero campaign mutation; controlled real window published `engineering-leadership` of `flow-a-2026-07-06-why-i-did-not-start-with-the-database` once (URN `urn:li:share:7483618197204770818`), repeat run idempotent. Evidence: [us-018 validation](../operations/us-018-scheduled-linkedin-publication-validation-2026-07-16.md). BL-007 remains open (US-019/US-020 deferred).
+**Validated:** 2026-07-16 — deploy `BUILD_REVISION=c7bce02` on `192.168.0.194`; dry-run smoke with zero campaign mutation; controlled real window published `engineering-leadership` of `flow-a-2026-07-06-why-i-did-not-start-with-the-database` once (URN `urn:li:share:7483618197204770818`), repeat run idempotent. Evidence: [us-018 validation](../operations/us-018-scheduled-linkedin-publication-validation-2026-07-16.md).
 
 ### US-019 — Implement Scheduled LinkedIn Publication Execution: Story 2
 
-**Status:** In progress (implementation demonstrated in tests/docs; **not complete** — closure deferred to a separate authorized validation step). BL-007 remains open. US-020 untouched/incomplete.
+**Status:** Accepted (operationally validated 2026-07-17).
 
 **Description**
 
@@ -353,18 +353,18 @@ As a content operator, I want to store the external publication identifier, so t
 
 **Acceptance criteria**
 
-- [x] Store the external publication identifier. — Demonstrated: `test_us019_complete_evidence_after_real_publish_success`, `test_us019_response_carries_evidence_for_published_and_already_published`, `test_us019_auto_queue_results_carry_evidence_including_cross_campaign_scan`; operator contract in [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md#publication-evidence-and-failure-taxonomy-us-019).
+- [x] Store the external publication identifier. — Unit/integration: `test_us019_complete_evidence_after_real_publish_success`, `test_us019_response_carries_evidence_for_published_and_already_published`, `test_us019_auto_queue_results_carry_evidence_including_cross_campaign_scan`; operator contract in [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md#publication-evidence-and-failure-taxonomy-us-019). Operational: real publish wrote URN `urn:li:share:7483704861348519936` with `linkedin_publication.http_status=201`.
 - [x] Record failures clearly. — Demonstrated: `test_us019_failure_context_shape_api_and_transport_errors`, `test_us019_content_rejection_uses_dedicated_stable_code`, `test_us019_success_without_post_identifier_treated_as_failure`.
-- [x] Avoid retries that could create duplicates. — Demonstrated: `test_us019_idempotency_preserves_evidence_across_rerun_modes`, `test_us019_no_automatic_retry_after_failed_real_attempt` (BL-008 retry policy still out of scope).
-- [x] The outcome is visible and understandable to the intended user. — Demonstrated: publish-phase `results[]` and `auto_queue_results[]` carry `linkedin_post_urn` / `published_at` (or `null`); docs section above.
-- [x] Failures or blocked states are clearly communicated. — Demonstrated: `test_us019_blocked_conditions_leave_publish_state_unchanged`, `test_us019_oauth_action_required_leaves_publish_state_unchanged`, failure-context tests.
-- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: existing US-018 auto-queue tests still pass unmodified; additive fields only; no US-017/US-018 contract reshape.
+- [x] Avoid retries that could create duplicates. — Unit: `test_us019_idempotency_preserves_evidence_across_rerun_modes`, `test_us019_no_automatic_retry_after_failed_real_attempt`. Operational: replay warned `linkedin_publish_already_published` with identical URN/`published_at`.
+- [x] The outcome is visible and understandable to the intended user. — Response `results[]` / `auto_queue_results[]` carry `linkedin_post_urn` / `published_at`; dry-run published skips surfaced preserved evidence.
+- [x] Failures or blocked states are clearly communicated. — Unit failure/blocked tests; operational cadence/sequence blocks left `publish_state` non-`published` with null URN.
+- [x] Existing completed work is not duplicated or unintentionally changed. — Existing US-018 auto-queue path preserved; enablement baseline unchanged.
 
-**Not done:** operational deploy / live validation; story acceptance/closure; BL-007 closure.
+**Validated:** 2026-07-17 — deploy `BUILD_REVISION=3c4d9f5` on `192.168.0.194`; controlled real publish of `executive-recruiter` on `flow-a-2026-07-10-deferring-is-not-avoiding-it-can-be-architecture` with complete success evidence; replay idempotent. Evidence: [us-019/us-020 validation](../operations/us-019-us-020-linkedin-publication-validation-2026-07-17.md).
 
 ### US-020 — Implement Scheduled LinkedIn Publication Execution: Story 3
 
-**Status:** In progress (implementation demonstrated in tests/docs; **not complete** — closure deferred to a separate authorized validation step). BL-007 remains open. US-019 remains in progress.
+**Status:** Accepted (operationally validated 2026-07-17). **BL-007 closed.**
 
 **Description**
 
@@ -372,12 +372,12 @@ As a content operator, I want to respect audience cadence and sequence, so that 
 
 **Acceptance criteria**
 
-- [x] Respect audience cadence and sequence. — Demonstrated: publish-time guard in every invocation mode (`test_us020_sequence_blocks_later_queued_variant_while_earlier_queued`, `test_us020_plain_publish_due_enforces_sequence_guard`, `test_us020_publish_now_bypasses_neither_sequence_nor_cadence`, `test_us020_cadence_blocks_publication_under_72_hours`, `test_us020_cadence_allows_publication_at_or_after_72_hours`, `test_us020_within_run_cadence_blocks_second_same_campaign_publish`, `test_us020_manually_queued_out_of_order_variant_blocked_at_publish_time`, `test_us020_auto_queue_sequence_pre_filter_skips_later_pending`); operator contract in [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md#publish-time-sequence-and-cadence-guard-us-020).
-- [x] The outcome is visible and understandable to the intended user. — Demonstrated: distinct stable reasons `linkedin_publish_blocked_sequence` / `linkedin_publish_blocked_cadence` / `linkedin_publish_blocked_evidence_invalid` / `linkedin_publish_auto_queue_skipped_sequence` per variant (`test_us020_dry_run_reports_guard_blocks_without_mutation_or_calls`, `test_us020_deferred_earlier_variant_blocks_followers_without_mutation`); blocking vs releasing table and repair path in the docs section above.
-- [x] Failures or blocked states are clearly communicated. — Demonstrated: `failed`/`cancelled` release the chain without retry and with evidence intact (`test_us020_failed_and_cancelled_release_sequence_without_retry`), evidence fail-closed with dedicated visible reason and no overall-operation failure (`test_us020_missing_published_at_fails_closed_and_visibly`), per-campaign independence in the scan (`test_us020_cross_campaign_scan_evaluates_campaigns_independently`).
-- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: all existing US-018/US-019 tests pass unmodified with no weakened assertions; skip-reason precedence preserved (`test_us020_not_due_precedence_over_sequence_at_auto_queue`); additive delta only — no endpoint, flag, field, or `publish_state` changes.
+- [x] Respect audience cadence and sequence. — Unit suite (`test_us020_*`); operator contract in [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md#publish-time-sequence-and-cadence-guard-us-020). Operational: dry-run + real `linkedin_publish_blocked_cadence`; real `linkedin_publish_auto_queue_skipped_sequence`; post-publish cadence after sequence release.
+- [x] The outcome is visible and understandable to the intended user. — Distinct stable reasons in dry-run and real responses; blocking vs releasing table in docs.
+- [x] Failures or blocked states are clearly communicated. — Unit: failed/cancelled release, evidence fail-closed, cross-campaign independence. Operational: cadence/sequence blocks without LinkedIn calls and without falsely marking `published`.
+- [x] Existing completed work is not duplicated or unintentionally changed. — US-018/US-019 paths preserved; dry-run zero campaign mutation (`dbb07a527033e277…`).
 
-**Not done:** operational deploy / live validation; story acceptance/closure; BL-007 closure.
+**Validated:** 2026-07-17 — same deploy/window as US-019. Evidence: [us-019/us-020 validation](../operations/us-019-us-020-linkedin-publication-validation-2026-07-17.md).
 
 ## BL-008 — Define LinkedIn Retry and Recovery Rules
 

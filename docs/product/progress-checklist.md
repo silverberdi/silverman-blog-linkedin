@@ -172,9 +172,9 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated
   - [x] Backlog item closed
 
-- [ ] **BL-007 — Implement Scheduled LinkedIn Publication Execution**
+- [x] **BL-007 — Implement Scheduled LinkedIn Publication Execution**
   - Business outcome: Due variants are published once, in order, with complete publication evidence.
-  - Handoff: [bl-007-auto-queue-pending-handoff.md](bl-007-auto-queue-pending-handoff.md) (`auto_queue_pending` WIP deferred from 2026-07-11).
+  - Handoff: [bl-007-auto-queue-pending-handoff.md](bl-007-auto-queue-pending-handoff.md) (historical absorption record).
   - [x] **US-018**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
@@ -183,23 +183,25 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Acceptance criteria validated
     - [x] Story accepted
     - Evidence: [us-018 validation](../operations/us-018-scheduled-linkedin-publication-validation-2026-07-16.md)
-  - [ ] **US-019** — **in progress / not complete** (BL-007 remains open)
+  - [x] **US-019**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated (unit/integration evidence only — see user-stories US-019 mapping)
-    - [ ] Acceptance criteria validated (operational / authorized closure deferred)
-    - [ ] Story accepted
-  - [ ] **US-020** — **in progress / not complete** (implemented, not deployed, not operationally validated; BL-007 remains open)
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted
+    - Evidence: [us-019/us-020 validation](../operations/us-019-us-020-linkedin-publication-validation-2026-07-17.md)
+  - [x] **US-020**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated (unit/integration evidence only — see user-stories US-020 mapping; business validation deferred to the separate authorized validation step)
-    - [ ] Acceptance criteria validated (operational / authorized closure deferred)
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted
+    - Evidence: [us-019/us-020 validation](../operations/us-019-us-020-linkedin-publication-validation-2026-07-17.md)
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated
+  - [x] Backlog item closed
 
 - [ ] **BL-008 — Define LinkedIn Retry and Recovery Rules**
   - Business outcome: LinkedIn failures can be recovered without losing traceability or duplicating content.

@@ -6,14 +6,14 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 ## Snapshot
 
-**`verified_at_utc`:** `2026-07-16T20:19:00Z`
-**Evidence source:** US-018 deploy — rsync + rebuild on Ubuntu `192.168.0.194`; container env `BUILD_REVISION`; OpenAPI `/publish-linkedin-due-variants` present
+**`verified_at_utc`:** `2026-07-17T02:11:28Z`
+**Evidence source:** US-019/US-020 deploy + controlled validation — rsync + rebuild on Ubuntu `192.168.0.194`; container env `BUILD_REVISION`; dry-run zero mutation; cadence/sequence blocks; one real LinkedIn publish with complete evidence
 
 | Fact | Value | Evidence |
 |------|-------|----------|
 | Worker URL | `http://192.168.0.194:8010` | Deploy + health check |
-| `BUILD_REVISION` | `c7bce027cc7dc2f9a685b117ecf90b31ad3db074` (HEAD after US-018 impl/sync/archive; includes impl `1b4a8fb`) | Container env after rebuild 2026-07-16; `.build_git_sha` on target |
-| Editorial mount | `/data/silverman-blog-linkedin` | `deploy-worker.sh` compose |
+| `BUILD_REVISION` | `3c4d9f58c0e3a490e0f7b26ed97399aaf877eec6` (HEAD after US-020 archive) | Container env after pin rebuild 2026-07-17; `.build_git_sha` on target |
+| Editorial mount | `/data/silverman-blog-linkedin` → host `/home/silverman/compartido_mac/silverman-blog-linkedin` | Deploy compose |
 | Public blog mount | `/public-blog` → host `/home/silverman/silverberdi.github.io` | Deploy verification |
 | n8n Flow A workflow | **Active** (`silvermanFlowAPublish01`, **35** nodes, Schedule `0 9 * * *` UTC, single-flight, includes `/complete-flow-a-ready-path`); repo export `active: false` | Post-resume export check |
 | Set Configuration opt-ins (server) | `git_publication=true`, `live_site_confirmation=true`, `update_calendar=true` | Post-activate export check |
@@ -24,7 +24,7 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 | Git publication US-001 | Validated with real push | [phase3-us001 report](operations/phase3-us001-git-publication-validation-2026-07-11.md); BL-005 commits `6daac7a` / `9a0158b` |
 | Live-site confirmation US-002 | Validated with HTTP 200 + slug marker | [phase3-us002 report](operations/phase3-us002-live-site-confirmation-validation-2026-07-11.md); BL-005 both posts confirmed |
 | BL-001 smoke artifacts | Removed from public site and editorial mount | Cleanup commits on `silverberdi.github.io` |
-| `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` | `true` (US-011 window: baseline `true` → temporary `false` → restored `true`) | [us-011 validation](operations/us-011-linkedin-publication-guard-validation-2026-07-15.md) |
+| `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` | `true` (baseline unchanged during US-019/US-020 validation) | [us-019/us-020 validation](operations/us-019-us-020-linkedin-publication-validation-2026-07-17.md) |
 | LinkedIn OAuth token store | Configured; `token_present` during validation | Directory mount `secrets/linkedin-oauth/` |
 | LinkedIn API real publish US-003 | Validated — one variant `published` with URN | [phase3-us003 report](operations/phase3-us003-linkedin-publication-validation-2026-07-11.md) |
 | ComfyUI image generation | Enabled during Flow A validation smoke | Operator confirmation; exact env names only |
@@ -32,6 +32,7 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 | LinkedIn publication guard (US-011) | Validated — fail-closed when disabled; Flow A has no LinkedIn API path; baseline restored `true` | [us-011 validation](operations/us-011-linkedin-publication-guard-validation-2026-07-15.md) |
 | Fully unattended Flow A (BL-005) | **Closed** — Manual Post A + Schedule Post B both `flow_a_complete`; no LinkedIn API publish | [bl-005 ops](operations/bl-005-unattended-flow-a-validation-2026-07-15.md) |
 | Calendar LinkedIn summaries (BL-003) | Validated — calendar items include BL-005 completed rows with `flow_a_completion` | Reconcile + BL-005 upserts |
+| Scheduled LinkedIn publication (BL-007 / US-018–US-020) | **Closed** — US-018 + US-019 evidence + US-020 sequence/cadence validated on `BUILD_REVISION=3c4d9f5`; n8n publish-pending export stays `active: false` | [us-018](operations/us-018-scheduled-linkedin-publication-validation-2026-07-16.md); [us-019/us-020](operations/us-019-us-020-linkedin-publication-validation-2026-07-17.md) |
 
 ## Unverified / unknown
 
@@ -44,5 +45,6 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 - Repo export stays `active: false`; server may be `active: true`.
 - Ready-path Set Configuration git/live defaults remain `false` in git; server prepared import patched to `true` for BL-005.
-- US-018 (`auto_queue_pending`) deployed at `c7bce02`; dry-run smoke + controlled real window validated 2026-07-16 (one variant published, URN recorded, repeat idempotent). Remaining `pending` variants untouched; publish-pending n8n export stays `active: false`.
+- US-018 (`auto_queue_pending`) previously deployed at `c7bce02`; superseded by `3c4d9f5` for US-019/US-020.
+- After US-019/US-020 validation: `technical-architect` on the 2026-07-06 campaign and `engineering-leadership` on the deferring campaign remain `queued` (cadence-blocked, no URN) until ≥72h after their campaign’s last `published_at`.
 - Pages live-confirmation can 404 briefly after push; resume after HTTP 200 (documented in BL-005).

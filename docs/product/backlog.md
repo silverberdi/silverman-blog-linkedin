@@ -133,7 +133,7 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Due variants are published once, in order, with complete publication evidence.
 
-**Implementation status:** US-018 operationally validated 2026-07-16. US-019 publication-evidence formalization is **implemented, not deployed**, and remains **in progress / not complete**. US-020 deferred. BL-007 remains open — see [bl-007-auto-queue-pending-handoff.md](bl-007-auto-queue-pending-handoff.md).
+**Status:** Closed 2026-07-17 after US-018, US-019, and US-020 operational validation on `192.168.0.194` (`BUILD_REVISION=3c4d9f5`). Evidence: [us-018 validation](../operations/us-018-scheduled-linkedin-publication-validation-2026-07-16.md), [us-019/us-020 validation](../operations/us-019-us-020-linkedin-publication-validation-2026-07-17.md). Not unattended: n8n publish-pending export remains `active: false`. Handoff record: [bl-007-auto-queue-pending-handoff.md](bl-007-auto-queue-pending-handoff.md).
 
 ### BL-008 — Define LinkedIn Retry and Recovery Rules
 
