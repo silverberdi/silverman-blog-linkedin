@@ -17,7 +17,10 @@ Boundaries:
 
 ## Prerequisites
 
-All three must hold before rendering is assessed. If any is missing, the outcome is `confirmation_blocked` (see the blocked-state table below) — do not proceed to LinkedIn observation.
+LinkedIn observation (Post Inspector or post-publish) proceeds only when all three hold. Classification when a prerequisite is absent is **not** always `confirmation_blocked`:
+
+- US-023 run is `failed` → record `preview_inputs_incorrect` (inputs wrong; no LinkedIn observation; remediate per US-023 codes).
+- US-023 not run, US-023 result not operationally trusted, site not live, or Post Inspector unavailable → record `confirmation_blocked` with the named condition (see the blocked-state table).
 
 1. **Passing US-023 run for the campaign** — a `passed` result from `POST /validate-linkedin-article-preview` for this campaign, operationally trusted (US-023 deployed and operationally validated on `192.168.0.194`; that validation is still pending at the time this procedure was defined). Reference the run by its `linkedin_article_preview_validation.validated_at_utc` (real run) or the response snapshot (dry-run).
 2. **Live-site confirmation** — the blog post is reachable at the campaign's recorded `public_url` (US-002 probe evidence or equivalent). GitHub Pages deploy lag means a fresh push may not be live yet.
@@ -51,9 +54,9 @@ Every confirmation attempt is assigned exactly one outcome class from the US-023
 |---|---|---|---|
 | `passed` | Card matches recorded `article_preview` (title, description, image) | `preview_confirmed` | Record evidence; done |
 | `passed` | Card shows outdated or wrong values | `preview_stale_cache` | Safe re-scrape (below), re-inspect, re-classify. Note: already-published posts keep the old card |
-| `failed` | Any | `preview_inputs_incorrect` | Fix inputs per the reported `linkedin_preview_validation_*` codes (US-023 remediation); no cache remediation; repeat confirmation only after inputs pass. Remediation policy beyond existing US-023 guidance is US-025 |
+| `failed` | Any | `preview_inputs_incorrect` | Fix inputs per the reported `linkedin_preview_validation_*` codes (US-023 remediation); no cache remediation; no LinkedIn observation; repeat confirmation only after inputs pass. Remediation policy beyond existing US-023 guidance is US-025 |
 | `passed` | No article card rendered at all on the API-created text post | `preview_not_rendered_post_format` | Record honestly as a v1 text-only post-format finding — an observation, not a failure of inputs or of this procedure. Remediation (e.g. `content.article` posts) is out of scope (US-025 / future change) |
-| not run / failed and untrusted / site not live / Post Inspector unavailable | — | `confirmation_blocked` | Record the named blocking condition and its next action (blocked-state table below); never guess a confirmation |
+| not run / not trusted / site not live / Post Inspector unavailable | — | `confirmation_blocked` | Record the named blocking condition and its next action (blocked-state table below); never guess a confirmation |
 
 ## Safe re-scrape procedure (stale-cache class)
 
@@ -77,11 +80,12 @@ Blocked confirmations are recorded with the `confirmation_blocked` label plus th
 | Blocking condition | Next action |
 |---|---|
 | US-023 input verification not run for the campaign | Run `POST /validate-linkedin-article-preview` (dry-run first); proceed only on `passed` |
-| US-023 run `failed` | Outcome is `preview_inputs_incorrect`, not blocked — remediate per the reported codes, then re-verify |
 | US-023 result not operationally trusted (endpoint not deployed / not operationally validated) | Complete the US-023 deploy + operational validation step (approval-gated) before relying on its verdict |
 | Site not live — `public_url` not reachable | Wait for live-site confirmation (US-002 probe pattern; GitHub Pages deploy lag applies), then retry |
 | LinkedIn Post Inspector unavailable or inaccessible | Retry later; record `confirmation_blocked` with retry guidance — never guess a confirmation |
 | No `published` variant with `linkedin_post_urn` when post-publish observation is required | Pre-publish confirmation only; post-publish observation waits until a variant is published through the existing guarded publication path |
+
+A US-023 run with overall status `failed` is **not** a blocked confirmation: record `preview_inputs_incorrect`, remediate per the reported `linkedin_preview_validation_*` codes, and re-verify before any LinkedIn observation.
 
 ## Evidence record template
 

@@ -44,8 +44,13 @@ The procedure MUST state explicitly that a Post Inspector re-scrape affects the 
 
 #### Scenario: Rendering is not assessed before inputs pass
 
-- **WHEN** the campaign has no passing US-023 verification run, or the live site is not yet confirmed reachable
-- **THEN** the procedure reports the confirmation as blocked with the named prerequisite instead of proceeding to LinkedIn observation
+- **WHEN** US-023 input verification has not been run or is not operationally trusted for the campaign, or the live site is not yet confirmed reachable
+- **THEN** the procedure reports the confirmation as `confirmation_blocked` with the named prerequisite instead of proceeding to LinkedIn observation
+
+#### Scenario: Failed US-023 inputs are not blocked
+
+- **WHEN** the US-023 run for the campaign is `failed`
+- **THEN** the outcome class is `preview_inputs_incorrect` (not `confirmation_blocked`), LinkedIn observation is not performed, and remediation follows the reported US-023 stable codes
 
 ### Requirement: Cache vs input decision matrix
 
@@ -116,7 +121,7 @@ Evidence records MUST NOT contain LinkedIn session cookies, credentials, secrets
 
 ### Requirement: Blocked states and operator communication
 
-The documented procedure SHALL enumerate blocked conditions with the named next action for each, including at minimum: US-023 input verification not run, failed, or not operationally trusted for the campaign; live site not confirmed reachable at `public_url`; LinkedIn Post Inspector unavailable or inaccessible; and no published variant when post-publish observation is required.
+The documented procedure SHALL enumerate blocked conditions with the named next action for each, including at minimum: US-023 input verification not run or not operationally trusted for the campaign; live site not confirmed reachable at `public_url`; LinkedIn Post Inspector unavailable or inaccessible; and no published variant when post-publish observation is required. A US-023 run with overall status `failed` MUST be classified as inputs incorrect (`preview_inputs_incorrect`), not as blocked.
 
 Blocked confirmations MUST be recorded with the `confirmation_blocked` label and the specific blocking condition, and MUST NOT be recorded as failures of the preview inputs or of LinkedIn rendering.
 
