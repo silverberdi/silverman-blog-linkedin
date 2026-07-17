@@ -435,7 +435,7 @@ As a content operator, I want to set retry limits, so that linkedin failures can
 
 ### US-023 — Validate LinkedIn Article Preview Rendering: Story 1
 
-**Status:** Implemented + unit-tested (2026-07-17) — not deployed, not operationally validated; story **not accepted**; BL-009 remains open. Acceptance requires operator-demonstrated validation against a real campaign and the live site on `192.168.0.194`.
+**Status:** Operationally validated (2026-07-17) on `192.168.0.194` (`BUILD_REVISION=d15d85b`) — story acceptance pending operator confirmation; BL-009 remains open (US-024/US-025 pending).
 
 **Description**
 
@@ -443,15 +443,15 @@ As a content operator, I want to verify title and description, so that published
 
 **Operator procedure:** [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md#article-preview-input-verification-us-023)
 
-**Acceptance criteria** (mapped at implemented + unit-test scope only; none operationally demonstrated)
+**Acceptance criteria**
 
-- [ ] Verify title and description. — Mechanism: `POST /validate-linkedin-article-preview` checks `package_metadata` presence, `checkout_consistency` against public-checkout `_posts/` front matter (when `SILVERMAN_GITHUB_PAGES_REPO_PATH` configured), and live `og:title`/`og:description` at `public_url` (whitespace-normalized exact compare). Unit evidence: `test_full_pass_all_checks`, `test_checkout_title_and_description_mismatch`, `test_og_per_field_mismatch_codes`, `test_og_whitespace_normalization_passes` in `tests/test_linkedin_preview_validation.py`.
-- [ ] Verify image availability. — Mechanism: `public_image_availability` check (HTTPS 2xx + `image/*` content type on `public_image_url`, no image bytes retained) plus `og:image` consistency in `live_og_metadata`. Unit evidence: `test_public_image_unreachable`, `test_public_image_not_image_content_type`.
-- [ ] The outcome is visible and understandable to the intended user. — Mechanism: structured JSON response with overall `status` (`passed`/`failed`/`blocked`), per-check `checks{}`, flat `codes[]`, and an additive `linkedin_article_preview_validation` evidence block persisted on real runs only (dry-run default `true`, byte-identical campaign document). Unit evidence: `test_endpoint_dry_run_defaults_true_and_returns_structured_response`, `test_dry_run_leaves_campaign_document_byte_identical`, `test_real_run_persists_evidence_and_changes_no_other_field`.
-- [ ] Failures or blocked states are clearly communicated. — Mechanism: stable `linkedin_preview_validation_*` codes distinguishing missing metadata, checkout mismatch, unreachable public URL/image (distinct from mismatch), OG tag missing/mismatch, and blocked prerequisites (campaign/package absent, zero outbound HTTP). Unit evidence: `test_unreachable_public_url_is_not_reported_as_mismatch`, `test_blocked_campaign_not_found_makes_no_http_calls`, `test_blocked_package_not_generated_makes_no_http_calls`, `test_multi_failure_single_pass_reports_all_codes`.
-- [ ] Existing completed work is not duplicated or unintentionally changed. — Mechanism: additive-only capability (new module + one route); no LinkedIn API calls or OAuth token reads (US-024 boundary); package generation, publication, variant states, scheduling, and US-022 behavior untouched; full pytest green (1058 passed). Unit evidence: existing suites unmodified.
+- [x] Verify title and description. — Unit: `test_full_pass_all_checks`, `test_checkout_title_and_description_mismatch`, `test_og_per_field_mismatch_codes`, `test_og_whitespace_normalization_passes` (`tests/test_linkedin_preview_validation.py`). Operational: real `og_description_mismatch` detected on both 2026-07-15 campaigns, remediated (blog template commit `e4d10de`), re-verified passing against the live site.
+- [x] Verify image availability. — Unit: `test_public_image_unreachable`, `test_public_image_not_image_content_type`. Operational: missing `og:image` detected on live pages (`og_tags_missing`), remediated, passing after remediation; `public_image_availability` HTTPS 2xx `image/*` confirmed.
+- [x] The outcome is visible and understandable to the intended user. — Unit: `test_endpoint_dry_run_defaults_true_and_returns_structured_response`, `test_dry_run_leaves_campaign_document_byte_identical`, `test_real_run_persists_evidence_and_changes_no_other_field`. Operational: structured `status`/`checks{}`/`codes[]` responses; real runs persisted `linkedin_article_preview_validation` evidence (`validated_at` 2026-07-17T18:11Z).
+- [x] Failures or blocked states are clearly communicated. — Unit: `test_unreachable_public_url_is_not_reported_as_mismatch`, `test_blocked_campaign_not_found_makes_no_http_calls`, `test_blocked_package_not_generated_makes_no_http_calls`, `test_multi_failure_single_pass_reports_all_codes`. Operational: stable codes `linkedin_preview_validation_og_tags_missing` + `linkedin_preview_validation_og_description_mismatch` reported on a real failure.
+- [x] Existing completed work is not duplicated or unintentionally changed. — Unit: existing suites unmodified (full pytest 1058 passed at implementation). Operational: dry-run campaign documents byte-identical (sha256); real runs changed only the evidence block; zero LinkedIn API calls.
 
-**Implemented:** 2026-07-17 — worker code + unit suite (`tests/test_linkedin_preview_validation.py`); implemented and unit-tested does not mean deployed, operationally validated, or accepted. Criteria checkboxes remain unchecked until the business outcome is demonstrated on the live site (US-024 rendering confirmation is a separate story).
+**Validated:** 2026-07-17 — deploy `BUILD_REVISION=d15d85b` on `192.168.0.194`; real failure detection → live-site remediation (`silverberdi.github.io` commit `e4d10de`: `og:image`, description source, canonical site url) → passing dry-run and real runs with persisted evidence on `flow-a-2026-07-15-keep-contracts-boring` and `flow-a-2026-07-15-search-is-not-one-model`. Evidence: [us-023 validation](../operations/us-023-linkedin-preview-input-validation-2026-07-17.md). Validated ≠ US-024 rendering confirmation: passing means the inputs LinkedIn scrapes are correct.
 
 ### US-024 — Validate LinkedIn Article Preview Rendering: Story 2
 

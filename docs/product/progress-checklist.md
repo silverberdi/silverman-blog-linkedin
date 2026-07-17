@@ -230,9 +230,9 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] **US-023**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [x] Work started — implemented + unit-tested 2026-07-17 (`POST /validate-linkedin-article-preview`); not deployed, not operationally validated
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+    - [x] Work started — implemented + unit-tested 2026-07-17 (`POST /validate-linkedin-article-preview`)
+    - [x] Business outcome demonstrated — operationally validated 2026-07-17 on `192.168.0.194` (`BUILD_REVISION=d15d85b`): real failure detected, live-site inputs remediated, passing re-verification with persisted evidence
+    - [x] Acceptance criteria validated — against unit suites and operational evidence ([us-023 validation](../operations/us-023-linkedin-preview-input-validation-2026-07-17.md))
     - [ ] Story accepted
     - Operator procedure: [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md#article-preview-input-verification-us-023)
   - [ ] **US-024**
