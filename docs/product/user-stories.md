@@ -408,7 +408,7 @@ As a content operator, I want to classify recoverable and non-recoverable errors
 
 ### US-022 — Define LinkedIn Retry and Recovery Rules: Story 2
 
-**Status:** Implemented + unit-tested (2026-07-16) — not deployed, not operationally validated; story **not accepted**; BL-008 remains open pending post-implementation review.
+**Status:** Operationally validated (2026-07-17) on `192.168.0.194` (`BUILD_REVISION=d15d85b`) — primary recovery chain demonstrated end-to-end on a real variant (controlled transport failure → `uncertain` classification → guardrail rejections → attested re-queue → successful retry with append-only evidence → idempotent replay); correction/cancellation/exhaustion paths remain at unit-test scope. Story acceptance pending operator confirmation. Evidence: [us-021/us-022 validation](../operations/us-021-us-022-linkedin-retry-recovery-validation-2026-07-17.md).
 
 **Description**
 

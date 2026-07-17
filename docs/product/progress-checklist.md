@@ -217,8 +217,8 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — at implemented + unit-test scope (2026-07-16); not deployed, not operationally validated
-    - [x] Acceptance criteria validated — against unit suites and operator docs (see [user-stories.md](user-stories.md) US-022 mapping); operational validation pending
+    - [x] Business outcome demonstrated — operationally validated 2026-07-17: controlled real transport failure recovered end-to-end (uncertain classification, guardrails, attested re-queue, successful retry, evidence preserved, no duplicate); correction/cancel/exhaustion at unit-test scope
+    - [x] Acceptance criteria validated — against unit suites and operational evidence ([us-021/us-022 validation](../operations/us-021-us-022-linkedin-retry-recovery-validation-2026-07-17.md))
     - [ ] Story accepted
     - Policy: [linkedin-retry-recovery-classification.md](../operations/linkedin-retry-recovery-classification.md)
   - [ ] All user stories completed
