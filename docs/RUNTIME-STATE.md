@@ -45,6 +45,7 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 - Repo export stays `active: false`; server may be `active: true`.
 - Ready-path Set Configuration git/live defaults remain `false` in git; server prepared import patched to `true` for BL-005.
-- US-018 (`auto_queue_pending`) previously deployed at `c7bce02`; superseded by `3c4d9f5` for US-019/US-020.
+- US-018 (`auto_queue_pending`) previously deployed at `c7bce02`; superseded by `3c4d9f5` for US-019/US-020; superseded by `d15d85b` for accumulated US-022/US-023 (+ US-025 archive HEAD). Docs-only RUNTIME-STATE follow-up is `b3eba03` and does not require redeploy.
 - After US-019/US-020 validation: `technical-architect` on the 2026-07-06 campaign and `engineering-leadership` on the deferring campaign remain `queued` (cadence-blocked, no URN) until ≥72h after their campaign’s last `published_at`.
 - Pages live-confirmation can 404 briefly after push; resume after HTTP 200 (documented in BL-005).
+- Deployed ≠ operationally validated: US-022 and US-023 still need controlled demonstration before story acceptance; US-024/US-025 remain procedure/policy-defined pending demonstration.
