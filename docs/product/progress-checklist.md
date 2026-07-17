@@ -225,35 +225,35 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed
 
-- [ ] **BL-009 — Validate LinkedIn Article Preview Rendering**
+- [x] **BL-009 — Validate LinkedIn Article Preview Rendering**
   - Business outcome: Published LinkedIn posts display the intended article preview.
-  - [ ] **US-023**
+  - [x] **US-023**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started — implemented + unit-tested 2026-07-17 (`POST /validate-linkedin-article-preview`)
     - [x] Business outcome demonstrated — operationally validated 2026-07-17 on `192.168.0.194` (`BUILD_REVISION=d15d85b`): real failure detected, live-site inputs remediated, passing re-verification with persisted evidence
     - [x] Acceptance criteria validated — against unit suites and operational evidence ([us-023 validation](../operations/us-023-linkedin-preview-input-validation-2026-07-17.md))
-    - [ ] Story accepted
+    - [x] Story accepted — operator-accepted 2026-07-17
     - Operator procedure: [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md#article-preview-input-verification-us-023)
-  - [ ] **US-024**
+  - [x] **US-024**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started — procedure defined 2026-07-17 (docs + canonical procedure-spec, no worker code)
     - [x] Business outcome demonstrated — 2026-07-17 post-publish observation of real post `urn:li:share:7483953784612786177` (`keep-contracts-boring`), outcome `preview_not_rendered_post_format`; Post Inspector outage honestly recorded as `confirmation_blocked`
     - [x] Acceptance criteria validated — against completed evidence records ([blocked](../operations/us-024-preview-confirmation-blocked-2026-07-17.md), [post-publish](../operations/us-024-preview-confirmation-keep-contracts-boring-2026-07-17.md))
-    - [ ] Story accepted
+    - [x] Story accepted — operator-accepted 2026-07-17
     - Operator procedure: [linkedin-preview-rendering-confirmation.md](../operations/linkedin-preview-rendering-confirmation.md)
-  - [ ] **US-025**
+  - [x] **US-025**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started — fallback policy defined 2026-07-17 (docs + canonical procedure-spec, no worker code)
     - [x] Business outcome demonstrated — 2026-07-17 fallback decision on the recorded `preview_not_rendered_post_format` trigger: accept-and-record (`fallback_accept_rendering`) with zero endpoint calls, zero metadata change, zero retry-budget consumption; escalation recorded as `fallback_format_change_deferred`
     - [x] Acceptance criteria validated — against the completed evidence record ([us-025 fallback decision](../operations/us-025-preview-fallback-decision-keep-contracts-boring-2026-07-17.md))
-    - [ ] Story accepted
+    - [x] Story accepted — operator-accepted 2026-07-17
     - Operator policy: [linkedin-preview-fallback-policy.md](../operations/linkedin-preview-fallback-policy.md)
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — published posts carry correct scraped inputs; rendering behavior observed and reacted to per policy (v1 text post renders no card — accepted; `content.article` deferred)
+  - [x] Backlog item closed — 2026-07-17
 
 ## P3 — Operations, Reliability, and Recovery
 

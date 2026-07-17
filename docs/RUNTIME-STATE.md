@@ -54,4 +54,4 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 - After US-019/US-020 validation: `technical-architect` on the 2026-07-06 campaign and `engineering-leadership` on the deferring campaign remain `queued` (cadence-blocked, no URN) until ≥72h after their campaign’s last `published_at`.
 - New cadence anchors from 2026-07-17 publishes: `domain-first` next variant eligible ~2026-07-20T18:33Z; `keep-contracts-boring` next variant eligible ~2026-07-20T18:40Z.
 - Pages live-confirmation can 404 briefly after push; resume after HTTP 200 (documented in BL-005).
-- Deployed ≠ operationally validated: US-022 and US-023 still need controlled demonstration before story acceptance; US-024/US-025 remain procedure/policy-defined pending demonstration.
+- Deployed ≠ operationally validated: US-022 (BL-008) still needs controlled demonstration before story acceptance. BL-009 (US-023/US-024/US-025) demonstrated and accepted 2026-07-17 — backlog item closed.

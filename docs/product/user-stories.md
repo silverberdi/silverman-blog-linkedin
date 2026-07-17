@@ -435,7 +435,7 @@ As a content operator, I want to set retry limits, so that linkedin failures can
 
 ### US-023 — Validate LinkedIn Article Preview Rendering: Story 1
 
-**Status:** Operationally validated (2026-07-17) on `192.168.0.194` (`BUILD_REVISION=d15d85b`) — story acceptance pending operator confirmation; BL-009 remains open (US-024/US-025 pending).
+**Status:** Accepted (operationally validated 2026-07-17 on `192.168.0.194`, `BUILD_REVISION=d15d85b`; operator-accepted 2026-07-17).
 
 **Description**
 
@@ -455,7 +455,7 @@ As a content operator, I want to verify title and description, so that published
 
 ### US-024 — Validate LinkedIn Article Preview Rendering: Story 2
 
-**Status:** Operationally demonstrated (2026-07-17) on a real campaign — story acceptance pending operator confirmation; BL-009 remains open. No worker code: US-024 is an operator procedure + evidence-capture story (docs + canonical procedure-spec only).
+**Status:** Accepted (operationally demonstrated 2026-07-17 on a real campaign; operator-accepted 2026-07-17). No worker code: US-024 is an operator procedure + evidence-capture story (docs + canonical procedure-spec only).
 
 **Description**
 
@@ -475,7 +475,7 @@ As a content operator, I want to confirm preview behavior on linkedin, so that p
 
 ### US-025 — Validate LinkedIn Article Preview Rendering: Story 3
 
-**Status:** Operationally demonstrated (2026-07-17) on a real campaign — story acceptance pending operator confirmation; BL-009 closure evaluation pending acceptance of US-023/US-024/US-025. No worker code: US-025 is an operator fallback-policy story (docs + canonical procedure-spec only).
+**Status:** Accepted (operationally demonstrated 2026-07-17 on a real campaign; operator-accepted 2026-07-17). **BL-009 closed.** No worker code: US-025 is an operator fallback-policy story (docs + canonical procedure-spec only). Demonstrated business outcome caveat: the v1 text post renders no article card — accepted per policy; `content.article` remains a named deferred future-change candidate.
 
 **Description**
 

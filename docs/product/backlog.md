@@ -164,6 +164,8 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Published LinkedIn posts display the intended article preview.
 
+**Status:** Closed 2026-07-17 after US-023, US-024, and US-025 operational demonstration and acceptance. Inputs LinkedIn scrapes are verified correct (`POST /validate-linkedin-article-preview`, live OG remediation `silverberdi.github.io` `e4d10de`); rendering behavior observed on a real post (`preview_not_rendered_post_format` — the v1 text post renders no article card); fallback reaction executed per policy (`fallback_accept_rendering`, `fallback_format_change_deferred`). An explicit article post format (`content.article`) remains a named deferred future-change candidate requiring its own OpenSpec change. Evidence: [us-023](../operations/us-023-linkedin-preview-input-validation-2026-07-17.md), [us-024 blocked](../operations/us-024-preview-confirmation-blocked-2026-07-17.md), [us-024 post-publish](../operations/us-024-preview-confirmation-keep-contracts-boring-2026-07-17.md), [us-025 decision](../operations/us-025-preview-fallback-decision-keep-contracts-boring-2026-07-17.md).
+
 
 ## P3 — Operations, Reliability, and Recovery
 
