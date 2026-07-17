@@ -475,16 +475,22 @@ As a content operator, I want to confirm preview behavior on linkedin, so that p
 
 ### US-025 — Validate LinkedIn Article Preview Rendering: Story 3
 
+**Status:** Policy defined (2026-07-17) — not operationally validated; story **not accepted**; BL-009 remains open. No worker code: US-025 is an operator fallback-policy story (docs + canonical procedure-spec only). Acceptance requires operator demonstration of a fallback decision with a completed evidence record on a real campaign, which depends on the pending US-023 deploy + operational validation on `192.168.0.194` and a US-024 confirmation producing a fallback-triggering outcome.
+
 **Description**
 
 As a content operator, I want to define a fallback when the preview is incorrect, so that published linkedin posts display the intended article preview.
 
-**Acceptance criteria**
+**Operator policy:** [linkedin-preview-fallback-policy.md](../operations/linkedin-preview-fallback-policy.md)
 
-- [ ] Define a fallback when the preview is incorrect.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+**Acceptance criteria** (mapped at policy-definition scope only; none operationally demonstrated)
+
+- [ ] Define a fallback when the preview is incorrect. — Mechanism: normative fallback decision policy triggered only by recorded US-024 outcomes (`preview_stale_cache` after a completed safe re-scrape cycle; `preview_not_rendered_post_format`; published post retaining a stale/incorrect card), split into a pre-publish procedure (accept / delay via `POST /defer-linkedin-variant` / correct inputs and repeat US-023/US-024 / cancel via `POST /cancel-linkedin-publication`) and a post-publish recovery procedure (accept-and-record default; approval-gated manual post removal; evidence mutation forbidden), all over existing guarded endpoints (policy §"Fallback triggers", §"Pre-publish fallback decision procedure", §"Post-publish recovery decision procedure"; spec requirements "Fallback triggers are recorded US-024 outcomes", "Pre-publish fallback decision procedure", "Post-publish recovery decision procedure").
+- [ ] The outcome is visible and understandable to the intended user. — Mechanism: single supported / approval-gated / forbidden classification table with safety rationale (including the delete/re-post analysis and two named deferred future-change candidates with preconditions), fixed fallback outcome vocabulary (`fallback_accept_rendering`, `fallback_delay_publication`, `fallback_correct_inputs_reverify`, `fallback_cancel_variant`, `fallback_post_removal_approved`, `fallback_format_change_deferred`, `fallback_blocked`), and a per-decision evidence-record template; no worker codes — labels are documented checklist values (policy §"Action classification" and §"Fallback outcome vocabulary"; spec requirements "Supported, approval-gated, and forbidden actions" and "Fallback outcome vocabulary and evidence record").
+- [ ] Failures or blocked states are clearly communicated. — Mechanism: blocked-state table with named conditions and next actions (no triggering US-024 record; re-scrape cycle incomplete; approval absent for a gated action; unapproved required live-site Git push; action invalid for the variant's `publish_state`), recorded as `fallback_blocked` — never as failures of inputs, rendering, or the policy, and never resolved by guessing (policy §"Blocked states"; spec requirement "Blocked states and operator communication").
+- [ ] Existing completed work is not duplicated or unintentionally changed. — Mechanism: zero changes under `src/`, `tests/`, `n8n/`, `deploy/`; US-023 consumed as the sole input-truth source and US-024 as the sole rendering-observation source (no check or observation re-defined); no retry-budget consumption, no `recovery_confirmation` repurposing, US-020 sequence/cadence and scheduling idempotency untouched, `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` fail-closed; no MODIFIED requirements on US-018–US-024 capabilities (policy §"Purpose and boundaries" and §"Duplicate prevention and safeguard preservation"; spec requirements "Scope, actors, and boundaries", "Duplicate prevention and safeguard preservation", "Existing capabilities unchanged").
+
+**Defined:** 2026-07-17 — policy + canonical procedure-spec only; policy defined does not mean operationally validated or accepted. Criteria checkboxes remain unchecked until the operator demonstrates a fallback decision end-to-end on a real campaign (recorded triggering US-024 outcome, decision per the policy, completed fallback evidence record with a fixed outcome label). BL-009 remains open until US-023, US-024, and US-025 business outcomes are all demonstrated and accepted.
 
 ## BL-010 — Add Operational Observability
 

@@ -291,7 +291,7 @@ There is no automatic retry of any kind; manual re-queue remains the only retry 
 - Commentary includes generated variant text and `source_public_url` (blog URL).
 - No image upload, no company page publishing, no analytics, no comments automation.
 
-Whether LinkedIn renders an article preview card for a v1 API text post (URL in commentary, no `content.article` entity) is confirmed via the US-024 rendering-confirmation procedure: [linkedin-preview-rendering-confirmation.md](../operations/linkedin-preview-rendering-confirmation.md) — "no card at all" is a possible, honestly recorded outcome.
+Whether LinkedIn renders an article preview card for a v1 API text post (URL in commentary, no `content.article` entity) is confirmed via the US-024 rendering-confirmation procedure: [linkedin-preview-rendering-confirmation.md](../operations/linkedin-preview-rendering-confirmation.md) — "no card at all" is a possible, honestly recorded outcome. Reacting to a wrong or missing preview (accept, delay, correct-and-reverify, cancel, approval-gated post removal, deferred format-change escalation) follows the US-025 fallback policy: [linkedin-preview-fallback-policy.md](../operations/linkedin-preview-fallback-policy.md) (policy defined — not operationally validated).
 
 Required headers (verified against LinkedIn Posts API documentation):
 
@@ -402,7 +402,7 @@ Status: **implemented and unit-tested — not deployed, not operationally valida
 
 `POST /validate-linkedin-article-preview` verifies, on demand, the article preview **inputs** for one Flow A campaign with a generated LinkedIn package: recorded package metadata, public-checkout front matter consistency, live Open Graph tags, and HTTP availability of the public preview image. Outbound HTTP goes only to the campaign's recorded `public_url` / `public_image_url` (HTTPS, bounded ~10 s timeout).
 
-**US-024 boundary (explicit):** a passing run means the inputs LinkedIn would scrape are correct. It does **not** confirm how LinkedIn actually renders the preview, and it does not diagnose LinkedIn cache/metadata issues (Post Inspector territory). Those are covered by the US-024 rendering-confirmation procedure: [linkedin-preview-rendering-confirmation.md](../operations/linkedin-preview-rendering-confirmation.md) (procedure defined — not operationally validated).
+**US-024 boundary (explicit):** a passing run means the inputs LinkedIn would scrape are correct. It does **not** confirm how LinkedIn actually renders the preview, and it does not diagnose LinkedIn cache/metadata issues (Post Inspector territory). Those are covered by the US-024 rendering-confirmation procedure: [linkedin-preview-rendering-confirmation.md](../operations/linkedin-preview-rendering-confirmation.md) (procedure defined — not operationally validated). When a recorded US-024 outcome shows a wrong or missing preview, the operator reaction is defined by the US-025 fallback policy: [linkedin-preview-fallback-policy.md](../operations/linkedin-preview-fallback-policy.md) (policy defined — not operationally validated).
 
 ### Operator procedure
 

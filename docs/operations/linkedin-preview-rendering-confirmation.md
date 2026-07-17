@@ -11,7 +11,7 @@ US-023 (`POST /validate-linkedin-article-preview`) proves the **inputs** LinkedI
 Boundaries:
 
 - **US-023 boundary (input truth):** this procedure consumes a US-023 verification run as the sole source of input-correctness truth. It never re-derives or duplicates any input check. "Inputs correct?" is always answered by the US-023 result, not by manual inspection.
-- **US-025 boundary (fallback):** when the preview is genuinely incorrect and cannot be fixed by this procedure (for example an already-published post with a stale card, or a v1 text post that renders no card), the reaction — delete/re-post, accept, change post format (e.g. `content.article`) — is US-025 territory and MUST NOT be improvised here. This procedure records the observation only.
+- **US-025 boundary (fallback):** when the preview is genuinely incorrect and cannot be fixed by this procedure (for example an already-published post with a stale card, or a v1 text post that renders no card), the reaction is defined by the US-025 fallback policy — [linkedin-preview-fallback-policy.md](linkedin-preview-fallback-policy.md) (policy defined — not operationally validated) — and MUST NOT be improvised here. This procedure records the observation only.
 - **No automation:** no worker code, no LinkedIn API calls, no UI scraping, no browser automation against LinkedIn. LinkedIn Post Inspector usage is manual, browser-based, operator-driven.
 - **No secrets:** never store LinkedIn session cookies, credentials, variant body text, or image bytes in evidence records or anywhere in the repository.
 
@@ -54,8 +54,8 @@ Every confirmation attempt is assigned exactly one outcome class from the US-023
 |---|---|---|---|
 | `passed` | Card matches recorded `article_preview` (title, description, image) | `preview_confirmed` | Record evidence; done |
 | `passed` | Card shows outdated or wrong values | `preview_stale_cache` | Safe re-scrape (below), re-inspect, re-classify. Note: already-published posts keep the old card |
-| `failed` | Any | `preview_inputs_incorrect` | Fix inputs per the reported `linkedin_preview_validation_*` codes (US-023 remediation); no cache remediation; no LinkedIn observation; repeat confirmation only after inputs pass. Remediation policy beyond existing US-023 guidance is US-025 |
-| `passed` | No article card rendered at all on the API-created text post | `preview_not_rendered_post_format` | Record honestly as a v1 text-only post-format finding — an observation, not a failure of inputs or of this procedure. Remediation (e.g. `content.article` posts) is out of scope (US-025 / future change) |
+| `failed` | Any | `preview_inputs_incorrect` | Fix inputs per the reported `linkedin_preview_validation_*` codes (US-023 remediation); no cache remediation; no LinkedIn observation; repeat confirmation only after inputs pass. The US-025 fallback policy ([linkedin-preview-fallback-policy.md](linkedin-preview-fallback-policy.md)) references this same loop and adds nothing to it |
+| `passed` | No article card rendered at all on the API-created text post | `preview_not_rendered_post_format` | Record honestly as a v1 text-only post-format finding — an observation, not a failure of inputs or of this procedure. Reaction (accept, escalate to a future `content.article` change) per the US-025 fallback policy: [linkedin-preview-fallback-policy.md](linkedin-preview-fallback-policy.md) |
 | not run / not trusted / site not live / Post Inspector unavailable | — | `confirmation_blocked` | Record the named blocking condition and its next action (blocked-state table below); never guess a confirmation |
 
 ## Safe re-scrape procedure (stale-cache class)
@@ -71,7 +71,7 @@ Forbidden actions:
 - **Never publish additional LinkedIn posts** to test or force a preview refresh — that creates real duplicate-content side effects that no existing safeguard catches.
 - **Never alter the shared URL** (for example cache-busting query parameters on `public_url`) — the canonical `public_url` is recorded in campaign metadata and the shared URL must not diverge from it.
 
-Honest limit: a re-scrape affects **new posts only** — an already-published post with a stale card keeps it. Whether and how to react to an already-published stale card (delete/re-post, accept, change format) is US-025 fallback territory and is not defined here.
+Honest limit: a re-scrape affects **new posts only** — an already-published post with a stale card keeps it. Whether and how to react to an already-published stale card, or to a persistent stale cache after a completed re-scrape cycle, is defined by the US-025 fallback policy: [linkedin-preview-fallback-policy.md](linkedin-preview-fallback-policy.md).
 
 ## Blocked states
 

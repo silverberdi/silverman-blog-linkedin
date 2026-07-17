@@ -244,12 +244,13 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [ ] Story accepted
     - Operator procedure: [linkedin-preview-rendering-confirmation.md](../operations/linkedin-preview-rendering-confirmation.md)
   - [ ] **US-025**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — fallback policy defined 2026-07-17 (docs + canonical procedure-spec, no worker code); not operationally validated; demonstration depends on pending US-023 deploy + operational validation and a US-024 confirmation producing a fallback-triggering outcome
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
+    - Operator policy: [linkedin-preview-fallback-policy.md](../operations/linkedin-preview-fallback-policy.md)
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed
