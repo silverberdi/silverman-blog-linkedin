@@ -387,7 +387,7 @@ As a content operator, I want to respect audience cadence and sequence, so that 
 
 ### US-021 — Define LinkedIn Retry and Recovery Rules: Story 1
 
-**Status:** Policy defined (docs + canonical spec, 2026-07-16) — policy defined ≠ operationally validated; story not accepted as complete; BL-008 remains open until US-022.
+**Status:** Accepted (policy defined 2026-07-16; uncertain-class classification and duplicate-prevention procedure operationally exercised 2026-07-17; operator-accepted 2026-07-17). Evidence: [us-021/us-022 validation](../operations/us-021-us-022-linkedin-retry-recovery-validation-2026-07-17.md).
 
 **Description**
 
@@ -408,7 +408,7 @@ As a content operator, I want to classify recoverable and non-recoverable errors
 
 ### US-022 — Define LinkedIn Retry and Recovery Rules: Story 2
 
-**Status:** Operationally validated (2026-07-17) on `192.168.0.194` (`BUILD_REVISION=d15d85b`) — primary recovery chain demonstrated end-to-end on a real variant (controlled transport failure → `uncertain` classification → guardrail rejections → attested re-queue → successful retry with append-only evidence → idempotent replay); correction/cancellation/exhaustion paths remain at unit-test scope. Story acceptance pending operator confirmation. Evidence: [us-021/us-022 validation](../operations/us-021-us-022-linkedin-retry-recovery-validation-2026-07-17.md).
+**Status:** Accepted (operationally validated 2026-07-17 on `192.168.0.194`, `BUILD_REVISION=d15d85b`; operator-accepted 2026-07-17). **BL-008 closed.** Primary recovery chain demonstrated end-to-end on a real variant (controlled transport failure → `uncertain` classification → guardrail rejections → attested re-queue → successful retry with append-only evidence → idempotent replay); correction/cancellation/exhaustion paths remain at unit-test scope. Evidence: [us-021/us-022 validation](../operations/us-021-us-022-linkedin-retry-recovery-validation-2026-07-17.md).
 
 **Description**
 

@@ -203,27 +203,27 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated
   - [x] Backlog item closed
 
-- [ ] **BL-008 — Define LinkedIn Retry and Recovery Rules**
+- [x] **BL-008 — Define LinkedIn Retry and Recovery Rules**
   - Business outcome: LinkedIn failures can be recovered without losing traceability or duplicating content.
-  - [ ] **US-021**
+  - [x] **US-021**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — at policy-definition scope (docs + canonical spec, 2026-07-16); policy defined ≠ operationally validated
-    - [x] Acceptance criteria validated — against spec requirements and operator docs (see [user-stories.md](user-stories.md) US-021 mapping)
-    - [ ] Story accepted
+    - [x] Business outcome demonstrated — policy-definition scope (2026-07-16) plus operational exercise of the uncertain class and duplicate-prevention verification (2026-07-17)
+    - [x] Acceptance criteria validated — against spec requirements, operator docs, and operational evidence
+    - [x] Story accepted — operator-accepted 2026-07-17
     - Policy: [linkedin-retry-recovery-classification.md](../operations/linkedin-retry-recovery-classification.md)
-  - [ ] **US-022**
+  - [x] **US-022**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
     - [x] Business outcome demonstrated — operationally validated 2026-07-17: controlled real transport failure recovered end-to-end (uncertain classification, guardrails, attested re-queue, successful retry, evidence preserved, no duplicate); correction/cancel/exhaustion at unit-test scope
     - [x] Acceptance criteria validated — against unit suites and operational evidence ([us-021/us-022 validation](../operations/us-021-us-022-linkedin-retry-recovery-validation-2026-07-17.md))
-    - [ ] Story accepted
+    - [x] Story accepted — operator-accepted 2026-07-17
     - Policy: [linkedin-retry-recovery-classification.md](../operations/linkedin-retry-recovery-classification.md)
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — a real LinkedIn failure was recovered without losing traceability or duplicating content (failed attempt preserved in append-only history; attested re-queue; idempotent replay)
+  - [x] Backlog item closed — 2026-07-17
 
 - [x] **BL-009 — Validate LinkedIn Article Preview Rendering**
   - Business outcome: Published LinkedIn posts display the intended article preview.

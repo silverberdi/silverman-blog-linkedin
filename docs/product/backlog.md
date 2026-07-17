@@ -150,6 +150,8 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** LinkedIn failures can be recovered without losing traceability or duplicating content.
 
+**Status:** Closed 2026-07-17 after US-021 (policy, 2026-07-16) and US-022 (mechanics) acceptance. Primary recovery chain operationally validated on `192.168.0.194` (`BUILD_REVISION=d15d85b`): controlled transport failure on a real due variant classified `uncertain`, blind/wrong-class re-queues rejected, operator-attested re-queue, successful retry `urn:li:share:7483974070842241024` with the failed attempt preserved in append-only history, idempotent replay. Correction, failed-cancellation, exhaustion, and legacy normalization paths validated at unit-test scope only. Evidence: [us-021/us-022 validation](../operations/us-021-us-022-linkedin-retry-recovery-validation-2026-07-17.md).
+
 ### BL-009 — Validate LinkedIn Article Preview Rendering
 
 **Business need:** Confirm that LinkedIn renders the expected title, description, image, and link preview.
