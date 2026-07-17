@@ -6,13 +6,13 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 ## Snapshot
 
-**`verified_at_utc`:** `2026-07-17T18:00:01Z`
-**Evidence source:** Post-US-025 archive deploy of accumulated code (US-022 + US-023 worker surface + US-024/US-025 docs already in git) — rsync + rebuild on Ubuntu `192.168.0.194`; container env `BUILD_REVISION`; `verify-worker-deploy.sh` OVERALL PASS; OpenAPI exposes `/validate-linkedin-article-preview`
+**`verified_at_utc`:** `2026-07-17T22:24:54Z`
+**Evidence source:** Post-US-030 archive deploy (`b67c538`) — rsync + rebuild on Ubuntu `192.168.0.194`; container env `BUILD_REVISION`; `verify-worker-deploy.sh` OVERALL PASS; OpenAPI exposes `/flow-a/operational-alerts/evaluate` and `/flow-a/operational-alerts/report-orchestration-failure`
 
 | Fact | Value | Evidence |
 |------|-------|----------|
 | Worker URL | `http://192.168.0.194:8010` | Deploy + health check |
-| `BUILD_REVISION` | `d15d85b0c5827cc8d0a4fdb5038b01530a009f87` (HEAD after US-025 archive) | Container env after pin rebuild 2026-07-17; `.build_git_sha` on target |
+| `BUILD_REVISION` | `b67c53802c048f2952a8ea3267ef415ea2d38fe0` (HEAD after US-030 archive) | Container env after pin rebuild 2026-07-17; `.build_git_sha` on target |
 | Editorial mount | `/data/silverman-blog-linkedin` → host `/home/silverman/compartido_mac/silverman-blog-linkedin` | Deploy compose |
 | Public blog mount | `/public-blog` → host `/home/silverman/silverberdi.github.io` | Deploy verification |
 | n8n Flow A workflow | **Active** (`silvermanFlowAPublish01`, **35** nodes, Schedule `0 9 * * *` UTC, single-flight, includes `/complete-flow-a-ready-path`); repo export `active: false` | Post-resume export check |
@@ -51,9 +51,10 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 - Repo export stays `active: false`; server may be `active: true`.
 - Ready-path Set Configuration git/live defaults remain `false` in git; server prepared import patched to `true` for BL-005.
-- US-018 (`auto_queue_pending`) previously deployed at `c7bce02`; superseded by `3c4d9f5` for US-019/US-020; superseded by `d15d85b` for accumulated US-022/US-023 (+ US-025 archive HEAD). Docs-only RUNTIME-STATE follow-up is `b3eba03` and does not require redeploy.
+- US-018 (`auto_queue_pending`) previously deployed at `c7bce02`; superseded by `3c4d9f5` for US-019/US-020; superseded by `d15d85b` for accumulated US-022/US-023 (+ US-025 archive HEAD); superseded by `b67c538` for US-028/US-029/US-030 operational alerts (evaluate + report-orchestration-failure). Docs-only RUNTIME-STATE follow-up is `b3eba03` and does not require redeploy.
 - After US-019/US-020 validation: `technical-architect` on the 2026-07-06 campaign and `engineering-leadership` on the deferring campaign remain `queued` (cadence-blocked, no URN) until ≥72h after their campaign’s last `published_at`.
 - New cadence anchors from 2026-07-17 publishes: `domain-first` next variant eligible ~2026-07-20T18:33Z; `keep-contracts-boring` next variant eligible ~2026-07-20T18:40Z; `a-bounded-context` next variant eligible ~2026-07-20T20:01Z.
 - BL-008 closed 2026-07-17: US-021/US-022 accepted (primary recovery chain validated live); correction/cancel/exhaustion paths remain unit-test scope.
 - Pages live-confirmation can 404 briefly after push; resume after HTTP 200 (documented in BL-005).
 - BL-008 (US-021/US-022) and BL-009 (US-023/US-024/US-025) demonstrated and accepted 2026-07-17 — both backlog items closed.
+- BL-011 / US-028–US-030 code is deployed (`b67c538`) but **not** operator-accepted; webhook emission remains fail-closed (do not enable `SILVERMAN_FLOW_A_OPERATIONAL_ALERTS_ENABLED` without explicit approval).
