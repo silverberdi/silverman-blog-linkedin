@@ -16,12 +16,15 @@ import {
   DEFER_PATH,
   PENDING_SUPERVISION_PATH,
   SCHEDULE_VISIBILITY_PATH,
+  UPDATE_CALENDAR_SCHEDULE_PATH,
   type CancelVariantRequest,
+  type CalendarScheduleUpdateResult,
   type CorrectVariantRequest,
   type DeferVariantRequest,
   type MutationResult,
   type PendingSupervisionResponse,
   type ScheduleVisibilityResponse,
+  type UpdateCalendarItemScheduleRequest,
 } from "./types";
 
 export type { ApiError };
@@ -89,6 +92,33 @@ export class SupervisionApiClient {
 
   async cancelVariant(body: CancelVariantRequest): Promise<MutationResult> {
     return this.postMutation(CANCEL_PATH, body);
+  }
+
+  async updateCalendarItemSchedule(
+    body: UpdateCalendarItemScheduleRequest,
+  ): Promise<CalendarScheduleUpdateResult> {
+    const headers = await this.auth.getRequestHeaders();
+    if (!headers.Authorization) {
+      throw authMissingError("mutate");
+    }
+    const result = await this.requestJson<CalendarScheduleUpdateResult>(
+      UPDATE_CALENDAR_SCHEDULE_PATH,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    if (result.status === "failed") {
+      throw businessFailureError(
+        Array.isArray(result.errors) ? result.errors : [],
+      );
+    }
+    return result;
   }
 
   private async postMutation(

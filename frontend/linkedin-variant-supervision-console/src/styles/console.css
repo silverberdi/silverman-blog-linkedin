@@ -431,6 +431,33 @@ textarea {
   font-weight: 600;
 }
 
+.calendar-day-select {
+  all: unset;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  color: inherit;
+}
+
+.calendar-day-item-btn {
+  all: unset;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  color: inherit;
+  text-align: left;
+  font-size: inherit;
+}
+
+.calendar-day-item-btn:hover,
+.calendar-day-item-btn:focus-visible {
+  color: var(--accent);
+}
+
+.calendar-chip-actions {
+  margin-top: 0.35rem;
+}
+
 .calendar-day-items {
   list-style: none;
   margin: 0;

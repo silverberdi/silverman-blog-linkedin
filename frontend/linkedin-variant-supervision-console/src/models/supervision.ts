@@ -19,6 +19,19 @@ export type ConsoleView = "list" | "calendar";
 
 export type { PublicationDisplayState, ScheduleChannel };
 
+export interface ScheduleEditorTarget {
+  channel: ScheduleChannel;
+  itemId: string;
+  title: string | null;
+  scheduledAtUtc: string | null;
+  scheduleEditable: boolean;
+  scheduleEditBlockReason: string | null;
+  campaignId: string | null;
+  variantId: string | null;
+  calendarItemId: string | null;
+  entry: "list" | "month" | "agenda";
+}
+
 export const PUBLICATION_STATES: PublicationDisplayState[] = [
   "planned",
   "pending",
@@ -56,6 +69,8 @@ export interface ScheduleItem {
   critical: boolean;
   linkedinApiPublished: boolean;
   calendarItemId: string | null;
+  scheduleEditable: boolean;
+  scheduleEditBlockReason: string | null;
   /** Actions only for pending LinkedIn supervision rows. */
   actions: ReadonlyArray<"edit" | "defer" | "cancel">;
   statusColor: string;
@@ -107,6 +122,7 @@ export interface ScheduleSnapshot {
   fromUtc: string;
   toUtc: string;
   linkedinPublicationEnabled: boolean;
+  calendarFingerprint: string | null;
   items: ScheduleItem[];
   issues: SupervisionIssueDto[];
 }
@@ -230,8 +246,16 @@ export function normalizeScheduleItem(
   const publicationState = asDisplayState(row.publication_state);
   const pendingLinkedIn =
     channel === "linkedin" &&
-    publicationState === "pending" &&
+    (row.source_state === "pending" || publicationState === "pending") &&
     row.variant_id != null;
+  const scheduleEditable =
+    typeof row.schedule_editable === "boolean"
+      ? row.schedule_editable
+      : pendingLinkedIn ||
+        (channel === "blog" &&
+          row.source_state !== "completed" &&
+          row.source_state !== "skipped" &&
+          row.source_state !== "failed");
   return {
     itemId: row.item_id,
     channel,
@@ -246,6 +270,8 @@ export function normalizeScheduleItem(
     critical: row.critical === true,
     linkedinApiPublished: row.linkedin_api_published === true,
     calendarItemId: row.calendar_item_id ?? null,
+    scheduleEditable,
+    scheduleEditBlockReason: row.schedule_edit_block_reason ?? null,
     actions: pendingLinkedIn ? ["edit", "defer", "cancel"] : [],
     statusColor: STATUS_COLOR[publicationState],
   };
@@ -264,6 +290,7 @@ export function normalizeScheduleVisibility(
     fromUtc: payload.from_utc || "",
     toUtc: payload.to_utc || "",
     linkedinPublicationEnabled: payload.linkedin_publication_enabled === true,
+    calendarFingerprint: payload.calendar_fingerprint ?? null,
     items: items.map(normalizeScheduleItem),
     issues: Array.isArray(payload.issues) ? payload.issues : [],
   };
@@ -300,6 +327,11 @@ export function supervisionToFilterable(item: SupervisionItem): ScheduleItem {
     critical: item.critical,
     linkedinApiPublished: item.linkedinApiPublished,
     calendarItemId: item.calendarItemId,
+    scheduleEditable: item.publishState === "pending",
+    scheduleEditBlockReason:
+      item.publishState === "pending"
+        ? null
+        : "linkedin_supervision_variant_not_pending",
     actions: item.actions,
     statusColor: item.statusColor,
   };

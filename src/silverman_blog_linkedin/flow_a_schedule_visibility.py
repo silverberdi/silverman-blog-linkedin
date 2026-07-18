@@ -24,7 +24,13 @@ from silverman_blog_linkedin.editorial_calendar_plan import (
     CALENDAR_FILE_NOT_FOUND,
     CALENDAR_RELATIVE_PATH,
     CALENDAR_SCHEMA_INVALID,
+    calendar_fingerprint,
     load_calendar,
+)
+from silverman_blog_linkedin.editorial_calendar_schedule_update import (
+    CALENDAR_SCHEDULE_UNSUPPORTED_STATE,
+    EDITABLE_SCHEDULE_STATUSES,
+    TERMINAL_SCHEDULE_STATUSES,
 )
 from silverman_blog_linkedin.linkedin_config import load_linkedin_publication_settings
 from silverman_blog_linkedin.linkedin_variant_pending_supervision import (
@@ -85,6 +91,7 @@ BLOG_STATUS_FAILED = "failed"
 BLOG_STATUS_COMPLETED = "completed"
 
 YEAR_MONTH_INVALID = "year_month_invalid"
+SCHEDULE_EDIT_BLOCK_NOT_PENDING = "linkedin_supervision_variant_not_pending"
 
 
 @dataclass(frozen=True)
@@ -102,6 +109,8 @@ class ScheduleVisibilityItem:
     critical: bool
     linkedin_api_published: bool
     calendar_item_id: str | None = None
+    schedule_editable: bool = False
+    schedule_edit_block_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -119,6 +128,7 @@ class ScheduleVisibilityResult:
     linkedin_publication_enabled: bool
     items: list[ScheduleVisibilityItem] = field(default_factory=list)
     issues: list[SupervisionIssue] = field(default_factory=list)
+    calendar_fingerprint: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -130,6 +140,7 @@ class ScheduleVisibilityResult:
             "from_utc": self.from_utc,
             "to_utc": self.to_utc,
             "linkedin_publication_enabled": self.linkedin_publication_enabled,
+            "calendar_fingerprint": self.calendar_fingerprint,
             "items": [item.to_dict() for item in self.items],
             "issues": [item.to_dict() for item in self.issues],
         }
@@ -239,6 +250,24 @@ def _direct_json_entries(
     return accepted
 
 
+def _blog_schedule_editability(
+    status: str | None,
+) -> tuple[bool, str | None]:
+    if status is None:
+        return False, CALENDAR_SCHEDULE_UNSUPPORTED_STATE
+    if status in TERMINAL_SCHEDULE_STATUSES:
+        return False, CALENDAR_SCHEDULE_UNSUPPORTED_STATE
+    if status in EDITABLE_SCHEDULE_STATUSES:
+        return True, None
+    return False, CALENDAR_SCHEDULE_UNSUPPORTED_STATE
+
+
+def _linkedin_schedule_editability(publish_state: str) -> tuple[bool, str | None]:
+    if publish_state == PUBLISH_STATE_PENDING:
+        return True, None
+    return False, SCHEDULE_EDIT_BLOCK_NOT_PENDING
+
+
 def _map_blog_display_state(status: str | None) -> tuple[str, bool, bool]:
     """Return (publication_state, blocked, critical) for a calendar item."""
     if status == BLOG_STATUS_FAILED:
@@ -321,6 +350,7 @@ def _load_blog_items(
         if status == BLOG_STATUS_COMPLETED and title:
             # Qualify completed handoff so operators do not read it as LinkedIn published.
             title = f"{title} (blog handoff completed — not LinkedIn API published)"
+        schedule_editable, block_reason = _blog_schedule_editability(status)
         items.append(
             ScheduleVisibilityItem(
                 item_id=f"blog:{item_id}",
@@ -336,6 +366,8 @@ def _load_blog_items(
                 critical=critical,
                 linkedin_api_published=False,
                 calendar_item_id=item_id,
+                schedule_editable=schedule_editable,
+                schedule_edit_block_reason=block_reason,
             )
         )
     return items
@@ -419,6 +451,7 @@ def _linkedin_rows_from_campaign(
                 _ = _optional_http_status(evidence.get("http_status"))
 
         title = _optional_str(entry.get("audience")) or variant_id
+        schedule_editable, block_reason = _linkedin_schedule_editability(publish_state)
         rows.append(
             ScheduleVisibilityItem(
                 item_id=f"linkedin:{campaign_id}:{variant_id}",
@@ -434,6 +467,8 @@ def _linkedin_rows_from_campaign(
                 critical=critical,
                 linkedin_api_published=linkedin_api_published,
                 calendar_item_id=None,
+                schedule_editable=schedule_editable,
+                schedule_edit_block_reason=block_reason,
             )
         )
     return rows
@@ -567,6 +602,13 @@ def get_flow_a_schedule_visibility(
         issues=issues,
     )
 
+    fingerprint: str | None = None
+    calendar_path = base_path / CALENDAR_RELATIVE_PATH
+    if calendar_path.is_file():
+        # Only expose fingerprint when the calendar file is present and readable.
+        # Missing/invalid calendars already surface issues via _load_blog_items.
+        fingerprint = calendar_fingerprint(base_path)
+
     items = blog_items + linkedin_items
     items.sort(
         key=lambda item: (
@@ -598,4 +640,5 @@ def get_flow_a_schedule_visibility(
         linkedin_publication_enabled=enabled,
         items=items,
         issues=issues,
+        calendar_fingerprint=fingerprint,
     )

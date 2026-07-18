@@ -5,6 +5,7 @@ import { SupervisionApiClient } from "../api/client";
 import { MemoryBearerAuthProvider } from "../api/auth";
 import { SupervisionStoreProvider } from "../models/store";
 import { ListView } from "../components/ListView";
+import { ScheduleEditorPanel } from "../components/ScheduleEditor";
 import { AppShell } from "../components/AppShell";
 import type {
   PendingSupervisionResponse,
@@ -73,6 +74,7 @@ function renderList(client: SupervisionApiClient) {
   return render(
     <SupervisionStoreProvider client={client}>
       <AppShell>
+        <ScheduleEditorPanel />
         <ListView />
       </AppShell>
     </SupervisionStoreProvider>,
@@ -110,9 +112,13 @@ describe("ListView", () => {
 
     await user.click(screen.getByRole("button", { name: "Close" }));
     await user.click(screen.getAllByRole("button", { name: "Defer" })[0]);
-    expect(screen.getByTestId("defer-dry-run")).toBeChecked();
+    expect(screen.getByTestId("schedule-editor-panel")).toHaveAttribute(
+      "data-entry",
+      "list",
+    );
+    expect(screen.getByTestId("schedule-dry-run")).toBeChecked();
 
-    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByTestId("schedule-close"));
     await user.click(screen.getAllByRole("button", { name: "Cancel" })[0]);
     expect(screen.getByTestId("cancel-dry-run")).toBeChecked();
   });

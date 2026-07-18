@@ -6,6 +6,8 @@ export const SCHEDULE_VISIBILITY_PATH = "/flow-a/schedule-visibility";
 export const CORRECT_PATH = "/correct-linkedin-variant";
 export const DEFER_PATH = "/defer-linkedin-variant";
 export const CANCEL_PATH = "/cancel-linkedin-publication";
+export const UPDATE_CALENDAR_SCHEDULE_PATH =
+  "/editorial-calendar/update-item-schedule";
 
 export type PendingSupervisionStatus = "ok" | "partial";
 
@@ -75,6 +77,8 @@ export interface ScheduleVisibilityItemDto {
   critical: boolean;
   linkedin_api_published: boolean;
   calendar_item_id?: string | null;
+  schedule_editable?: boolean;
+  schedule_edit_block_reason?: string | null;
 }
 
 export interface ScheduleVisibilityResponse {
@@ -86,6 +90,7 @@ export interface ScheduleVisibilityResponse {
   from_utc: string;
   to_utc: string;
   linkedin_publication_enabled: boolean;
+  calendar_fingerprint?: string | null;
   items: ScheduleVisibilityItemDto[];
   issues: SupervisionIssueDto[];
 }
@@ -106,6 +111,8 @@ export interface DeferVariantRequest {
   dry_run?: boolean;
   reason?: string | null;
   idempotency_key?: string | null;
+  actor?: string | null;
+  source?: string | null;
 }
 
 export interface CancelVariantRequest {
@@ -114,6 +121,17 @@ export interface CancelVariantRequest {
   dry_run?: boolean;
   reason?: string | null;
   idempotency_key?: string | null;
+}
+
+export interface UpdateCalendarItemScheduleRequest {
+  item_id: string;
+  new_due_at_utc: string;
+  dry_run?: boolean;
+  reason?: string | null;
+  idempotency_key?: string | null;
+  actor?: string | null;
+  source?: string | null;
+  expected_calendar_fingerprint?: string | null;
 }
 
 export interface MutationResult {
@@ -131,4 +149,19 @@ export interface MutationResult {
   artifact_written?: boolean;
   operator_supervision?: Record<string, unknown> | null;
   recovery_classification?: string | null;
+}
+
+export interface CalendarScheduleUpdateResult {
+  status: "completed" | "failed" | string;
+  dry_run: boolean;
+  item_id: string | null;
+  previous_due_at_utc: string | null;
+  new_due_at_utc: string | null;
+  calendar_path?: string;
+  calendar_written: boolean;
+  idempotency_result?: string | null;
+  related_linkedin_variants_outcome?: string | null;
+  audit?: Record<string, unknown> | null;
+  errors: string[];
+  warnings?: string[];
 }

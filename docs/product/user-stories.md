@@ -849,20 +849,20 @@ As a content operator, I want to modify future Flow A publication timing from th
 
 **Acceptance criteria**
 
-- [ ] Allow the operator to select a future unpublished item from the month view, mobile agenda view, or list view and open the same schedule editor.
-- [ ] Preserve existing list-based edit, defer, reschedule, and cancel affordances where they are already supported; calendar actions MUST reuse the same business rules and worker semantics.
-- [ ] Support changing the scheduled date and time for future unpublished blog and LinkedIn items only; published historical items MUST be read-only.
-- [ ] For LinkedIn variants, reuse or extend the existing worker supervision semantics for deferring or rescheduling pending variants instead of introducing a second mutation source of truth.
-- [ ] For editorial calendar items, update the canonical calendar through an explicit worker API contract with validation, idempotency, and conflict protection; the browser MUST NOT write raw calendar files directly.
-- [ ] Validate schedule changes against approved cadence and rescheduling rules, including past dates, invalid time formats, saturation, duplicate slots, and unsupported publication states.
-- [ ] Make dry-run behavior visible before any real mutation and require explicit confirmation for committed schedule changes.
-- [ ] After a successful change, refresh the calendar and show the previous schedule, new schedule, affected item, and whether related LinkedIn variants were changed or left as separate overrides.
-- [ ] After a successful change, refresh the list view with the same updated schedule and state so both views remain consistent.
-- [ ] Persist a traceable audit record with actor/source, timestamp, previous value, new value, reason when supplied, idempotency key, and worker result.
-- [ ] Do not call the LinkedIn publication API or publish blog content as part of a schedule edit.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Allow the operator to select a future unpublished item from the month view, mobile agenda view, or list view and open the same schedule editor.
+- [x] Preserve existing list-based edit, defer, reschedule, and cancel affordances where they are already supported; calendar actions MUST reuse the same business rules and worker semantics.
+- [x] Support changing the scheduled date and time for future unpublished blog and LinkedIn items only; published historical items MUST be read-only.
+- [x] For LinkedIn variants, reuse or extend the existing worker supervision semantics for deferring or rescheduling pending variants instead of introducing a second mutation source of truth.
+- [x] For editorial calendar items, update the canonical calendar through an explicit worker API contract with validation, idempotency, and conflict protection; the browser MUST NOT write raw calendar files directly.
+- [x] Validate schedule changes against approved cadence and rescheduling rules, including past dates, invalid time formats, saturation, duplicate slots, and unsupported publication states.
+- [x] Make dry-run behavior visible before any real mutation and require explicit confirmation for committed schedule changes.
+- [x] After a successful change, refresh the calendar and show the previous schedule, new schedule, affected item, and whether related LinkedIn variants were changed or left as separate overrides.
+- [x] After a successful change, refresh the list view with the same updated schedule and state so both views remain consistent.
+- [x] Persist a traceable audit record with actor/source, timestamp, previous value, new value, reason when supplied, idempotency key, and worker result.
+- [x] Do not call the LinkedIn publication API or publish blog content as part of a schedule edit.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-040D — Implement Flow A LinkedIn Variant Supervision Console: Public URL and Google Auth Readiness
 

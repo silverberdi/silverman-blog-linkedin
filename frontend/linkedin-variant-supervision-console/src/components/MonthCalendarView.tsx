@@ -12,13 +12,20 @@ import {
 import type { ScheduleItem } from "../models/supervision";
 import { useSupervisionStore } from "../models/store";
 
-function ScheduleChip({ item }: { item: ScheduleItem }) {
+function ScheduleChip({
+  item,
+  onOpenSchedule,
+}: {
+  item: ScheduleItem;
+  onOpenSchedule: (item: ScheduleItem, entry: "agenda") => void;
+}) {
   return (
     <article
       className="calendar-chip"
       data-testid="calendar-chip"
       data-item-id={item.itemId}
       data-channel={item.channel}
+      data-schedule-editable={item.scheduleEditable ? "true" : "false"}
       style={{ borderLeftColor: item.statusColor }}
     >
       <div className="calendar-chip-title">{item.title || item.itemId}</div>
@@ -34,10 +41,7 @@ function ScheduleChip({ item }: { item: ScheduleItem }) {
         {item.linkedinApiPublished ? (
           <span className="meta"> · LinkedIn API published</span>
         ) : (
-          <span className="meta">
-            {" "}
-            · not LinkedIn API published
-          </span>
+          <span className="meta"> · not LinkedIn API published</span>
         )}
       </div>
       <div className="calendar-chip-meta">
@@ -58,12 +62,23 @@ function ScheduleChip({ item }: { item: ScheduleItem }) {
         {" · local "}
         <span className="mono">{formatLocalDisplay(item.scheduledAtUtc)}</span>
       </div>
+      <div className="calendar-chip-actions">
+        <button
+          type="button"
+          className="row-action"
+          data-testid="schedule-open-agenda"
+          data-action="open-schedule"
+          onClick={() => onOpenSchedule(item, "agenda")}
+        >
+          {item.scheduleEditable ? "Edit schedule" : "View schedule"}
+        </button>
+      </div>
     </article>
   );
 }
 
 /**
- * First-class Month calendar visibility (US-040B). Visibility only — no schedule writes.
+ * First-class Month calendar (US-040B visibility + US-040C schedule-edit entry).
  */
 export function MonthCalendarView() {
   const {
@@ -77,6 +92,7 @@ export function MonthCalendarView() {
     setSelectedItemId,
     loadScheduleVisibility,
     loading,
+    openScheduleEditor,
   } = useSupervisionStore();
 
   useEffect(() => {
@@ -114,6 +130,22 @@ export function MonthCalendarView() {
     setSelectedDayKey(null);
   }
 
+  function openSchedule(item: ScheduleItem, entry: "month" | "agenda") {
+    setSelectedItemId(item.itemId);
+    openScheduleEditor({
+      channel: item.channel,
+      itemId: item.itemId,
+      title: item.title,
+      scheduledAtUtc: item.scheduledAtUtc,
+      scheduleEditable: item.scheduleEditable,
+      scheduleEditBlockReason: item.scheduleEditBlockReason,
+      campaignId: item.campaignId,
+      variantId: item.variantId,
+      calendarItemId: item.calendarItemId,
+      entry,
+    });
+  }
+
   return (
     <section data-testid="month-calendar-view" className="month-calendar">
       <div className="calendar-nav">
@@ -143,8 +175,9 @@ export function MonthCalendarView() {
       <p className="sup-meta" data-testid="calendar-tz-note">
         Day placement uses the <strong>UTC calendar date</strong> of{" "}
         <span className="mono">scheduled_at_utc</span>. Each chip also shows
-        operator-local time. Month calendar is visibility-only (no schedule
-        writes — US-040C).
+        operator-local time. Future unpublished items open the shared schedule
+        editor; published/historical remain read-only. Schedule edit does not
+        publish to LinkedIn API or blog.
       </p>
 
       {scheduleSnapshot?.issues && scheduleSnapshot.issues.length > 0 && (
@@ -185,8 +218,7 @@ export function MonthCalendarView() {
           const isSelected = dayKey === selectedDayKey;
           const isEmpty = dayItems.length === 0;
           return (
-            <button
-              type="button"
+            <div
               key={dayKey}
               className={[
                 "calendar-cell",
@@ -198,11 +230,22 @@ export function MonthCalendarView() {
                 .join(" ")}
               data-testid={`calendar-day-${dayKey}`}
               data-day={dayKey}
+              role="button"
+              tabIndex={0}
               aria-pressed={isSelected}
               onClick={() => {
                 setSelectedDayKey(dayKey);
                 if (dayItems[0]) {
                   setSelectedItemId(dayItems[0].itemId);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setSelectedDayKey(dayKey);
+                  if (dayItems[0]) {
+                    setSelectedItemId(dayItems[0].itemId);
+                  }
                 }
               }}
             >
@@ -222,8 +265,20 @@ export function MonthCalendarView() {
                       }
                       style={{ borderLeftColor: item.statusColor }}
                     >
-                      <span className="mono">{item.channel}</span>{" "}
-                      {item.title || item.variantId || item.campaignId}
+                      <button
+                        type="button"
+                        className="calendar-day-item-btn"
+                        data-testid="schedule-open-month"
+                        data-item-id={item.itemId}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedDayKey(dayKey);
+                          openSchedule(item, "month");
+                        }}
+                      >
+                        <span className="mono">{item.channel}</span>{" "}
+                        {item.title || item.variantId || item.campaignId}
+                      </button>
                     </li>
                   ))}
                   {dayItems.length > 3 && (
@@ -231,7 +286,7 @@ export function MonthCalendarView() {
                   )}
                 </ul>
               )}
-            </button>
+            </div>
           );
         })}
       </div>
@@ -260,7 +315,11 @@ export function MonthCalendarView() {
         {selectedItems.length > 0 && (
           <div className="agenda-list" data-testid="agenda-list">
             {selectedItems.map((item) => (
-              <ScheduleChip key={item.itemId} item={item} />
+              <ScheduleChip
+                key={item.itemId}
+                item={item}
+                onOpenSchedule={openSchedule}
+              />
             ))}
           </div>
         )}

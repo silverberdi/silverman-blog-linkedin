@@ -38,6 +38,9 @@ from silverman_blog_linkedin.editorial_calendar_plan import (
     plan_editorial_calendar_due,
     validate_canonical_utc_timestamp,
 )
+from silverman_blog_linkedin.editorial_calendar_schedule_update import (
+    update_editorial_calendar_item_schedule,
+)
 from silverman_blog_linkedin.flow_a_ready_path_completion import (
     complete_flow_a_ready_path,
 )
@@ -540,6 +543,8 @@ class DeferLinkedInVariantRequest(BaseModel):
     dry_run: bool = True
     reason: str | None = None
     idempotency_key: str | None = None
+    actor: str | None = None
+    source: str | None = None
 
     @field_validator("campaign_id")
     @classmethod
@@ -568,6 +573,22 @@ class DeferLinkedInVariantRequest(BaseModel):
     @field_validator("reason")
     @classmethod
     def validate_reason(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @field_validator("actor")
+    @classmethod
+    def validate_actor(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @field_validator("source")
+    @classmethod
+    def validate_source(cls, value: str | None) -> str | None:
         if value is None:
             return None
         stripped = value.strip()
@@ -653,6 +674,66 @@ class PlanEditorialCalendarDueRequest(BaseModel):
         if value is None:
             return None
         return validate_canonical_utc_timestamp(value)
+
+
+class UpdateEditorialCalendarItemScheduleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    item_id: str
+    new_due_at_utc: str
+    dry_run: bool = True
+    reason: str | None = None
+    idempotency_key: str | None = None
+    actor: str | None = None
+    source: str | None = None
+    expected_calendar_fingerprint: str | None = None
+
+    @field_validator("item_id")
+    @classmethod
+    def validate_item_id(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("item_id must not be empty")
+        return stripped
+
+    @field_validator("new_due_at_utc")
+    @classmethod
+    def validate_new_due_at_utc(cls, value: str) -> str:
+        return validate_canonical_utc_timestamp(value)
+
+    @field_validator("reason", "actor", "source")
+    @classmethod
+    def validate_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @field_validator("idempotency_key")
+    @classmethod
+    def validate_idempotency_key(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("idempotency_key must not be empty or whitespace-only")
+        return stripped
+
+    @field_validator("expected_calendar_fingerprint")
+    @classmethod
+    def validate_fingerprint(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip().lower()
+        if not stripped:
+            raise ValueError(
+                "expected_calendar_fingerprint must not be empty or whitespace-only"
+            )
+        if len(stripped) != 64 or any(c not in "0123456789abcdef" for c in stripped):
+            raise ValueError(
+                "expected_calendar_fingerprint must be a SHA-256 hex digest"
+            )
+        return stripped
 
 
 class CompleteFlowAReadyPathRequest(BaseModel):
@@ -1995,6 +2076,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             dry_run=body.dry_run,
             reason=body.reason,
             idempotency_key=body.idempotency_key,
+            actor=body.actor,
+            source=body.source,
         )
         logger.info(
             "defer-linkedin-variant status=%s campaign_id=%s variant=%s dry_run=%s",
@@ -2142,6 +2225,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "editorial-calendar/status status=%s calendar_present=%s",
             result.status,
             result.calendar_present,
+        )
+        return result.to_dict()
+
+    @app.post("/editorial-calendar/update-item-schedule")
+    def editorial_calendar_update_item_schedule(
+        body: UpdateEditorialCalendarItemScheduleRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = update_editorial_calendar_item_schedule(
+            settings.base_path,
+            item_id=body.item_id,
+            new_due_at_utc=body.new_due_at_utc,
+            dry_run=body.dry_run,
+            reason=body.reason,
+            idempotency_key=body.idempotency_key,
+            actor=body.actor,
+            source=body.source,
+            expected_calendar_fingerprint=body.expected_calendar_fingerprint,
+        )
+        logger.info(
+            "editorial-calendar/update-item-schedule status=%s item_id=%s dry_run=%s",
+            result.status,
+            result.item_id,
+            result.dry_run,
         )
         return result.to_dict()
 

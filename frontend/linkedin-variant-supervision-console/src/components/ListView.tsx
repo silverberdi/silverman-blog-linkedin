@@ -6,15 +6,10 @@ import {
   newIdempotencyKey,
 } from "./ConfirmationFlow";
 import { ItemDetail } from "./ItemDetail";
-import {
-  datetimeLocalToUtcIso,
-  ScheduleEditor,
-  utcIsoToDatetimeLocal,
-} from "./ScheduleEditor";
 import { useSupervisionStore } from "../models/store";
 import type { SupervisionItem } from "../models/supervision";
 
-type PanelMode = "edit" | "defer" | "cancel" | null;
+type PanelMode = "edit" | "cancel" | null;
 
 function CalendarCell({ item }: { item: SupervisionItem }) {
   if (
@@ -102,6 +97,7 @@ export function ListView() {
     dryRunDefault,
     setUnsavedScheduleDraft,
     setSelectedItemId,
+    openScheduleEditor,
   } = useSupervisionStore();
 
   const [panel, setPanel] = useState<PanelMode>(null);
@@ -112,9 +108,6 @@ export function ListView() {
   const [draftContent, setDraftContent] = useState("");
   const [editReason, setEditReason] = useState("");
   const [editDryRun, setEditDryRun] = useState(dryRunDefault);
-  const [deferSchedule, setDeferSchedule] = useState("");
-  const [deferReason, setDeferReason] = useState("");
-  const [deferDryRun, setDeferDryRun] = useState(dryRunDefault);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelDryRun, setCancelDryRun] = useState(dryRunDefault);
   const [submitting, setSubmitting] = useState(false);
@@ -145,13 +138,23 @@ export function ListView() {
   }
 
   function openDefer(item: SupervisionItem) {
-    setActive({ campaignId: item.campaignId, variantId: item.variantId });
-    setSelectedItemId(item.itemId);
-    setDeferSchedule(utcIsoToDatetimeLocal(item.scheduledAtUtc));
-    setDeferReason("");
-    setDeferDryRun(dryRunDefault);
-    setUnsavedScheduleDraft(false);
-    setPanel("defer");
+    setPanel(null);
+    setActive(null);
+    openScheduleEditor({
+      channel: "linkedin",
+      itemId: item.itemId,
+      title: item.title,
+      scheduledAtUtc: item.scheduledAtUtc,
+      scheduleEditable: item.publishState === "pending",
+      scheduleEditBlockReason:
+        item.publishState === "pending"
+          ? null
+          : "linkedin_supervision_variant_not_pending",
+      campaignId: item.campaignId,
+      variantId: item.variantId,
+      calendarItemId: item.calendarItemId,
+      entry: "list",
+    });
   }
 
   function openCancel(item: SupervisionItem) {
@@ -200,43 +203,6 @@ export function ListView() {
       };
       const result = await client.correctVariant(body);
       handleMutationResult("Edit", result);
-    } catch (err) {
-      const apiErr = err as ApiError;
-      setActionBanner({
-        kind: "error",
-        text: apiErr?.message || String(err),
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function submitDefer() {
-    if (!active) {
-      return;
-    }
-    const iso = datetimeLocalToUtcIso(deferSchedule);
-    if (!iso) {
-      setActionBanner({
-        kind: "error",
-        text: "Provide a valid new scheduled time (UTC).",
-      });
-      return;
-    }
-    if (!deferDryRun && !confirmRealMutation("defer")) {
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const result = await client.deferVariant({
-        campaign_id: active.campaignId,
-        variant: active.variantId,
-        new_scheduled_at_utc: iso,
-        dry_run: deferDryRun,
-        reason: deferReason.trim() || null,
-        idempotency_key: deferDryRun ? null : newIdempotencyKey(),
-      });
-      handleMutationResult("Defer", result);
     } catch (err) {
       const apiErr = err as ApiError;
       setActionBanner({
@@ -317,58 +283,6 @@ export function ListView() {
               onClick={() => void submitEdit()}
             >
               Submit edit
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={closePanels}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {panel === "defer" && activeItem && (
-        <div className="panel" data-testid="defer-panel">
-          <h2>Defer / reschedule</h2>
-          <p className="meta">
-            Campaign {activeItem.campaignId} · variant {activeItem.variantId}
-          </p>
-          <ScheduleEditor
-            value={deferSchedule}
-            onChange={(value) => {
-              setDeferSchedule(value);
-              setUnsavedScheduleDraft(true);
-            }}
-          />
-          <label htmlFor="defer-reason">Reason (optional)</label>
-          <input
-            id="defer-reason"
-            type="text"
-            value={deferReason}
-            onChange={(e) => setDeferReason(e.target.value)}
-            placeholder="e.g. operator_choice"
-          />
-          <div className="check-row">
-            <input
-              type="checkbox"
-              id="defer-dry-run"
-              data-testid="defer-dry-run"
-              checked={deferDryRun}
-              onChange={(e) => setDeferDryRun(e.target.checked)}
-            />
-            <label htmlFor="defer-dry-run">
-              Dry-run (default on — validates without mutating)
-            </label>
-          </div>
-          <div className="panel-actions">
-            <button
-              type="button"
-              disabled={submitting}
-              onClick={() => void submitDefer()}
-            >
-              Submit defer
             </button>
             <button
               type="button"

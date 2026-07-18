@@ -18,6 +18,7 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     write_campaign_metadata,
 )
 from silverman_blog_linkedin.linkedin_publication_flow import (
+    CADENCE_MINIMUM_INTERVAL,
     LINKEDIN_PUBLISH_ARTIFACT_HASH_CHANGED,
     LINKEDIN_PUBLISH_ARTIFACT_MISSING,
     LINKEDIN_PUBLISH_CONTENT_INVALID,
@@ -26,6 +27,7 @@ from silverman_blog_linkedin.linkedin_publication_flow import (
     LINKEDIN_PUBLISH_VARIANT_NOT_FOUND,
     PUBLISH_STATE_FAILED,
     PUBLISH_STATE_PENDING,
+    PUBLISH_STATE_QUEUED,
     RECOVERY_ACTION_CONTENT_CORRECTED,
     RECOVERY_CLASS_CONTENT_INVALID,
     _append_recovery_event,
@@ -43,8 +45,14 @@ from silverman_blog_linkedin.run_metadata import utc_now_iso
 LINKEDIN_SUPERVISION_VARIANT_NOT_PENDING = "linkedin_supervision_variant_not_pending"
 LINKEDIN_SUPERVISION_ACTION_NOT_ALLOWED = "linkedin_supervision_action_not_allowed"
 LINKEDIN_SUPERVISION_DEFER_TIME_INVALID = "linkedin_supervision_defer_time_invalid"
+LINKEDIN_SUPERVISION_DEFER_DUPLICATE_SLOT = "linkedin_supervision_defer_duplicate_slot"
+LINKEDIN_SUPERVISION_DEFER_SATURATION = "linkedin_supervision_defer_saturation"
 LINKEDIN_SUPERVISION_EDIT_UNCHANGED = "linkedin_supervision_edit_unchanged"
 LINKEDIN_SUPERVISION_IDEMPOTENCY_CONFLICT = "linkedin_supervision_idempotency_conflict"
+
+# Interim US-040C schedule-intent checks (until BL-021 supersedes).
+_DEFER_SIBLING_STATES = frozenset({PUBLISH_STATE_PENDING, PUBLISH_STATE_QUEUED})
+_DEFER_SATURATION_INTERVAL = CADENCE_MINIMUM_INTERVAL  # 72h
 
 SUPERVISION_ACTION_EDIT = "edit"
 SUPERVISION_ACTION_DEFER = "defer"
@@ -485,6 +493,41 @@ def correct_linkedin_variant(
     )
 
 
+def _defer_cadence_errors(
+    campaign: dict[str, Any],
+    *,
+    variant: str,
+    normalized_new: str,
+    new_dt: datetime,
+) -> list[str]:
+    """Interim duplicate-slot and same-day/72h saturation checks (US-040C / BL-021 interim)."""
+    metadata_map = _get_variant_metadata_map(campaign)
+    for sibling_id, sibling in metadata_map.items():
+        if sibling_id == variant:
+            continue
+        if sibling.get("publish_state") not in _DEFER_SIBLING_STATES:
+            continue
+        sibling_scheduled = sibling.get("scheduled_at_utc")
+        if not isinstance(sibling_scheduled, str) or not sibling_scheduled.strip():
+            continue
+        try:
+            sibling_normalized = normalize_scheduled_at_utc(sibling_scheduled)
+            sibling_dt = _parse_utc(sibling_normalized)
+        except ValueError:
+            continue
+        if sibling_normalized == normalized_new:
+            return [LINKEDIN_SUPERVISION_DEFER_DUPLICATE_SLOT]
+        same_utc_day = (
+            sibling_dt.date() == new_dt.date()
+            and sibling_dt.tzinfo is not None
+            and new_dt.tzinfo is not None
+        )
+        within_72h = abs(sibling_dt - new_dt) < _DEFER_SATURATION_INTERVAL
+        if same_utc_day and within_72h:
+            return [LINKEDIN_SUPERVISION_DEFER_SATURATION]
+    return []
+
+
 def defer_linkedin_variant(
     base_path: Path,
     *,
@@ -494,6 +537,8 @@ def defer_linkedin_variant(
     dry_run: bool = True,
     reason: str | None = None,
     idempotency_key: str | None = None,
+    actor: str | None = None,
+    source: str | None = None,
     now: datetime | None = None,
 ) -> LinkedInSupervisionResult:
     """Reschedule a pending variant with deferral audit history."""
@@ -562,6 +607,23 @@ def defer_linkedin_variant(
             errors=[LINKEDIN_SUPERVISION_ACTION_NOT_ALLOWED],
         )
 
+    cadence_errors = _defer_cadence_errors(
+        campaign,
+        variant=variant,
+        normalized_new=normalized_new,
+        new_dt=new_dt,
+    )
+    if cadence_errors:
+        return LinkedInSupervisionResult(
+            status="failed",
+            campaign_id=campaign_id,
+            variant=variant,
+            state=campaign.get("state"),
+            publish_state=publish_state,
+            dry_run=dry_run,
+            errors=cadence_errors,
+        )
+
     payload = {
         "new_scheduled_at_utc": normalized_new,
         "reason": reason,
@@ -610,14 +672,20 @@ def defer_linkedin_variant(
             metadata_written=False,
         )
 
+    resolved_actor = actor.strip() if isinstance(actor, str) and actor.strip() else (
+        SUPERVISION_ACTOR_OPERATOR
+    )
     deferred_at = utc_now_iso()
     defer_record = {
         "deferred_at_utc": deferred_at,
         "previous_scheduled_at_utc": normalize_scheduled_at_utc(previous_scheduled),
         "new_scheduled_at_utc": normalized_new,
+        "actor": resolved_actor,
     }
     if reason:
         defer_record["reason"] = reason
+    if isinstance(source, str) and source.strip():
+        defer_record["source"] = source.strip()
 
     history = supervision.get("deferral_history")
     if not isinstance(history, list):
@@ -627,7 +695,9 @@ def defer_linkedin_variant(
     supervision["last_action"] = SUPERVISION_ACTION_DEFER
     supervision["last_action_at_utc"] = deferred_at
     supervision["phase"] = SUPERVISION_PHASE_PRE_QUEUE
-    supervision["actor"] = SUPERVISION_ACTOR_OPERATOR
+    supervision["actor"] = resolved_actor
+    if isinstance(source, str) and source.strip():
+        supervision["source"] = source.strip()
     if reason:
         supervision["reason"] = reason
     supervision["auto_queue_eligible"] = False

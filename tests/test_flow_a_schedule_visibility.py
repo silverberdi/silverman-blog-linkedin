@@ -350,3 +350,61 @@ def test_http_happy_path_and_pending_supervision_unchanged(
     assert len(pending_body["variants"]) == 1
     assert pending_body["variants"][0]["publish_state"] == "pending"
     assert pending_body["variants"][0]["variant_id"] == "engineering-leadership"
+
+
+def test_schedule_editable_hints_and_fingerprint(schedule_base: Path):
+    _write_calendar(
+        schedule_base,
+        [
+            _calendar_item(
+                "blog-editable",
+                due_at_utc="2026-07-19T11:00:00Z",
+                status="scheduled",
+            ),
+            _calendar_item(
+                "blog-completed",
+                due_at_utc="2026-07-22T09:00:00Z",
+                status="completed",
+            ),
+        ],
+    )
+    _write_campaign(
+        schedule_base,
+        variants=[
+            _variant("engineering-leadership", publish_state="pending"),
+            _variant(
+                "queued-variant",
+                publish_state="queued",
+                scheduled_at_utc="2026-07-21T16:00:00Z",
+            ),
+            _variant(
+                "published-variant",
+                publish_state="published",
+                scheduled_at_utc="2026-07-10T12:00:00Z",
+            ),
+        ],
+    )
+    before = _snapshot_tree(schedule_base)
+    result = get_flow_a_schedule_visibility(schedule_base, year=2026, month=7)
+    after = _snapshot_tree(schedule_base)
+    assert before == after
+    assert result.calendar_fingerprint is not None
+    assert len(result.calendar_fingerprint) == 64
+
+    by_id = {item.item_id: item for item in result.items}
+    assert by_id["blog:blog-editable"].schedule_editable is True
+    assert by_id["blog:blog-editable"].schedule_edit_block_reason is None
+    assert by_id["blog:blog-completed"].schedule_editable is False
+    assert by_id["blog:blog-completed"].schedule_edit_block_reason == (
+        "calendar_schedule_unsupported_state"
+    )
+    pending = by_id[f"linkedin:{CAMPAIGN_ID}:engineering-leadership"]
+    assert pending.schedule_editable is True
+    queued = by_id[f"linkedin:{CAMPAIGN_ID}:queued-variant"]
+    assert queued.schedule_editable is False
+    published = by_id[f"linkedin:{CAMPAIGN_ID}:published-variant"]
+    assert published.schedule_editable is False
+    # US-040B baseline fields remain present.
+    assert pending.channel == "linkedin"
+    assert pending.linkedin_api_published is False
+    assert published.linkedin_api_published is True

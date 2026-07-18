@@ -30,6 +30,8 @@ from silverman_blog_linkedin.linkedin_publication_flow import (
     queue_linkedin_publication,
 )
 from silverman_blog_linkedin.linkedin_supervision_flow import (
+    LINKEDIN_SUPERVISION_DEFER_DUPLICATE_SLOT,
+    LINKEDIN_SUPERVISION_DEFER_SATURATION,
     LINKEDIN_SUPERVISION_DEFER_TIME_INVALID,
     LINKEDIN_SUPERVISION_EDIT_UNCHANGED,
     LINKEDIN_SUPERVISION_IDEMPOTENCY_CONFLICT,
@@ -366,6 +368,150 @@ def test_defer_past_time_rejected(scheduled_base: Path):
     )
     assert result.status == "failed"
     assert LINKEDIN_SUPERVISION_DEFER_TIME_INVALID in result.errors
+
+
+def test_defer_with_console_source_audited(scheduled_base: Path):
+    result = defer_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc=FUTURE_SCHEDULE,
+        dry_run=False,
+        reason="operator_choice",
+        actor="operator",
+        source="linkedin_variant_supervision_console",
+        now=DEFER_NOW,
+    )
+    assert result.status == "completed"
+    entry = _variant_entry(scheduled_base)
+    supervision = entry["operator_supervision"]
+    assert supervision["actor"] == "operator"
+    assert supervision["source"] == "linkedin_variant_supervision_console"
+    history = supervision["deferral_history"][0]
+    assert history["source"] == "linkedin_variant_supervision_console"
+    assert history["actor"] == "operator"
+    assert history["previous_scheduled_at_utc"]
+    assert history["new_scheduled_at_utc"] == FUTURE_SCHEDULE
+
+
+def test_defer_without_source_remains_compatible(scheduled_base: Path):
+    result = defer_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc=FUTURE_SCHEDULE,
+        dry_run=False,
+        now=DEFER_NOW,
+    )
+    assert result.status == "completed"
+    entry = _variant_entry(scheduled_base)
+    supervision = entry["operator_supervision"]
+    assert supervision["actor"] == "operator"
+    assert "source" not in supervision
+    assert "source" not in supervision["deferral_history"][0]
+
+
+def test_defer_duplicate_slot_rejected(scheduled_base: Path):
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    sibling = next(
+        v
+        for v in campaign["variants"]
+        if v["variant"] != TARGET_VARIANT and v.get("publish_state") == PUBLISH_STATE_PENDING
+    )
+    sibling_id = sibling["variant"]
+    _update_variant(scheduled_base, variant=sibling_id, scheduled_at_utc=FUTURE_SCHEDULE)
+
+    before = json.dumps(_variant_entry(scheduled_base), sort_keys=True)
+    result = defer_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc=FUTURE_SCHEDULE,
+        dry_run=True,
+        now=DEFER_NOW,
+    )
+    assert result.status == "failed"
+    assert LINKEDIN_SUPERVISION_DEFER_DUPLICATE_SLOT in result.errors
+    assert json.dumps(_variant_entry(scheduled_base), sort_keys=True) == before
+
+
+def test_defer_same_day_saturation_rejected(scheduled_base: Path):
+    campaign = read_campaign_metadata(scheduled_base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    sibling = next(
+        v
+        for v in campaign["variants"]
+        if v["variant"] != TARGET_VARIANT and v.get("publish_state") == PUBLISH_STATE_PENDING
+    )
+    sibling_id = sibling["variant"]
+    # Same UTC day, different instant — within 72h by definition.
+    _update_variant(
+        scheduled_base,
+        variant=sibling_id,
+        scheduled_at_utc="2026-08-01T10:00:00Z",
+    )
+
+    before = json.dumps(_variant_entry(scheduled_base), sort_keys=True)
+    result = defer_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc="2026-08-01T18:00:00Z",
+        dry_run=False,
+        now=DEFER_NOW,
+    )
+    assert result.status == "failed"
+    assert LINKEDIN_SUPERVISION_DEFER_SATURATION in result.errors
+    assert json.dumps(_variant_entry(scheduled_base), sort_keys=True) == before
+
+
+def test_defer_does_not_write_calendar_json(scheduled_base: Path):
+    calendar_path = scheduled_base / "editorial-calendar" / "calendar.json"
+    calendar_path.parent.mkdir(parents=True, exist_ok=True)
+    calendar_path.write_text('{"schema_version":"1","updated_at_utc":"2026-07-01T00:00:00Z","items":[]}', encoding="utf-8")
+    before = calendar_path.read_bytes()
+
+    result = defer_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc=FUTURE_SCHEDULE,
+        dry_run=False,
+        now=DEFER_NOW,
+    )
+    assert result.status == "completed"
+    assert calendar_path.read_bytes() == before
+
+
+def test_defer_endpoint_accepts_optional_source(client: TestClient):
+    response = client.post(
+        "/defer-linkedin-variant",
+        headers=auth_header(),
+        json={
+            "campaign_id": CANONICAL_CAMPAIGN_ID,
+            "variant": TARGET_VARIANT,
+            "new_scheduled_at_utc": FUTURE_SCHEDULE,
+            "dry_run": True,
+            "source": "linkedin_variant_supervision_console",
+            "actor": "operator",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "completed"
+
+
+def test_defer_endpoint_rejects_unauthenticated(client: TestClient):
+    response = client.post(
+        "/defer-linkedin-variant",
+        json={
+            "campaign_id": CANONICAL_CAMPAIGN_ID,
+            "variant": TARGET_VARIANT,
+            "new_scheduled_at_utc": FUTURE_SCHEDULE,
+            "dry_run": True,
+        },
+    )
+    assert response.status_code == 401
 
 
 def test_supervision_endpoints_do_not_require_publication_enabled(client: TestClient):

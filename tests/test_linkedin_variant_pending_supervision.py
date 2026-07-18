@@ -582,7 +582,7 @@ def test_console_html_served_at_fixed_path_without_auth(
     assert "not LinkedIn API published" in bundle
     assert "flow_a_complete" in bundle
     assert "edit-dry-run" in bundle
-    assert "defer-dry-run" in bundle
+    assert "schedule-dry-run" in bundle
     assert "cancel-dry-run" in bundle
     assert "linkedin_supervision_variant_not_pending" in bundle
     assert "linkedin_supervision_defer_time_invalid" in bundle
@@ -596,19 +596,20 @@ def test_console_html_served_at_fixed_path_without_auth(
 
 
 def test_console_action_contract_wiring_in_static_html():
-    """Story 3 console wires edit/defer/cancel to US-017 POSTs with dry-run default on."""
+    """Story 3 + US-040C: edit/cancel + shared schedule editor → US-017 / calendar APIs."""
     bundle = _console_bundle_text()
     assert CORRECT_PATH in bundle
     assert DEFER_PATH in bundle
     assert CANCEL_PATH in bundle
+    assert "/editorial-calendar/update-item-schedule" in bundle
     assert "edit-dry-run" in bundle
-    assert "defer-dry-run" in bundle
+    assert "schedule-dry-run" in bundle
     assert "cancel-dry-run" in bundle
     assert "draft_content" in bundle
     assert "new_scheduled_at_utc" in bundle
     assert "validated (dry-run, no mutation)" in bundle
     assert "persisted (real write)" in bundle
-    assert "does not auto-update the editorial calendar" in bundle
+    assert "Schedule edit does not call LinkedIn publication API" in bundle
     assert "not strategy-driven auto-queue eligible" in bundle or (
         "not auto-queue eligible" in bundle
     )

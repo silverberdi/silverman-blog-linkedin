@@ -19,6 +19,7 @@ import {
   supervisionToFilterable,
   type ConsoleView,
   type FilterState,
+  type ScheduleEditorTarget,
   type ScheduleItem,
   type ScheduleSnapshot,
   type SupervisionItem,
@@ -52,6 +53,9 @@ interface SupervisionStoreValue {
   setDryRunDefault: (value: boolean) => void;
   unsavedScheduleDraft: boolean;
   setUnsavedScheduleDraft: (value: boolean) => void;
+  scheduleEditorTarget: ScheduleEditorTarget | null;
+  openScheduleEditor: (target: ScheduleEditorTarget) => void;
+  closeScheduleEditor: () => void;
   loading: boolean;
   statusBanner: BannerState;
   actionBanner: BannerState;
@@ -96,6 +100,8 @@ export function SupervisionStoreProvider({
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [dryRunDefault, setDryRunDefault] = useState(true);
   const [unsavedScheduleDraft, setUnsavedScheduleDraft] = useState(false);
+  const [scheduleEditorTarget, setScheduleEditorTarget] =
+    useState<ScheduleEditorTarget | null>(null);
   const [loading, setLoading] = useState(false);
   const [statusBanner, setStatusBanner] = useState<BannerState>(emptyBanner);
   const [actionBanner, setActionBanner] = useState<BannerState>(emptyBanner);
@@ -125,11 +131,22 @@ export function SupervisionStoreProvider({
           return;
         }
         setUnsavedScheduleDraft(false);
+        setScheduleEditorTarget(null);
       }
       setActiveViewState(view);
     },
     [activeView, unsavedScheduleDraft],
   );
+
+  const openScheduleEditor = useCallback((target: ScheduleEditorTarget) => {
+    setScheduleEditorTarget(target);
+    setSelectedItemId(target.itemId);
+  }, []);
+
+  const closeScheduleEditor = useCallback(() => {
+    setScheduleEditorTarget(null);
+    setUnsavedScheduleDraft(false);
+  }, []);
 
   const resetFilters = useCallback(() => {
     setFilters(defaultFilters());
@@ -326,6 +343,9 @@ export function SupervisionStoreProvider({
       setDryRunDefault,
       unsavedScheduleDraft,
       setUnsavedScheduleDraft,
+      scheduleEditorTarget,
+      openScheduleEditor,
+      closeScheduleEditor,
       loading,
       statusBanner,
       actionBanner,
@@ -354,6 +374,9 @@ export function SupervisionStoreProvider({
       selectedItemId,
       dryRunDefault,
       unsavedScheduleDraft,
+      scheduleEditorTarget,
+      openScheduleEditor,
+      closeScheduleEditor,
       loading,
       statusBanner,
       actionBanner,
