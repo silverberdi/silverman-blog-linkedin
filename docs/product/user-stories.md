@@ -1007,7 +1007,7 @@ Required scenes (desktop + mobile): Week first paint; empty week (**day columns 
 
 As a content operator, I want to click a **specific event** and work inside a focused **modal**, with success/info feedback as brief **toasts**, so that I never face a confusing split of “day dump below + detail above” or large green banners that steal the calendar.
 
-**Status:** Implemented in console layer (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040h`; Vitest + rebuilt static assets). **Not Story accepted; BL-015 remains open.** Visual DoD + operator walkthrough gated; browser capture unavailable in apply environment.
+**Status:** Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040h`; Vitest + rebuilt static assets; live `index-P0TKf1cr.js` / `index-BGvbD0Jm.css`; git `3aa9394`). **Not Story accepted; BL-015 remains open.** Visual DoD + operator walkthrough remain gated.
 
 **UX intent (normative)**
 

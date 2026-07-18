@@ -67,5 +67,5 @@
 - [x] 7.5 `/opsx-sync` → separate sync commit
 - [x] 7.6 `/opsx-archive` → separate archive commit
 - [x] 7.7 Push only with explicit approval
-- [ ] 7.8 Deploy only with explicit approval (required before Visual DoD / walkthrough unless an agreed preview is documented)
+- [x] 7.8 Deploy only with explicit approval (required before Visual DoD / walkthrough unless an agreed preview is documented)
 - [ ] 7.9 Business validation: section 6 walkthrough complete before Story accepted; BL-015 remains open
