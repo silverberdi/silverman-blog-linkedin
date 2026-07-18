@@ -361,12 +361,13 @@ Use this checklist to track business progress. Mark items only when the stated b
 - [ ] **BL-014 — Establish Backup and Restore for Editorial State**
   - Business outcome: Editorial state can be restored from a verified backup.
   - [ ] **US-036**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — automated fixtures (scope/retention/integrity policy + verify pass/fail/blocked, builder/prune confined to `metadata/backups/`, secret-safe reports); not operator-accepted yet
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
+    - Implementation evidence: [editorial-backup-scope-retention-integrity.md](../operations/editorial-backup-scope-retention-integrity.md)
   - [ ] **US-037**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed

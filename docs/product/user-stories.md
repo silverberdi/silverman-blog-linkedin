@@ -698,6 +698,8 @@ As a system operator, I want to validate behavior during restarts, so that concu
 
 As a system operator, I want to define backup scope, so that editorial state can be restored from a verified backup.
 
+**Operator policy:** [editorial-backup-scope-retention-integrity.md](../operations/editorial-backup-scope-retention-integrity.md) (scope, retention, integrity — US-036; restore is US-037).
+
 **Acceptance criteria**
 
 - [ ] Define backup scope.

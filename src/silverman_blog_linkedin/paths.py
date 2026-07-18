@@ -15,6 +15,9 @@ EXPECTED_FOLDERS: tuple[str, ...] = (
     "linkedin-posts/published",
     "metadata/runs",
     "metadata/campaigns",
+    # Designated root for editorial backup packages (US-036). Health/folder
+    # validation only checks directory presence — it does not create, verify,
+    # prune, or restore backup packages.
     "metadata/backups",
     "prompts",
     "editorial-calendar",
