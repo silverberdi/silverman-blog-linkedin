@@ -60,6 +60,9 @@ from silverman_blog_linkedin.flow_a_operational_alerts import (
 from silverman_blog_linkedin.flow_a_operational_status import (
     get_flow_a_operational_status,
 )
+from silverman_blog_linkedin.flow_a_schedule_visibility import (
+    get_flow_a_schedule_visibility,
+)
 from silverman_blog_linkedin.linkedin_variant_pending_supervision import (
     console_assets_dir,
     get_pending_linkedin_variant_supervision,
@@ -2183,6 +2186,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "variants=%s issues=%s linkedin_publication_enabled=%s",
             result.status,
             len(result.variants),
+            len(result.issues),
+            result.linkedin_publication_enabled,
+        )
+        return result.to_dict()
+
+    @app.get("/flow-a/schedule-visibility")
+    def flow_a_schedule_visibility(
+        year: int | None = None,
+        month: int | None = None,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = get_flow_a_schedule_visibility(
+            settings.base_path,
+            year=year,
+            month=month,
+        )
+        logger.info(
+            "flow-a/schedule-visibility status=%s year=%s month=%s "
+            "items=%s issues=%s linkedin_publication_enabled=%s",
+            result.status,
+            result.year,
+            result.month,
+            len(result.items),
             len(result.issues),
             result.linkedin_publication_enabled,
         )

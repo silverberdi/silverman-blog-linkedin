@@ -96,8 +96,12 @@ export function ListView() {
   const {
     snapshot,
     client,
-    loadPending,
+    refreshAll,
     setActionBanner,
+    filteredListItems,
+    dryRunDefault,
+    setUnsavedScheduleDraft,
+    setSelectedItemId,
   } = useSupervisionStore();
 
   const [panel, setPanel] = useState<PanelMode>(null);
@@ -107,12 +111,12 @@ export function ListView() {
   } | null>(null);
   const [draftContent, setDraftContent] = useState("");
   const [editReason, setEditReason] = useState("");
-  const [editDryRun, setEditDryRun] = useState(true);
+  const [editDryRun, setEditDryRun] = useState(dryRunDefault);
   const [deferSchedule, setDeferSchedule] = useState("");
   const [deferReason, setDeferReason] = useState("");
-  const [deferDryRun, setDeferDryRun] = useState(true);
+  const [deferDryRun, setDeferDryRun] = useState(dryRunDefault);
   const [cancelReason, setCancelReason] = useState("");
-  const [cancelDryRun, setCancelDryRun] = useState(true);
+  const [cancelDryRun, setCancelDryRun] = useState(dryRunDefault);
   const [submitting, setSubmitting] = useState(false);
 
   const activeItem =
@@ -127,28 +131,35 @@ export function ListView() {
   function closePanels() {
     setPanel(null);
     setActive(null);
+    setUnsavedScheduleDraft(false);
   }
 
   function openEdit(item: SupervisionItem) {
     setActive({ campaignId: item.campaignId, variantId: item.variantId });
+    setSelectedItemId(item.itemId);
     setDraftContent(item.draftContent ?? "");
     setEditReason("");
-    setEditDryRun(true);
+    setEditDryRun(dryRunDefault);
+    setUnsavedScheduleDraft(false);
     setPanel("edit");
   }
 
   function openDefer(item: SupervisionItem) {
     setActive({ campaignId: item.campaignId, variantId: item.variantId });
+    setSelectedItemId(item.itemId);
     setDeferSchedule(utcIsoToDatetimeLocal(item.scheduledAtUtc));
     setDeferReason("");
-    setDeferDryRun(true);
+    setDeferDryRun(dryRunDefault);
+    setUnsavedScheduleDraft(false);
     setPanel("defer");
   }
 
   function openCancel(item: SupervisionItem) {
     setActive({ campaignId: item.campaignId, variantId: item.variantId });
+    setSelectedItemId(item.itemId);
     setCancelReason("");
-    setCancelDryRun(true);
+    setCancelDryRun(dryRunDefault);
+    setUnsavedScheduleDraft(false);
     setPanel("cancel");
   }
 
@@ -164,7 +175,8 @@ export function ListView() {
       text: `${action} ${mode} for ${result.campaign_id} / ${result.variant}. publish_state=${result.publish_state ?? "—"}. Pending, cancelled, and flow_a_complete are not LinkedIn API published.`,
     });
     if (!result.dry_run) {
-      void loadPending({ preserveActionBanner: true });
+      setUnsavedScheduleDraft(false);
+      void refreshAll({ preserveActionBanner: true });
       closePanels();
     }
   }
@@ -264,12 +276,12 @@ export function ListView() {
     }
   }
 
-  const items = snapshot?.items ?? [];
+  const items = filteredListItems;
   const issues = snapshot?.issues ?? [];
   const failures = snapshot?.integrationFailures ?? [];
 
   return (
-    <div data-testid="list-view">
+    <div data-testid="list-view" className="list-view">
       {panel === "edit" && activeItem && (
         <div className="panel" data-testid="edit-panel">
           <h2>Edit draft content</h2>
@@ -323,7 +335,13 @@ export function ListView() {
           <p className="meta">
             Campaign {activeItem.campaignId} · variant {activeItem.variantId}
           </p>
-          <ScheduleEditor value={deferSchedule} onChange={setDeferSchedule} />
+          <ScheduleEditor
+            value={deferSchedule}
+            onChange={(value) => {
+              setDeferSchedule(value);
+              setUnsavedScheduleDraft(true);
+            }}
+          />
           <label htmlFor="defer-reason">Reason (optional)</label>
           <input
             id="defer-reason"
@@ -423,7 +441,7 @@ export function ListView() {
       {items.length > 0 && (
         <div data-testid="results">
           <h2 className="section-title">Pending variants</h2>
-          <div className="table-wrap">
+          <div className="table-wrap list-desktop">
             <table>
               <thead>
                 <tr>
@@ -439,8 +457,9 @@ export function ListView() {
               <tbody>
                 {items.map((item) => (
                   <tr
-                    key={`${item.campaignId}::${item.variantId}`}
+                    key={item.itemId}
                     data-testid="variant-row"
+                    data-item-id={item.itemId}
                   >
                     <td className="mono">{item.campaignId}</td>
                     <td>
@@ -450,9 +469,14 @@ export function ListView() {
                     <td>{item.audience || ""}</td>
                     <td className="mono">{item.scheduledAtUtc || ""}</td>
                     <td>
-                      <span className="mono">{item.publishState}</span>{" "}
+                      <span
+                        className="status-pill"
+                        style={{ backgroundColor: item.statusColor }}
+                      >
+                        {item.publicationState}
+                      </span>{" "}
                       <span className="meta">
-                        (supervision window; not LinkedIn API published)
+                        (source {item.publishState}; not LinkedIn API published)
                       </span>
                     </td>
                     <td>
@@ -488,6 +512,58 @@ export function ListView() {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="list-mobile-cards" data-testid="list-mobile-cards">
+            {items.map((item) => (
+              <article
+                key={`card-${item.itemId}`}
+                className="list-card"
+                data-testid="variant-card"
+                data-item-id={item.itemId}
+              >
+                <header>
+                  <span
+                    className="status-pill"
+                    style={{ backgroundColor: item.statusColor }}
+                  >
+                    {item.publicationState}
+                  </span>{" "}
+                  <span className="mono">{item.campaignId}</span>
+                </header>
+                <p>
+                  variant <span className="mono">{item.variantId}</span>
+                  {item.audience ? ` · ${item.audience}` : ""}
+                </p>
+                <p className="mono">UTC {item.scheduledAtUtc || "—"}</p>
+                <SupervisionMeta item={item} />
+                <div className="panel-actions">
+                  <button
+                    type="button"
+                    className="row-action"
+                    data-action="edit"
+                    onClick={() => openEdit(item)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="row-action secondary"
+                    data-action="defer"
+                    onClick={() => openDefer(item)}
+                  >
+                    Defer
+                  </button>
+                  <button
+                    type="button"
+                    className="row-action secondary"
+                    data-action="cancel"
+                    onClick={() => openCancel(item)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </article>
+            ))}
           </div>
         </div>
       )}

@@ -1,29 +1,143 @@
+import {
+  PUBLICATION_STATES,
+  type FilterState,
+  type PublicationDisplayState,
+} from "../models/supervision";
+import { useSupervisionStore } from "../models/store";
+
 /**
- * Filters scaffold — props/state shape ready; no-op until US-040B.
+ * Shared filters applied to both List and Month calendar views (US-040B).
  */
-export function Filters({
-  query,
-  onQueryChange,
-}: {
-  query: string;
-  onQueryChange: (value: string) => void;
-}) {
+export function Filters() {
+  const {
+    filters,
+    setFilters,
+    resetFilters,
+    showHiddenCritical,
+    hiddenCriticalCount,
+  } = useSupervisionStore();
+
+  function update(partial: Partial<FilterState>) {
+    setFilters((prev) => ({ ...prev, ...partial }));
+  }
+
+  function toggleState(state: PublicationDisplayState) {
+    setFilters((prev) => {
+      const has = prev.publicationStates.includes(state);
+      const publicationStates = has
+        ? prev.publicationStates.filter((s) => s !== state)
+        : [...prev.publicationStates, state];
+      return { ...prev, publicationStates };
+    });
+  }
+
   return (
-    <div className="panel" data-testid="filters-scaffold" hidden={false}>
-      <h2>Filters (scaffold)</h2>
+    <div className="panel filters-panel" data-testid="filters">
+      <h2>Filters</h2>
       <p className="sup-meta">
-        Filter controls are scaffolded for US-040B. List shows all pending rows
-        from the shared model.
+        Same filter selection applies to List and Month calendar. Due soon =
+        next 48 hours. Critical failures are never hidden silently.
       </p>
-      <label htmlFor="filter-query">Filter query (not applied yet)</label>
-      <input
-        id="filter-query"
-        type="text"
-        value={query}
-        onChange={(e) => onQueryChange(e.target.value)}
-        placeholder="campaign or variant id"
-        aria-disabled="true"
-      />
+
+      <div className="filters-grid">
+        <div>
+          <label htmlFor="filter-channel">Channel</label>
+          <select
+            id="filter-channel"
+            data-testid="filter-channel"
+            value={filters.channel}
+            onChange={(e) =>
+              update({
+                channel: e.target.value as FilterState["channel"],
+              })
+            }
+          >
+            <option value="all">All</option>
+            <option value="blog">Blog</option>
+            <option value="linkedin">LinkedIn</option>
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="filter-campaign">Campaign / label</label>
+          <input
+            id="filter-campaign"
+            data-testid="filter-campaign"
+            type="text"
+            value={filters.campaignQuery}
+            onChange={(e) => update({ campaignQuery: e.target.value })}
+            placeholder="campaign id, variant, or title"
+          />
+        </div>
+
+        <div className="check-row">
+          <input
+            type="checkbox"
+            id="filter-blocked"
+            data-testid="filter-blocked"
+            checked={filters.blockedOnly}
+            onChange={(e) => update({ blockedOnly: e.target.checked })}
+          />
+          <label htmlFor="filter-blocked">Blocked only</label>
+        </div>
+
+        <div className="check-row">
+          <input
+            type="checkbox"
+            id="filter-due-soon"
+            data-testid="filter-due-soon"
+            checked={filters.dueSoonOnly}
+            onChange={(e) => update({ dueSoonOnly: e.target.checked })}
+          />
+          <label htmlFor="filter-due-soon">Due soon (48h)</label>
+        </div>
+      </div>
+
+      <fieldset className="filter-states" data-testid="filter-states">
+        <legend>Publication state</legend>
+        <div className="filter-state-chips">
+          {PUBLICATION_STATES.map((state) => (
+            <label key={state} className="filter-chip">
+              <input
+                type="checkbox"
+                checked={filters.publicationStates.includes(state)}
+                onChange={() => toggleState(state)}
+              />
+              <span>{state}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <div className="panel-actions">
+        <button
+          type="button"
+          className="secondary"
+          data-testid="filters-reset"
+          onClick={resetFilters}
+        >
+          Reset filters
+        </button>
+      </div>
+
+      {hiddenCriticalCount > 0 && (
+        <div
+          className="banner warn"
+          data-testid="hidden-critical-banner"
+          role="status"
+        >
+          {hiddenCriticalCount} critical failure
+          {hiddenCriticalCount === 1 ? "" : "s"} hidden by current filters.{" "}
+          <button
+            type="button"
+            className="secondary"
+            data-testid="show-critical-btn"
+            onClick={showHiddenCritical}
+          >
+            Show critical / reset filters
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,8 @@
-/** Worker API path constants and response/request types (US-017 + pending-supervision). */
+/** Worker API path constants and response/request types (US-017 + pending-supervision + US-040B). */
 
 export const PENDING_SUPERVISION_PATH =
   "/flow-a/linkedin-variants/pending-supervision";
+export const SCHEDULE_VISIBILITY_PATH = "/flow-a/schedule-visibility";
 export const CORRECT_PATH = "/correct-linkedin-variant";
 export const DEFER_PATH = "/defer-linkedin-variant";
 export const CANCEL_PATH = "/cancel-linkedin-publication";
@@ -46,6 +47,47 @@ export interface PendingSupervisionResponse {
   variants: PendingSupervisionVariantDto[];
   issues: SupervisionIssueDto[];
   integration_failures: IntegrationFailureDto[];
+}
+
+export type ScheduleChannel = "blog" | "linkedin";
+
+export type PublicationDisplayState =
+  | "planned"
+  | "pending"
+  | "queued"
+  | "published"
+  | "deferred"
+  | "cancelled"
+  | "blocked"
+  | "failed";
+
+export interface ScheduleVisibilityItemDto {
+  item_id: string;
+  channel: ScheduleChannel | string;
+  campaign_id: string | null;
+  variant_id: string | null;
+  title: string | null;
+  audience: string | null;
+  scheduled_at_utc: string | null;
+  publication_state: PublicationDisplayState | string;
+  source_state: string | null;
+  blocked: boolean;
+  critical: boolean;
+  linkedin_api_published: boolean;
+  calendar_item_id?: string | null;
+}
+
+export interface ScheduleVisibilityResponse {
+  status: PendingSupervisionStatus | string;
+  observed_at_utc: string;
+  read_only: boolean;
+  year: number;
+  month: number;
+  from_utc: string;
+  to_utc: string;
+  linkedin_publication_enabled: boolean;
+  items: ScheduleVisibilityItemDto[];
+  issues: SupervisionIssueDto[];
 }
 
 export interface CorrectVariantRequest {

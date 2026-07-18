@@ -823,23 +823,23 @@ As a content operator, I want to switch between a list view and a dark month cal
 
 **Acceptance criteria**
 
-- [ ] Provide two first-class views in the same console: `List` and `Month calendar`; neither view replaces, hides permanently, or weakens the other.
-- [ ] Preserve the list view as the detail-heavy operational view for pending variants, including campaign id, variant id, audience, `scheduled_at_utc`, publication state, draft content visibility where supported, issues, integration failures, and available actions.
-- [ ] Provide a clear, persistent view switcher suitable for desktop and mobile; switching views MUST NOT clear filters, selected campaign context, dry-run mode, or unsaved schedule edits without warning.
-- [ ] Present a month view with current month, next/previous month navigation, today marker, selected-day state, and clear empty-day states.
-- [ ] Show each scheduled blog post and LinkedIn variant on the correct calendar day, including title or campaign label, campaign id where available, variant id where available, audience, channel, publication state, and scheduled time.
-- [ ] Distinguish planned, pending, queued, published, deferred, cancelled, blocked, and failed states without implying that `pending` or `queued` content has already been published.
-- [ ] Make the same item recognizable across both views by preserving stable labels, ids, status colors, and detail fields.
-- [ ] Surface blocking issues and partial-data warnings when campaign, calendar, variant, or integration state cannot be read completely.
-- [ ] Provide filters or toggles for channel, campaign, publication state, blocked items, and due-soon items without hiding critical failure indicators silently.
-- [ ] Apply filters consistently to both list and calendar views, while making hidden critical failures discoverable through a count, warning, or reset affordance.
-- [ ] Display dates and times with explicit timezone handling, including the stored UTC schedule and the operator-local interpretation where useful.
-- [ ] Work comfortably on phone and laptop viewports: the list view SHOULD become readable stacked rows/cards on mobile, and the calendar SHOULD provide an agenda-style day expansion or equivalent mobile pattern instead of forcing horizontal table scrolling.
-- [ ] Use a dark visual theme with readable contrast, stable spacing, clear hierarchy, and touch targets suitable for mobile operation.
-- [ ] Read data through worker HTTP capabilities only; the browser MUST NOT read raw mounted files or infer state from filesystem paths.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Provide two first-class views in the same console: `List` and `Month calendar`; neither view replaces, hides permanently, or weakens the other.
+- [x] Preserve the list view as the detail-heavy operational view for pending variants, including campaign id, variant id, audience, `scheduled_at_utc`, publication state, draft content visibility where supported, issues, integration failures, and available actions.
+- [x] Provide a clear, persistent view switcher suitable for desktop and mobile; switching views MUST NOT clear filters, selected campaign context, dry-run mode, or unsaved schedule edits without warning.
+- [x] Present a month view with current month, next/previous month navigation, today marker, selected-day state, and clear empty-day states.
+- [x] Show each scheduled blog post and LinkedIn variant on the correct calendar day, including title or campaign label, campaign id where available, variant id where available, audience, channel, publication state, and scheduled time.
+- [x] Distinguish planned, pending, queued, published, deferred, cancelled, blocked, and failed states without implying that `pending` or `queued` content has already been published.
+- [x] Make the same item recognizable across both views by preserving stable labels, ids, status colors, and detail fields.
+- [x] Surface blocking issues and partial-data warnings when campaign, calendar, variant, or integration state cannot be read completely.
+- [x] Provide filters or toggles for channel, campaign, publication state, blocked items, and due-soon items without hiding critical failure indicators silently.
+- [x] Apply filters consistently to both list and calendar views, while making hidden critical failures discoverable through a count, warning, or reset affordance.
+- [x] Display dates and times with explicit timezone handling, including the stored UTC schedule and the operator-local interpretation where useful.
+- [x] Work comfortably on phone and laptop viewports: the list view SHOULD become readable stacked rows/cards on mobile, and the calendar SHOULD provide an agenda-style day expansion or equivalent mobile pattern instead of forcing horizontal table scrolling.
+- [x] Use a dark visual theme with readable contrast, stable spacing, clear hierarchy, and touch targets suitable for mobile operation.
+- [x] Read data through worker HTTP capabilities only; the browser MUST NOT read raw mounted files or infer state from filesystem paths.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-040C — Implement Flow A LinkedIn Variant Supervision Console: Schedule Modification From Calendar
 

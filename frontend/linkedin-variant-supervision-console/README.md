@@ -1,4 +1,4 @@
-# LinkedIn variant supervision console (US-040A)
+# LinkedIn variant supervision console (US-040A + US-040B)
 
 React + TypeScript + Vite frontend for Flow A LinkedIn variant supervision.
 Production build emits static assets served by the existing Python worker — no
@@ -8,11 +8,13 @@ separate frontend server.
 
 | Package | Why |
 |---------|-----|
-| `react` | Component model for list, scaffolds, and confirmation flows |
+| `react` | Component model for list, month calendar, filters, and confirmation flows |
 | `react-dom` | Browser rendering of the React tree |
 
 All other packages are **devDependencies** (Vite, TypeScript, Vitest, Testing Library).
-Calendar UI libraries are deferred to US-040B.
+
+**Calendar UI:** US-040B uses a pure CSS grid month layout plus local UTC day-bucketing
+helpers (`src/models/dateHelpers.ts`). No production calendar library was added.
 
 ## Scripts
 
@@ -43,5 +45,7 @@ components.
 
 ## Scope
 
-- **In:** list parity (Stories 1–3), typed client, shared model, scaffolds for calendar/detail/schedule/filters/status
-- **Out:** US-040B full calendar, US-040C schedule mutations, US-040D public auth, Flow B
+- **In (US-040A):** list parity (Stories 1–3), typed client, shared model, console route
+- **In (US-040B):** dual first-class List + Month calendar, schedule-visibility GET client,
+  filters with discoverable critical failures, dark theme, UTC + local times, mobile agenda
+- **Out:** US-040C schedule mutations, US-040D public auth, US-040E polish beyond visibility, Flow B

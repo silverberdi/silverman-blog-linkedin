@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Banner } from "./Banner";
 import { Filters } from "./Filters";
 import { StatusSummary } from "./StatusSummary";
@@ -6,23 +6,27 @@ import { ViewSwitcher } from "./ViewSwitcher";
 import { useSupervisionStore } from "../models/store";
 
 /**
- * App shell: dry-run default messaging, enablement display-only, qualified language.
+ * App shell: dry-run default messaging, enablement display-only, dual views (US-040B).
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const {
     snapshot,
+    scheduleSnapshot,
     activeView,
-    setActiveView,
+    requestViewChange,
     loading,
     statusBanner,
     actionBanner,
+    refreshAll,
     loadPending,
     clearAuth,
+    dryRunDefault,
+    setDryRunDefault,
   } = useSupervisionStore();
-  const [filterQuery, setFilterQuery] = useState("");
 
-  const enablementText = snapshot
-    ? snapshot.linkedinPublicationEnabled
+  const enablementSource = snapshot ?? scheduleSnapshot;
+  const enablementText = enablementSource
+    ? enablementSource.linkedinPublicationEnabled
       ? "LinkedIn publication enablement is on (display-only blocked context; this page does not publish to LinkedIn and does not change SILVERMAN_LINKEDIN_PUBLICATION_ENABLED)."
       : "LinkedIn publication enablement is off (display-only blocked context for real API publish). Pending variants remain listed; this does not hide the supervision window or bypass the guard."
     : "";
@@ -31,15 +35,15 @@ export function AppShell({ children }: { children: ReactNode }) {
     <main className="console-shell" data-testid="app-shell">
       <h1>LinkedIn variant supervision</h1>
       <p className="lede">
-        Flow A LinkedIn variants in the optional supervision window (
-        <span className="mono">publish_state=pending</span>). Edit, defer, and
-        cancel persist through US-017 worker HTTP. Pending, cancelled, and
+        Flow A dual views: <strong>List</strong> for pending LinkedIn supervision
+        (Stories 1–3) and <strong>Month calendar</strong> for blog + LinkedIn
+        schedule visibility. Pending, queued, cancelled, blog handoff, and
         campaign <span className="mono">flow_a_complete</span> are not LinkedIn
         API published.
       </p>
 
       <Banner
-        kind={snapshot?.linkedinPublicationEnabled ? "ok" : "warn"}
+        kind={enablementSource?.linkedinPublicationEnabled ? "ok" : "warn"}
         text={enablementText}
         testId="enablement-banner"
       />
@@ -59,9 +63,18 @@ export function AppShell({ children }: { children: ReactNode }) {
           type="button"
           data-testid="load-btn"
           disabled={loading}
+          onClick={() => void refreshAll()}
+        >
+          Refresh list + calendar
+        </button>
+        <button
+          type="button"
+          className="secondary"
+          data-testid="load-pending-btn"
+          disabled={loading}
           onClick={() => void loadPending()}
         >
-          Load pending variants
+          Load pending only
         </button>
         <button
           type="button"
@@ -71,23 +84,34 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           Clear in-memory API key
         </button>
+        <div className="check-row toolbar-dry-run">
+          <input
+            type="checkbox"
+            id="shell-dry-run-default"
+            data-testid="shell-dry-run-default"
+            checked={dryRunDefault}
+            onChange={(e) => setDryRunDefault(e.target.checked)}
+          />
+          <label htmlFor="shell-dry-run-default">
+            Dry-run default (survives view switch)
+          </label>
+        </div>
       </div>
 
       <StatusSummary snapshot={snapshot} />
-      <ViewSwitcher activeView={activeView} onChange={setActiveView} />
-      <Filters query={filterQuery} onQueryChange={setFilterQuery} />
+      <ViewSwitcher activeView={activeView} onChange={requestViewChange} />
+      <Filters />
 
       {children}
 
       <p className="note">
-        Story 3 supports edit, defer, and cancel for pending variants via{" "}
+        List mutations use{" "}
         <span className="mono">POST /correct-linkedin-variant</span>,{" "}
         <span className="mono">POST /defer-linkedin-variant</span>, and{" "}
-        <span className="mono">POST /cancel-linkedin-publication</span>. Dry-run
-        is the default. Blocked-state context includes publication enablement,
-        deferred / <span className="mono">auto_queue_eligible</span>, and sibling
-        integration failures. US-040A modernizes the console layer (React +
-        TypeScript + Vite); US-040B–US-040E remain out of scope.
+        <span className="mono">POST /cancel-linkedin-publication</span>. Month
+        calendar reads{" "}
+        <span className="mono">GET /flow-a/schedule-visibility</span>{" "}
+        (visibility only). US-040C–US-040E remain out of scope.
       </p>
 
       <footer>
@@ -103,11 +127,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         <span className="mono">
           docs/operations/linkedin-variant-supervision-mechanics.md
         </span>{" "}
-        (US-017). Data source: authenticated{" "}
+        (US-017). Data: authenticated{" "}
         <span className="mono">
           GET /flow-a/linkedin-variants/pending-supervision
         </span>{" "}
-        (ADR-0001 worker HTTP).
+        and{" "}
+        <span className="mono">GET /flow-a/schedule-visibility</span> (ADR-0001
+        worker HTTP).
       </footer>
     </main>
   );

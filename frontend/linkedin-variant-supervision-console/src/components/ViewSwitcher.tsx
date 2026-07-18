@@ -1,7 +1,8 @@
 import type { ConsoleView } from "../models/supervision";
 
 /**
- * View switcher stub: list remains first-class; calendar scaffold is reachable.
+ * Persistent desktop/mobile view switcher. Context preservation is owned by the
+ * store; this control only requests a view change (which may warn on unsaved drafts).
  */
 export function ViewSwitcher({
   activeView,
@@ -30,7 +31,7 @@ export function ViewSwitcher({
         onClick={() => onChange("calendar")}
         data-testid="view-calendar"
       >
-        Calendar (scaffold)
+        Month calendar
       </button>
     </div>
   );

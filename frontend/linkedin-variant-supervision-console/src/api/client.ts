@@ -15,11 +15,13 @@ import {
   CORRECT_PATH,
   DEFER_PATH,
   PENDING_SUPERVISION_PATH,
+  SCHEDULE_VISIBILITY_PATH,
   type CancelVariantRequest,
   type CorrectVariantRequest,
   type DeferVariantRequest,
   type MutationResult,
   type PendingSupervisionResponse,
+  type ScheduleVisibilityResponse,
 } from "./types";
 
 export type { ApiError };
@@ -41,6 +43,30 @@ export class SupervisionApiClient {
     }
     return this.requestJson<PendingSupervisionResponse>(
       PENDING_SUPERVISION_PATH,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          ...headers,
+        },
+      },
+    );
+  }
+
+  async getScheduleVisibility(params: {
+    year: number;
+    month: number;
+  }): Promise<ScheduleVisibilityResponse> {
+    const headers = await this.auth.getRequestHeaders();
+    if (!headers.Authorization) {
+      throw authMissingError("load");
+    }
+    const query = new URLSearchParams({
+      year: String(params.year),
+      month: String(params.month),
+    });
+    return this.requestJson<ScheduleVisibilityResponse>(
+      `${SCHEDULE_VISIBILITY_PATH}?${query.toString()}`,
       {
         method: "GET",
         headers: {
