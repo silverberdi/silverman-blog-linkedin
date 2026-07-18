@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from silverman_blog_linkedin.campaign_lifecycle import (
+    CAMPAIGN_METADATA_CONCURRENT_UPDATE,
     CampaignLifecycleError,
     FLOW_A,
     FLOW_B,
@@ -17,9 +18,11 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     STATE_DISTRIBUTION_COMPLETE,
     STATE_DISTRIBUTION_SCHEDULED,
     STATE_FLOW_A_COMPLETE,
+    campaign_metadata_content_fingerprint,
     normalize_scheduled_at_utc,
     read_campaign_metadata,
     write_campaign_metadata,
+    write_campaign_metadata_cas,
 )
 from silverman_blog_linkedin.linkedin_client import (
     HttpClientProtocol,
@@ -103,6 +106,9 @@ LINKEDIN_PUBLISH_RECOVERY_EVIDENCE_INVALID = (
 # manually authorized retries per variant. Only real API calls count.
 MAX_MANUAL_RETRIES = 2
 MAX_REAL_ATTEMPTS = MAX_MANUAL_RETRIES + 1
+
+# Bounded CAS retries for successful publish evidence persist (US-034).
+PUBLISH_CAS_MAX_ATTEMPTS = 3
 
 # US-021 recovery classes (stable machine tokens; canonical table lives in the
 # linkedin-retry-recovery-classification capability and operator policy).
@@ -411,6 +417,14 @@ def _entry_attempt_counters(
     return _retry_counters(len(attempts))
 
 
+def _entry_has_durable_published_urn(entry: dict[str, Any]) -> bool:
+    """True when variant is published with a non-empty LinkedIn post URN."""
+    if entry.get("publish_state") != PUBLISH_STATE_PUBLISHED:
+        return False
+    urn = entry.get("linkedin_post_urn")
+    return isinstance(urn, str) and bool(urn.strip())
+
+
 @dataclass
 class LinkedInPublicationVariantResult:
     campaign_id: str
@@ -440,6 +454,27 @@ class LinkedInPublicationVariantResult:
             if payload[key] is None:
                 payload.pop(key)
         return payload
+
+
+def _already_published_variant_result(
+    *,
+    campaign_id: str,
+    variant: str,
+    entry: dict[str, Any],
+) -> LinkedInPublicationVariantResult:
+    attempt_count, retries_used, retries_remaining = _entry_attempt_counters(entry)
+    return LinkedInPublicationVariantResult(
+        campaign_id=campaign_id,
+        variant=variant,
+        publish_state=PUBLISH_STATE_PUBLISHED,
+        published_at=entry.get("published_at"),
+        linkedin_post_urn=entry.get("linkedin_post_urn"),
+        status="completed",
+        warnings=["linkedin_publish_already_published"],
+        publication_attempt_count=attempt_count,
+        manual_retries_used=retries_used,
+        manual_retries_remaining=retries_remaining,
+    )
 
 
 @dataclass
@@ -1067,17 +1102,10 @@ def _publish_single_variant(
     # below report these unchanged and never append an attempt entry.
     attempt_count, retries_used, retries_remaining = _entry_attempt_counters(entry)
     if publish_state == PUBLISH_STATE_PUBLISHED:
-        return LinkedInPublicationVariantResult(
+        return _already_published_variant_result(
             campaign_id=campaign_id,
             variant=variant,
-            publish_state=PUBLISH_STATE_PUBLISHED,
-            published_at=entry.get("published_at"),
-            linkedin_post_urn=entry.get("linkedin_post_urn"),
-            status="completed",
-            warnings=["linkedin_publish_already_published"],
-            publication_attempt_count=attempt_count,
-            manual_retries_used=retries_used,
-            manual_retries_remaining=retries_remaining,
+            entry=entry,
         )
 
     if publish_state != PUBLISH_STATE_QUEUED:
@@ -1201,6 +1229,18 @@ def _publish_single_variant(
         api_version=settings.api_version,
     )
 
+    # US-034: re-check durable publication evidence immediately before LinkedIn API.
+    pre_api_campaign = read_campaign_metadata(base_path, campaign_id)
+    if pre_api_campaign is not None:
+        pre_api_entry = _find_variant_entry(pre_api_campaign, variant)
+        if pre_api_entry is not None and _entry_has_durable_published_urn(pre_api_entry):
+            return _already_published_variant_result(
+                campaign_id=campaign_id,
+                variant=variant,
+                entry=pre_api_entry,
+            )
+        campaign = pre_api_campaign
+
     commentary = build_commentary(variant_text=artifact_text, blog_url=blog_url)
     api_result = create_member_text_post(
         publish_settings,
@@ -1259,34 +1299,113 @@ def _publish_single_variant(
             manual_retries_remaining=real_remaining,
         )
 
-    published_at = utc_now_iso()
-    updated_entry["publish_state"] = PUBLISH_STATE_PUBLISHED
-    updated_entry["published_at"] = published_at
-    updated_entry["linkedin_post_urn"] = api_result.post_urn
-    updated_entry["linkedin_publication"] = {
-        "provider": "linkedin_rest_posts",
-        "post_urn": api_result.post_urn,
-        "published_at": published_at,
-        "http_status": api_result.http_status,
-    }
     assert api_result.post_urn is not None
-    attempts.append(
-        _build_published_attempt_entry(
-            attempt_number=attempt_number,
-            attempted_at=published_at,
-            derivative_content_sha256=content_hash,
-            provider="linkedin_rest_posts",
-            post_urn=api_result.post_urn,
-            published_at=published_at,
-            http_status=api_result.http_status,
-        )
-    )
-    updated_entry["linkedin_publication_attempts"] = attempts
-    metadata_map[variant] = updated_entry
-    working["variants"] = list(metadata_map.values())
+    published_at = utc_now_iso()
 
-    write_result = write_campaign_metadata(base_path, campaign_id, working)
-    if not write_result.written:
+    for _cas_attempt in range(PUBLISH_CAS_MAX_ATTEMPTS):
+        current = read_campaign_metadata(base_path, campaign_id)
+        if current is None:
+            return LinkedInPublicationVariantResult(
+                campaign_id=campaign_id,
+                variant=variant,
+                publish_state=PUBLISH_STATE_QUEUED,
+                status="failed",
+                errors=[LINKEDIN_PUBLISH_CAMPAIGN_NOT_FOUND],
+                publication_attempt_count=real_count,
+                manual_retries_used=real_used,
+                manual_retries_remaining=real_remaining,
+            )
+
+        current_entry = _find_variant_entry(current, variant)
+        if current_entry is None:
+            return LinkedInPublicationVariantResult(
+                campaign_id=campaign_id,
+                variant=variant,
+                publish_state="unknown",
+                status="failed",
+                errors=[LINKEDIN_PUBLISH_VARIANT_NOT_FOUND],
+                publication_attempt_count=real_count,
+                manual_retries_used=real_used,
+                manual_retries_remaining=real_remaining,
+            )
+
+        if _entry_has_durable_published_urn(current_entry):
+            # Peer already committed durable URN evidence; preserve it (US-034).
+            return _already_published_variant_result(
+                campaign_id=campaign_id,
+                variant=variant,
+                entry=current_entry,
+            )
+
+        expected_fingerprint = campaign_metadata_content_fingerprint(
+            base_path, campaign_id
+        )
+        if expected_fingerprint is None:
+            return LinkedInPublicationVariantResult(
+                campaign_id=campaign_id,
+                variant=variant,
+                publish_state=PUBLISH_STATE_QUEUED,
+                status="failed",
+                errors=[LINKEDIN_PUBLISH_CAMPAIGN_NOT_FOUND],
+                publication_attempt_count=real_count,
+                manual_retries_used=real_used,
+                manual_retries_remaining=real_remaining,
+            )
+
+        working = deepcopy(current)
+        metadata_map = _get_variant_metadata_map(working)
+        updated_entry = dict(metadata_map[variant])
+        attempts = _attempts_for_append(updated_entry)
+        attempt_number = len(attempts) + 1
+        real_count, real_used, real_remaining = _retry_counters(attempt_number)
+        content_hash = updated_entry.get("derivative_content_sha256")
+
+        updated_entry["publish_state"] = PUBLISH_STATE_PUBLISHED
+        updated_entry["published_at"] = published_at
+        updated_entry["linkedin_post_urn"] = api_result.post_urn
+        updated_entry["linkedin_publication"] = {
+            "provider": "linkedin_rest_posts",
+            "post_urn": api_result.post_urn,
+            "published_at": published_at,
+            "http_status": api_result.http_status,
+        }
+        attempts.append(
+            _build_published_attempt_entry(
+                attempt_number=attempt_number,
+                attempted_at=published_at,
+                derivative_content_sha256=content_hash,
+                provider="linkedin_rest_posts",
+                post_urn=api_result.post_urn,
+                published_at=published_at,
+                http_status=api_result.http_status,
+            )
+        )
+        updated_entry["linkedin_publication_attempts"] = attempts
+        metadata_map[variant] = updated_entry
+        working["variants"] = list(metadata_map.values())
+
+        write_result = write_campaign_metadata_cas(
+            base_path,
+            campaign_id,
+            working,
+            expected_fingerprint=expected_fingerprint,
+        )
+        if write_result.written:
+            return LinkedInPublicationVariantResult(
+                campaign_id=campaign_id,
+                variant=variant,
+                publish_state=PUBLISH_STATE_PUBLISHED,
+                published_at=published_at,
+                linkedin_post_urn=api_result.post_urn,
+                status="completed",
+                publication_attempt_count=real_count,
+                manual_retries_used=real_used,
+                manual_retries_remaining=real_remaining,
+            )
+
+        if write_result.error_code == CAMPAIGN_METADATA_CONCURRENT_UPDATE:
+            continue
+
         return LinkedInPublicationVariantResult(
             campaign_id=campaign_id,
             variant=variant,
@@ -1298,13 +1417,22 @@ def _publish_single_variant(
             manual_retries_remaining=real_remaining,
         )
 
+    # CAS exhaustion: prefer peer durable URN as already-published; else fail closed.
+    final = read_campaign_metadata(base_path, campaign_id)
+    if final is not None:
+        final_entry = _find_variant_entry(final, variant)
+        if final_entry is not None and _entry_has_durable_published_urn(final_entry):
+            return _already_published_variant_result(
+                campaign_id=campaign_id,
+                variant=variant,
+                entry=final_entry,
+            )
     return LinkedInPublicationVariantResult(
         campaign_id=campaign_id,
         variant=variant,
-        publish_state=PUBLISH_STATE_PUBLISHED,
-        published_at=published_at,
-        linkedin_post_urn=api_result.post_urn,
-        status="completed",
+        publish_state=PUBLISH_STATE_QUEUED,
+        status="failed",
+        errors=[LINKEDIN_PUBLISH_METADATA_WRITE_FAILED],
         publication_attempt_count=real_count,
         manual_retries_used=real_used,
         manual_retries_remaining=real_remaining,

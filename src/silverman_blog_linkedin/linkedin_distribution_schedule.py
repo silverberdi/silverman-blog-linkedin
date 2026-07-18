@@ -12,6 +12,7 @@ from typing import Any
 
 from silverman_blog_linkedin.campaign_lifecycle import (
     ACTOR_WORKER,
+    CAMPAIGN_METADATA_CONCURRENT_UPDATE,
     CampaignLifecycleError,
     FLOW_A,
     FLOW_B,
@@ -19,11 +20,12 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     STATE_DISTRIBUTION_COMPLETE,
     STATE_DISTRIBUTION_SCHEDULED,
     STATE_FLOW_A_COMPLETE,
+    campaign_metadata_content_fingerprint,
     find_campaign_by_source_path,
     normalize_scheduled_at_utc,
     read_campaign_metadata,
     transition_state,
-    write_campaign_metadata,
+    write_campaign_metadata_cas,
 )
 
 DEFAULT_STAGGER_STRATEGY = "flow_a_staggered"
@@ -56,6 +58,9 @@ LINKEDIN_SCHEDULE_NO_VARIANTS = "linkedin_schedule_no_variants"
 LINKEDIN_SCHEDULE_INVALID_STRATEGY = "linkedin_schedule_invalid_strategy"
 LINKEDIN_SCHEDULE_INVALID_ANCHOR = "linkedin_schedule_invalid_anchor"
 LINKEDIN_SCHEDULE_METADATA_WRITE_FAILED = "linkedin_schedule_metadata_write_failed"
+
+# Bounded CAS retries for first-time schedule apply (US-034); mirrors claim CAS.
+SCHEDULE_CAS_MAX_ATTEMPTS = 3
 
 SCHEDULE_ELIGIBLE_STATES = frozenset(
     {STATE_DERIVATIVES_GENERATED, STATE_DISTRIBUTION_SCHEDULED}
@@ -474,7 +479,7 @@ def schedule_linkedin_distribution(
             anchor_utc=anchor_utc,
         )
 
-    verified_entries, verify_error = _verify_artifacts(
+    _, verify_error = _verify_artifacts(
         base_path, campaign, variant_ids=variant_ids
     )
     if verify_error:
@@ -486,83 +491,189 @@ def schedule_linkedin_distribution(
         )
 
     schedule_times = _compute_staggered_schedules(variant_ids, anchor_utc)
-    working_campaign = deepcopy(campaign)
-    working_metadata_map = _get_variant_metadata_map(working_campaign)
-    updated_entries: list[dict[str, Any]] = []
+    campaign_id_resolved = campaign["campaign_id"]
 
-    for variant_id in _ordered_variant_ids(variant_ids):
-        entry = dict(working_metadata_map[variant_id])
-        scheduled_at = schedule_times[variant_id]
-        derivative_hash = entry["derivative_content_sha256"]
-        entry["scheduled_at_utc"] = scheduled_at
-        entry["publish_state"] = PUBLISH_STATE_PENDING
-        entry["schedule_idempotency_key"] = build_variant_schedule_idempotency_key(
-            campaign_id=working_campaign["campaign_id"],
-            variant=variant_id,
-            derivative_content_sha256=derivative_hash,
-            scheduled_at_utc=scheduled_at,
-            flow=FLOW_A,
+    for _cas_attempt in range(SCHEDULE_CAS_MAX_ATTEMPTS):
+        current = read_campaign_metadata(base_path, campaign_id_resolved)
+        if current is None:
+            return LinkedInDistributionScheduleResult(
+                status="failed",
+                strategy=resolved_strategy,
+                errors=[LINKEDIN_SCHEDULE_CAMPAIGN_NOT_FOUND],
+            )
+
+        current_state = current.get("state")
+        if current_state == STATE_DISTRIBUTION_SCHEDULED:
+            if _check_idempotent_completed(
+                current,
+                expected_schedule_key=schedule_idempotency_key,
+                anchor_utc=anchor_utc,
+                variant_ids=variant_ids,
+            ):
+                metadata_map = _get_variant_metadata_map(current)
+                variant_schedules = [
+                    _variant_schedule_summary(metadata_map[variant_id])
+                    for variant_id in _ordered_variant_ids(variant_ids)
+                ]
+                return _completed_result(
+                    current,
+                    strategy=resolved_strategy,
+                    anchor_utc=anchor_utc,
+                    variant_schedules=variant_schedules,
+                    metadata_written=False,
+                )
+            return _failed_result(
+                campaign=current,
+                errors=[LINKEDIN_SCHEDULE_METADATA_MISMATCH],
+                strategy=resolved_strategy,
+                anchor_utc=anchor_utc,
+            )
+
+        if current_state != STATE_DERIVATIVES_GENERATED:
+            return _failed_result(
+                campaign=current,
+                errors=[LINKEDIN_SCHEDULE_INVALID_CAMPAIGN_STATE],
+                strategy=resolved_strategy,
+                anchor_utc=anchor_utc,
+            )
+
+        expected_fingerprint = campaign_metadata_content_fingerprint(
+            base_path, campaign_id_resolved
         )
-        working_metadata_map[variant_id] = entry
-        updated_entries.append(entry)
+        if expected_fingerprint is None:
+            return LinkedInDistributionScheduleResult(
+                status="failed",
+                strategy=resolved_strategy,
+                errors=[LINKEDIN_SCHEDULE_CAMPAIGN_NOT_FOUND],
+            )
 
-    working_campaign["variants"] = list(working_metadata_map.values())
-    working_campaign["linkedin_distribution"] = {
-        "distribution_id": _distribution_id(working_campaign["campaign_id"]),
-        "idempotency_key": schedule_idempotency_key,
-        "strategy": resolved_strategy,
-        "anchor_utc": anchor_utc,
-        "variant_ids": variant_ids,
-    }
+        working_campaign = deepcopy(current)
+        working_metadata_map = _get_variant_metadata_map(working_campaign)
+        updated_entries: list[dict[str, Any]] = []
 
-    history_len_before = len(working_campaign.get("state_history") or [])
-    try:
-        transition_state(
+        for variant_id in _ordered_variant_ids(variant_ids):
+            entry = dict(working_metadata_map[variant_id])
+            scheduled_at = schedule_times[variant_id]
+            derivative_hash = entry["derivative_content_sha256"]
+            entry["scheduled_at_utc"] = scheduled_at
+            entry["publish_state"] = PUBLISH_STATE_PENDING
+            entry["schedule_idempotency_key"] = build_variant_schedule_idempotency_key(
+                campaign_id=working_campaign["campaign_id"],
+                variant=variant_id,
+                derivative_content_sha256=derivative_hash,
+                scheduled_at_utc=scheduled_at,
+                flow=FLOW_A,
+            )
+            working_metadata_map[variant_id] = entry
+            updated_entries.append(entry)
+
+        working_campaign["variants"] = list(working_metadata_map.values())
+        working_campaign["linkedin_distribution"] = {
+            "distribution_id": _distribution_id(working_campaign["campaign_id"]),
+            "idempotency_key": schedule_idempotency_key,
+            "strategy": resolved_strategy,
+            "anchor_utc": anchor_utc,
+            "variant_ids": variant_ids,
+        }
+
+        history_len_before = len(working_campaign.get("state_history") or [])
+        try:
+            transition_state(
+                working_campaign,
+                STATE_DISTRIBUTION_SCHEDULED,
+                reason="LinkedIn distribution scheduled",
+                actor=ACTOR_WORKER,
+            )
+        except Exception:
+            return _failed_result(
+                campaign=working_campaign,
+                errors=[LINKEDIN_SCHEDULE_INVALID_CAMPAIGN_STATE],
+                strategy=resolved_strategy,
+                anchor_utc=anchor_utc,
+                variant_schedules=[
+                    _variant_schedule_summary(entry) for entry in updated_entries
+                ],
+                distribution=working_campaign.get("linkedin_distribution"),
+            )
+
+        if len(working_campaign.get("state_history") or []) <= history_len_before:
+            return _failed_result(
+                campaign=working_campaign,
+                errors=[LINKEDIN_SCHEDULE_INVALID_CAMPAIGN_STATE],
+                strategy=resolved_strategy,
+                anchor_utc=anchor_utc,
+                variant_schedules=[
+                    _variant_schedule_summary(entry) for entry in updated_entries
+                ],
+                distribution=working_campaign.get("linkedin_distribution"),
+            )
+
+        write_result = write_campaign_metadata_cas(
+            base_path,
+            working_campaign["campaign_id"],
             working_campaign,
-            STATE_DISTRIBUTION_SCHEDULED,
-            reason="LinkedIn distribution scheduled",
-            actor=ACTOR_WORKER,
+            expected_fingerprint=expected_fingerprint,
         )
-    except Exception:
-        return _failed_result(
-            campaign=working_campaign,
-            errors=[LINKEDIN_SCHEDULE_INVALID_CAMPAIGN_STATE],
-            strategy=resolved_strategy,
-            anchor_utc=anchor_utc,
-            variant_schedules=[_variant_schedule_summary(entry) for entry in updated_entries],
-            distribution=working_campaign.get("linkedin_distribution"),
-        )
+        if write_result.written:
+            return _completed_result(
+                working_campaign,
+                strategy=resolved_strategy,
+                anchor_utc=anchor_utc,
+                variant_schedules=[
+                    _variant_schedule_summary(entry) for entry in updated_entries
+                ],
+                metadata_written=True,
+            )
 
-    if len(working_campaign.get("state_history") or []) <= history_len_before:
-        return _failed_result(
-            campaign=working_campaign,
-            errors=[LINKEDIN_SCHEDULE_INVALID_CAMPAIGN_STATE],
-            strategy=resolved_strategy,
-            anchor_utc=anchor_utc,
-            variant_schedules=[_variant_schedule_summary(entry) for entry in updated_entries],
-            distribution=working_campaign.get("linkedin_distribution"),
-        )
+        if write_result.error_code == CAMPAIGN_METADATA_CONCURRENT_UPDATE:
+            # Peer writer changed the document; re-read and either complete
+            # idempotently or fail closed (US-034).
+            continue
 
-    write_result = write_campaign_metadata(
-        base_path, working_campaign["campaign_id"], working_campaign
-    )
-    if not write_result.written:
         return _failed_result(
             campaign=working_campaign,
             errors=[LINKEDIN_SCHEDULE_METADATA_WRITE_FAILED],
             strategy=resolved_strategy,
             anchor_utc=anchor_utc,
-            variant_schedules=[_variant_schedule_summary(entry) for entry in updated_entries],
+            variant_schedules=[
+                _variant_schedule_summary(entry) for entry in updated_entries
+            ],
             distribution=working_campaign.get("linkedin_distribution"),
             metadata_written=False,
             metadata_error_code=write_result.error_code
             or LINKEDIN_SCHEDULE_METADATA_WRITE_FAILED,
         )
 
-    return _completed_result(
-        working_campaign,
+    # Retry exhaustion: prefer peer matching schedule as completed; else fail closed.
+    final = read_campaign_metadata(base_path, campaign_id_resolved)
+    if final is not None and final.get("state") == STATE_DISTRIBUTION_SCHEDULED:
+        if _check_idempotent_completed(
+            final,
+            expected_schedule_key=schedule_idempotency_key,
+            anchor_utc=anchor_utc,
+            variant_ids=variant_ids,
+        ):
+            metadata_map = _get_variant_metadata_map(final)
+            variant_schedules = [
+                _variant_schedule_summary(metadata_map[variant_id])
+                for variant_id in _ordered_variant_ids(variant_ids)
+            ]
+            return _completed_result(
+                final,
+                strategy=resolved_strategy,
+                anchor_utc=anchor_utc,
+                variant_schedules=variant_schedules,
+                metadata_written=False,
+            )
+        return _failed_result(
+            campaign=final,
+            errors=[LINKEDIN_SCHEDULE_METADATA_MISMATCH],
+            strategy=resolved_strategy,
+            anchor_utc=anchor_utc,
+        )
+    return _failed_result(
+        campaign=final,
+        errors=[LINKEDIN_SCHEDULE_METADATA_MISMATCH],
         strategy=resolved_strategy,
         anchor_utc=anchor_utc,
-        variant_schedules=[_variant_schedule_summary(entry) for entry in updated_entries],
-        metadata_written=True,
     )

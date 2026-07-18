@@ -9,7 +9,7 @@ triggers must not duplicate **post processing**, **image generation**, or
 
 - **Implemented, automated-tested, and acceptance criteria validated** against fixture evidence (2026-07-18).
 - **Not** deployed or operationally validated on the live worker by this document alone.
-- US-034 / US-035 and BL-013 remain open.
+- US-034 accepted (fixture evidence). US-035 and BL-013 remain open.
 
 ## In scope (US-033)
 
@@ -24,12 +24,12 @@ triggers must not duplicate **post processing**, **image generation**, or
 
 | Story | Not delivered here |
 |-------|--------------------|
-| **US-034** | Duplicate scheduling prevention; duplicate LinkedIn API publication prevention; abandoned-claim reclaim as a story deliverable |
+| **US-034** | Delivered separately — see [flow-a-concurrency-duplicate-execution-protection-us-034.md](flow-a-concurrency-duplicate-execution-protection-us-034.md) |
 | **US-035** | Restart validation evidence |
 | Ops | Git push, live-site mutation, LinkedIn API publish, deploy, production n8n activation |
 
-Existing stale-detect / reclaim helpers may still exist for later US-034
-validation; US-033 does not expand reclaim policy.
+US-034 covers duplicate scheduling, LinkedIn once-only publish under contention,
+and abandoned-claim reclaim as a story deliverable.
 
 ## How to read blocked / skip outcomes
 

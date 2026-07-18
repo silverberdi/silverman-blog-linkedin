@@ -643,7 +643,7 @@ As a system operator, I want to classify recovery actions, so that incomplete ca
 
 As a system operator, I want to prevent duplicate post processing, so that concurrent triggers do not create duplicate artifacts or external publications.
 
-**Status:** Implemented, automated-tested, and acceptance criteria validated against fixture evidence (2026-07-18). Not deployed / not operationally validated on the live worker. BL-013 remains open (US-034 / US-035 pending). See [flow-a-concurrency-duplicate-execution-protection-us-033.md](../operations/flow-a-concurrency-duplicate-execution-protection-us-033.md).
+**Status:** Implemented, automated-tested, and acceptance criteria validated against fixture evidence (2026-07-18). Not deployed / not operationally validated on the live worker. BL-013 remains open (US-035 pending). See [flow-a-concurrency-duplicate-execution-protection-us-033.md](../operations/flow-a-concurrency-duplicate-execution-protection-us-033.md).
 
 **Acceptance criteria**
 
@@ -660,14 +660,16 @@ As a system operator, I want to prevent duplicate post processing, so that concu
 
 As a system operator, I want to prevent duplicate scheduling, so that concurrent triggers do not create duplicate artifacts or external publications.
 
+**Status:** Implemented, automated-tested, and acceptance criteria validated against fixture evidence (2026-07-18). Not deployed / not operationally validated on the live worker. BL-013 remains open (US-035 pending). See [flow-a-concurrency-duplicate-execution-protection-us-034.md](../operations/flow-a-concurrency-duplicate-execution-protection-us-034.md).
+
 **Acceptance criteria**
 
-- [ ] Prevent duplicate scheduling.
-- [ ] Prevent duplicate LinkedIn publication.
-- [ ] Recover abandoned processing claims.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Prevent duplicate scheduling.
+- [x] Prevent duplicate LinkedIn publication.
+- [x] Recover abandoned processing claims.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-035 — Validate Concurrency and Duplicate Execution Protection: Story 3
 

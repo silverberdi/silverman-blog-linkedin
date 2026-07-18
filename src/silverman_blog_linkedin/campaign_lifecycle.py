@@ -729,11 +729,12 @@ def write_campaign_metadata_cas(
 ) -> CampaignMetadataWriteResult:
     """Persist campaign metadata only when on-disk fingerprint still matches.
 
-    Used for execution-claim transitions (US-033). Unrelated writers continue to
-    use ``write_campaign_metadata`` without CAS.
+    Used for execution-claim transitions (US-033) and for US-034 first-time
+    distribution schedule apply / LinkedIn publish evidence persistence.
+    Unrelated writers continue to use ``write_campaign_metadata`` without CAS.
 
     Fingerprint compare-and-swap is paired with an exclusive flock on a sibling
-    lock file so two overlapping claim writers cannot both pass the pre-replace
+    lock file so two overlapping writers cannot both pass the pre-replace
     check and both replace successfully.
     """
     try:
