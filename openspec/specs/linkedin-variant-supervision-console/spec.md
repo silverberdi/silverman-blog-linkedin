@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Operator-facing console for Flow A LinkedIn variants (BL-015 / US-038–US-040 Stories 1–3 + US-040A–US-040E): authenticated `GET /flow-a/linkedin-variants/pending-supervision` for pending-window list operations; authenticated `GET /flow-a/schedule-visibility` for blog + LinkedIn month placement; shared ScheduleEditor mutations (US-017 defer + editorial-calendar schedule-update); same-origin React + TypeScript + Vite console at `GET /flow-a/console/linkedin-variant-supervision` with dual first-class List and Month calendar views, shared filters, dark responsive UX, typed injectable-auth API client with explicit session states and `canMutate` gating (US-040D readiness), US-040E operational usability polish (at-a-glance counts, actionable visual priority, concise labels with expandable diagnostics, clear affordances, keyboard/touch a11y), shared normalized frontend model, and secrets-safe frontend source and built assets. Public URL hosting and live Google/OIDC activation remain deferred pending a separate security change; LinkedIn API publish from the console and Flow B remain out of scope. BL-015 remains open until Story accepted.
+Operator-facing console for Flow A LinkedIn variants (BL-015 / US-038–US-040 Stories 1–3 + US-040A–US-040F historical context): authenticated `GET /flow-a/linkedin-variants/pending-supervision` for pending-supervision detail; authenticated `GET /flow-a/schedule-visibility` for blog + LinkedIn calendar placement; shared ScheduleEditor mutations (US-017 defer + editorial-calendar schedule-update); same-origin React + TypeScript + Vite console at `GET /flow-a/console/linkedin-variant-supervision` with calendar-first Week (default) and Month (secondary) operator views, shared filters, dark responsive UX, typed injectable-auth API client with explicit session states and `canMutate` gating, shared normalized frontend model, and secrets-safe frontend source and built assets. US-040G supersedes list-as-first-class operator chrome for future UX while preserving US-040A–US-040F historical requirements except where explicitly superseded. Public URL hosting and live Google/OIDC activation remain deferred pending a separate security change; LinkedIn API publish from the console and Flow B remain out of scope. BL-015 remains open and Story accepted / acceptance-criteria-validated gates remain until operator validation.
 
 ## Requirements
 
@@ -137,58 +137,37 @@ The worker MUST continue to expose the operator console at `GET /flow-a/console/
 - **WHEN** the worker is deployed with the US-040A console assets included
 - **THEN** the console is reachable through the worker HTTP process alone without a second production frontend server
 
-### Requirement: List-oriented pending supervision remains a first-class view
-
-The modernized console MUST preserve the existing list-oriented pending-variant supervision experience as a first-class view, including presentation of pending rows and operator edit, defer, and cancel actions via existing US-017 POSTs with dry-run default and confirmation for real cancel.
-
-The list view MUST NOT be removed, permanently hidden, or degraded to a secondary-only surface by the introduction of the Month calendar visibility view.
-
-Month calendar visibility (US-040B) MUST coexist as an equally first-class view; coexistence MUST NOT reduce list operational parity for pending supervision.
-
-#### Scenario: List view remains primary operational surface
-
-- **WHEN** an operator opens the modernized supervision console
-- **THEN** a list-oriented pending-variant supervision view is available as a first-class view and supports the Stories 1–3 supervision actions already delivered
-
-#### Scenario: Calendar visibility does not replace list
-
-- **WHEN** the Month calendar visibility view is present in the console
-- **THEN** the list view remains reachable and continues to present pending supervision rows without requiring calendar interaction
-
 
 ### Requirement: Console UI is componentized with operational screen scaffolding
 
 The modernized console MUST structure the UI as componentized operational screens and MUST include implemented boundaries for at least:
 
-- list view (implemented)
-- month calendar view (US-040B visibility + US-040C schedule-edit entry points)
-- item detail
-- schedule editor (US-040C: shared mutation surface from List, Month, and mobile agenda — not scaffold-only)
-- status summary (US-040E: at-a-glance operational counts — not sparse technical metadata only)
-- filters (US-040B: implemented)
+- week view (US-040G: default first-class)
+- month calendar view (density secondary first-class)
+- item detail (reachable from calendar event entry points; interim until US-040H modal)
+- schedule editor (shared mutation surface from Week, Month, and mobile day/agenda equivalents)
+- status summary (at-a-glance operational counts)
+- filters
 - confirmation flows
 - shared API and error handling
 
-Full public URL hosting and live Google/OIDC activation remain out of scope after US-040D readiness (separate security change required). US-040E delivers operational usability and safety polish on top of the A–D baselines.
+List view MUST NOT remain a first-class operator chrome boundary after US-040G.
+
+Full public URL hosting and live Google/OIDC activation remain out of scope (separate security change required).
 
 #### Scenario: Required component boundaries exist in the frontend package
 
-- **WHEN** the frontend package is inspected after US-040E
-- **THEN** distinct component (or module) boundaries exist for list, month calendar, item detail, schedule editor, status summary, filters, confirmation flows, and shared API/error handling
+- **WHEN** the frontend package is inspected after US-040G
+- **THEN** distinct component (or module) boundaries exist for week, month calendar, item detail, schedule editor, status summary, filters, confirmation flows, and shared API/error handling, and List is not a first-class operator chrome boundary
 
-#### Scenario: Schedule editor is no longer scaffold-only
+#### Scenario: Schedule editor remains shared
 
-- **WHEN** an operator opens schedule modification from Month, mobile agenda, or List for an editable item
-- **THEN** the shared schedule editor supports dry-run, confirmation, and worker-backed commit rather than scaffold-only defer wiring
+- **WHEN** an operator opens schedule modification from Week, Month, or mobile day/agenda for an editable item
+- **THEN** the shared schedule editor supports dry-run, confirmation, and worker-backed commit
 
-#### Scenario: Status summary provides operational counts
+#### Scenario: Public URL activation remains deferred
 
-- **WHEN** schedule and/or pending supervision data is loaded into the shared model
-- **THEN** the status summary presents at-a-glance operational counts rather than only sparse technical metadata
-
-#### Scenario: Public URL activation remains deferred after polish
-
-- **WHEN** US-040E polish is present in the console
+- **WHEN** US-040G calendar-first UX is present in the console
 - **THEN** the console does not activate public URL hosting or live Google/OIDC authentication
 
 
@@ -236,19 +215,19 @@ Until a separate approved security change activates public URL hosting and Googl
 
 ### Requirement: List and calendar share one normalized frontend model
 
-List view and month calendar view MUST be backed by the same worker read models or by one shared normalized frontend model derived from those read models so the views cannot disagree about item identity, state, schedule, or available actions.
+Week view and Month calendar view MUST be backed by the same worker read models or by one shared normalized frontend model derived from those read models so the views cannot disagree about item identity, state, schedule, or available actions.
 
-The shared model MUST incorporate pending-supervision rows for list operations and schedule-visibility rows for month placement (blog and LinkedIn), normalizing overlapping LinkedIn pending rows to one identity.
+The shared model MUST incorporate pending-supervision rows for pending operational detail and schedule-visibility rows for Week/Month placement (blog and LinkedIn), normalizing overlapping LinkedIn pending rows to one identity.
 
 #### Scenario: Shared model identity is stable across views
 
 - **WHEN** a pending LinkedIn variant exists in the normalized frontend model
-- **THEN** list and calendar views that render that item use the same campaign id, variant id, schedule, and action availability derived from that model
+- **THEN** Week and Month views that render that item use the same campaign id, variant id, schedule, and action availability derived from that model
 
-#### Scenario: List refresh updates the shared model
+#### Scenario: Refresh updates the shared model
 
 - **WHEN** pending-supervision and schedule-visibility data are refreshed after a successful real mutation
-- **THEN** the shared model updates and both list and calendar presentations reflect the new state without a separate divergent calendar cache
+- **THEN** the shared model updates and both Week and Month presentations reflect the new state without a separate divergent calendar cache
 
 
 ### Requirement: Frontend validation covers build and key UX contracts
@@ -280,33 +259,15 @@ US-040B MUST include frontend validation appropriate to the React + TypeScript +
 - **THEN** evidence covers both a desktop-width and a mobile-width presentation of the list and month calendar visibility console
 
 
-### Requirement: Dual first-class List and Month calendar views
-
-The Flow A LinkedIn variant supervision console MUST provide two first-class views in the same console: `List` and `Month calendar`. Neither view MUST replace, permanently hide, or weaken the other.
-
-The list view MUST remain the detail-heavy operational surface for pending LinkedIn variants, including campaign id, variant id, audience, `scheduled_at_utc`, publication state, draft content visibility where supported, issues, integration failures, and available edit/defer/cancel actions via existing US-017 POSTs.
-
-The month calendar view MUST be a first-class schedule visibility surface for upcoming Flow A blog posts and LinkedIn variants (see schedule-visibility requirements), not a disposable scaffold.
-
-#### Scenario: Both views are reachable as first-class
-
-- **WHEN** an operator opens the supervision console
-- **THEN** both List and Month calendar views are available through a clear view switcher and neither requires the other to be abandoned permanently
-
-#### Scenario: List retains pending operational detail
-
-- **WHEN** the operator uses the List view
-- **THEN** pending LinkedIn variant rows still present the Stories 1–3 detail fields and US-017-backed actions without requiring calendar interaction
-
 ### Requirement: Persistent view switcher preserves operator context
 
-The console MUST provide a clear, persistent view switcher suitable for desktop and mobile viewports.
+The console MUST provide a clear, persistent view switcher suitable for desktop and mobile viewports with labels `Week` and `Month`.
 
-Switching between List and Month calendar MUST NOT clear filters, selected campaign context, dry-run mode, or unsaved schedule-edit drafts without an explicit warning and operator confirmation.
+Switching between Week and Month MUST NOT clear filters, selected campaign context, dry-run mode, or unsaved schedule-edit drafts without an explicit warning and operator confirmation.
 
 #### Scenario: Filters survive view switch
 
-- **WHEN** an operator applies filters and then switches from List to Month calendar (or the reverse)
+- **WHEN** an operator applies filters and then switches from Week to Month (or the reverse)
 - **THEN** the same filter selection remains active in the destination view
 
 #### Scenario: Unsaved schedule draft warns before discard on switch
@@ -379,34 +340,34 @@ The console MUST NOT equate campaign `flow_a_complete`, blog handoff, or editori
 - **WHEN** a LinkedIn item has display state `queued`
 - **THEN** the presentation does not label it as LinkedIn API published
 
-### Requirement: Same item recognizable across List and Month calendar
+### Requirement: Same item recognizable across Week and Month
 
-List and Month calendar MUST render from the same shared normalized frontend model (fed by worker HTTP reads) so the same logical item is recognizable across views via stable ids, labels, status colors, and detail fields.
+Week and Month MUST render from the same shared normalized frontend model (fed by worker HTTP reads) so the same logical item is recognizable across views via stable ids, labels, status colors, and detail fields.
 
 The console MUST NOT maintain divergent per-view caches that can disagree about item identity, schedule, or publication state.
 
 #### Scenario: Shared identity across views
 
 - **WHEN** a LinkedIn pending variant exists in the shared model
-- **THEN** List and Month calendar presentations for that item use the same campaign id, variant id, schedule, and display publication state derived from that model
+- **THEN** Week and Month presentations for that item use the same campaign id, variant id, schedule, and display publication state derived from that model
 
 #### Scenario: Refresh updates both views from shared store
 
-- **WHEN** schedule or pending data is refreshed after a successful real list mutation
+- **WHEN** schedule or pending data is refreshed after a successful real mutation
 - **THEN** both views reflect the updated shared model without a separate divergent calendar-only cache
 
 ### Requirement: Filters apply consistently with discoverable critical failures
 
 The console MUST provide filters or toggles for channel, campaign, publication state, blocked items, and due-soon items.
 
-Filters MUST apply consistently to both List and Month calendar views.
+Filters MUST apply consistently to both Week and Month views.
 
 When filters hide critical failure indicators (failed/blocked/integration-critical items), the console MUST keep those hidden critical failures discoverable through a count, warning, or reset / show-critical affordance. Critical failures MUST NOT be hidden silently with no signal.
 
 #### Scenario: Filter applies to both views
 
-- **WHEN** an operator filters to channel `linkedin` and switches between List and Month calendar
-- **THEN** both views show only items that satisfy the linkedin channel filter (List within its pending operational scope; calendar within schedule-visibility items)
+- **WHEN** an operator filters to channel `linkedin` and switches between Week and Month
+- **THEN** both views show only items that satisfy the linkedin channel filter within schedule-visibility (and pending detail) scope
 
 #### Scenario: Hidden critical failures remain discoverable
 
@@ -466,15 +427,6 @@ LinkedIn publication enablement off MUST remain display-only technical context: 
 
 - **WHEN** LinkedIn publication enablement is false
 - **THEN** schedule visibility still presents pending/queued items without labeling them LinkedIn API published
-
-### Requirement: Mobile list stacked layout for visibility
-
-On phone viewports, the List view MUST present pending operational rows as readable stacked rows or cards suitable for touch use.
-
-#### Scenario: Mobile list is stacked
-
-- **WHEN** the console List view is shown at a mobile width with pending rows present
-- **THEN** rows render as stacked readable blocks rather than a single horizontally scrolled dense table as the only layout
 
 ### Requirement: Frontend validation covers calendar visibility contracts
 
@@ -816,23 +768,23 @@ Committed console HTML MUST continue to pass the secrets/placeholder audit (no A
 - **WHEN** the committed console HTML asset is scanned for API keys, bearer tokens, and secret-like placeholders such as `CHANGE_ME`
 - **THEN** no such values are present in the asset
 
-### Requirement: Shared schedule editor from List, Month calendar, and mobile agenda
+### Requirement: Shared schedule editor from calendar entry points
 
-The Flow A LinkedIn variant supervision console MUST allow an operator to select a future unpublished schedule item from the Month calendar view, the mobile agenda (or equivalent day expansion), or the List view and open the **same** schedule editor component.
+The Flow A LinkedIn variant supervision console MUST allow an operator to select a future unpublished schedule item from the Week view, the Month calendar view, or mobile day/agenda equivalents and open the **same** schedule editor component.
 
 The schedule editor MUST collect a new UTC schedule value and optional reason, present dry-run vs real mode, and require explicit confirmation before a committed (`dry_run` false) schedule change.
 
 Published or historical items MUST open as read-only (or refuse schedule mutation) and MUST NOT offer a commit path that would rewrite their schedule.
 
-#### Scenario: Month calendar opens shared schedule editor for editable item
+#### Scenario: Week opens shared schedule editor for editable item
+
+- **WHEN** an operator selects a future unpublished editable item from the Week view
+- **THEN** the console opens the same schedule editor used by Month and mobile day/agenda equivalents for that item
+
+#### Scenario: Month opens the same schedule editor
 
 - **WHEN** an operator selects a future unpublished editable item from the Month calendar
-- **THEN** the console opens the same schedule editor used by List and mobile agenda for that item
-
-#### Scenario: Mobile agenda opens the same schedule editor
-
-- **WHEN** an operator selects a future unpublished editable item from the mobile agenda (or equivalent)
-- **THEN** the console opens the same schedule editor instance/path as Month and List
+- **THEN** the console opens the same schedule editor instance/path as Week
 
 #### Scenario: Published historical item is read-only for schedule
 
@@ -880,16 +832,16 @@ Committed schedule changes (`dry_run` false) MUST require explicit operator conf
 
 ### Requirement: Dual-view refresh and schedule-change outcome messaging
 
-After a successful real schedule change, the console MUST refresh both the Month calendar (schedule-visibility) and the List (pending-supervision and shared model) so both views remain consistent.
+After a successful real schedule change, the console MUST refresh Week and Month presentations from the shared model (schedule-visibility and pending-supervision reads as applicable) so both views remain consistent.
 
 The success presentation MUST show at least: the affected item identity, previous schedule, new schedule, and whether related LinkedIn variants were changed or remained separate overrides.
 
 The console MUST NOT claim LinkedIn API published, MUST NOT equate `flow_a_complete` or blog handoff with LinkedIn API published, and MUST NOT claim that schedule edit published blog content.
 
-#### Scenario: Real success refreshes list and calendar
+#### Scenario: Real success refreshes week and month
 
 - **WHEN** a real schedule change succeeds
-- **THEN** the shared model refreshes from worker HTTP reads and both List and Month calendar reflect the new schedule
+- **THEN** the shared model refreshes from worker HTTP reads and both Week and Month reflect the new schedule
 
 #### Scenario: Outcome reports previous and new schedule
 
@@ -1169,19 +1121,19 @@ Due soon MUST reuse the console’s existing due-soon window (48 hours) unless a
 
 ### Requirement: Actionable states have visual priority without alarm fatigue
 
-The console MUST prioritize actionable states visually so blocked or failed (and other critical) items are noticeable in List and Month presentations without overwhelming normal scheduled content (planned / pending / queued / routine published).
+The console MUST prioritize actionable states visually so blocked or failed (and other critical) items are noticeable in Week and Month presentations without overwhelming normal scheduled content (planned / pending / queued / routine published).
 
-List view MUST remain optimized for scanning and triage density. Month calendar MUST remain optimized for schedule comprehension (day placement and compact status), not full diagnostic walls inside every day cell.
+Week MUST remain optimized for “this week’s plan” comprehension with scannable event chips. Month calendar MUST remain optimized for schedule density comprehension (day placement and compact status), not full diagnostic walls inside every day cell.
 
-#### Scenario: Blocked or failed items are noticeable in List
+#### Scenario: Blocked or failed items are noticeable in Week
 
-- **WHEN** the List contains blocked or failed items among routine pending rows
-- **THEN** those actionable items are visually distinct from routine rows without making every row appear critical
+- **WHEN** the Week contains blocked or failed items among routine scheduled items
+- **THEN** those actionable items are visually distinct from routine chips without making every chip appear critical
 
 #### Scenario: Month keeps schedule comprehension
 
 - **WHEN** the Month calendar shows a day with both routine and blocked/failed items
-- **THEN** the day remains schedule-comprehensible (time/placement readable) and does not force full List-style diagnostic chrome into every cell
+- **THEN** the day remains schedule-comprehensible (time/placement readable) and does not force full diagnostic chrome into every cell
 
 ### Requirement: Concise operator-facing labels with expandable diagnostics
 
@@ -1205,13 +1157,14 @@ Primary chrome MUST prefer the concise label. The console MUST NOT remove operat
 
 The console MUST provide clear affordances for:
 
-- switching view (List / Month calendar)
+- switching view (Week / Month)
 - filtering
-- inspecting item detail
+- inspecting item detail from calendar event entry points
 - rescheduling / deferring where supported
 - cancelling where supported
 - refreshing data
 - dry-run vs commit mode
+- Today / This week (and equivalent month today navigation where applicable)
 
 Destructive or irreversible actions (including real cancel) MUST remain protected by confirmation and MUST NOT be placed as peer controls immediately adjacent to routine navigation controls (view switcher and refresh) in a way that invites accidental activation.
 
@@ -1227,30 +1180,10 @@ Unauthenticated and read-only sessions (`canMutate` false) MUST continue to be p
 - **WHEN** the operator uses the console shell
 - **THEN** dry-run vs commit mode is clearly visible before real mutations
 
-#### Scenario: Inspect and schedule actions remain reachable
+#### Scenario: Inspect and schedule actions remain reachable from calendar
 
-- **WHEN** an editable future item is selected from List, Month, or mobile agenda
+- **WHEN** an editable future item is selected from a Week or Month event chip (interim entry path)
 - **THEN** the operator can inspect detail and open the shared schedule editor where schedule edit is supported
-
-### Requirement: List triage vs Month schedule comprehension
-
-The List view MUST remain optimized for scanning and bulk operational triage of pending LinkedIn supervision.
-
-The Month calendar MUST remain optimized for schedule comprehension of upcoming blog and LinkedIn items.
-
-The console MUST NOT force one view to carry both jobs poorly (for example by removing List operational detail or by turning Month cells into full edit/diagnostic forms).
-
-Both views MUST remain first-class and reachable through the persistent view switcher without clearing filters, dry-run mode, or unsaved schedule drafts without warning (US-040B).
-
-#### Scenario: List retains triage detail
-
-- **WHEN** the operator uses List after US-040E polish
-- **THEN** pending operational detail and supported edit/defer/cancel actions remain available for scanning and triage
-
-#### Scenario: Month retains schedule comprehension
-
-- **WHEN** the operator uses Month calendar after US-040E polish
-- **THEN** day placement, month navigation, and schedule comprehension remain usable without requiring List interaction
 
 ### Requirement: Keyboard and touch accessibility for operational controls
 
@@ -1291,16 +1224,16 @@ The console MUST keep the dark visual theme consistent across loading, empty, er
 
 ### Requirement: Operational first screen without marketing landing
 
-The first screen of `GET /flow-a/console/linkedin-variant-supervision` MUST be the usable operational console experience (shell with view switcher / status / filters path and List or Month content area).
+The first screen of `GET /flow-a/console/linkedin-variant-supervision` MUST be the usable operational console experience (shell with Week/Month view switcher, status/filters path, and Week content area by default).
 
 The console MUST NOT introduce a marketing-style landing page, promotional hero, or brand splash that replaces or delays the operational console as the first screen.
 
 Auth session banners (anonymous / sign-in guidance) MAY appear inside the operational shell and MUST NOT constitute a separate marketing landing.
 
-#### Scenario: First paint is the operational console
+#### Scenario: First paint is the operational Week console
 
 - **WHEN** an operator opens the supervision console route
-- **THEN** the first screen is the operational console shell rather than a marketing-style landing page
+- **THEN** the first screen is the operational console shell with Week as the default content area rather than a marketing-style landing page or List home
 
 ### Requirement: Desktop and mobile visual validation for US-040E
 
@@ -1398,24 +1331,6 @@ Visible primary chrome SHOULD minimize endpoint names, worker codes, raw mount/p
 - **WHEN** an operator scans the primary shell, List, or Month view
 - **THEN** endpoint paths, raw source-state codes, and long publication semantics are not the dominant visible content, while diagnostics remain available in details for troubleshooting
 
-### Requirement: US-040F List and detail UX
-
-The List view MUST be redesigned for fast triage scanning using cards, rows, or an equivalent modern pattern rather than a table-first technical inspection layout.
-
-Each list item MUST make the human-operational fields prominent: title or campaign label, campaign/variant identity, audience/channel where available, schedule, publication state, risk/blocked/failed status, and safe primary actions.
-
-Desktop layouts SHOULD use a master-detail or drawer pattern so selecting an item reveals detail/actions without pushing the entire list or calendar downward. Mobile layouts MUST avoid horizontal table scrolling and SHOULD use stacked cards plus a drawer, bottom sheet, or full-screen detail surface.
-
-#### Scenario: List is scannable
-
-- **WHEN** pending variants are loaded
-- **THEN** the List presents scannable item cards or rows with concise state, schedule, identity, and primary actions
-
-#### Scenario: Selection opens contextual detail
-
-- **WHEN** an operator selects a List item
-- **THEN** detail and safe actions appear in a contextual panel/drawer or equivalent surface without replacing the List as the primary triage surface
-
 ### Requirement: US-040F Calendar UX
 
 The Month calendar MUST remain first-class and MUST communicate schedule density, channel/state, selected day, today, blocked/failed risk, and overflow at a glance.
@@ -1458,3 +1373,186 @@ US-040F MUST NOT mark BL-015 closed or US-040F Story accepted by implementation 
 
 - **WHEN** US-040F implementation and OpenSpec alignment land
 - **THEN** status language does not mark BL-015 closed or US-040F Story accepted while further UX direction remains open
+
+### Requirement: Calendar-first Week and Month operator chrome (US-040G)
+
+The Flow A LinkedIn variant supervision console MUST be calendar-first. The operator-facing view switcher MUST offer exactly two first-class views labeled `Week` and `Month`.
+
+`Week` MUST be the default view on first load and after hard refresh (unless a documented deep-link explicitly selects Month).
+
+The console MUST NOT present a List tab, list-first landing, or empty list as the default workspace.
+
+#### Scenario: Week is default first paint
+
+- **WHEN** an operator opens `GET /flow-a/console/linkedin-variant-supervision` with no deep-link overriding the view
+- **THEN** the first operational content area is the Week calendar view with the view switcher showing Week selected
+
+#### Scenario: View switcher is Week and Month only
+
+- **WHEN** the operator inspects the persistent view switcher
+- **THEN** the switcher exposes Week and Month controls and does not expose a List control
+
+#### Scenario: List chrome is absent
+
+- **WHEN** the console shell is rendered after US-040G
+- **THEN** no List tab, list landing route, or empty-list home workspace is presented as an operator chrome surface
+
+### Requirement: Week calendar visibility UX
+
+The Week view MUST present a readable local-week layout using day columns (or equivalent day sections on mobile), with day headers, today emphasis, previous/next week navigation, and a one-click Today / This week affordance.
+
+Events MUST render as scannable chips or cards showing at least title or campaign label, channel, local time interpretation, and concise publication state. Raw ids MUST NOT be the primary visible label.
+
+Week MUST NOT use an hour-by-hour time grid as the primary layout for this product density.
+
+On phone viewports, week navigation and event chips MUST remain thumb-friendly and readable without requiring horizontal table scrolling as the only inspection path.
+
+#### Scenario: Week shows day columns and today
+
+- **WHEN** an operator opens Week for the current week
+- **THEN** day headers are visible, today is emphasized, and the operator can navigate to previous and next weeks
+
+#### Scenario: Event chips are scannable
+
+- **WHEN** one or more schedule items fall in the visible week
+- **THEN** each item appears as a chip or card with title or campaign label, channel, local time, and concise state (not raw id as the primary label)
+
+#### Scenario: Today / This week control
+
+- **WHEN** the operator activates the Today / This week control from Week
+- **THEN** the Week cursor returns to the current week with today emphasized
+
+#### Scenario: Mobile week remains usable
+
+- **WHEN** the console is viewed at a mobile width on Week
+- **THEN** week navigation and event chips remain usable without horizontal table scrolling as the only layout
+
+### Requirement: Intentional empty Week and Month states
+
+When a visible week or month has zero items after filters, the console MUST show a deliberate empty state with short operator-facing copy and, when filters hid everything, a path to clear or reset filters.
+
+Empty week/month presentations MUST use the dark theme and MUST NOT appear as an unexplained blank content void or system failure.
+
+#### Scenario: Empty week is intentional
+
+- **WHEN** the visible week has no items after filters
+- **THEN** the Week view shows a calm empty state (for example that there are no publications this week) and does not present a blank broken panel
+
+#### Scenario: Empty month is intentional
+
+- **WHEN** the visible month has no items after filters
+- **THEN** the Month view shows a calm empty state and does not present a blank broken panel
+
+#### Scenario: Filters caused emptiness
+
+- **WHEN** items exist in the shared model but active filters hide all items in the visible week or month
+- **THEN** the empty state offers a path to clear or reset filters
+
+### Requirement: Metric chips navigate within Week and Month only
+
+Interactive operational metric chips MUST apply focus filters and MUST navigate or focus within Week or Month calendar cursors so matching work is visible on the calendar.
+
+Metric chips MUST NOT reopen, switch to, or depend on a List view.
+
+When no matching item exists for a metric focus, the console MUST keep the calendar surface and show an intentional empty or zero-match state rather than falling back to a list.
+
+#### Scenario: Blocked metric stays on calendar
+
+- **WHEN** an operator activates the blocked metric while on Week or Month
+- **THEN** the console applies the blocked focus filter and adjusts the Week or Month cursor toward matching work without opening a List view
+
+#### Scenario: Zero matches do not restore List
+
+- **WHEN** a metric focus matches zero items
+- **THEN** the console remains on Week or Month with an intentional empty or zero-match presentation and does not open a List
+
+### Requirement: Interim calendar action entry points until event modal
+
+Until US-040H ships the focused event modal, clicking an event chip on Week or Month MUST open an interim detail and/or ScheduleEditor surface that preserves existing edit, defer/reschedule, and cancel capabilities (where already supported) via the typed API client and existing worker mutation contracts.
+
+The interim surface MUST be honest: it MUST NOT claim to be the US-040H event modal product, and this requirement MUST NOT be interpreted as shipping US-040H modal chrome or toast feedback.
+
+Day selection MAY provide light focus affordance; it MUST NOT restore a list-like multi-item diagnostic dump as the primary action surface.
+
+#### Scenario: Event chip opens interim actions
+
+- **WHEN** an operator activates an editable event chip on Week or Month
+- **THEN** the console opens the interim detail and/or ScheduleEditor path for that item using existing worker HTTP mutations
+
+#### Scenario: Interim path is not claimed as H modal
+
+- **WHEN** the interim detail or ScheduleEditor surface is open after US-040G
+- **THEN** the console does not present that surface as the completed US-040H event modal product
+
+#### Scenario: Capabilities remain reachable without List
+
+- **WHEN** List chrome has been removed
+- **THEN** pending LinkedIn edit, defer/reschedule, and cancel (where previously supported) remain reachable from calendar event entry points
+
+### Requirement: US-040G Visual DoD and acceptance gates
+
+US-040G MUST require desktop and mobile Visual DoD evidence (screenshots or equivalent browser-driven capture) covering at least:
+
+- Week first paint
+- empty week
+- dense week
+- Month switch
+- empty month
+- dense month
+- Today / This-week control
+- proof that List chrome is gone
+
+Vitest or component assertions alone MUST NOT be treated as sufficient for Story accepted.
+
+US-040G Story accepted and Acceptance criteria validated MUST NOT be marked until the content operator completes a live walkthrough on the deployed console or an explicitly agreed preview and confirms the UX meets calendar-first intent.
+
+Implementation commit and “business outcome demonstrated” MAY occur before that gate. BL-015 MUST remain open until the backlog completion outcome is operator-validated; shipping US-040G code MUST NOT close BL-015 by itself.
+
+If browser capture is unavailable in the implementation environment, status language MUST record that limitation and MUST leave Visual DoD / Story-accepted gates open.
+
+#### Scenario: Visual DoD scenes are required
+
+- **WHEN** US-040G claims visual validation complete for Story accepted
+- **THEN** desktop and mobile evidence exists for Week first paint, empty week, dense week, Month switch, empty month, dense month, Today/This-week, and absence of List chrome
+
+#### Scenario: Vitest alone does not accept the story
+
+- **WHEN** only Vitest or component assertions have passed
+- **THEN** status language does not mark US-040G Story accepted or Acceptance criteria validated
+
+#### Scenario: Walkthrough gate blocks Story accepted
+
+- **WHEN** implementation is complete but the operator walkthrough on deployed or agreed preview has not confirmed calendar-first UX
+- **THEN** US-040G remains not Story accepted and BL-015 remains open
+
+### Requirement: US-040G scope preserves baselines and defers H–K products
+
+US-040G MUST NOT mark BL-015 closed or US-040G Story accepted by implementation alone.
+
+US-040G MUST preserve:
+
+- React + TypeScript + Vite same-origin static delivery
+- typed injectable-auth API client
+- shared normalized frontend model fed by worker HTTP reads
+- ScheduleEditor mutation SoT (US-017 defer for LinkedIn; editorial-calendar schedule-update for blog)
+- session states and `canMutate` gating
+- qualified publication language (`pending`, `queued`, `cancelled`, `flow_a_complete`, blog handoff ≠ LinkedIn API published)
+
+US-040G MUST NOT implement the US-040H event modal + toast product (interim entry points only), MUST NOT implement US-040I local-day bucketing overhaul (interim UTC day placement with local time display is allowed and MUST be documented as debt), MUST NOT implement US-040J cancelled reopen worker path, and MUST NOT implement US-040K max-2-per-local-day enforcement.
+
+US-040G MUST NOT activate public URL hosting, MUST NOT integrate live Google/OIDC, MUST NOT introduce a BFF/database/user-management product, MUST NOT call the LinkedIn publication API, MUST NOT bypass `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`, MUST NOT use n8n Execute Command, and MUST NOT read or write raw mount paths from the browser.
+
+#### Scenario: Prior architecture baselines remain
+
+- **WHEN** US-040G is implemented
+- **THEN** worker HTTP remains the only console data/mutation path, ScheduleEditor remains the schedule mutation surface, and session/`canMutate` gating remains
+
+#### Scenario: H–K products remain out of apply scope
+
+- **WHEN** US-040G implementation is complete
+- **THEN** CURRENT-STATE or equivalent status language records US-040H modal/toasts, US-040I local-day bucketing, US-040J reopen, and US-040K density enforcement as not delivered by this change (aside from G interim action entry points and documented I debt)
+
+#### Scenario: BL-015 remains open
+
+- **WHEN** US-040G implementation lands
+- **THEN** status language does not mark BL-015 closed or US-040G Story accepted by implementation alone
