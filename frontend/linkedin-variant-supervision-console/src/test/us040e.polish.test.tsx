@@ -470,6 +470,7 @@ describe("US-040E visual validation matrix (equivalent UI checks)", () => {
         expect(screen.getByTestId("count-strip")).toBeInTheDocument();
       });
       expect(screen.getByTestId("week-empty-state")).toBeInTheDocument();
+      expect(screen.getByTestId("week-columns")).toBeInTheDocument();
       expect(screen.getByTestId("count-upcoming")).toHaveAttribute(
         "data-count",
         "0",
@@ -477,6 +478,7 @@ describe("US-040E visual validation matrix (equivalent UI checks)", () => {
       await user.click(screen.getByTestId("view-month"));
       expect(screen.getByTestId("month-calendar-view")).toBeInTheDocument();
       expect(screen.getByTestId("month-empty-state")).toBeInTheDocument();
+      expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
       unmount();
     });
   });

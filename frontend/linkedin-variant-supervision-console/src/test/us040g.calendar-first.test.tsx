@@ -155,7 +155,7 @@ describe("US-040G calendar-first Week + Month", () => {
     });
   });
 
-  it("shows empty week/month intentional states and Today control", async () => {
+  it("shows empty week/month cues with persistent calendar grids and Today control", async () => {
     await assertAtWidths(async () => {
       const user = userEvent.setup();
       const { unmount } = render(<App client={makeClient([])} />);
@@ -166,8 +166,13 @@ describe("US-040G calendar-first Week + Month", () => {
       expect(screen.getByTestId("week-empty-state").textContent).toMatch(
         /No publications this week/,
       );
+      expect(screen.getByTestId("week-columns")).toBeInTheDocument();
+      expect(screen.getByTestId(`week-day-${weekDays[0]}`)).toBeInTheDocument();
+      expect(screen.getByTestId("week-prev")).toBeEnabled();
+      expect(screen.getByTestId("week-next")).toBeEnabled();
       await user.click(screen.getByTestId("week-today"));
       expect(screen.getByTestId("week-view")).toBeInTheDocument();
+      expect(screen.getByTestId("week-columns")).toBeInTheDocument();
       expect(currentUtcWeek().weekStartKey).toBe(weekStart);
 
       await user.click(screen.getByTestId("view-month"));
@@ -177,6 +182,50 @@ describe("US-040G calendar-first Week + Month", () => {
       expect(screen.getByTestId("month-empty-state").textContent).toMatch(
         /No publications this month/,
       );
+      expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
+      expect(screen.getByTestId("calendar-prev")).toBeEnabled();
+      expect(screen.getByTestId("calendar-next")).toBeEnabled();
+      unmount();
+    });
+  });
+
+  it("keeps week/month grids when filters hide all items and offers clear filters", async () => {
+    await assertAtWidths(async () => {
+      const user = userEvent.setup();
+      const { unmount } = render(<App client={makeClient(denseItems)} />);
+      await user.click(screen.getByTestId("load-btn"));
+      await waitFor(() => {
+        expect(
+          screen.getAllByTestId("week-event-chip").length,
+        ).toBeGreaterThan(0);
+      });
+
+      await user.type(screen.getByTestId("filter-campaign"), "no-such-campaign");
+      await waitFor(() => {
+        expect(screen.getByTestId("week-empty-state")).toBeInTheDocument();
+      });
+      expect(screen.getByTestId("week-empty-state").textContent).toMatch(
+        /Active filters hid every item/,
+      );
+      expect(screen.getByTestId("week-columns")).toBeInTheDocument();
+      expect(screen.queryAllByTestId("week-event-chip")).toHaveLength(0);
+      expect(screen.getByTestId("week-clear-filters")).toBeInTheDocument();
+
+      await user.click(screen.getByTestId("view-month"));
+      await waitFor(() => {
+        expect(screen.getByTestId("month-empty-state")).toBeInTheDocument();
+      });
+      expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
+      expect(screen.getByTestId("month-clear-filters")).toBeInTheDocument();
+
+      await user.click(screen.getByTestId("month-clear-filters"));
+      await waitFor(() => {
+        expect(screen.queryByTestId("month-empty-state")).toBeNull();
+      });
+      expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
+      expect(
+        screen.queryAllByTestId("schedule-open-month").length,
+      ).toBeGreaterThan(0);
       unmount();
     });
   });
@@ -205,13 +254,50 @@ describe("US-040G calendar-first Week + Month", () => {
       await user.click(screen.getByTestId("count-blocked"));
       expect(screen.getByTestId("filter-blocked")).toBeChecked();
       expect(screen.getByTestId("week-view")).toBeInTheDocument();
+      expect(screen.getByTestId("week-columns")).toBeInTheDocument();
       expect(screen.queryByTestId("list-view")).toBeNull();
 
       await user.click(screen.getByTestId("view-month"));
       expect(screen.getByTestId("month-calendar-view")).toBeInTheDocument();
+      expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
       expect(
         screen.queryAllByTestId("schedule-open-month").length,
       ).toBeGreaterThan(0);
+      unmount();
+    });
+  });
+
+  it("keeps calendar day structure when a metric focus matches zero items", async () => {
+    await assertAtWidths(async () => {
+      const pendingOnly = denseItems.map((item) => ({
+        ...item,
+        blocked: false,
+        publication_state: "pending" as const,
+      }));
+      const user = userEvent.setup();
+      const { unmount } = render(<App client={makeClient(pendingOnly)} />);
+      await user.click(screen.getByTestId("load-btn"));
+      await waitFor(() => {
+        expect(
+          screen.getAllByTestId("week-event-chip").length,
+        ).toBeGreaterThan(0);
+      });
+
+      await user.click(screen.getByTestId("count-blocked"));
+      expect(screen.getByTestId("filter-blocked")).toBeChecked();
+      await waitFor(() => {
+        expect(screen.getByTestId("week-empty-state")).toBeInTheDocument();
+      });
+      expect(screen.getByTestId("week-columns")).toBeInTheDocument();
+      expect(screen.queryByTestId("list-view")).toBeNull();
+      expect(screen.getByTestId("week-clear-filters")).toBeInTheDocument();
+
+      await user.click(screen.getByTestId("view-month"));
+      await waitFor(() => {
+        expect(screen.getByTestId("month-empty-state")).toBeInTheDocument();
+      });
+      expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
+      expect(screen.queryByTestId("list-view")).toBeNull();
       unmount();
     });
   });

@@ -66,4 +66,4 @@
 - [x] 7.3 `/opsx-sync` → separate sync commit
 - [x] 7.4 `/opsx-archive` → separate archive commit
 - [x] 7.5 Push only with explicit approval
-- [ ] 7.6 Deploy only with explicit approval (required before Visual DoD / walkthrough unless an agreed preview is documented)
+- [x] 7.6 Deploy only with explicit approval (required before Visual DoD / walkthrough unless an agreed preview is documented)

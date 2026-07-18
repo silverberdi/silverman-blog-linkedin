@@ -166,8 +166,12 @@ export function WeekView() {
         </div>
       )}
 
-      {weekItemCount === 0 ? (
-        <div className="calendar-empty-state" data-testid="week-empty-state">
+      {weekItemCount === 0 && (
+        <div
+          className="calendar-empty-state calendar-empty-cue"
+          data-testid="week-empty-state"
+          role="status"
+        >
           <p className="empty-state-title">No publications this week</p>
           <p className="meta">
             {filtersActive
@@ -185,86 +189,86 @@ export function WeekView() {
             </button>
           )}
         </div>
-      ) : (
-        <div
-          className="week-columns"
-          data-testid="week-columns"
-          role="grid"
-          aria-label={`Week ${weekLabel(weekCursor)}`}
-        >
-          {dayKeys.map((dayKey) => {
-            const dayItems = itemsByDay.get(dayKey) ?? [];
-            const isToday = dayKey === todayKey;
-            return (
-              <div
-                key={dayKey}
-                className={[
-                  "week-day-column",
-                  isToday ? "is-today" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                data-testid={`week-day-${dayKey}`}
-                data-day={dayKey}
-              >
-                <header className="week-day-header">
-                  <span className="week-day-name">
-                    {weekdayShortLabel(dayKey)}
-                  </span>
-                  <span className="week-day-num">
-                    {dayNumberFromKey(dayKey)}
-                    {isToday ? " · today" : ""}
-                  </span>
-                </header>
-                <div className="week-day-chips">
-                  {dayItems.length === 0 ? (
-                    <span className="calendar-empty">No items</span>
-                  ) : (
-                    dayItems.map((item) => {
-                      const label = publicationStateLabel(
-                        item.publicationState,
-                        item.linkedinApiPublished,
-                      );
-                      return (
-                        <button
-                          key={item.itemId}
-                          type="button"
-                          className={chipClass(item)}
-                          data-testid="week-event-chip"
-                          data-item-id={item.itemId}
-                          data-channel={item.channel}
-                          style={{ borderLeftColor: item.statusColor }}
-                          onClick={() => openInterimDetail(item.itemId, "week")}
-                        >
-                          <span className="week-chip-title title-cell">
-                            {item.title ||
-                              item.variantId ||
-                              item.campaignId ||
-                              item.itemId}
-                          </span>
-                          <span className="week-chip-meta">
-                            <span className="mono">{item.channel}</span>
-                            {" · "}
-                            <span className="mono">
-                              {formatLocalTime(item.scheduledAtUtc)}
-                            </span>
-                          </span>
-                          <span
-                            className="status-pill status-pill-compact"
-                            style={{ backgroundColor: item.statusColor }}
-                          >
-                            {label}
-                          </span>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
       )}
+
+      <div
+        className="week-columns"
+        data-testid="week-columns"
+        role="grid"
+        aria-label={`Week ${weekLabel(weekCursor)}`}
+      >
+        {dayKeys.map((dayKey) => {
+          const dayItems = itemsByDay.get(dayKey) ?? [];
+          const isToday = dayKey === todayKey;
+          return (
+            <div
+              key={dayKey}
+              className={[
+                "week-day-column",
+                isToday ? "is-today" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              data-testid={`week-day-${dayKey}`}
+              data-day={dayKey}
+            >
+              <header className="week-day-header">
+                <span className="week-day-name">
+                  {weekdayShortLabel(dayKey)}
+                </span>
+                <span className="week-day-num">
+                  {dayNumberFromKey(dayKey)}
+                  {isToday ? " · today" : ""}
+                </span>
+              </header>
+              <div className="week-day-chips">
+                {dayItems.length === 0 ? (
+                  <span className="calendar-empty">No items</span>
+                ) : (
+                  dayItems.map((item) => {
+                    const label = publicationStateLabel(
+                      item.publicationState,
+                      item.linkedinApiPublished,
+                    );
+                    return (
+                      <button
+                        key={item.itemId}
+                        type="button"
+                        className={chipClass(item)}
+                        data-testid="week-event-chip"
+                        data-item-id={item.itemId}
+                        data-channel={item.channel}
+                        style={{ borderLeftColor: item.statusColor }}
+                        onClick={() => openInterimDetail(item.itemId, "week")}
+                      >
+                        <span className="week-chip-title title-cell">
+                          {item.title ||
+                            item.variantId ||
+                            item.campaignId ||
+                            item.itemId}
+                        </span>
+                        <span className="week-chip-meta">
+                          <span className="mono">{item.channel}</span>
+                          {" · "}
+                          <span className="mono">
+                            {formatLocalTime(item.scheduledAtUtc)}
+                          </span>
+                        </span>
+                        <span
+                          className="status-pill status-pill-compact"
+                          style={{ backgroundColor: item.statusColor }}
+                        >
+                          {label}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }

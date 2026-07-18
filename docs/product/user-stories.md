@@ -969,7 +969,7 @@ As a content operator, I want the Flow A supervision console to feel like a mode
 
 As a content operator, I want the supervision console to open on a clear **week** calendar with **month** as a secondary view and **no list**, so that I immediately understand what publishes when without learning a second triage surface that often looks empty or unexplained.
 
-**Status:** Implemented in console layer (US-040G calendar-first Week + Month; List removed from operator chrome; OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040g`; Vitest viewport matrix ~1280/~375 + rebuilt static assets). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated (browser capture not completed in apply environment). Interim event-chip → ItemDetail/ScheduleEditor path until US-040H. UTC day-bucketing debt remains for US-040I. US-040H modal/toasts, US-040J reopen, and US-040K density not delivered.
+**Status:** Implemented in console layer (US-040G calendar-first Week + Month; List removed from operator chrome; OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040g`; empty-grid follow-up `fix-us-040g-outlook-empty-calendar-grid` applied in source — Week/Month keep day structure visible with calm empty cue; Vitest viewport matrix ~1280/~375 + rebuilt static assets). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated until **redeploy** of empty-grid assets and live walkthrough (browser capture not completed in apply environment). Interim event-chip → ItemDetail/ScheduleEditor path until US-040H. UTC day-bucketing debt remains for US-040I. US-040H modal/toasts, US-040J reopen, and US-040K density not delivered. Filters dock removal and Cancelled metric chip are out of scope for the empty-grid fix.
 
 **UX intent (normative)**
 
@@ -977,12 +977,12 @@ As a content operator, I want the supervision console to open on a clear **week*
 - Week is the **default home**: the operator should grasp “this week’s plan” in under three seconds.
 - Month is for **density and horizon**, not for dumping full diagnostics into cells.
 - Removing the list MUST NOT remove capability — every previous list action MUST remain reachable from the event modal (US-040H) or equivalent calendar entry points.
-- Empty weeks MUST explain themselves (“No publications this week”) with a calm empty state, never a blank white/void panel that looks broken.
+- Empty weeks/months MUST explain themselves (“No publications this week/month”) with a calm empty cue **while keeping the Week day columns / Month day grid visible** (Outlook-like blank days) — never a blank white/void panel or a gridless substitute panel that looks broken.
 - View switching MUST be obvious: segmented control or equivalent with labels `Week` / `Month`, Week selected by default on first load and after hard refresh unless a deep-link says otherwise.
 
 **Visual DoD / Story acceptance gate**
 
-Required scenes (desktop + mobile): Week first paint; empty week; dense week; Month switch; empty month; dense month; Today/This-week control; proof that List chrome is gone.
+Required scenes (desktop + mobile): Week first paint; empty week (**day columns still visible** with empty cue); dense week; Month switch; empty month (**day grid still visible** with empty cue); dense month; Today/This-week control; proof that List chrome is gone.
 **MUST NOT** mark Story accepted without operator walkthrough confirming the console feels like a modern calendar product (shared DoD above).
 
 **Acceptance criteria**
@@ -992,7 +992,7 @@ Required scenes (desktop + mobile): Week first paint; empty week; dense week; Mo
 - [x] Week view MUST show a readable local-week grid or column layout with day headers, today emphasis, and events as scannable chips/cards (title or campaign label, channel, local time, state) — not raw ids as the primary label. — Demonstrated: day-column Week (not hour grid); local time on chips; UTC day placement interim (US-040I debt).
 - [x] Month view MUST remain density-oriented: compact event indicators per day, overflow handling, today/selected styling, without turning cells into diagnostic forms. — Demonstrated: agenda dump removed as primary surface; light day focus + event chips.
 - [x] Navigation: previous/next week, previous/next month, and a one-click “Today / This week” affordance MUST be visible and thumb-friendly on mobile. — Demonstrated via Vitest + CSS touch targets.
-- [x] When a week or month has zero items after filters, show a deliberate empty state with short copy and a path to clear filters if filters hid everything — never an unexplained blank content area. — Demonstrated via Vitest empty week/month states.
+- [x] When a week or month has zero items after filters, show a deliberate empty state with short copy and a path to clear filters if filters hid everything — never an unexplained blank content area. — Demonstrated via Vitest: empty cue + persistent `week-columns` / `calendar-grid` (Outlook-like); filter-zero clear path; live Visual DoD still gated pending redeploy + walkthrough.
 - [x] Metric chips (if retained) MUST navigate/focus within Week/Month (e.g. jump to next blocked event week), not reopen a list. — Demonstrated: `navigateMetricFocus` stays on calendar; Vitest asserts no List.
 - [x] Preserve React + TypeScript + Vite, same-origin static delivery, typed API client, shared normalized model, ScheduleEditor mutation SoT, session/`canMutate`, and worker HTTP-only access. — Demonstrated: stack unchanged; ScheduleEditor + interim path; session suites pass.
 - [x] Do not activate public URL hosting, Google/OIDC, BFF/DB/user-management, LinkedIn API publish, or Flow B. — Demonstrated: out of scope; no activation.

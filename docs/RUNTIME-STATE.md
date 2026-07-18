@@ -6,13 +6,14 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 ## Snapshot
 
-**`verified_at_utc`:** `2026-07-18T14:45:00Z`
-**Evidence source:** Worker deploy on Ubuntu `192.168.0.194` to `BUILD_REVISION=018aa36` (BL-012 recovery endpoints + BL-013 concurrency + BL-014 backup CLI modules); health 200; OpenAPI recovery paths present; unauthenticated recovery inspect 401
+**`verified_at_utc`:** `2026-07-18T23:01:42Z`
+**Evidence source:** Worker redeploy on Ubuntu `192.168.0.194` after US-040G archive push (`git` HEAD `bea6106`); health 200; console HTML serves `index-D2l6QAIP.js` / `index-80g9Vb7S.css`; OpenAPI supervision + mutation paths present
 
 | Fact | Value | Evidence |
 |------|-------|----------|
 | Worker URL | `http://192.168.0.194:8010` | Deploy + health check |
-| `BUILD_REVISION` | `018aa36d041d20d9ca2ae9fa42c4b8cc87f7e8c9` (HEAD after BL-014 acceptance) | Container env after deploy 2026-07-18; deploy log |
+| `BUILD_REVISION` | Container env `1784415561` (target-layout timestamp stamp); `.build_git_sha` = `bea6106118b810b6985a7591cb5868daee67df5a` (US-040G archive HEAD) | Container env + server `.build_git_sha` after deploy 2026-07-18 |
+| Supervision console assets | `index-D2l6QAIP.js`, `index-80g9Vb7S.css` (US-040G Week/Month) | `GET /flow-a/console/linkedin-variant-supervision` |
 | Editorial mount | `/data/silverman-blog-linkedin` → host `/home/silverman/compartido_mac/silverman-blog-linkedin` | Deploy compose |
 | Public blog mount | `/public-blog` → host `/home/silverman/silverberdi.github.io` | Deploy verification |
 | n8n Flow A workflow | **Active** (`silvermanFlowAPublish01`, **35** nodes, Schedule `0 9 * * *` UTC, single-flight, includes `/complete-flow-a-ready-path`); `settings.errorWorkflow=silvermanFlowAErrorReport01`; repo export `active: false` | Post-enablement export check 2026-07-17 |
@@ -67,3 +68,4 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 - BL-011 / US-028–US-030 code is deployed (`b67c538` historically; superseded by `018aa36` on 2026-07-17 enablement baseline + 2026-07-18 full redeploy) and **operator-accepted 2026-07-17** after controlled live smoke (evaluate + report + fail-closed emit + zero lifecycle mutation); **BL-011 closed**.
 - BL-011 follow-up enablement 2026-07-17: production emit **on**; n8n webhook receiver + Error Trigger report + daily evaluate/emit schedule active; Flow A `errorWorkflow` linked. Public gateway `/webhook/*` still requires `X-Avatares-Api-Key` — worker uses internal `n8n` DNS instead.
 - Worker redeployed 2026-07-18 to `BUILD_REVISION=018aa36` (BL-012 recovery + BL-013 concurrency + BL-014 backup modules). **BL-012** and **BL-014** closed 2026-07-18 (fixture acceptance); BL-013 previously closed and now deployed.
+- Worker redeployed 2026-07-18 evening to git `bea6106` (US-040G calendar-first console). Container `BUILD_REVISION` remains a target-layout timestamp (`1784415561`); pin via `.build_git_sha` if SHA-stamped env is needed. **US-040G deployed ≠ Story accepted** — Visual DoD / operator walkthrough still open; BL-015 open.

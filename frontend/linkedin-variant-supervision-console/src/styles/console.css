@@ -833,6 +833,31 @@ td {
   text-align: center;
 }
 
+/* Compact cue above persistent Week/Month grids (US-040G empty-grid fix) */
+.calendar-empty-cue {
+  padding: 0.65rem 0.9rem;
+  margin: 0 0 0.55rem;
+  text-align: left;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.85rem;
+}
+
+.calendar-empty-cue .empty-state-title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.calendar-empty-cue .meta {
+  margin: 0;
+  flex: 1 1 12rem;
+}
+
+.calendar-empty-cue .secondary {
+  flex: 0 0 auto;
+}
+
 .empty-state-title {
   margin: 0 0 0.4rem;
   font-size: 1.05rem;

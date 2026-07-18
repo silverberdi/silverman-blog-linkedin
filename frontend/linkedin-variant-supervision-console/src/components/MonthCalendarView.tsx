@@ -151,8 +151,12 @@ export function MonthCalendarView() {
         </div>
       )}
 
-      {monthItemCount === 0 ? (
-        <div className="calendar-empty-state" data-testid="month-empty-state">
+      {monthItemCount === 0 && (
+        <div
+          className="calendar-empty-state calendar-empty-cue"
+          data-testid="month-empty-state"
+          role="status"
+        >
           <p className="empty-state-title">No publications this month</p>
           <p className="meta">
             {filtersActive
@@ -170,189 +174,187 @@ export function MonthCalendarView() {
             </button>
           )}
         </div>
-      ) : (
-        <>
-          <div className="calendar-weekdays" aria-hidden="true">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-              <div key={d} className="calendar-weekday">
-                {d}
-              </div>
+      )}
+
+      <div className="calendar-weekdays" aria-hidden="true">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+          <div key={d} className="calendar-weekday">
+            {d}
+          </div>
+        ))}
+      </div>
+
+      <div
+        className="calendar-grid"
+        data-testid="calendar-grid"
+        role="grid"
+        aria-label={`Month calendar ${monthLabel(monthCursor)}`}
+      >
+        {grid.map((dayKey, index) => {
+          if (!dayKey) {
+            return (
+              <div
+                key={`pad-${index}`}
+                className="calendar-cell calendar-cell-pad"
+                aria-hidden="true"
+              />
+            );
+          }
+          const dayItems = itemsByDay.get(dayKey) ?? [];
+          const isToday = dayKey === todayKey;
+          const isSelected = dayKey === selectedDayKey;
+          const isEmpty = dayItems.length === 0;
+          return (
+            <div
+              key={dayKey}
+              className={[
+                "calendar-cell",
+                isToday ? "is-today" : "",
+                isSelected ? "is-selected" : "",
+                isEmpty ? "is-empty" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              data-testid={`calendar-day-${dayKey}`}
+              data-day={dayKey}
+              role="button"
+              tabIndex={0}
+              aria-pressed={isSelected}
+              onClick={() => {
+                setSelectedDayKey(dayKey);
+                if (dayItems[0]) {
+                  setSelectedItemId(dayItems[0].itemId);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setSelectedDayKey(dayKey);
+                  if (dayItems[0]) {
+                    setSelectedItemId(dayItems[0].itemId);
+                  }
+                }
+              }}
+            >
+              <span className="calendar-day-num">
+                {dayNumberFromKey(dayKey)}
+                {isToday ? " · today" : ""}
+              </span>
+              {isEmpty ? (
+                <span className="calendar-empty">No items</span>
+              ) : (
+                <ul className="calendar-day-items">
+                  {dayItems.slice(0, 3).map((item) => (
+                    <li
+                      key={item.itemId}
+                      className={[
+                        item.itemId === selectedItemId
+                          ? "is-selected-item"
+                          : "",
+                        compactBadgeClass(item),
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      style={{ borderLeftColor: item.statusColor }}
+                      data-risk={
+                        item.critical || item.publicationState === "failed"
+                          ? "failed"
+                          : item.blocked ||
+                              item.publicationState === "blocked"
+                            ? "blocked"
+                            : "routine"
+                      }
+                    >
+                      <button
+                        type="button"
+                        className="calendar-day-item-btn"
+                        data-testid="schedule-open-month"
+                        data-item-id={item.itemId}
+                        title={
+                          item.title ||
+                          item.variantId ||
+                          item.campaignId ||
+                          item.itemId
+                        }
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedDayKey(dayKey);
+                          openInterimDetail(item.itemId, "month");
+                        }}
+                      >
+                        <span
+                          className="status-pill status-pill-compact"
+                          style={{ backgroundColor: item.statusColor }}
+                        >
+                          {publicationStateLabel(
+                            item.publicationState,
+                            item.linkedinApiPublished,
+                          )}
+                        </span>{" "}
+                        <span className="mono">{item.channel}</span>{" "}
+                        <span className="title-cell">
+                          {item.title || item.variantId || item.campaignId}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                  {dayItems.length > 3 && (
+                    <li className="calendar-more">
+                      +{dayItems.length - 3} more
+                    </li>
+                  )}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {selectedDayKey && (
+        <div
+          className="month-day-focus"
+          data-testid="month-day-focus"
+        >
+          <p className="meta">
+            Focused day {selectedDayKey} (UTC) —{" "}
+            {(itemsByDay.get(selectedDayKey) ?? []).length} item
+            {(itemsByDay.get(selectedDayKey) ?? []).length === 1
+              ? ""
+              : "s"}
+            . Open a chip for interim actions.
+          </p>
+          <div
+            className="month-day-chip-list"
+            data-testid="month-day-chip-list"
+          >
+            {(itemsByDay.get(selectedDayKey) ?? []).map((item) => (
+              <button
+                key={item.itemId}
+                type="button"
+                className="week-event-chip"
+                data-testid="month-focus-chip"
+                data-item-id={item.itemId}
+                style={{ borderLeftColor: item.statusColor }}
+                onClick={() => openInterimDetail(item.itemId, "month")}
+              >
+                <span className="week-chip-title">
+                  {item.title ||
+                    item.variantId ||
+                    item.campaignId ||
+                    item.itemId}
+                </span>
+                <span className="week-chip-meta">
+                  <span className="mono">{item.channel}</span>
+                  {" · "}
+                  {publicationStateLabel(
+                    item.publicationState,
+                    item.linkedinApiPublished,
+                  )}
+                </span>
+              </button>
             ))}
           </div>
-
-          <div
-            className="calendar-grid"
-            data-testid="calendar-grid"
-            role="grid"
-            aria-label={`Month calendar ${monthLabel(monthCursor)}`}
-          >
-            {grid.map((dayKey, index) => {
-              if (!dayKey) {
-                return (
-                  <div
-                    key={`pad-${index}`}
-                    className="calendar-cell calendar-cell-pad"
-                    aria-hidden="true"
-                  />
-                );
-              }
-              const dayItems = itemsByDay.get(dayKey) ?? [];
-              const isToday = dayKey === todayKey;
-              const isSelected = dayKey === selectedDayKey;
-              const isEmpty = dayItems.length === 0;
-              return (
-                <div
-                  key={dayKey}
-                  className={[
-                    "calendar-cell",
-                    isToday ? "is-today" : "",
-                    isSelected ? "is-selected" : "",
-                    isEmpty ? "is-empty" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  data-testid={`calendar-day-${dayKey}`}
-                  data-day={dayKey}
-                  role="button"
-                  tabIndex={0}
-                  aria-pressed={isSelected}
-                  onClick={() => {
-                    setSelectedDayKey(dayKey);
-                    if (dayItems[0]) {
-                      setSelectedItemId(dayItems[0].itemId);
-                    }
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      setSelectedDayKey(dayKey);
-                      if (dayItems[0]) {
-                        setSelectedItemId(dayItems[0].itemId);
-                      }
-                    }
-                  }}
-                >
-                  <span className="calendar-day-num">
-                    {dayNumberFromKey(dayKey)}
-                    {isToday ? " · today" : ""}
-                  </span>
-                  {isEmpty ? (
-                    <span className="calendar-empty">No items</span>
-                  ) : (
-                    <ul className="calendar-day-items">
-                      {dayItems.slice(0, 3).map((item) => (
-                        <li
-                          key={item.itemId}
-                          className={[
-                            item.itemId === selectedItemId
-                              ? "is-selected-item"
-                              : "",
-                            compactBadgeClass(item),
-                          ]
-                            .filter(Boolean)
-                            .join(" ")}
-                          style={{ borderLeftColor: item.statusColor }}
-                          data-risk={
-                            item.critical || item.publicationState === "failed"
-                              ? "failed"
-                              : item.blocked ||
-                                  item.publicationState === "blocked"
-                                ? "blocked"
-                                : "routine"
-                          }
-                        >
-                          <button
-                            type="button"
-                            className="calendar-day-item-btn"
-                            data-testid="schedule-open-month"
-                            data-item-id={item.itemId}
-                            title={
-                              item.title ||
-                              item.variantId ||
-                              item.campaignId ||
-                              item.itemId
-                            }
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setSelectedDayKey(dayKey);
-                              openInterimDetail(item.itemId, "month");
-                            }}
-                          >
-                            <span
-                              className="status-pill status-pill-compact"
-                              style={{ backgroundColor: item.statusColor }}
-                            >
-                              {publicationStateLabel(
-                                item.publicationState,
-                                item.linkedinApiPublished,
-                              )}
-                            </span>{" "}
-                            <span className="mono">{item.channel}</span>{" "}
-                            <span className="title-cell">
-                              {item.title || item.variantId || item.campaignId}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                      {dayItems.length > 3 && (
-                        <li className="calendar-more">
-                          +{dayItems.length - 3} more
-                        </li>
-                      )}
-                    </ul>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {selectedDayKey && (
-            <div
-              className="month-day-focus"
-              data-testid="month-day-focus"
-            >
-              <p className="meta">
-                Focused day {selectedDayKey} (UTC) —{" "}
-                {(itemsByDay.get(selectedDayKey) ?? []).length} item
-                {(itemsByDay.get(selectedDayKey) ?? []).length === 1
-                  ? ""
-                  : "s"}
-                . Open a chip for interim actions.
-              </p>
-              <div
-                className="month-day-chip-list"
-                data-testid="month-day-chip-list"
-              >
-                {(itemsByDay.get(selectedDayKey) ?? []).map((item) => (
-                  <button
-                    key={item.itemId}
-                    type="button"
-                    className="week-event-chip"
-                    data-testid="month-focus-chip"
-                    data-item-id={item.itemId}
-                    style={{ borderLeftColor: item.statusColor }}
-                    onClick={() => openInterimDetail(item.itemId, "month")}
-                  >
-                    <span className="week-chip-title">
-                      {item.title ||
-                        item.variantId ||
-                        item.campaignId ||
-                        item.itemId}
-                    </span>
-                    <span className="week-chip-meta">
-                      <span className="mono">{item.channel}</span>
-                      {" · "}
-                      {publicationStateLabel(
-                        item.publicationState,
-                        item.linkedinApiPublished,
-                      )}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
+        </div>
       )}
     </section>
   );
