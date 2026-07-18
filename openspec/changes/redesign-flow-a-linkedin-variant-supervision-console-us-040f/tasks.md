@@ -23,7 +23,7 @@
 ## 4. Verify / lifecycle
 
 - [x] 4.1 `/opsx-verify` gates for this change (validate, tasks, tests)
-- [ ] 4.2 Implementation commit (change + frontend + static + docs)
-- [ ] 4.3 Sync parity commit if needed
+- [x] 4.2 Implementation commit (change + frontend + static + docs)
+- [x] 4.3 Sync parity commit if needed
 - [ ] 4.4 Archive commit
 - [ ] 4.5 Push / deploy (hold until UX follow-up decision)
