@@ -369,12 +369,13 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [ ] Story accepted
     - Implementation evidence: [editorial-backup-scope-retention-integrity.md](../operations/editorial-backup-scope-retention-integrity.md)
   - [ ] **US-037**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — automated fixture restore drills (pass/fail/blocked, integrity prerequisite, dry-run no mutation, live confirmation gate, secret-safe reports) + recovery procedure doc; live production restore remains operator-gated; not operator-accepted yet
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
+    - Implementation evidence: [editorial-backup-restore-recovery.md](../operations/editorial-backup-restore-recovery.md)
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed

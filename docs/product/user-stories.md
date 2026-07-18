@@ -715,6 +715,8 @@ As a system operator, I want to define backup scope, so that editorial state can
 
 As a system operator, I want to test restoration, so that editorial state can be restored from a verified backup.
 
+**Operator recovery procedure:** [editorial-backup-restore-recovery.md](../operations/editorial-backup-restore-recovery.md) (restore drills + recovery — US-037; integrity verify remains US-036).
+
 **Acceptance criteria**
 
 - [ ] Test restoration.

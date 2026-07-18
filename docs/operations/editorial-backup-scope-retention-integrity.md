@@ -6,8 +6,10 @@ Operator contract for **BL-014 / US-036** only: define editorial-state backup
 
 **US-037 boundary:** restore drills, live restore mutation of production
 editorial trees, and the recovery procedure are **out of scope** here. They
-belong to US-037. US-036 may list which scope classes US-037 must protect; it
-does not document step-by-step restore mutation.
+belong to US-037 — see
+[editorial-backup-restore-recovery.md](editorial-backup-restore-recovery.md).
+US-036 may list which scope classes US-037 must protect; it does not document
+step-by-step restore mutation.
 
 Policy: [GLOSSARY.md](../GLOSSARY.md) (editorial backup integrity vs restoration).
 Change artifacts:
@@ -184,8 +186,9 @@ distinguish “cannot verify yet” (`blocked`) from “package is broken” (`f
 
 ## Out of scope (US-037 and beyond)
 
-- Restore drills that mutate production editorial state
-- Full recovery procedure / runbook for live restore
+- Restore drills that mutate production editorial state — owned by US-037;
+  procedure: [editorial-backup-restore-recovery.md](editorial-backup-restore-recovery.md)
+- Full recovery procedure / runbook for live restore — same US-037 document
 - Backing up secrets, the public GitHub Pages checkout as editorial substitute,
   or shared-stack services
 - New primary worker HTTP endpoints for backup

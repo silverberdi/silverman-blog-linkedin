@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""CLI for editorial backup create / verify / prune (US-036).
+"""CLI for editorial backup create / verify / prune (US-036) and restore (US-037).
 
-No FastAPI routes. Does not restore source editorial trees (US-037).
-n8n must not invoke this via Execute Command (ADR-0001).
+No FastAPI routes. n8n must not invoke this via Execute Command (ADR-0001).
+Live restore is fail-closed without --i-understand-live-restore.
 """
 
 from __future__ import annotations
@@ -18,10 +18,19 @@ from silverman_blog_linkedin.editorial_backup_integrity import (
     prune_editorial_backups,
     verify_editorial_backup,
 )
+from silverman_blog_linkedin.editorial_backup_restore import restore_editorial_backup
 
 
 def _print_json(payload: dict) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def _restore_exit(status: str) -> int:
+    if status == "pass":
+        return 0
+    if status == "blocked":
+        return 2
+    return 1
 
 
 def cmd_verify(args: argparse.Namespace) -> int:
@@ -56,11 +65,47 @@ def cmd_prune(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_restore_dry_run(args: argparse.Namespace) -> int:
+    result = restore_editorial_backup(
+        Path(args.base_path),
+        args.backup_id,
+        mode="dry_run",
+        target_base=Path(args.target_base),
+    )
+    _print_json(result.to_dict())
+    return _restore_exit(result.status)
+
+
+def cmd_restore_drill(args: argparse.Namespace) -> int:
+    result = restore_editorial_backup(
+        Path(args.base_path),
+        args.backup_id,
+        mode="restore_drill",
+        target_base=Path(args.target_base),
+    )
+    _print_json(result.to_dict())
+    return _restore_exit(result.status)
+
+
+def cmd_restore(args: argparse.Namespace) -> int:
+    target = Path(args.target_base) if args.target_base else Path(args.base_path)
+    result = restore_editorial_backup(
+        Path(args.base_path),
+        args.backup_id,
+        mode="live_restore",
+        target_base=target,
+        live_confirmed=bool(args.i_understand_live_restore),
+    )
+    _print_json(result.to_dict())
+    return _restore_exit(result.status)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Editorial backup scope/retention/integrity (US-036). "
-            "Does not restore production editorial state (US-037)."
+            "Editorial backup (US-036 create/verify/prune) and restore "
+            "(US-037 dry-run / restore-drill / gated live restore). "
+            "No FastAPI routes; n8n must not use Execute Command (ADR-0001)."
         )
     )
     sub = parser.add_subparsers(dest="command", required=True)
@@ -112,6 +157,53 @@ def build_parser() -> argparse.ArgumentParser:
         help="Report candidates without deleting",
     )
     prune_p.set_defaults(func=cmd_prune)
+
+    dry_p = sub.add_parser(
+        "restore-dry-run",
+        help="US-037: plan restore against a pass-integrity package (no writes)",
+    )
+    dry_p.add_argument("--base-path", required=True)
+    dry_p.add_argument("--backup-id", required=True)
+    dry_p.add_argument(
+        "--target-base",
+        required=True,
+        help="Explicit fixture/staging target (must differ from base-path)",
+    )
+    dry_p.set_defaults(func=cmd_restore_dry_run)
+
+    drill_p = sub.add_parser(
+        "restore-drill",
+        help="US-037: restore into an explicit fixture/staging target",
+    )
+    drill_p.add_argument("--base-path", required=True)
+    drill_p.add_argument("--backup-id", required=True)
+    drill_p.add_argument(
+        "--target-base",
+        required=True,
+        help="Explicit fixture/staging target (must differ from base-path)",
+    )
+    drill_p.set_defaults(func=cmd_restore_drill)
+
+    live_p = sub.add_parser(
+        "restore",
+        help=(
+            "US-037: live restore (fail-closed; requires "
+            "--i-understand-live-restore)"
+        ),
+    )
+    live_p.add_argument("--base-path", required=True)
+    live_p.add_argument("--backup-id", required=True)
+    live_p.add_argument(
+        "--target-base",
+        default=None,
+        help="Live editorial base to overwrite (default: --base-path)",
+    )
+    live_p.add_argument(
+        "--i-understand-live-restore",
+        action="store_true",
+        help="Explicit confirmation required for live production mutation",
+    )
+    live_p.set_defaults(func=cmd_restore)
 
     return parser
 
