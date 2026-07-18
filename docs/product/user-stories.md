@@ -750,11 +750,11 @@ As a content operator, I want to see Flow A LinkedIn variants on a calendar or c
 
 **Acceptance criteria**
 
-- [ ] Present `pending` variants with campaign id, variant id, audience, `scheduled_at_utc`, and `publish_state`.
-- [ ] Align the view with the editorial calendar where applicable.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Present `pending` variants with campaign id, variant id, audience, `scheduled_at_utc`, and `publish_state`. — Demonstrated by `GET /flow-a/linkedin-variants/pending-supervision` + `tests/test_linkedin_variant_pending_supervision.py`.
+- [x] Align the view with the editorial calendar where applicable. — Demonstrated: calendar join fields when calendar loads; missing/invalid calendar still lists pending rows with issues.
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: static console at `GET /flow-a/console/linkedin-variant-supervision` (same-origin HTML; no raw mount inspection).
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: `issues[]` / `status=partial` for campaign/calendar read failures; enablement-off as display-only context.
+- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: separate read paths; no US-017 mutation UI; publication enablement guard unchanged.
 
 ### US-039 — Implement Flow A LinkedIn Variant Supervision Console: Story 2
 

@@ -116,7 +116,7 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 
 - Flow B automation beyond draft generation orchestration
 - Dairector content paths
-- **BL-015** Flow A LinkedIn variant supervision console (US-038–US-040) — backlog defined; not implemented. US-017 worker mechanics implemented. See [backlog.md](product/backlog.md). Mechanics: [linkedin-variant-supervision-mechanics.md](operations/linkedin-variant-supervision-mechanics.md)
+- **BL-015** Flow A LinkedIn variant supervision console (US-038–US-040) — **US-038 (Story 1) implemented in worker (not Story accepted; not BL-015 closed; not unattended production):** authenticated read-only `GET /flow-a/linkedin-variants/pending-supervision` aggregates `publish_state=pending` variants from campaign metadata with editorial-calendar join fields and `issues[]`; same-origin static console at `GET /flow-a/console/linkedin-variant-supervision`. US-039/US-040 action surfaces and US-017 mutation POSTs are out of scope for Story 1. US-017 worker mechanics remain implemented. See [backlog.md](product/backlog.md). Mechanics: [linkedin-variant-supervision-mechanics.md](operations/linkedin-variant-supervision-mechanics.md)
 - Former BL-007 construction WIP absorbed under US-018; record: [bl-007-auto-queue-pending-handoff.md](product/bl-007-auto-queue-pending-handoff.md). **BL-007 closed 2026-07-17** after US-018/US-019/US-020 operational validation.
 
 ## Completion layers (qualified)

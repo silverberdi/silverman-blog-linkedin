@@ -384,10 +384,10 @@ Use this checklist to track business progress. Mark items only when the stated b
   - Business outcome: Operators can supervise Flow A LinkedIn variants from one console during the pre-send window without opening multiple raw files.
   - Policy: [linkedin-variant-review-policy.md](../operations/linkedin-variant-review-policy.md)
   - [ ] **US-038**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
   - [ ] **US-039**

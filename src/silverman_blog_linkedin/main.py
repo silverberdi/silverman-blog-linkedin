@@ -59,6 +59,10 @@ from silverman_blog_linkedin.flow_a_operational_alerts import (
 from silverman_blog_linkedin.flow_a_operational_status import (
     get_flow_a_operational_status,
 )
+from silverman_blog_linkedin.linkedin_variant_pending_supervision import (
+    get_pending_linkedin_variant_supervision,
+    load_console_html,
+)
 from silverman_blog_linkedin.file_reader import (
     derive_filename,
     normalize_relative_path,
@@ -2166,6 +2170,40 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             len(result.data_issues),
         )
         return result.to_dict()
+
+    @app.get("/flow-a/linkedin-variants/pending-supervision")
+    def flow_a_linkedin_variants_pending_supervision(
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = get_pending_linkedin_variant_supervision(settings.base_path)
+        logger.info(
+            "flow-a/linkedin-variants/pending-supervision status=%s "
+            "variants=%s issues=%s linkedin_publication_enabled=%s",
+            result.status,
+            len(result.variants),
+            len(result.issues),
+            result.linkedin_publication_enabled,
+        )
+        return result.to_dict()
+
+    @app.get(
+        "/flow-a/console/linkedin-variant-supervision",
+        response_class=HTMLResponse,
+    )
+    def flow_a_console_linkedin_variant_supervision() -> HTMLResponse:
+        try:
+            html_doc = load_console_html()
+        except OSError as exc:
+            logger.error(
+                "flow-a/console/linkedin-variant-supervision failed to load "
+                "static asset: %s",
+                exc,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="supervision console asset unavailable",
+            ) from None
+        return HTMLResponse(content=html_doc, status_code=200)
 
     @app.get("/flow-a/incomplete-campaign-recovery/{campaign_id}")
     def flow_a_incomplete_campaign_recovery_inspect(

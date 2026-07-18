@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flow A LinkedIn variant supervision (US-038)</title>
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --ink: #1c1b19;
+      --muted: #5c574e;
+      --line: #d4cfc4;
+      --panel: #fffdf8;
+      --accent: #0f5c4c;
+      --warn-bg: #fff4e5;
+      --warn-ink: #7a4a00;
+      --err-bg: #fdecea;
+      --err-ink: #8a1f11;
+      --ok-bg: #e8f5f1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      background:
+        radial-gradient(ellipse at top left, #efe8d8 0%, transparent 55%),
+        linear-gradient(180deg, #faf8f3 0%, var(--bg) 100%);
+      color: var(--ink);
+      line-height: 1.45;
+      min-height: 100vh;
+    }
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 3rem;
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      margin: 0 0 0.35rem;
+      letter-spacing: -0.02em;
+    }
+    .lede {
+      color: var(--muted);
+      max-width: 42rem;
+      margin: 0 0 1.25rem;
+    }
+    .banner {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      margin: 0 0 1rem;
+      background: var(--panel);
+    }
+    .banner.warn { background: var(--warn-bg); color: var(--warn-ink); border-color: #e6c98a; }
+    .banner.error { background: var(--err-bg); color: var(--err-ink); border-color: #e2b4ad; }
+    .banner.ok { background: var(--ok-bg); border-color: #b7d9cf; }
+    .banner.info { color: var(--muted); }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      margin: 0 0 1.25rem;
+    }
+    button {
+      font: inherit;
+      cursor: pointer;
+      background: var(--accent);
+      color: #f7fffc;
+      border: none;
+      border-radius: 4px;
+      padding: 0.45rem 0.9rem;
+    }
+    button.secondary {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.7rem;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      font-size: 0.95rem;
+    }
+    th {
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      background: #f0ebe1;
+    }
+    tr:last-child td { border-bottom: none; }
+    code, .mono {
+      font-family: "IBM Plex Mono", "SF Mono", Menlo, monospace;
+      font-size: 0.86em;
+    }
+    .meta {
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin: 0 0 1rem;
+    }
+    .section-title {
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 1rem;
+      margin: 1.5rem 0 0.5rem;
+    }
+    ul.issues {
+      margin: 0;
+      padding-left: 1.2rem;
+    }
+    footer {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    footer a { color: var(--accent); }
+    .note {
+      margin-top: 1rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>LinkedIn variant supervision</h1>
+    <p class="lede">
+      Read-only view of Flow A LinkedIn variants in the optional supervision window
+      (<span class="mono">publish_state=pending</span>).
+      Pending is not LinkedIn API published. Campaign
+      <span class="mono">flow_a_complete</span> is also not LinkedIn API published.
+    </p>
+
+    <div id="enablement-banner" class="banner info" hidden></div>
+    <div id="status-banner" class="banner info" hidden></div>
+
+    <div class="toolbar">
+      <button type="button" id="load-btn">Load pending variants</button>
+      <button type="button" id="clear-key-btn" class="secondary">Clear stored API key</button>
+    </div>
+    <p class="meta" id="meta-line">Supply your worker API key when prompted. It stays in this browser session only and is never embedded in this page.</p>
+
+    <div id="empty-state" class="banner ok" hidden>
+      No pending variants in the supervision window.
+    </div>
+
+    <div id="results" hidden>
+      <h2 class="section-title">Pending variants</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Campaign</th>
+            <th>Variant</th>
+            <th>Audience</th>
+            <th>Scheduled (UTC)</th>
+            <th>Publish state</th>
+            <th>Calendar</th>
+          </tr>
+        </thead>
+        <tbody id="variant-rows"></tbody>
+      </table>
+    </div>
+
+    <div id="issues-panel" hidden>
+      <h2 class="section-title">Read issues</h2>
+      <ul class="issues" id="issues-list"></ul>
+    </div>
+
+    <p class="note">
+      Story 1 is read-only. Edit, defer, and cancel actions arrive in later stories (US-039 / US-040)
+      and are not available on this page.
+    </p>
+
+    <footer>
+      Guidance (read-only, repo docs — not mutation endpoints):
+      <span class="mono">docs/operations/linkedin-variant-review-policy.md</span> (US-015),
+      <span class="mono">docs/operations/linkedin-variant-quality-criteria.md</span> (US-016),
+      <span class="mono">docs/operations/linkedin-variant-supervision-mechanics.md</span> (US-017).
+      Data source: authenticated
+      <span class="mono">GET /flow-a/linkedin-variants/pending-supervision</span>
+      (ADR-0001 worker HTTP).
+    </footer>
+  </main>
+  <script>
+    (function () {
+      var API_PATH = "/flow-a/linkedin-variants/pending-supervision";
+      var STORAGE_KEY = "silverman_flow_a_supervision_api_key";
+
+      function $(id) {
+        return document.getElementById(id);
+      }
+
+      function setBanner(el, kind, text) {
+        if (!text) {
+          el.hidden = true;
+          el.textContent = "";
+          return;
+        }
+        el.hidden = false;
+        el.className = "banner " + kind;
+        el.textContent = text;
+      }
+
+      function getApiKey() {
+        var existing = window.sessionStorage.getItem(STORAGE_KEY);
+        if (existing && existing.trim()) {
+          return existing.trim();
+        }
+        var entered = window.prompt(
+          "Enter your worker API key for this browser session (not stored in the page source):",
+          ""
+        );
+        if (!entered || !entered.trim()) {
+          return null;
+        }
+        var trimmed = entered.trim();
+        window.sessionStorage.setItem(STORAGE_KEY, trimmed);
+        return trimmed;
+      }
+
+      function escapeHtml(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function calendarCell(row) {
+        if (!row.calendar_item_id && !row.calendar_title && !row.calendar_due_at_utc) {
+          return "<span class=\"meta\">(no calendar join)</span>";
+        }
+        var parts = [];
+        if (row.calendar_item_id) {
+          parts.push("<span class=\"mono\">" + escapeHtml(row.calendar_item_id) + "</span>");
+        }
+        if (row.calendar_title) {
+          parts.push(escapeHtml(row.calendar_title));
+        }
+        if (row.calendar_due_at_utc) {
+          parts.push("<span class=\"mono\">due " + escapeHtml(row.calendar_due_at_utc) + "</span>");
+        }
+        if (row.calendar_status) {
+          parts.push("<span class=\"mono\">" + escapeHtml(row.calendar_status) + "</span>");
+        }
+        return parts.join("<br>");
+      }
+
+      function render(payload) {
+        var enabled = payload.linkedin_publication_enabled === true;
+        setBanner(
+          $("enablement-banner"),
+          enabled ? "ok" : "warn",
+          enabled
+            ? "LinkedIn publication enablement is on (display context only; this page does not publish)."
+            : "LinkedIn publication enablement is off (display context only). Pending variants remain listed; this does not hide the supervision window."
+        );
+
+        var issues = Array.isArray(payload.issues) ? payload.issues : [];
+        var variants = Array.isArray(payload.variants) ? payload.variants : [];
+        var status = payload.status || "unknown";
+
+        $("meta-line").textContent =
+          "Observed " +
+          (payload.observed_at_utc || "(unknown)") +
+          " · status=" +
+          status +
+          " · read_only=" +
+          String(payload.read_only === true) +
+          " · pending=" +
+          variants.length;
+
+        if (status === "partial" || issues.length) {
+          setBanner(
+            $("status-banner"),
+            "warn",
+            "Partial read: some campaign or calendar data could not be fully aligned. Successful pending rows are still shown below when available."
+          );
+        } else {
+          setBanner($("status-banner"), "ok", "Read completed without data issues.");
+        }
+
+        var issuesPanel = $("issues-panel");
+        var issuesList = $("issues-list");
+        issuesList.innerHTML = "";
+        if (issues.length) {
+          issuesPanel.hidden = false;
+          issues.forEach(function (issue) {
+            var li = document.createElement("li");
+            li.innerHTML =
+              "<span class=\"mono\">" +
+              escapeHtml(issue.source) +
+              "</span>" +
+              (issue.identifier
+                ? " · <span class=\"mono\">" + escapeHtml(issue.identifier) + "</span>"
+                : "") +
+              " — " +
+              escapeHtml(issue.reason);
+            issuesList.appendChild(li);
+          });
+        } else {
+          issuesPanel.hidden = true;
+        }
+
+        var empty = $("empty-state");
+        var results = $("results");
+        var tbody = $("variant-rows");
+        tbody.innerHTML = "";
+
+        if (!variants.length) {
+          empty.hidden = false;
+          results.hidden = true;
+          return;
+        }
+
+        empty.hidden = true;
+        results.hidden = false;
+        variants.forEach(function (row) {
+          var tr = document.createElement("tr");
+          tr.innerHTML =
+            "<td class=\"mono\">" +
+            escapeHtml(row.campaign_id) +
+            "</td>" +
+            "<td class=\"mono\">" +
+            escapeHtml(row.variant_id) +
+            "</td>" +
+            "<td>" +
+            escapeHtml(row.audience || "") +
+            "</td>" +
+            "<td class=\"mono\">" +
+            escapeHtml(row.scheduled_at_utc || "") +
+            "</td>" +
+            "<td><span class=\"mono\">" +
+            escapeHtml(row.publish_state) +
+            "</span> <span class=\"meta\">(supervision window; not LinkedIn API published)</span></td>" +
+            "<td>" +
+            calendarCell(row) +
+            "</td>";
+          tbody.appendChild(tr);
+        });
+      }
+
+      function loadPending() {
+        var key = getApiKey();
+        if (!key) {
+          setBanner(
+            $("status-banner"),
+            "error",
+            "API key required. Reload and enter your worker API key when prompted."
+          );
+          return;
+        }
+        $("load-btn").disabled = true;
+        fetch(API_PATH, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            Authorization: "Bearer " + key
+          }
+        })
+          .then(function (response) {
+            if (response.status === 401) {
+              window.sessionStorage.removeItem(STORAGE_KEY);
+              throw new Error("Unauthorized (401). Enter a valid API key and try again.");
+            }
+            if (!response.ok) {
+              throw new Error("Request failed with HTTP " + response.status);
+            }
+            return response.json();
+          })
+          .then(function (payload) {
+            render(payload);
+          })
+          .catch(function (err) {
+            setBanner($("status-banner"), "error", String(err.message || err));
+            $("results").hidden = true;
+            $("empty-state").hidden = true;
+            $("issues-panel").hidden = true;
+          })
+          .finally(function () {
+            $("load-btn").disabled = false;
+          });
+      }
+
+      $("load-btn").addEventListener("click", loadPending);
+      $("clear-key-btn").addEventListener("click", function () {
+        window.sessionStorage.removeItem(STORAGE_KEY);
+        setBanner(
+          $("status-banner"),
+          "info",
+          "Stored API key cleared from this browser session."
+        );
+      });
+    })();
+  </script>
+</body>
+</html>
