@@ -1,8 +1,11 @@
 import type { OperationalCounts } from "../models/supervision";
-import { useSupervisionStore } from "../models/store";
+import {
+  useSupervisionStore,
+  type MetricFocusKey,
+} from "../models/store";
 
 const COUNT_DEFS: Array<{
-  key: keyof OperationalCounts;
+  key: MetricFocusKey;
   label: string;
   hint: string;
   tone?: "actionable" | "success" | "neutral";
@@ -52,7 +55,7 @@ const COUNT_DEFS: Array<{
 ];
 
 /**
- * At-a-glance operational count strip (US-040E) — filter-scope aware.
+ * At-a-glance operational count strip (US-040E) — filter + Week/Month navigate (US-040G D4).
  */
 export function StatusSummary() {
   const {
@@ -62,7 +65,7 @@ export function StatusSummary() {
     hiddenCriticalCount,
     showHiddenCritical,
     loading,
-    setFilters,
+    navigateMetricFocus,
   } = useSupervisionStore();
 
   const hasData = snapshot != null || scheduleSnapshot != null;
@@ -94,38 +97,7 @@ export function StatusSummary() {
     >
       <div className="count-strip" data-testid="count-strip" role="group">
         {COUNT_DEFS.map((def) => {
-          const value = operationalCounts[def.key];
-          const applyMetric = () => {
-            // Design D4: reset focus flags, then apply target (preserve channel/campaign).
-            setFilters((prev) => {
-              const cleared = {
-                ...prev,
-                blockedOnly: false,
-                dueSoonOnly: false,
-                publicationStates: [] as typeof prev.publicationStates,
-              };
-              if (def.key === "blocked") {
-                return { ...cleared, blockedOnly: true };
-              }
-              if (def.key === "dueSoon") {
-                return { ...cleared, dueSoonOnly: true };
-              }
-              if (def.key === "failed") {
-                return { ...cleared, publicationStates: ["failed"] };
-              }
-              if (def.key === "pending") {
-                return { ...cleared, publicationStates: ["pending"] };
-              }
-              if (def.key === "deferred") {
-                return { ...cleared, publicationStates: ["deferred"] };
-              }
-              if (def.key === "recentlyPublished") {
-                return { ...cleared, publicationStates: ["published"] };
-              }
-              // upcoming: clear focus only
-              return cleared;
-            });
-          };
+          const value = operationalCounts[def.key as keyof OperationalCounts];
           return (
             <button
               type="button"
@@ -142,7 +114,7 @@ export function StatusSummary() {
               title={def.hint}
               data-testid={`count-${def.key}`}
               data-count={value}
-              onClick={applyMetric}
+              onClick={() => navigateMetricFocus(def.key)}
             >
               <span className="count-chip-value">{value}</span>
               <span className="count-chip-label">{def.label}</span>
@@ -156,7 +128,7 @@ export function StatusSummary() {
         {scheduleSnapshot
           ? ` · schedule ${scheduleSnapshot.year}-${String(scheduleSnapshot.month).padStart(2, "0")} ${scheduleSnapshot.status}`
           : ""}
-        {" · "}Counts follow current filters.
+        {" · "}Counts follow current filters. Metric chips stay on Week/Month.
       </p>
       {hiddenCriticalCount > 0 && (
         <div

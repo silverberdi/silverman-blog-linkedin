@@ -1,6 +1,6 @@
 /**
- * Shared schedule editor — List, Month calendar, and mobile agenda entry points
- * (US-040C). LinkedIn uses POST /defer-linkedin-variant; blog uses
+ * Shared schedule editor — Week, Month, and interim agenda entry points
+ * (US-040C / US-040G). LinkedIn uses POST /defer-linkedin-variant; blog uses
  * POST /editorial-calendar/update-item-schedule. Browser never writes mounts.
  */
 import { useEffect, useState } from "react";

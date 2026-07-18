@@ -10,12 +10,13 @@ import type {
 } from "../api/types";
 
 /**
- * Shared normalized frontend model for list + month calendar (US-040B).
+ * Shared normalized frontend model for Week + Month calendar (US-040G).
  * LinkedIn identity: campaign_id + variant_id.
  * Blog identity: calendar_item_id (item_id).
+ * Pending-supervision remains a data source for detail — not a List UI.
  */
 
-export type ConsoleView = "list" | "calendar";
+export type ConsoleView = "week" | "month";
 
 export type { PublicationDisplayState, ScheduleChannel };
 
@@ -29,7 +30,7 @@ export interface ScheduleEditorTarget {
   campaignId: string | null;
   variantId: string | null;
   calendarItemId: string | null;
-  entry: "list" | "month" | "agenda";
+  entry: "week" | "month" | "agenda";
 }
 
 export const PUBLICATION_STATES: PublicationDisplayState[] = [
@@ -341,6 +342,43 @@ export function normalizeScheduleVisibility(
     calendarFingerprint: payload.calendar_fingerprint ?? null,
     items: items.map(normalizeScheduleItem),
     issues: Array.isArray(payload.issues) ? payload.issues : [],
+  };
+}
+
+/** Merge multi-month schedule reads (week spanning month boundary). */
+export function mergeScheduleSnapshots(
+  primary: ScheduleSnapshot,
+  extras: ScheduleSnapshot[],
+): ScheduleSnapshot {
+  const byId = new Map<string, ScheduleItem>();
+  for (const item of primary.items) {
+    byId.set(item.itemId, item);
+  }
+  const issues = [...primary.issues];
+  let status = primary.status;
+  let linkedinPublicationEnabled = primary.linkedinPublicationEnabled;
+  let observedAtUtc = primary.observedAtUtc;
+  for (const extra of extras) {
+    for (const item of extra.items) {
+      byId.set(item.itemId, item);
+    }
+    issues.push(...extra.issues);
+    if (extra.status !== "ok" || status !== "ok") {
+      status = status === "ok" ? extra.status : status;
+    }
+    linkedinPublicationEnabled =
+      linkedinPublicationEnabled || extra.linkedinPublicationEnabled;
+    if (extra.observedAtUtc > observedAtUtc) {
+      observedAtUtc = extra.observedAtUtc;
+    }
+  }
+  return {
+    ...primary,
+    status,
+    observedAtUtc,
+    linkedinPublicationEnabled,
+    items: [...byId.values()],
+    issues,
   };
 }
 

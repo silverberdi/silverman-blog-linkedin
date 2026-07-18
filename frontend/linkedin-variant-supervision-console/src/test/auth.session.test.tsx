@@ -15,7 +15,8 @@ import {
 import type { ApiError } from "../api/errors";
 import { SupervisionStoreProvider, useSupervisionStore } from "../models/store";
 import { ScheduleEditorPanel } from "../components/ScheduleEditor";
-import { ListView } from "../components/ListView";
+import { InterimEventPanel } from "../components/InterimEventPanel";
+import { MonthCalendarView } from "../components/MonthCalendarView";
 import { AppShell } from "../components/AppShell";
 import type {
   PendingSupervisionResponse,
@@ -111,7 +112,8 @@ function Harness({
       <AppShell>
         <EditorOpener open={Boolean(openEditor)} />
         <ScheduleEditorPanel />
-        <ListView />
+        <InterimEventPanel />
+        <MonthCalendarView />
       </AppShell>
     </SupervisionStoreProvider>
   );
@@ -130,7 +132,7 @@ function EditorOpener({ open }: { open: boolean }) {
       campaignId: "camp-1",
       variantId: "engineering-leadership",
       calendarItemId: "cal-1",
-      entry: "list",
+      entry: "week",
     };
     // Open once on mount via effect-like pattern in render is avoided;
     // use a tiny button.
@@ -330,35 +332,40 @@ describe("mutation gating and expiry draft preservation", () => {
     render(<Harness client={client} />);
     await user.click(screen.getByTestId("load-btn"));
     await waitFor(() => {
-      expect(screen.getByTestId("variant-row")).toBeInTheDocument();
+      expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
+    });
+    const open = await screen.findByTestId("schedule-open-month");
+    await user.click(open);
+    await waitFor(() => {
+      expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
     });
     expect(screen.getByTestId("readonly-gated-note")).toBeInTheDocument();
     expect(screen.getByTestId("row-edit")).toBeDisabled();
-    expect(screen.getByTestId("row-defer")).toBeDisabled();
+    expect(screen.getByTestId("row-defer")).not.toBeDisabled();
     expect(screen.getByTestId("row-cancel")).toBeDisabled();
   });
 
   it("preserves schedule draft and visible context on session expiry", async () => {
     const auth = new MemoryBearerAuthProvider();
     auth.setTokenForTests("key");
-    let call = 0;
+    let allowReads = true;
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      call += 1;
-      // First coordinated refresh succeeds; later refresh (or second wave) 401s.
-      if (call <= 2) {
+      if (
+        allowReads &&
+        (url.includes("pending-supervision") ||
+          url.includes("schedule-visibility"))
+      ) {
         if (url.includes("pending-supervision")) {
           return new Response(JSON.stringify(pendingPayload), {
             status: 200,
             headers: { "Content-Type": "application/json" },
           });
         }
-        if (url.includes("schedule-visibility")) {
-          return new Response(JSON.stringify(schedulePayload), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
+        return new Response(JSON.stringify(schedulePayload), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
       }
       return new Response(JSON.stringify({ detail: "Unauthorized" }), {
         status: 401,
@@ -370,7 +377,7 @@ describe("mutation gating and expiry draft preservation", () => {
 
     await user.click(screen.getByTestId("load-btn"));
     await waitFor(() => {
-      expect(screen.getByTestId("variant-row")).toBeInTheDocument();
+      expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
     });
 
     await user.click(screen.getByTestId("force-open-editor"));
@@ -379,6 +386,7 @@ describe("mutation gating and expiry draft preservation", () => {
     await user.type(datetime, "2026-08-15T10:30:00");
     expect(datetime.value).toContain("2026-08-15");
 
+    allowReads = false;
     // Trigger expiry via refresh
     await user.click(screen.getByTestId("load-btn"));
     await waitFor(() => {
@@ -388,7 +396,7 @@ describe("mutation gating and expiry draft preservation", () => {
     });
 
     // Context + draft preserved
-    expect(screen.getByTestId("variant-row")).toBeInTheDocument();
+    expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
     expect(screen.getByTestId("schedule-editor-panel")).toBeInTheDocument();
     expect(
       (screen.getByTestId("schedule-datetime") as HTMLInputElement).value,
@@ -415,7 +423,7 @@ describe("provider swap without calendar component changes", () => {
     expect(headers.Authorization).toBeUndefined();
   });
 
-  it("ListView works with cookie provider via typed client only", async () => {
+  it("calendar interim actions work with cookie provider via typed client only", async () => {
     const auth = new CookieSessionAuthProvider();
     auth.setSignedInForTests(true, true);
     const client = new SupervisionApiClient(auth, okFetch() as typeof fetch);
@@ -423,7 +431,11 @@ describe("provider swap without calendar component changes", () => {
     render(<Harness client={client} />);
     await user.click(screen.getByTestId("load-btn"));
     await waitFor(() => {
-      expect(screen.getByTestId("variant-row")).toBeInTheDocument();
+      expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
+    });
+    await user.click(await screen.findByTestId("schedule-open-month"));
+    await waitFor(() => {
+      expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
     });
     expect(screen.getByTestId("row-edit")).not.toBeDisabled();
   });

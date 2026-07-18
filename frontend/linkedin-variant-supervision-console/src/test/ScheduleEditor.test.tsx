@@ -6,7 +6,8 @@ import { MemoryBearerAuthProvider } from "../api/auth";
 import { SupervisionStoreProvider } from "../models/store";
 import { ScheduleEditorPanel } from "../components/ScheduleEditor";
 import { MonthCalendarView } from "../components/MonthCalendarView";
-import { ListView } from "../components/ListView";
+import { WeekView } from "../components/WeekView";
+import { InterimEventPanel } from "../components/InterimEventPanel";
 import { AppShell } from "../components/AppShell";
 import { explainErrorCodes } from "../api/errors";
 import type {
@@ -130,23 +131,27 @@ function mockFetch(
   });
 }
 
-function renderConsole(client: SupervisionApiClient, view: "list" | "calendar") {
+function renderConsole(
+  client: SupervisionApiClient,
+  view: "week" | "month",
+) {
   return render(
     <SupervisionStoreProvider client={client}>
       <AppShell>
         <ScheduleEditorPanel />
-        {view === "calendar" ? <MonthCalendarView /> : <ListView />}
+        <InterimEventPanel />
+        {view === "month" ? <MonthCalendarView /> : <WeekView />}
       </AppShell>
     </SupervisionStoreProvider>,
   );
 }
 
-describe("ScheduleEditor US-040C", () => {
+describe("ScheduleEditor US-040C / US-040G", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("opens shared editor from list with dry-run default", async () => {
+  it("opens shared editor from Week interim with dry-run default", async () => {
     const auth = new MemoryBearerAuthProvider();
     auth.setTokenForTests("test-key");
     const client = new SupervisionApiClient(
@@ -154,20 +159,28 @@ describe("ScheduleEditor US-040C", () => {
       mockFetch(() => null) as typeof fetch,
     );
     const user = userEvent.setup();
-    renderConsole(client, "list");
+    renderConsole(client, "month");
 
     await user.click(screen.getByTestId("load-btn"));
     await waitFor(() => {
-      expect(screen.getAllByTestId("variant-row").length).toBeGreaterThan(0);
+      expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
     });
-    await user.click(screen.getAllByRole("button", { name: "Reschedule / defer" })[0]);
+    const linkedinOpen = screen.getAllByTestId("schedule-open-month").find(
+      (el) => el.getAttribute("data-item-id")?.includes("linkedin"),
+    );
+    expect(linkedinOpen).toBeTruthy();
+    await user.click(linkedinOpen!);
+    await waitFor(() => {
+      expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId("row-defer"));
     const panel = screen.getByTestId("schedule-editor-panel");
-    expect(panel).toHaveAttribute("data-entry", "list");
+    expect(panel).toHaveAttribute("data-entry", "month");
     expect(panel).toHaveAttribute("data-channel", "linkedin");
     expect(screen.getByTestId("schedule-dry-run")).toBeChecked();
   });
 
-  it("opens shared editor from month and agenda; published blog is read-only", async () => {
+  it("opens shared editor from month chip; published blog is read-only", async () => {
     const auth = new MemoryBearerAuthProvider();
     auth.setTokenForTests("test-key");
     const client = new SupervisionApiClient(
@@ -175,19 +188,22 @@ describe("ScheduleEditor US-040C", () => {
       mockFetch(() => null) as typeof fetch,
     );
     const user = userEvent.setup();
-    renderConsole(client, "calendar");
+    renderConsole(client, "month");
 
     await waitFor(() => {
       expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
     });
 
     const day19 = screen.getByTestId("calendar-day-2026-07-19");
-    await user.click(day19);
     const monthOpen = day19.querySelector(
       '[data-testid="schedule-open-month"]',
     ) as HTMLElement;
     expect(monthOpen).toBeTruthy();
     await user.click(monthOpen);
+    await waitFor(() => {
+      expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId("row-defer"));
     expect(screen.getByTestId("schedule-editor-panel")).toHaveAttribute(
       "data-entry",
       "month",
@@ -197,16 +213,17 @@ describe("ScheduleEditor US-040C", () => {
       "true",
     );
     await user.click(screen.getByTestId("schedule-close"));
+    await user.click(screen.getByTestId("interim-close"));
 
-    await user.click(screen.getByTestId("calendar-day-2026-07-22"));
+    const day22 = screen.getByTestId("calendar-day-2026-07-22");
+    const doneOpen = day22.querySelector(
+      '[data-testid="schedule-open-month"]',
+    ) as HTMLElement;
+    await user.click(doneOpen);
     await waitFor(() => {
-      expect(screen.getByTestId("agenda-list")).toBeInTheDocument();
+      expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
     });
-    await user.click(screen.getByTestId("schedule-open-agenda"));
-    expect(screen.getByTestId("schedule-editor-panel")).toHaveAttribute(
-      "data-entry",
-      "agenda",
-    );
+    await user.click(screen.getByTestId("row-defer"));
     expect(screen.getByTestId("schedule-editor-readonly")).toBeInTheDocument();
   });
 
@@ -214,7 +231,7 @@ describe("ScheduleEditor US-040C", () => {
     const auth = new MemoryBearerAuthProvider();
     auth.setTokenForTests("test-key");
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
-    let deferBodies: unknown[] = [];
+    const deferBodies: unknown[] = [];
     const fetchImpl = mockFetch((url, init) => {
       if (url.includes("defer-linkedin-variant")) {
         const body = JSON.parse(String(init?.body));
@@ -240,13 +257,17 @@ describe("ScheduleEditor US-040C", () => {
     });
     const client = new SupervisionApiClient(auth, fetchImpl as typeof fetch);
     const user = userEvent.setup();
-    renderConsole(client, "list");
+    renderConsole(client, "month");
 
     await user.click(screen.getByTestId("load-btn"));
     await waitFor(() => {
-      expect(screen.getAllByTestId("variant-row").length).toBeGreaterThan(0);
+      expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
     });
-    await user.click(screen.getAllByRole("button", { name: "Reschedule / defer" })[0]);
+    const linkedinOpen = screen.getAllByTestId("schedule-open-month").find(
+      (el) => el.getAttribute("data-item-id")?.includes("linkedin"),
+    );
+    await user.click(linkedinOpen!);
+    await user.click(screen.getByTestId("row-defer"));
     await user.click(screen.getByTestId("schedule-submit"));
     await waitFor(() => {
       expect(screen.getByTestId("action-banner").textContent).toMatch(
@@ -294,16 +315,17 @@ describe("ScheduleEditor US-040C", () => {
     });
     const client = new SupervisionApiClient(auth, fetchImpl as typeof fetch);
     const user = userEvent.setup();
-    renderConsole(client, "calendar");
+    renderConsole(client, "month");
 
     await waitFor(() => {
       expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
     });
-    await user.click(screen.getByTestId("calendar-day-2026-07-19"));
-    await waitFor(() => {
-      expect(screen.getByTestId("agenda-list")).toBeInTheDocument();
-    });
-    await user.click(screen.getByTestId("schedule-open-agenda"));
+    const day19 = screen.getByTestId("calendar-day-2026-07-19");
+    const monthOpen = day19.querySelector(
+      '[data-testid="schedule-open-month"]',
+    ) as HTMLElement;
+    await user.click(monthOpen);
+    await user.click(screen.getByTestId("row-defer"));
     await user.click(screen.getByTestId("schedule-dry-run"));
     await user.clear(screen.getByTestId("schedule-datetime"));
     await user.type(screen.getByTestId("schedule-datetime"), "2026-08-01T14:00:00");

@@ -274,15 +274,30 @@ describe("US-040E console polish UI", () => {
     render(<App client={createClient()} />);
     await user.click(screen.getByTestId("load-btn"));
     await waitFor(() => {
-      expect(screen.getByTestId("results")).toBeInTheDocument();
+      expect(screen.getByTestId("week-view")).toBeInTheDocument();
     });
 
     const nav = screen.getByTestId("affordance-nav");
     expect(nav.querySelector('[data-action="cancel"]')).toBeNull();
     expect(nav.querySelector('[data-testid="load-btn"]')).not.toBeNull();
-    expect(nav.querySelector('[data-testid="view-list"]')).not.toBeNull();
+    expect(nav.querySelector('[data-testid="view-week"]')).not.toBeNull();
+    expect(nav.querySelector('[data-testid="view-list"]')).toBeNull();
 
-    await user.click(screen.getAllByTestId("row-cancel")[0]);
+    await user.click(screen.getByTestId("view-month"));
+    await waitFor(() => {
+      expect(screen.getByTestId("month-calendar-view")).toBeInTheDocument();
+    });
+    const pendingOpen = screen
+      .getAllByTestId("schedule-open-month")
+      .find((el) =>
+        el.getAttribute("data-item-id")?.includes("engineering-leadership"),
+      );
+    expect(pendingOpen).toBeTruthy();
+    await user.click(pendingOpen!);
+    await waitFor(() => {
+      expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId("row-cancel"));
     expect(screen.getByTestId("cancel-panel")).toBeInTheDocument();
     await user.click(screen.getByTestId("cancel-dry-run"));
     await user.click(screen.getByTestId("cancel-submit"));
@@ -297,7 +312,7 @@ describe("US-040E console polish UI", () => {
     await waitFor(() => {
       expect(screen.getByTestId("count-strip")).toBeInTheDocument();
     });
-    await user.click(screen.getByTestId("view-calendar"));
+    await user.click(screen.getByTestId("view-month"));
     await waitFor(() => {
       expect(screen.getByTestId("month-calendar-view")).toBeInTheDocument();
     });
@@ -418,7 +433,7 @@ describe("US-040E visual validation matrix (equivalent UI checks)", () => {
     }
   }
 
-  it("covers dense/empty list and month, blocked, long titles, view switch, schedule edit", async () => {
+  it("covers dense/empty week and month, blocked, long titles, view switch, schedule edit", async () => {
     await assertDesktopMobile("dense", async () => {
       const user = userEvent.setup();
       const { unmount } = render(
@@ -428,14 +443,18 @@ describe("US-040E visual validation matrix (equivalent UI checks)", () => {
       await waitFor(() => {
         expect(screen.getByTestId("count-strip")).toBeInTheDocument();
       });
-      expect(screen.getByTestId("list-view")).toBeInTheDocument();
+      expect(screen.getByTestId("week-view")).toBeInTheDocument();
       expect(document.querySelector(".title-cell")).not.toBeNull();
-      await user.click(screen.getByTestId("view-calendar"));
+      await user.click(screen.getByTestId("view-month"));
       expect(screen.getByTestId("month-calendar-view")).toBeInTheDocument();
       expect(document.querySelector('[data-risk="blocked"]')).not.toBeNull();
       const openBtns = screen.queryAllByTestId("schedule-open-month");
       if (openBtns.length > 0) {
         await user.click(openBtns[0]);
+        await waitFor(() => {
+          expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
+        });
+        await user.click(screen.getByTestId("row-defer"));
         await waitFor(() => {
           expect(screen.getByTestId("schedule-editor-panel")).toBeInTheDocument();
         });
@@ -450,13 +469,14 @@ describe("US-040E visual validation matrix (equivalent UI checks)", () => {
       await waitFor(() => {
         expect(screen.getByTestId("count-strip")).toBeInTheDocument();
       });
-      expect(screen.getByTestId("empty-state")).toBeInTheDocument();
+      expect(screen.getByTestId("week-empty-state")).toBeInTheDocument();
       expect(screen.getByTestId("count-upcoming")).toHaveAttribute(
         "data-count",
         "0",
       );
-      await user.click(screen.getByTestId("view-calendar"));
+      await user.click(screen.getByTestId("view-month"));
       expect(screen.getByTestId("month-calendar-view")).toBeInTheDocument();
+      expect(screen.getByTestId("month-empty-state")).toBeInTheDocument();
       unmount();
     });
   });

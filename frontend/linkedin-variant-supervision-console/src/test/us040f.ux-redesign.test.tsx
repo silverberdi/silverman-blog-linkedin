@@ -101,7 +101,7 @@ function createUxClient() {
 }
 
 describe("US-040F modern operational UX redesign", () => {
-  it("renders a wide app workspace with modern shell controls and card triage", async () => {
+  it("renders a wide app workspace with modern shell controls and Week home", async () => {
     const user = userEvent.setup();
     render(<App client={createUxClient()} />);
 
@@ -110,18 +110,24 @@ describe("US-040F modern operational UX redesign", () => {
     expect(document.querySelector(".session-strip")).not.toBeNull();
     expect(document.querySelector(".filter-dock")).not.toBeNull();
     expect(screen.queryByText(/POST \//)).toBeNull();
+    expect(screen.getByTestId("week-view")).toBeInTheDocument();
+    expect(screen.queryByTestId("list-view")).toBeNull();
 
     await user.click(screen.getByTestId("load-btn"));
 
     await waitFor(() => {
       expect(screen.getByTestId("count-blocked")).toHaveAttribute("data-count", "1");
     });
-    expect(document.querySelector(".triage-layout")).not.toBeNull();
-    expect(document.querySelector(".variant-card-list")).not.toBeNull();
-    expect(screen.getByTestId("variant-card")).toHaveClass("list-card");
-
-    await user.click(screen.getByTestId("variant-row"));
-    expect(screen.getByTestId("selected-detail")).toBeInTheDocument();
+    await user.click(screen.getByTestId("view-month"));
+    await waitFor(() => {
+      expect(screen.getByTestId("month-calendar-view")).toBeInTheDocument();
+    });
+    const open = screen
+      .getAllByTestId("schedule-open-month")
+      .find((el) => el.getAttribute("data-item-id")?.includes("operator-friendly"));
+    expect(open).toBeTruthy();
+    await user.click(open!);
+    expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
   });
 
   it("lets metric cards drive focus without manual filter setup", async () => {
@@ -155,16 +161,16 @@ describe("US-040F modern operational UX redesign", () => {
     expect(screen.getByTestId("filter-state-pending")).not.toBeChecked();
   });
 
-  it("keeps UX-specific responsive and master-detail styles in CSS", () => {
+  it("keeps UX-specific responsive and calendar styles in CSS", () => {
     const css = readFileSync(
       resolve(__dirname, "../styles/console.css"),
       "utf-8",
     );
     expect(css).toMatch(/width:\s*min\(100%,\s*1680px\)/);
     expect(css).toMatch(/\.app-bar/);
-    expect(css).toMatch(/\.triage-layout/);
+    expect(css).toMatch(/\.week-columns/);
     expect(css).toMatch(/\.detail-drawer/);
-    expect(css).toMatch(/\.variant-card-list/);
+    expect(css).toMatch(/\.week-event-chip/);
     expect(css).toMatch(/@media\s*\(max-width:\s*860px\)/);
   });
 });

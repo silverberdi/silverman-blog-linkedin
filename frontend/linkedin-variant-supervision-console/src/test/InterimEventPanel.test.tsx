@@ -1,18 +1,15 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import App from "../App";
 import { SupervisionApiClient } from "../api/client";
 import { MemoryBearerAuthProvider } from "../api/auth";
-import { SupervisionStoreProvider } from "../models/store";
-import { ListView } from "../components/ListView";
-import { ScheduleEditorPanel } from "../components/ScheduleEditor";
-import { AppShell } from "../components/AppShell";
 import type {
   PendingSupervisionResponse,
   ScheduleVisibilityResponse,
 } from "../api/types";
 
-const samplePayload: PendingSupervisionResponse = {
+const samplePending: PendingSupervisionResponse = {
   status: "ok",
   observed_at_utc: "2026-07-18T12:00:00Z",
   read_only: true,
@@ -38,7 +35,7 @@ const samplePayload: PendingSupervisionResponse = {
   integration_failures: [],
 };
 
-const emptySchedule: ScheduleVisibilityResponse = {
+const sampleSchedule: ScheduleVisibilityResponse = {
   status: "ok",
   observed_at_utc: "2026-07-18T12:00:00Z",
   read_only: true,
@@ -47,7 +44,23 @@ const emptySchedule: ScheduleVisibilityResponse = {
   from_utc: "2026-07-01T00:00:00Z",
   to_utc: "2026-07-31T23:59:59Z",
   linkedin_publication_enabled: false,
-  items: [],
+  items: [
+    {
+      item_id: "linkedin:camp-1:engineering-leadership",
+      channel: "linkedin",
+      campaign_id: "camp-1",
+      variant_id: "engineering-leadership",
+      title: "Post",
+      audience: "eng",
+      scheduled_at_utc: "2026-07-20T15:00:00Z",
+      publication_state: "pending",
+      source_state: "pending",
+      blocked: false,
+      critical: false,
+      linkedin_api_published: false,
+      schedule_editable: true,
+    },
+  ],
   issues: [],
 };
 
@@ -56,8 +69,14 @@ function mockFetch(
 ) {
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    if (url.includes("pending-supervision")) {
+      return new Response(JSON.stringify(samplePending), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     if (url.includes("schedule-visibility")) {
-      return new Response(JSON.stringify(emptySchedule), {
+      return new Response(JSON.stringify(sampleSchedule), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
@@ -70,69 +89,66 @@ function mockFetch(
   });
 }
 
-function renderList(client: SupervisionApiClient) {
-  return render(
-    <SupervisionStoreProvider client={client}>
-      <AppShell>
-        <ScheduleEditorPanel />
-        <ListView />
-      </AppShell>
-    </SupervisionStoreProvider>,
-  );
+async function openInterimFromMonth(user: ReturnType<typeof userEvent.setup>) {
+  if (!screen.queryByTestId("month-calendar-view")) {
+    await user.click(screen.getByTestId("load-btn"));
+    await waitFor(() => {
+      expect(screen.getByTestId("week-view")).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId("view-month"));
+  }
+  await waitFor(() => {
+    expect(screen.getByTestId("month-calendar-view")).toBeInTheDocument();
+  });
+  const open = await screen.findByTestId("schedule-open-month");
+  await user.click(open);
+  await waitFor(() => {
+    expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
+  });
 }
 
-describe("ListView", () => {
+describe("Interim calendar actions (US-040G)", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("defaults dry-run checkboxes on when opening edit/defer/cancel", async () => {
+  it("defaults dry-run checkboxes on when opening edit/defer/cancel from interim", async () => {
     const auth = new MemoryBearerAuthProvider();
     auth.setTokenForTests("test-key");
-    const fetchImpl = mockFetch((url) => {
-      if (url.includes("pending-supervision")) {
-        return new Response(JSON.stringify(samplePayload), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      return null;
-    });
-    const client = new SupervisionApiClient(auth, fetchImpl as typeof fetch);
+    const client = new SupervisionApiClient(
+      auth,
+      mockFetch(() => null) as typeof fetch,
+    );
     const user = userEvent.setup();
-    renderList(client);
+    render(<App client={client} />);
+    await openInterimFromMonth(user);
 
-    await user.click(screen.getByTestId("load-btn"));
-    await waitFor(() => {
-      expect(screen.getAllByTestId("variant-row").length).toBeGreaterThan(0);
-    });
+    expect(screen.getByTestId("interim-h-hint").textContent).toMatch(/US-040H/);
+    expect(screen.getByTestId("interim-h-hint").textContent).not.toMatch(
+      /event modal product shipped/i,
+    );
 
-    await user.click(screen.getAllByRole("button", { name: "Inspect / edit" })[0]);
+    await user.click(screen.getByTestId("row-edit"));
     expect(screen.getByTestId("edit-dry-run")).toBeChecked();
 
     await user.click(screen.getByRole("button", { name: "Close" }));
-    await user.click(screen.getAllByRole("button", { name: "Reschedule / defer" })[0]);
+    await openInterimFromMonth(user);
+    await user.click(screen.getByTestId("row-defer"));
     expect(screen.getByTestId("schedule-editor-panel")).toHaveAttribute(
       "data-entry",
-      "list",
+      "month",
     );
     expect(screen.getByTestId("schedule-dry-run")).toBeChecked();
 
     await user.click(screen.getByTestId("schedule-close"));
-    await user.click(screen.getAllByRole("button", { name: "Cancel" })[0]);
+    await user.click(screen.getByTestId("row-cancel"));
     expect(screen.getByTestId("cancel-dry-run")).toBeChecked();
   });
 
-  it("loads pending rows via typed client and wires edit action", async () => {
+  it("loads pending rows via typed client and wires edit action from calendar", async () => {
     const auth = new MemoryBearerAuthProvider();
     auth.setTokenForTests("test-key");
     const fetchImpl = mockFetch((url, init) => {
-      if (url.includes("pending-supervision")) {
-        return new Response(JSON.stringify(samplePayload), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
       if (url.includes("correct-linkedin-variant")) {
         expect(init?.method).toBe("POST");
         const body = JSON.parse(String(init?.body));
@@ -158,17 +174,10 @@ describe("ListView", () => {
     });
     const client = new SupervisionApiClient(auth, fetchImpl as typeof fetch);
     const user = userEvent.setup();
-    renderList(client);
+    render(<App client={client} />);
+    await openInterimFromMonth(user);
 
-    await user.click(screen.getByTestId("load-btn"));
-    await waitFor(() => {
-      expect(screen.getAllByText("camp-1").length).toBeGreaterThan(0);
-      expect(
-        screen.getAllByText("engineering-leadership").length,
-      ).toBeGreaterThan(0);
-    });
-
-    await user.click(screen.getAllByRole("button", { name: "Inspect / edit" })[0]);
+    await user.click(screen.getByTestId("row-edit"));
     await user.click(screen.getByRole("button", { name: "Submit edit" }));
     await waitFor(() => {
       expect(screen.getByTestId("action-banner").textContent).toMatch(

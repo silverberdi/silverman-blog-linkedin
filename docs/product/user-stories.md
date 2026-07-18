@@ -788,9 +788,21 @@ As a content operator, I want to cancel or defer variants and see why publicatio
 
 **US-040 variants**
 
-These variants extend US-040 inside BL-015. They are not a new backlog item and MUST NOT be treated as Flow B implementation scope. They improve the same Flow A supervision console so the operator can use it as a dark, mobile-friendly control surface with both list and month calendar views, ready for a future public URL protected by Google authentication. The calendar view is additive: it MUST NOT remove or degrade the current list-oriented supervision workflow. After US-040E, the console still requires a deliberate product-quality UX redesign rather than more acceptance-criteria text pasted into the screen.
+These variants extend US-040 inside BL-015. They are not a new backlog item and MUST NOT be treated as Flow B implementation scope. They improve the same Flow A supervision console as a dark, mobile-friendly operational product ready for a future public URL protected by Google authentication.
 
-**Additional prerequisites:** BL-021 SHOULD define cadence and rescheduling rules before the calendar allows real schedule changes that could affect the publication plan. Future Google authentication is intentionally out of scope, but these variants MUST leave the frontend and worker API boundaries ready for it.
+**UX direction after US-040F (operator feedback 2026-07-18):** US-040A–F delivered stack, dual List+Month views, ScheduleEditor, auth readiness, polish, and a first redesign pass. Operator review rejected list-first triage and day-agenda dumps as the mental model. Subsequent variants (US-040G onward) **supersede list-as-first-class-view** for the product UX: the console MUST become **calendar-first** (Week default, Month secondary), **event-modal** driven, **local-time** oriented, with **toast** feedback, **cancelled-item** handling, and a **max 2 publications per local day** density rule. Prior List-preserving language in US-040A–F remains historical for those stories’ demonstrated scope; it MUST NOT block US-040G+ from removing the list surface.
+
+**Shared UX Definition of Done (US-040G–US-040K — normative)**
+
+These rules apply to every US-040G–K story. Automated tests and OpenSpec task checkboxes are **necessary but not sufficient**.
+
+- **Product-quality bar:** The delivered UI MUST read as a modern, responsive, operational calendar product (clear hierarchy, balanced density, calm empty/loading/error states, usable on laptop and phone). Checkbox completion alone MUST NOT imply Story accepted.
+- **Visual evidence:** Each story’s OpenSpec change MUST require desktop + mobile evidence (screenshots or equivalent browser-driven capture) for that story’s Visual DoD scenes — not only Vitest/component assertions.
+- **Operator walkthrough gate:** **Story accepted** for US-040G–K MUST NOT be marked until the content operator completes a live walkthrough on the deployed (or explicitly agreed preview) console and confirms the UX meets the story’s intent. “Business outcome demonstrated” / implementation commit is allowed before that gate; **Acceptance criteria validated** and **Story accepted** are not.
+- **Partial UX is incomplete:** If the walkthrough finds the UI still feels like a technical status page, empty/broken, or cognitively heavy, the story stays in progress — follow-up OpenSpec work, not silent AC re-interpretation.
+- **BL-015 stays open** until the backlog completion outcome is operator-validated; shipping G–K code does not close BL-015 by itself.
+
+**Additional prerequisites:** BL-021 remains the home for full editorial cadence policy; US-040K may ship an interim console/worker density cap (max 2/local day) that BL-021 MAY later supersede. Future Google authentication stays out of scope, but API boundaries MUST remain ready for it.
 
 ### US-040A — Implement Flow A LinkedIn Variant Supervision Console: Modern Frontend Stack Without Rebuild
 
@@ -950,6 +962,188 @@ As a content operator, I want the Flow A supervision console to feel like a mode
 - [x] The outcome is visible and understandable to the intended user. — Demonstrated: app-like shell, metric-driven focus, cards, calendar and detail drawer.
 - [x] Failures or blocked states are clearly communicated. — Demonstrated: blocked/failed visual classes, banners and expandable diagnostics retained.
 - [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: no new mutation SoT; US-040A–E contracts preserved; no public URL/Google activation; no Flow B.
+
+### US-040G — Implement Flow A LinkedIn Variant Supervision Console: Calendar-First Week and Month (Remove List)
+
+**Description**
+
+As a content operator, I want the supervision console to open on a clear **week** calendar with **month** as a secondary view and **no list**, so that I immediately understand what publishes when without learning a second triage surface that often looks empty or unexplained.
+
+**Status:** Implemented in console layer (US-040G calendar-first Week + Month; List removed from operator chrome; OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040g`; Vitest viewport matrix ~1280/~375 + rebuilt static assets). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated (browser capture not completed in apply environment). Interim event-chip → ItemDetail/ScheduleEditor path until US-040H. UTC day-bucketing debt remains for US-040I. US-040H modal/toasts, US-040J reopen, and US-040K density not delivered.
+
+**UX intent (normative)**
+
+- The first paint MUST feel like a **calendar product**, not a status page and not an empty data table.
+- Week is the **default home**: the operator should grasp “this week’s plan” in under three seconds.
+- Month is for **density and horizon**, not for dumping full diagnostics into cells.
+- Removing the list MUST NOT remove capability — every previous list action MUST remain reachable from the event modal (US-040H) or equivalent calendar entry points.
+- Empty weeks MUST explain themselves (“No publications this week”) with a calm empty state, never a blank white/void panel that looks broken.
+- View switching MUST be obvious: segmented control or equivalent with labels `Week` / `Month`, Week selected by default on first load and after hard refresh unless a deep-link says otherwise.
+
+**Visual DoD / Story acceptance gate**
+
+Required scenes (desktop + mobile): Week first paint; empty week; dense week; Month switch; empty month; dense month; Today/This-week control; proof that List chrome is gone.
+**MUST NOT** mark Story accepted without operator walkthrough confirming the console feels like a modern calendar product (shared DoD above).
+
+**Acceptance criteria**
+
+- [x] Remove the List view from the operator-facing console chrome (no List tab, no list-first landing, no empty list as the default workspace). — Demonstrated: ViewSwitcher is Week|Month only; Vitest asserts List chrome absent.
+- [x] Provide **Week** as the default first-class view and **Month** as the secondary first-class view; switching MUST preserve filters, dry-run/commit mode, and unsaved modal drafts with warning. — Demonstrated via Vitest (filters survive Week↔Month; draft-warn path preserved in store).
+- [x] Week view MUST show a readable local-week grid or column layout with day headers, today emphasis, and events as scannable chips/cards (title or campaign label, channel, local time, state) — not raw ids as the primary label. — Demonstrated: day-column Week (not hour grid); local time on chips; UTC day placement interim (US-040I debt).
+- [x] Month view MUST remain density-oriented: compact event indicators per day, overflow handling, today/selected styling, without turning cells into diagnostic forms. — Demonstrated: agenda dump removed as primary surface; light day focus + event chips.
+- [x] Navigation: previous/next week, previous/next month, and a one-click “Today / This week” affordance MUST be visible and thumb-friendly on mobile. — Demonstrated via Vitest + CSS touch targets.
+- [x] When a week or month has zero items after filters, show a deliberate empty state with short copy and a path to clear filters if filters hid everything — never an unexplained blank content area. — Demonstrated via Vitest empty week/month states.
+- [x] Metric chips (if retained) MUST navigate/focus within Week/Month (e.g. jump to next blocked event week), not reopen a list. — Demonstrated: `navigateMetricFocus` stays on calendar; Vitest asserts no List.
+- [x] Preserve React + TypeScript + Vite, same-origin static delivery, typed API client, shared normalized model, ScheduleEditor mutation SoT, session/`canMutate`, and worker HTTP-only access. — Demonstrated: stack unchanged; ScheduleEditor + interim path; session suites pass.
+- [x] Do not activate public URL hosting, Google/OIDC, BFF/DB/user-management, LinkedIn API publish, or Flow B. — Demonstrated: out of scope; no activation.
+- [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
+- [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms Week-default calendar UX meets intent before Story accepted.
+- [ ] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated without restoring a list as the primary recovery UI. — Demonstrated: calendar empty/filter states + interim detail; metrics stay on Week/Month.
+- [x] Existing completed work is not duplicated or unintentionally changed beyond the deliberate removal of list-first UX (US-017 mutation contracts reused). — Demonstrated: no new mutation SoT; H/I/J/K products not shipped.
+### US-040H — Implement Flow A LinkedIn Variant Supervision Console: Event Modal and Toast Feedback
+
+**Description**
+
+As a content operator, I want to click a **specific event** and work inside a focused **modal**, with success/info feedback as brief **toasts**, so that I never face a confusing split of “day dump below + detail above” or large green banners that steal the calendar.
+
+**Status:** Not started. **Not Story accepted; BL-015 remains open.**
+
+**UX intent (normative)**
+
+- **Primary interaction:** click the **event**, not the day.
+- Clicking a day MUST NOT open a full multi-event diagnostic agenda that competes with item detail. Days MAY show a light hover/focus affordance only; event chips remain the actionable targets.
+- The modal is the **single focus surface** for view + edit + reschedule + cancel (where allowed): identity, local schedule, state, risk, draft/content when applicable, and safe actions.
+- Success, dry-run results, and non-blocking info MUST appear as **toasts** (top-right or equivalent), auto-dismiss after a few seconds, stack sensibly, and never permanently push the calendar down.
+- Persistent full-width green “everything is fine” banners MUST be removed from the primary scan path.
+- Destructive confirmations remain modal/dialog — not toast-only.
+- Escape / backdrop click / close control MUST dismiss the modal with draft-loss warning when unsaved edits exist.
+- Mobile: modal SHOULD be a full-screen sheet or near-full sheet with large touch targets; desktop: centered or anchored modal with clear hierarchy (title → state → schedule → actions).
+
+**Visual DoD / Story acceptance gate**
+
+Required scenes (desktop + mobile): event open; modal hierarchy; edit/reschedule in modal; toast success + auto-dismiss; toast stack; cancel confirmation; mobile sheet; proof of no day-agenda dump; proof of no persistent green success banner on happy path.
+**MUST NOT** mark Story accepted without operator walkthrough confirming modal + toast interaction feels focused and modern (shared DoD above).
+
+**Acceptance criteria**
+
+- [ ] Clicking an event opens an event modal with view and edit affordances appropriate to state; clicking empty day space MUST NOT open the multi-item agenda dump pattern.
+- [ ] The modal MUST present operator-facing fields first (title/campaign, channel/audience, local datetime, publication state, risk) and bury raw ids, endpoint names, and worker codes in expandable diagnostics.
+- [ ] Edit content, reschedule, defer, and cancel (where supported) MUST be reachable from the modal without returning to a list.
+- [ ] Replace persistent success/enablement/status green banners with ephemeral toasts for non-blocking feedback; toasts MUST auto-dismiss (target ~4–6s) and be dismissible manually.
+- [ ] LinkedIn publish-guard / session context MAY remain as a compact chip or quiet status in the app bar — not a full-width green banner.
+- [ ] Dry-run vs real commit MUST remain visually obvious inside the modal and in toast copy after actions.
+- [ ] Keep destructive cancel behind explicit confirmation separate from toast success feedback.
+- [ ] Preserve keyboard access: focus trap in modal, Escape closes (with draft warn), visible focus rings, no hover-only critical actions.
+- [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
+- [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms modal + toast UX meets intent before Story accepted.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated (error toasts or in-modal errors; not silent failure).
+- [ ] Existing completed work is not duplicated or unintentionally changed (reuse ScheduleEditor / US-017 semantics inside the modal shell).
+
+### US-040I — Implement Flow A LinkedIn Variant Supervision Console: Operator-Local Time Experience
+
+**Description**
+
+As a content operator, I want the week/month grids, event times, and reschedule controls to work in **my local timezone**, so that I do not have to translate UTC or “another part of the world’s” calendar days while planning posts.
+
+**Status:** Not started. **Not Story accepted; BL-015 remains open.**
+
+**UX intent (normative)**
+
+- The operator’s mental model is **local wall time** and **local calendar days**.
+- UTC MAY remain the storage and wire format, but MUST NOT be the primary visible clock for routine work.
+- Week and Month day columns/cells MUST bucket events by **local calendar date**, not UTC date (avoid “event appears on the wrong day”).
+- Reschedule pickers MUST default to and display local time; labels SHOULD show the timezone abbreviation (e.g. `CST`) so the operator knows which clock is in force.
+- “Must be in the future” validation MUST be explained in local terms (“must be after now in your local time”) while the worker continues to enforce absolute-time safety.
+- Moving an event earlier than its previous schedule MUST be allowed when the new local time is still after now (UI MUST NOT falsely imply “only later than the old schedule”).
+
+**Visual DoD / Story acceptance gate**
+
+Required scenes (desktop + mobile): local times on Week/Month/modal with timezone cue; near-midnight day placement; reschedule earlier-but-still-future; proof that routine UI does not force UTC thinking.
+**MUST NOT** mark Story accepted without operator walkthrough confirming local-time UX feels coherent in the operator’s timezone (shared DoD above).
+
+**Acceptance criteria**
+
+- [ ] All primary schedule displays in Week, Month, and event modal use operator-local date/time with visible timezone cue.
+- [ ] Week/Month placement uses local-day bucketing; document any remaining UTC-only diagnostics as secondary.
+- [ ] Schedule editor datetime controls are local-first; conversion to `*_utc` fields happens at the API boundary.
+- [ ] Validation copy and client-side guards match “strictly after now” in absolute time, presented as local; earlier-than-previous-schedule moves are allowed when still future.
+- [ ] Empty/error states never instruct the operator to “think in UTC” for routine edits.
+- [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
+- [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms local-time UX meets intent before Story accepted.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated (`*_time_invalid` mapped to plain language).
+- [ ] Existing completed work is not duplicated or unintentionally changed (worker UTC contracts preserved unless a paired OpenSpec change extends them).
+
+### US-040J — Implement Flow A LinkedIn Variant Supervision Console: Cancelled Event Handling
+
+**Description**
+
+As a content operator, I want cancelled calendar events to be visually honest and actionable (or clearly non-actionable), so that when I see a cancelled item on today/this week I understand **why** and what I can do next — including reopen/reschedule when product allows — instead of a mute grey chip with no path.
+
+**Status:** Not started. **Not Story accepted; BL-015 remains open.** Requires OpenSpec for any worker reopen path; cancel remains irreversible until this story ships an approved reopen contract.
+
+**UX intent (normative)**
+
+- Cancelled events MUST remain visible on Week/Month with a distinct but calm treatment (not alarming like failed/blocked).
+- Opening a cancelled event modal MUST answer three questions in plain language: **What is this?** **Why is it cancelled?** **What can I do now?**
+- If reopen is not yet available mid-implementation, the modal MUST say so explicitly and avoid fake Edit controls.
+- When reopen/reschedule is implemented, the happy path MUST feel like restoring a planned publication: confirm → choose new local time (respecting future + density rules) → toast success → event returns to an editable pending/planned state on the calendar.
+- Never imply cancelled ≡ LinkedIn API published or unpublished confusion; keep qualified language.
+
+**Visual DoD / Story acceptance gate**
+
+Required scenes (desktop + mobile): cancelled chip on Week/Month; cancelled modal answering what/why/what next; reopen/reschedule happy path (or explicit interim read-only copy); failure toast; mobile cancelled modal.
+**MUST NOT** mark Story accepted without operator walkthrough confirming cancelled items are understandable and the approved next action is obvious (shared DoD above).
+
+**Acceptance criteria**
+
+- [ ] Cancelled events are visible on Week/Month with clear cancelled styling and label.
+- [ ] Event modal for cancelled items explains cancellation (reason/source/timestamp when available) in operator language; raw codes only in diagnostics.
+- [ ] Define and implement an approved **reopen or reschedule-from-cancelled** path via worker HTTP (new or extended contract under OpenSpec) OR, if temporarily deferred inside the same change, ship an explicit read-only cancelled modal — do not leave “mystery cancelled” UX. Prefer shipping the reopen/reschedule path as the business outcome of this story.
+- [ ] Reopened items MUST reappear as editable supervision targets (pending/planned as applicable) and respect dry-run/confirm, local time, and density limits (US-040I/K).
+- [ ] Cancel from an active event remains destructive, confirmed, and irreversible except through the new reopen path.
+- [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
+- [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms cancelled-event UX meets intent before Story accepted.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed (no silent bypass of publication guards; no n8n Execute Command).
+
+### US-040K — Implement Flow A LinkedIn Variant Supervision Console: Max Two Publications Per Local Day
+
+**Description**
+
+As a content operator, I want the console and schedule rules to **cap publications at two per local calendar day**, so that I cannot accidentally look like a spammer by stacking three or more posts on the same day.
+
+**Status:** Not started. **Not Story accepted; BL-015 remains open.** Interim product rule for BL-015; BL-021 MAY later supersede with richer cadence windows.
+
+**UX intent (normative)**
+
+- Density is a **first-class UX concern**: days at/over the limit MUST be visually readable on Week and Month (e.g. subtle full/warn treatment) without alarm fatigue.
+- When rescheduling would create a **third** publication on a local day, the modal MUST block or require an explicit resolution path **before** commit — with plain language (“This day already has 2 publications”).
+- Counting rules MUST be operator-obvious: which channels/states count (at minimum LinkedIn variants that are still part of the live plan — pending/queued/deferred/planned as defined in the OpenSpec change; cancelled and published-historical handling MUST be specified explicitly so counts do not surprise the operator).
+- Prefer prevention in the picker (disable or warn on saturated days) over cryptic worker codes after submit.
+- Toast/modal errors for saturation MUST be human, not only `*_saturation` codes.
+
+**Visual DoD / Story acceptance gate**
+
+Required scenes (desktop + mobile): local day at 2 publications (full cue); attempt to place a 3rd (plain-language block); Month density cue; existing 3+ day still visible with fix path; local-midnight boundary.
+**MUST NOT** mark Story accepted without operator walkthrough confirming the density rule is obvious and prevents a spammy plan (shared DoD above).
+
+**Acceptance criteria**
+
+- [ ] Enforce a maximum of **2** publications per **operator-local** calendar day for items in scope of the supervision plan (exact inclusion set defined in the OpenSpec change; default intent: live planned LinkedIn — and blog if shown — excluding cancelled unless reopen restores them).
+- [ ] Week/Month MUST surface day density so a day with 2 items looks “full” and a conflict attempt is understandable before commit.
+- [ ] Reschedule/defer/reopen flows MUST validate the cap client-side and server-side; exceeding 2 MUST fail closed with actionable messaging.
+- [ ] Existing days that already have 3+ items MUST remain visible (do not hide history) and SHOULD offer a clear path to fix density by moving events (modal actions), not silent data loss.
+- [ ] Interim duplicate-slot / 72h sibling rules MAY remain until BL-021 supersedes; this story’s **2/local-day** cap is additive and MUST be documented as interim product policy.
+- [ ] Do not call LinkedIn API publish as part of density enforcement.
+- [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
+- [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms max-2 density UX meets intent before Story accepted.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
 
 ## BL-016 — Define Flow B
 

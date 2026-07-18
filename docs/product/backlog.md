@@ -264,21 +264,23 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Expected outcomes:**
 
-- Present pending variants in a campaign or calendar view.
-- Show campaign, variant, audience, schedule, and publication state.
+- Present pending variants with campaign, variant, audience, schedule, and publication state.
 - Allow operators to edit variant content before queue authorization.
 - Allow operators to defer, reschedule, or cancel variants before queue.
 - Persist operator changes traceably.
 - Surface publication blocks and integration failures.
 - Use a modern, componentized frontend stack for the console without rewriting backend workflows.
-- Preserve the existing list-oriented supervision view and make it coexist with the month calendar view.
-- Provide a dark, mobile-friendly month calendar view for upcoming publications.
-- Allow future publication schedule changes directly from the calendar.
+- Make the console **calendar-first**: Week as the default operational view, Month as the secondary density view; remove the list as a primary operator surface (US-040G+).
+- Open item detail and safe actions from an **event modal** (click the event, not a day dump).
+- Prefer **operator-local time** for display, navigation, and editing; keep UTC only as storage/transport.
+- Use ephemeral **toast** feedback instead of large persistent success banners.
+- Support operator handling of **cancelled** items with clear UX and an approved reopen/reschedule path where product allows.
+- Enforce a **maximum of 2 publications per local calendar day** in the supervision plan (anti-spam density).
 - Keep the console ready for future public URL operation with Google authentication.
-- Provide a modern dark operational UX that uses desktop width effectively, works comfortably from mobile, reduces visible technical noise, and makes triage, calendar comprehension, and safe actions obvious.
+- Provide a modern dark operational UX with low cognitive load, obvious safe actions, and no technical-status-page feel.
 - Use worker HTTP capabilities without bypassing publication guards.
 
-**Completion outcome:** Operators can supervise Flow A LinkedIn variants and upcoming editorial publication timing from one modern, usable dark console, switching between list and month calendar views during the optional pre-send window, taking safe actions from laptop or phone without opening multiple raw files or reading technical implementation prose.
+**Completion outcome:** Operators can supervise Flow A LinkedIn variants and upcoming editorial publication timing from one modern, calendar-first dark console (Week + Month), opening events into focused modals, working in local time, with toast feedback and density limits, during the optional pre-send window — without opening multiple raw files or reading technical implementation prose. **US-040G–K Story accepted requires Visual DoD evidence plus an operator walkthrough; Vitest/checkbox completion alone is insufficient.**
 
 
 ## P4 — Flow B

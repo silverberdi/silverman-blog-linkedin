@@ -7,7 +7,7 @@ import { useSupervisionStore } from "../models/store";
 
 /**
  * App shell: session banners (US-040D), dry-run default, enablement display-only,
- * dual views (US-040B), operational count strip + affordance groups (US-040E).
+ * Week | Month views (US-040G), operational count strip + affordance groups.
  * First screen is the operational console — no marketing landing.
  */
 export function AppShell({ children }: { children: ReactNode }) {
@@ -154,9 +154,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         className="affordance-group affordance-content"
         data-testid="affordance-content"
         aria-label={
-          activeView === "calendar"
-            ? "Month schedule view"
-            : "List triage view"
+          activeView === "month" ? "Month schedule view" : "Week schedule view"
         }
       >
         {children}

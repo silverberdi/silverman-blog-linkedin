@@ -92,23 +92,23 @@ function createClient() {
 }
 
 /**
- * Desktop + mobile viewport validation evidence for List + Month calendar.
+ * Desktop + mobile viewport validation evidence for Week + Month (US-040G).
+ * Component/DOM evidence only — not Story accepted / Visual DoD capture.
  */
 describe("viewport validation", () => {
   const cssPath = resolve(__dirname, "../styles/console.css");
   const css = readFileSync(cssPath, "utf-8");
 
-  it("includes mobile media query for list cards and calendar agenda patterns", () => {
-    expect(css).toMatch(/@media\s*\(max-width:\s*720px\)/);
+  it("includes mobile media query for week columns and month patterns", () => {
+    expect(css).toMatch(/@media\s*\(max-width:\s*860px\)/);
     expect(css).toMatch(/main\.console-shell/);
-    expect(css).toMatch(/\.table-wrap/);
-    expect(css).toMatch(/\.list-mobile-cards/);
-    expect(css).toMatch(/\.calendar-agenda/);
+    expect(css).toMatch(/\.week-columns/);
+    expect(css).toMatch(/\.week-event-chip/);
     expect(css).toMatch(/\.calendar-grid/);
     expect(css).toMatch(/--bg:\s*#12151a/);
   });
 
-  it("renders list and month calendar at desktop viewport width", async () => {
+  it("renders Week default and Month at desktop viewport width", async () => {
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
       value: 1280,
@@ -116,17 +116,18 @@ describe("viewport validation", () => {
     const user = userEvent.setup();
     const { getByTestId, unmount } = render(<App client={createClient()} />);
     expect(getByTestId("app-shell")).toBeInTheDocument();
-    expect(getByTestId("list-view")).toBeInTheDocument();
-    expect(getByTestId("view-list")).toBeInTheDocument();
-    expect(getByTestId("view-calendar")).toBeInTheDocument();
+    expect(getByTestId("week-view")).toBeInTheDocument();
+    expect(getByTestId("view-week")).toBeInTheDocument();
+    expect(getByTestId("view-month")).toBeInTheDocument();
+    expect(screen.queryByTestId("view-list")).toBeNull();
+    expect(screen.queryByTestId("list-view")).toBeNull();
 
-    await user.click(getByTestId("view-calendar"));
+    await user.click(getByTestId("view-month"));
     expect(getByTestId("month-calendar-view")).toBeInTheDocument();
-    expect(getByTestId("calendar-agenda")).toBeInTheDocument();
     unmount();
   });
 
-  it("renders list and month calendar at mobile viewport width with agenda", async () => {
+  it("renders Week and Month at mobile viewport width", async () => {
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
       value: 375,
@@ -134,18 +135,18 @@ describe("viewport validation", () => {
     const user = userEvent.setup();
     const { getByTestId, unmount } = render(<App client={createClient()} />);
     expect(getByTestId("app-shell")).toBeInTheDocument();
-    expect(getByTestId("list-view")).toBeInTheDocument();
+    expect(getByTestId("week-view")).toBeInTheDocument();
     expect(getByTestId("load-btn")).toBeInTheDocument();
     expect(getByTestId("session-banner")).toBeInTheDocument();
+    expect(getByTestId("week-today")).toBeInTheDocument();
 
     await user.click(getByTestId("load-btn"));
     await waitFor(() => {
-      expect(getByTestId("list-mobile-cards")).toBeInTheDocument();
+      expect(getByTestId("week-view")).toBeInTheDocument();
     });
 
-    await user.click(getByTestId("view-calendar"));
+    await user.click(getByTestId("view-month"));
     expect(getByTestId("month-calendar-view")).toBeInTheDocument();
-    expect(screen.getByTestId("calendar-agenda")).toBeInTheDocument();
     unmount();
   });
 
@@ -156,23 +157,24 @@ describe("viewport validation", () => {
     });
     const auth = new MemoryBearerAuthProvider();
     auth.setTokenForTests("key");
-    let calls = 0;
+    let allowReads = true;
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      calls += 1;
-      if (calls <= 2) {
+      if (
+        allowReads &&
+        (url.includes("pending-supervision") ||
+          url.includes("schedule-visibility"))
+      ) {
         if (url.includes("pending-supervision")) {
           return new Response(JSON.stringify(pendingPayload), {
             status: 200,
             headers: { "Content-Type": "application/json" },
           });
         }
-        if (url.includes("schedule-visibility")) {
-          return new Response(JSON.stringify(schedulePayload), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
+        return new Response(JSON.stringify(schedulePayload), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
       }
       return new Response(JSON.stringify({ detail: "Unauthorized" }), {
         status: 401,
@@ -184,7 +186,20 @@ describe("viewport validation", () => {
 
     await user.click(getByTestId("load-btn"));
     await waitFor(() => {
-      expect(getByTestId("list-mobile-cards")).toBeInTheDocument();
+      expect(getByTestId("week-view")).toBeInTheDocument();
+    });
+    await user.click(getByTestId("view-month"));
+    await waitFor(() => {
+      expect(getByTestId("month-calendar-view")).toBeInTheDocument();
+    });
+    // Mobile hides in-cell chips — select day then open focus chip.
+    await user.click(getByTestId("calendar-day-2026-07-20"));
+    await waitFor(() => {
+      expect(getByTestId("month-focus-chip")).toBeInTheDocument();
+    });
+    await user.click(getByTestId("month-focus-chip"));
+    await waitFor(() => {
+      expect(getByTestId("interim-event-panel")).toBeInTheDocument();
     });
     await user.click(getByTestId("row-defer"));
     await waitFor(() => {
@@ -194,6 +209,7 @@ describe("viewport validation", () => {
     await user.clear(datetime);
     await user.type(datetime, "2026-09-01T09:00:00");
 
+    allowReads = false;
     await user.click(getByTestId("load-btn"));
     await waitFor(() => {
       expect(getByTestId("session-banner").textContent).toMatch(/Session expired/i);

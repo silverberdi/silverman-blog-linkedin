@@ -16,7 +16,16 @@ import {
   sessionStateFromApiError,
   type SessionState,
 } from "../api/session";
-import { currentUtcMonth, type MonthCursor } from "./dateHelpers";
+import {
+  currentUtcMonth,
+  currentUtcWeek,
+  monthCursorFromDayKey,
+  monthsCoveringWeek,
+  sundayUtcWeekStart,
+  utcDayKey,
+  type MonthCursor,
+  type WeekCursor,
+} from "./dateHelpers";
 import {
   applyFilters,
   countHiddenCritical,
@@ -24,6 +33,7 @@ import {
   deriveOperationalCounts,
   emptyOperationalCounts,
   mergeCountUniverse,
+  mergeScheduleSnapshots,
   normalizePendingSupervision,
   normalizeScheduleVisibility,
   supervisionToFilterable,
@@ -44,6 +54,15 @@ export interface BannerState {
   text: string;
 }
 
+export type MetricFocusKey =
+  | "upcoming"
+  | "pending"
+  | "dueSoon"
+  | "deferred"
+  | "blocked"
+  | "failed"
+  | "recentlyPublished";
+
 interface SupervisionStoreValue {
   snapshot: SupervisionSnapshot | null;
   scheduleSnapshot: ScheduleSnapshot | null;
@@ -56,10 +75,16 @@ interface SupervisionStoreValue {
   showHiddenCritical: () => void;
   monthCursor: MonthCursor;
   setMonthCursor: (cursor: MonthCursor) => void;
+  weekCursor: WeekCursor;
+  setWeekCursor: (cursor: WeekCursor) => void;
   selectedDayKey: string | null;
   setSelectedDayKey: (dayKey: string | null) => void;
   selectedItemId: string | null;
   setSelectedItemId: (itemId: string | null) => void;
+  interimDetailItemId: string | null;
+  interimEntry: "week" | "month";
+  openInterimDetail: (itemId: string, entry?: "week" | "month") => void;
+  closeInterimDetail: () => void;
   dryRunDefault: boolean;
   setDryRunDefault: (value: boolean) => void;
   unsavedScheduleDraft: boolean;
@@ -82,7 +107,12 @@ interface SupervisionStoreValue {
     year?: number;
     month?: number;
   }) => Promise<boolean>;
+  loadScheduleForMonths: (
+    months: MonthCursor[],
+    options?: { preserveActionBanner?: boolean },
+  ) => Promise<boolean>;
   refreshAll: (options?: { preserveActionBanner?: boolean }) => Promise<boolean>;
+  navigateMetricFocus: (metric: MetricFocusKey) => void;
   filteredListItems: SupervisionItem[];
   filteredScheduleItems: ScheduleItem[];
   hiddenCriticalCount: number;
@@ -118,6 +148,38 @@ function isPreservingAuthFailure(err: ApiError): boolean {
   );
 }
 
+function itemMatchesMetric(item: ScheduleItem, metric: MetricFocusKey, nowMs: number): boolean {
+  if (metric === "upcoming") {
+    if (!item.scheduledAtUtc || item.publicationState === "cancelled") {
+      return false;
+    }
+    return Date.parse(item.scheduledAtUtc) >= nowMs;
+  }
+  if (metric === "blocked") {
+    return item.blocked || item.publicationState === "blocked";
+  }
+  if (metric === "dueSoon") {
+    if (!item.scheduledAtUtc || item.publicationState === "cancelled") {
+      return false;
+    }
+    const t = Date.parse(item.scheduledAtUtc);
+    return t >= nowMs && t <= nowMs + 48 * 60 * 60 * 1000;
+  }
+  if (metric === "failed") {
+    return item.critical || item.publicationState === "failed";
+  }
+  if (metric === "pending") {
+    return item.publicationState === "pending";
+  }
+  if (metric === "deferred") {
+    return item.publicationState === "deferred";
+  }
+  if (metric === "recentlyPublished") {
+    return item.publicationState === "published" && item.linkedinApiPublished;
+  }
+  return false;
+}
+
 export function SupervisionStoreProvider({
   children,
   client = apiClient,
@@ -130,11 +192,16 @@ export function SupervisionStoreProvider({
   const [snapshot, setSnapshot] = useState<SupervisionSnapshot | null>(null);
   const [scheduleSnapshot, setScheduleSnapshot] =
     useState<ScheduleSnapshot | null>(null);
-  const [activeView, setActiveViewState] = useState<ConsoleView>("list");
+  const [activeView, setActiveViewState] = useState<ConsoleView>("week");
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [monthCursor, setMonthCursor] = useState<MonthCursor>(currentUtcMonth);
+  const [weekCursor, setWeekCursor] = useState<WeekCursor>(currentUtcWeek);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [interimDetailItemId, setInterimDetailItemId] = useState<string | null>(
+    null,
+  );
+  const [interimEntry, setInterimEntry] = useState<"week" | "month">("week");
   const [dryRunDefault, setDryRunDefault] = useState(true);
   const [unsavedScheduleDraft, setUnsavedScheduleDraft] = useState(false);
   const [scheduleEditorTarget, setScheduleEditorTarget] =
@@ -164,7 +231,6 @@ export function SupervisionStoreProvider({
     client.clearAuth();
     bumpAuth();
     setSessionState("anonymous");
-    // Do not clear snapshots or schedule-editor drafts — operator may re-auth.
     setStatusBanner({
       kind: "info",
       text: "Credential cleared for this browser session. Sign in again to load or mutate. Visible context and unsaved drafts are kept until you discard them.",
@@ -214,6 +280,19 @@ export function SupervisionStoreProvider({
     [activeView, unsavedScheduleDraft],
   );
 
+  const openInterimDetail = useCallback(
+    (itemId: string, entry: "week" | "month" = "week") => {
+      setSelectedItemId(itemId);
+      setInterimDetailItemId(itemId);
+      setInterimEntry(entry);
+    },
+    [],
+  );
+
+  const closeInterimDetail = useCallback(() => {
+    setInterimDetailItemId(null);
+  }, []);
+
   const openScheduleEditor = useCallback((target: ScheduleEditorTarget) => {
     setScheduleEditorTarget(target);
     setSelectedItemId(target.itemId);
@@ -251,7 +330,7 @@ export function SupervisionStoreProvider({
         if (next.status === "partial" || next.issues.length) {
           setStatusBanner({
             kind: "warn",
-            text: "Partial read: some campaign, calendar, or draft data could not be fully aligned. Successful pending rows are still shown below when available.",
+            text: "Partial read: some campaign, calendar, or draft data could not be fully aligned. Successful pending rows are still shown when available.",
           });
         } else {
           setStatusBanner({
@@ -271,7 +350,6 @@ export function SupervisionStoreProvider({
           kind: "error",
           text: apiErr?.message || String(err),
         });
-        // Preserve visible list context on expiry / forbidden / unavailable.
         if (!isPreservingAuthFailure(apiErr)) {
           setSnapshot(null);
         }
@@ -283,18 +361,26 @@ export function SupervisionStoreProvider({
     [client, applySessionFromError, bumpAuth],
   );
 
-  const loadScheduleVisibility = useCallback(
-    async (options?: {
-      preserveActionBanner?: boolean;
-      year?: number;
-      month?: number;
-    }) => {
-      const year = options?.year ?? monthCursor.year;
-      const month = options?.month ?? monthCursor.month;
+  const loadScheduleForMonths = useCallback(
+    async (
+      months: MonthCursor[],
+      options?: { preserveActionBanner?: boolean },
+    ) => {
+      if (months.length === 0) {
+        return false;
+      }
       setLoading(true);
       try {
-        const payload = await client.getScheduleVisibility({ year, month });
-        const next = normalizeScheduleVisibility(payload);
+        const payloads = await Promise.all(
+          months.map((m) =>
+            client.getScheduleVisibility({ year: m.year, month: m.month }),
+          ),
+        );
+        const normalized = payloads.map(normalizeScheduleVisibility);
+        const next =
+          normalized.length === 1
+            ? normalized[0]
+            : mergeScheduleSnapshots(normalized[0], normalized.slice(1));
         setScheduleSnapshot(next);
         bumpAuth();
         setSessionState("authenticated");
@@ -329,22 +415,44 @@ export function SupervisionStoreProvider({
         setLoading(false);
       }
     },
-    [client, monthCursor.month, monthCursor.year, applySessionFromError, bumpAuth],
+    [client, applySessionFromError, bumpAuth],
+  );
+
+  const loadScheduleVisibility = useCallback(
+    async (options?: {
+      preserveActionBanner?: boolean;
+      year?: number;
+      month?: number;
+    }) => {
+      const year = options?.year ?? monthCursor.year;
+      const month = options?.month ?? monthCursor.month;
+      return loadScheduleForMonths([{ year, month }], {
+        preserveActionBanner: options?.preserveActionBanner,
+      });
+    },
+    [monthCursor.month, monthCursor.year, loadScheduleForMonths],
   );
 
   const refreshAll = useCallback(
     async (options?: { preserveActionBanner?: boolean }) => {
       setLoading(true);
       try {
-        const [pendingPayload, schedulePayload] = await Promise.all([
+        const months =
+          activeView === "week"
+            ? monthsCoveringWeek(weekCursor.weekStartKey)
+            : [monthCursor];
+        const [pendingPayload, ...schedulePayloads] = await Promise.all([
           client.getPendingSupervision(),
-          client.getScheduleVisibility({
-            year: monthCursor.year,
-            month: monthCursor.month,
-          }),
+          ...months.map((m) =>
+            client.getScheduleVisibility({ year: m.year, month: m.month }),
+          ),
         ]);
         const nextPending = normalizePendingSupervision(pendingPayload);
-        const nextSchedule = normalizeScheduleVisibility(schedulePayload);
+        const normalized = schedulePayloads.map(normalizeScheduleVisibility);
+        const nextSchedule =
+          normalized.length === 1
+            ? normalized[0]
+            : mergeScheduleSnapshots(normalized[0], normalized.slice(1));
         setSnapshot(nextPending);
         setScheduleSnapshot(nextSchedule);
         bumpAuth();
@@ -377,7 +485,6 @@ export function SupervisionStoreProvider({
           kind: "error",
           text: apiErr?.message || String(err),
         });
-        // Keep last-loaded snapshots on auth/availability failures (expiry mid-edit).
         return false;
       } finally {
         setLoading(false);
@@ -385,8 +492,9 @@ export function SupervisionStoreProvider({
     },
     [
       client,
-      monthCursor.month,
-      monthCursor.year,
+      activeView,
+      weekCursor.weekStartKey,
+      monthCursor,
       applySessionFromError,
       bumpAuth,
     ],
@@ -403,6 +511,86 @@ export function SupervisionStoreProvider({
   const filteredScheduleItems = useMemo(() => {
     return applyFilters(scheduleSnapshot?.items ?? [], filters);
   }, [scheduleSnapshot, filters]);
+
+  const navigateMetricFocus = useCallback(
+    (metric: MetricFocusKey) => {
+      // Design D4: reset focus flags then apply target; navigate Week/Month only.
+      setFilters((prev) => {
+        const cleared = {
+          ...prev,
+          blockedOnly: false,
+          dueSoonOnly: false,
+          publicationStates: [] as typeof prev.publicationStates,
+        };
+        if (metric === "blocked") {
+          return { ...cleared, blockedOnly: true };
+        }
+        if (metric === "dueSoon") {
+          return { ...cleared, dueSoonOnly: true };
+        }
+        if (metric === "failed") {
+          return { ...cleared, publicationStates: ["failed"] };
+        }
+        if (metric === "pending") {
+          return { ...cleared, publicationStates: ["pending"] };
+        }
+        if (metric === "deferred") {
+          return { ...cleared, publicationStates: ["deferred"] };
+        }
+        if (metric === "recentlyPublished") {
+          return { ...cleared, publicationStates: ["published"] };
+        }
+        return cleared;
+      });
+
+      const nowMs = Date.now();
+      const universe = scheduleSnapshot?.items ?? [];
+      const channelOk = (item: ScheduleItem) =>
+        filters.channel === "all" || item.channel === filters.channel;
+      const campaignOk = (item: ScheduleItem) => {
+        const q = filters.campaignQuery.trim().toLowerCase();
+        if (!q) {
+          return true;
+        }
+        return (
+          (item.campaignId ?? "").toLowerCase().includes(q) ||
+          (item.title ?? "").toLowerCase().includes(q) ||
+          (item.variantId ?? "").toLowerCase().includes(q)
+        );
+      };
+      const matches = universe
+        .filter(
+          (item) =>
+            channelOk(item) &&
+            campaignOk(item) &&
+            itemMatchesMetric(item, metric, nowMs),
+        )
+        .sort((a, b) =>
+          (a.scheduledAtUtc ?? "").localeCompare(b.scheduledAtUtc ?? ""),
+        );
+
+      if (matches.length === 0) {
+        return;
+      }
+
+      const next = matches[0];
+      const dayKey = utcDayKey(next.scheduledAtUtc);
+      if (!dayKey) {
+        return;
+      }
+
+      if (activeView === "month") {
+        setMonthCursor(monthCursorFromDayKey(dayKey));
+        setSelectedDayKey(dayKey);
+      } else {
+        setWeekCursor({ weekStartKey: sundayUtcWeekStart(dayKey) });
+        setMonthCursor(monthCursorFromDayKey(dayKey));
+        setSelectedDayKey(dayKey);
+      }
+      setSelectedItemId(next.itemId);
+    },
+    [scheduleSnapshot, filters.channel, filters.campaignQuery, activeView],
+  );
 
   const hiddenCriticalCount = useMemo(() => {
     const scheduleAll = scheduleSnapshot?.items ?? [];
@@ -461,10 +649,16 @@ export function SupervisionStoreProvider({
       showHiddenCritical,
       monthCursor,
       setMonthCursor,
+      weekCursor,
+      setWeekCursor,
       selectedDayKey,
       setSelectedDayKey,
       selectedItemId,
       setSelectedItemId,
+      interimDetailItemId,
+      interimEntry,
+      openInterimDetail,
+      closeInterimDetail,
       dryRunDefault,
       setDryRunDefault,
       unsavedScheduleDraft,
@@ -483,7 +677,9 @@ export function SupervisionStoreProvider({
       setActionBanner,
       loadPending,
       loadScheduleVisibility,
+      loadScheduleForMonths,
       refreshAll,
+      navigateMetricFocus,
       filteredListItems,
       filteredScheduleItems,
       hiddenCriticalCount,
@@ -502,8 +698,13 @@ export function SupervisionStoreProvider({
       resetFilters,
       showHiddenCritical,
       monthCursor,
+      weekCursor,
       selectedDayKey,
       selectedItemId,
+      interimDetailItemId,
+      interimEntry,
+      openInterimDetail,
+      closeInterimDetail,
       dryRunDefault,
       unsavedScheduleDraft,
       scheduleEditorTarget,
@@ -518,7 +719,9 @@ export function SupervisionStoreProvider({
       caps.canMutate,
       loadPending,
       loadScheduleVisibility,
+      loadScheduleForMonths,
       refreshAll,
+      navigateMetricFocus,
       filteredListItems,
       filteredScheduleItems,
       hiddenCriticalCount,

@@ -183,17 +183,17 @@ describe("MonthCalendarView dual-view UX", () => {
     vi.restoreAllMocks();
   });
 
-  it("navigates months, places items on UTC days, and expands agenda", async () => {
+  it("navigates months, places items on UTC days, and focuses day chips", async () => {
     const client = createClient();
     const user = userEvent.setup();
     render(<App client={client} />);
 
     await user.click(screen.getByTestId("load-btn"));
     await waitFor(() => {
-      expect(screen.getByTestId("list-view")).toBeInTheDocument();
+      expect(screen.getByTestId("week-view")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByTestId("view-calendar"));
+    await user.click(screen.getByTestId("view-month"));
     await waitFor(() => {
       expect(screen.getByTestId("month-calendar-view")).toBeInTheDocument();
     });
@@ -205,10 +205,12 @@ describe("MonthCalendarView dual-view UX", () => {
     expect(dayBtn.textContent).toMatch(/linkedin/i);
     await user.click(dayBtn);
 
-    const agenda = screen.getByTestId("calendar-agenda");
-    expect(within(agenda).getByTestId("agenda-list")).toBeInTheDocument();
+    expect(screen.getByTestId("month-day-focus")).toBeInTheDocument();
+    expect(screen.getByTestId("month-day-chip-list")).toBeInTheDocument();
     expect(
-      within(agenda).getByTestId("calendar-chip"),
+      within(screen.getByTestId("month-day-chip-list")).getByTestId(
+        "month-focus-chip",
+      ),
     ).toHaveAttribute(
       "data-item-id",
       "linkedin:camp-1:engineering-leadership",
@@ -216,7 +218,7 @@ describe("MonthCalendarView dual-view UX", () => {
 
     const emptyDay = screen.getByTestId("calendar-day-2026-07-05");
     await user.click(emptyDay);
-    expect(screen.getByTestId("agenda-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("month-day-focus").textContent).toMatch(/0 items/);
 
     await user.click(screen.getByTestId("calendar-next"));
     await waitFor(() => {
@@ -226,7 +228,7 @@ describe("MonthCalendarView dual-view UX", () => {
     });
   });
 
-  it("keeps filters when switching List ↔ Month calendar", async () => {
+  it("keeps filters when switching Week ↔ Month", async () => {
     const client = createClient();
     const user = userEvent.setup();
     render(<App client={client} />);
@@ -237,10 +239,10 @@ describe("MonthCalendarView dual-view UX", () => {
     });
 
     await user.selectOptions(screen.getByTestId("filter-channel"), "linkedin");
-    await user.click(screen.getByTestId("view-calendar"));
+    await user.click(screen.getByTestId("view-month"));
     expect(screen.getByTestId("filter-channel")).toHaveValue("linkedin");
 
-    await user.click(screen.getByTestId("view-list"));
+    await user.click(screen.getByTestId("view-week"));
     expect(screen.getByTestId("filter-channel")).toHaveValue("linkedin");
   });
 
@@ -254,7 +256,7 @@ describe("MonthCalendarView dual-view UX", () => {
       expect(screen.getByTestId("filters")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByTestId("view-calendar"));
+    await user.click(screen.getByTestId("view-month"));
     await waitFor(() => {
       expect(screen.getByTestId("month-calendar-view")).toBeInTheDocument();
     });

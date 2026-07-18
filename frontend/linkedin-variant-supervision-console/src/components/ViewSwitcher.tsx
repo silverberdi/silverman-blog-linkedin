@@ -1,8 +1,9 @@
 import type { ConsoleView } from "../models/supervision";
 
 /**
- * Persistent desktop/mobile view switcher. Context preservation is owned by the
- * store; this control only requests a view change (which may warn on unsaved drafts).
+ * Persistent desktop/mobile view switcher (US-040G): Week | Month only.
+ * Context preservation is owned by the store; this control only requests a view
+ * change (which may warn on unsaved drafts).
  */
 export function ViewSwitcher({
   activeView,
@@ -16,22 +17,22 @@ export function ViewSwitcher({
       <button
         type="button"
         role="tab"
-        aria-selected={activeView === "list"}
-        className={activeView === "list" ? "active-view" : "secondary"}
-        onClick={() => onChange("list")}
-        data-testid="view-list"
+        aria-selected={activeView === "week"}
+        className={activeView === "week" ? "active-view" : "secondary"}
+        onClick={() => onChange("week")}
+        data-testid="view-week"
       >
-        List
+        Week
       </button>
       <button
         type="button"
         role="tab"
-        aria-selected={activeView === "calendar"}
-        className={activeView === "calendar" ? "active-view" : "secondary"}
-        onClick={() => onChange("calendar")}
-        data-testid="view-calendar"
+        aria-selected={activeView === "month"}
+        className={activeView === "month" ? "active-view" : "secondary"}
+        onClick={() => onChange("month")}
+        data-testid="view-month"
       >
-        Month calendar
+        Month
       </button>
     </div>
   );

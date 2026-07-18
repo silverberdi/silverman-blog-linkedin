@@ -1,7 +1,8 @@
 import { AppShell } from "./components/AppShell";
-import { ListView } from "./components/ListView";
+import { InterimEventPanel } from "./components/InterimEventPanel";
 import { MonthCalendarView } from "./components/MonthCalendarView";
 import { ScheduleEditorPanel } from "./components/ScheduleEditor";
+import { WeekView } from "./components/WeekView";
 import {
   SupervisionStoreProvider,
   useSupervisionStore,
@@ -13,7 +14,8 @@ function ConsoleBody() {
   return (
     <>
       <ScheduleEditorPanel />
-      {activeView === "calendar" ? <MonthCalendarView /> : <ListView />}
+      <InterimEventPanel />
+      {activeView === "month" ? <MonthCalendarView /> : <WeekView />}
     </>
   );
 }
