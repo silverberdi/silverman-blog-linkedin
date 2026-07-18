@@ -312,12 +312,13 @@ Use this checklist to track business progress. Mark items only when the stated b
 - [ ] **BL-012 — Consolidate Recovery for Incomplete Campaigns**
   - Business outcome: Incomplete campaigns can be resumed or repaired safely and predictably.
   - [ ] **US-031**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — automated fixtures (inspect last-valid-stage, resume short-circuits, repair allowlist, blocks/failures visible); not operator-accepted yet
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
+    - Implementation evidence: [flow-a-incomplete-campaign-recovery.md](../operations/flow-a-incomplete-campaign-recovery.md)
   - [ ] **US-032**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed

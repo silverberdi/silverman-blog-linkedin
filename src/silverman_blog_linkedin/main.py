@@ -40,6 +40,16 @@ from silverman_blog_linkedin.editorial_calendar_plan import (
 from silverman_blog_linkedin.flow_a_ready_path_completion import (
     complete_flow_a_ready_path,
 )
+from silverman_blog_linkedin.flow_a_incomplete_campaign_recovery import (
+    REASON_CAMPAIGN_NOT_FOUND,
+    REASON_INVALID_CAMPAIGN_ID,
+    REASON_MALFORMED_CAMPAIGN,
+    REASON_NOT_FLOW_A,
+    STOP_AFTER_STAGE_VALUES,
+    inspect_incomplete_campaign_recovery,
+    repair_incomplete_campaign_recovery,
+    resume_incomplete_campaign_recovery,
+)
 from silverman_blog_linkedin.flow_a_operational_alerts import (
     ORCHESTRATION_REASON_CODES,
     evaluate_flow_a_operational_alerts,
@@ -699,6 +709,67 @@ class EvaluateFlowAOperationalAlertsRequest(BaseModel):
         if value is None:
             return None
         return validate_canonical_utc_timestamp(value)
+
+
+class ResumeIncompleteCampaignRecoveryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str
+    dry_run: bool = False
+    stop_after_stage: str | None = None
+
+    @field_validator("campaign_id")
+    @classmethod
+    def validate_campaign_id_field(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("campaign_id must not be empty")
+        if stripped.startswith("/") or ".." in stripped or "\\" in stripped:
+            raise ValueError("campaign_id must not be an absolute or escaping path")
+        try:
+            validate_campaign_id(stripped)
+        except CampaignLifecycleError as exc:
+            raise ValueError(str(exc)) from exc
+        return stripped
+
+    @field_validator("stop_after_stage")
+    @classmethod
+    def validate_stop_after_stage(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if stripped not in STOP_AFTER_STAGE_VALUES:
+            raise ValueError(
+                "stop_after_stage must be one of: "
+                + ", ".join(sorted(STOP_AFTER_STAGE_VALUES))
+            )
+        return stripped
+
+
+class RepairIncompleteCampaignRecoveryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str
+    repair_action: Literal[
+        "sync_location_from_filesystem",
+        "clear_stale_execution_claim",
+        "complete_partial_source_move",
+    ]
+    dry_run: bool = False
+
+    @field_validator("campaign_id")
+    @classmethod
+    def validate_campaign_id_field(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("campaign_id must not be empty")
+        if stripped.startswith("/") or ".." in stripped or "\\" in stripped:
+            raise ValueError("campaign_id must not be an absolute or escaping path")
+        try:
+            validate_campaign_id(stripped)
+        except CampaignLifecycleError as exc:
+            raise ValueError(str(exc)) from exc
+        return stripped
 
 
 _SAFE_ORCHESTRATION_TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
@@ -2047,6 +2118,102 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             len(result.data_issues),
         )
         return result.to_dict()
+
+    @app.get("/flow-a/incomplete-campaign-recovery/{campaign_id}")
+    def flow_a_incomplete_campaign_recovery_inspect(
+        campaign_id: str,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        stripped = campaign_id.strip()
+        if (
+            not stripped
+            or stripped.startswith("/")
+            or ".." in stripped
+            or "\\" in stripped
+        ):
+            raise HTTPException(status_code=422, detail="invalid campaign_id")
+        try:
+            validate_campaign_id(stripped)
+        except CampaignLifecycleError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        result = inspect_incomplete_campaign_recovery(settings.base_path, stripped)
+        logger.info(
+            "flow-a/incomplete-campaign-recovery inspect campaign_id=%s "
+            "outcome=%s reason_code=%s last_valid_stage=%s",
+            result.campaign_id,
+            result.outcome,
+            result.reason_code,
+            result.last_valid_stage,
+        )
+        payload = result.to_dict()
+        if result.reason_code in {
+            REASON_CAMPAIGN_NOT_FOUND,
+            REASON_INVALID_CAMPAIGN_ID,
+            REASON_MALFORMED_CAMPAIGN,
+            REASON_NOT_FLOW_A,
+        }:
+            raise HTTPException(status_code=404, detail=payload)
+        return payload
+
+    @app.post("/flow-a/incomplete-campaign-recovery/resume")
+    def flow_a_incomplete_campaign_recovery_resume(
+        body: ResumeIncompleteCampaignRecoveryRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = resume_incomplete_campaign_recovery(
+            settings.base_path,
+            campaign_id=body.campaign_id,
+            dry_run=body.dry_run,
+            stop_after_stage=body.stop_after_stage,
+        )
+        logger.info(
+            "flow-a/incomplete-campaign-recovery resume campaign_id=%s "
+            "outcome=%s reason_code=%s dry_run=%s last_valid_stage=%s",
+            result.campaign_id,
+            result.outcome,
+            result.reason_code,
+            body.dry_run,
+            result.last_valid_stage,
+        )
+        payload = result.to_dict()
+        if result.reason_code in {
+            REASON_CAMPAIGN_NOT_FOUND,
+            REASON_INVALID_CAMPAIGN_ID,
+            REASON_MALFORMED_CAMPAIGN,
+            REASON_NOT_FLOW_A,
+        }:
+            raise HTTPException(status_code=404, detail=payload)
+        return payload
+
+    @app.post("/flow-a/incomplete-campaign-recovery/repair")
+    def flow_a_incomplete_campaign_recovery_repair(
+        body: RepairIncompleteCampaignRecoveryRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = repair_incomplete_campaign_recovery(
+            settings.base_path,
+            campaign_id=body.campaign_id,
+            repair_action=body.repair_action,
+            dry_run=body.dry_run,
+        )
+        logger.info(
+            "flow-a/incomplete-campaign-recovery repair campaign_id=%s "
+            "outcome=%s reason_code=%s repair_action=%s dry_run=%s",
+            result.campaign_id,
+            result.outcome,
+            result.reason_code,
+            body.repair_action,
+            body.dry_run,
+        )
+        payload = result.to_dict()
+        if result.reason_code in {
+            REASON_CAMPAIGN_NOT_FOUND,
+            REASON_INVALID_CAMPAIGN_ID,
+            REASON_MALFORMED_CAMPAIGN,
+            REASON_NOT_FLOW_A,
+        }:
+            raise HTTPException(status_code=404, detail=payload)
+        return payload
 
     @app.post("/flow-a/operational-alerts/evaluate")
     def flow_a_operational_alerts_evaluate(
