@@ -1,10 +1,11 @@
-"""Flow A incomplete-campaign recovery: inspect, resume, and allowlisted repair."""
+"""Flow A incomplete-campaign recovery: inspect, resume, repair, cancel, history."""
 
 from __future__ import annotations
 
 import hashlib
 import json
 import shutil
+import uuid
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -82,6 +83,45 @@ REASON_OK = "flow_a_recovery_ok"
 REASON_NOOP = "flow_a_recovery_noop"
 REASON_PARTIAL = "flow_a_recovery_partial"
 REASON_DRY_RUN = "flow_a_recovery_dry_run"
+REASON_CANCELLED = "flow_a_recovery_cancelled"
+REASON_OPERATOR_CANCELLED = "operator_cancelled"
+
+# Operator-facing recovery-action taxonomy (complements recovery_classification).
+ACTION_NOOP_ALREADY_COMPLETE = "noop_already_complete"
+ACTION_RESUME = "resume"
+ACTION_REPAIR = "repair"
+ACTION_REQUEUE = "requeue"
+ACTION_MANUAL_INTERVENTION = "manual_intervention"
+ACTION_CANCEL_RECOVERY = "cancel_recovery"
+
+RECOMMENDED_RECOVERY_ACTIONS = frozenset(
+    {
+        ACTION_NOOP_ALREADY_COMPLETE,
+        ACTION_RESUME,
+        ACTION_REPAIR,
+        ACTION_REQUEUE,
+        ACTION_MANUAL_INTERVENTION,
+        ACTION_CANCEL_RECOVERY,
+    }
+)
+
+EXECUTED_RESUME = "resume"
+EXECUTED_REPAIR = "repair"
+EXECUTED_CANCEL = "cancel"
+EXECUTED_NOOP = "noop"
+
+EXECUTED_RECOVERY_ACTIONS = frozenset(
+    {EXECUTED_RESUME, EXECUTED_REPAIR, EXECUTED_CANCEL, EXECUTED_NOOP}
+)
+
+RECOVERY_OPERATION_RESUME = "resume"
+RECOVERY_OPERATION_REPAIR = "repair"
+RECOVERY_OPERATION_CANCEL = "cancel"
+
+ATTEMPT_LEDGER_MAX = 50
+INSPECT_ATTEMPTS_MAX = 20
+OPERATOR_TEXT_MAX_LEN = 200
+CANCEL_REASON_CODE_MAX_LEN = 64
 
 # Durable milestones for last_valid_stage (pipeline order).
 DURABLE_MILESTONES: tuple[str, ...] = (
@@ -172,6 +212,11 @@ class IncompleteCampaignRecoveryResult:
     after: dict[str, Any] | None = None
     repair_action: str | None = None
     errors: list[str] = field(default_factory=list)
+    recommended_recovery_action: str | None = None
+    executed_recovery_action: str | None = None
+    recovery_cancel: dict[str, Any] | None = None
+    recovery_attempts: list[dict[str, Any]] | None = None
+    attempt: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -183,6 +228,16 @@ class IncompleteCampaignRecoveryResult:
             "last_valid_stage": self.last_valid_stage,
             "next_stage": self.next_stage,
         }
+        if self.recommended_recovery_action is not None:
+            payload["recommended_recovery_action"] = self.recommended_recovery_action
+        if self.executed_recovery_action is not None:
+            payload["executed_recovery_action"] = self.executed_recovery_action
+        if self.recovery_cancel is not None:
+            payload["recovery_cancel"] = self.recovery_cancel
+        if self.recovery_attempts is not None:
+            payload["recovery_attempts"] = list(self.recovery_attempts)
+        if self.attempt is not None:
+            payload["attempt"] = self.attempt
         if self.dry_run:
             payload["dry_run"] = True
         if self.block_reason is not None:
@@ -198,6 +253,317 @@ class IncompleteCampaignRecoveryResult:
         if self.errors:
             payload["errors"] = list(self.errors)
         return payload
+
+
+def _sanitize_operator_text(
+    value: str | None, *, max_len: int = OPERATOR_TEXT_MAX_LEN
+) -> str | None:
+    if value is None:
+        return None
+    text = " ".join(str(value).split())
+    if not text:
+        return None
+    return text[:max_len]
+
+
+def _sanitize_reason_code(value: str | None, *, default: str) -> str:
+    cleaned = _sanitize_operator_text(value, max_len=CANCEL_REASON_CODE_MAX_LEN)
+    if cleaned is None:
+        return default
+    # Stable token: letters, digits, underscore, hyphen only.
+    token = "".join(
+        ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in cleaned
+    ).strip("_-")
+    return token[:CANCEL_REASON_CODE_MAX_LEN] or default
+
+
+def empty_flow_a_recovery() -> dict[str, Any]:
+    return {
+        "cancelled": False,
+        "cancelled_at": None,
+        "cancel_reason_code": None,
+        "cancel_summary": None,
+        "attempts": [],
+    }
+
+
+def normalize_flow_a_recovery(campaign: dict[str, Any] | None) -> dict[str, Any]:
+    """Return a normalized flow_a_recovery view; missing means not cancelled."""
+    if not isinstance(campaign, dict):
+        return empty_flow_a_recovery()
+    raw = campaign.get("flow_a_recovery")
+    if not isinstance(raw, dict):
+        return empty_flow_a_recovery()
+    attempts_raw = raw.get("attempts")
+    attempts: list[dict[str, Any]] = []
+    if isinstance(attempts_raw, list):
+        for entry in attempts_raw:
+            if isinstance(entry, dict):
+                attempts.append(dict(entry))
+    return {
+        "cancelled": bool(raw.get("cancelled") is True),
+        "cancelled_at": raw.get("cancelled_at")
+        if isinstance(raw.get("cancelled_at"), str)
+        else None,
+        "cancel_reason_code": raw.get("cancel_reason_code")
+        if isinstance(raw.get("cancel_reason_code"), str)
+        else None,
+        "cancel_summary": raw.get("cancel_summary")
+        if isinstance(raw.get("cancel_summary"), str)
+        else None,
+        "attempts": attempts,
+    }
+
+
+def is_recovery_cancelled(campaign: dict[str, Any] | None) -> bool:
+    return normalize_flow_a_recovery(campaign)["cancelled"] is True
+
+
+def recovery_cancel_payload(campaign: dict[str, Any] | None) -> dict[str, Any]:
+    recovery = normalize_flow_a_recovery(campaign)
+    payload: dict[str, Any] = {"cancelled": recovery["cancelled"]}
+    if recovery["cancelled"]:
+        if recovery["cancelled_at"] is not None:
+            payload["cancelled_at"] = recovery["cancelled_at"]
+        if recovery["cancel_reason_code"] is not None:
+            payload["reason_code"] = recovery["cancel_reason_code"]
+        if recovery["cancel_summary"] is not None:
+            payload["summary"] = recovery["cancel_summary"]
+    return payload
+
+
+def recent_recovery_attempts(
+    campaign: dict[str, Any] | None, *, limit: int = INSPECT_ATTEMPTS_MAX
+) -> list[dict[str, Any]]:
+    attempts = normalize_flow_a_recovery(campaign)["attempts"]
+    if limit <= 0:
+        return []
+    # Persist oldest→newest; inspect returns most recent last window (newest last).
+    return [dict(entry) for entry in attempts[-limit:]]
+
+
+def build_recovery_attempt(
+    *,
+    operation: str,
+    executed_recovery_action: str,
+    outcome: str,
+    reason_code: str,
+    summary: str,
+    last_valid_stage: str | None = None,
+    recovery_classification: str | None = None,
+    repair_action: str | None = None,
+) -> dict[str, Any]:
+    """Build a secret-safe ledger entry (never includes bodies/tokens/paths)."""
+    attempt: dict[str, Any] = {
+        "attempt_id": str(uuid.uuid4()),
+        "recorded_at": utc_now_iso(),
+        "operation": operation,
+        "executed_recovery_action": executed_recovery_action,
+        "dry_run": False,
+        "outcome": outcome,
+        "reason_code": reason_code,
+        "summary": _sanitize_operator_text(summary) or "",
+    }
+    if last_valid_stage is not None:
+        attempt["last_valid_stage"] = last_valid_stage
+    if (
+        isinstance(recovery_classification, str)
+        and recovery_classification in RECOVERY_CLASSIFICATIONS
+    ):
+        attempt["recovery_classification"] = recovery_classification
+    if repair_action is not None:
+        attempt["repair_action"] = repair_action
+    return attempt
+
+
+def append_recovery_attempt(
+    campaign: dict[str, Any], attempt: dict[str, Any]
+) -> dict[str, Any]:
+    """Append attempt to campaign copy; FIFO-trim oldest when over cap."""
+    working = deepcopy(campaign)
+    recovery = normalize_flow_a_recovery(working)
+    attempts = list(recovery["attempts"])
+    attempts.append(dict(attempt))
+    if len(attempts) > ATTEMPT_LEDGER_MAX:
+        attempts = attempts[-ATTEMPT_LEDGER_MAX:]
+    recovery["attempts"] = attempts
+    working["flow_a_recovery"] = recovery
+    working["updated_at"] = utc_now_iso()
+    return working
+
+
+def recommend_recovery_action(
+    campaign: dict[str, Any] | None,
+    *,
+    last_valid_stage: str | None,
+    recovery_classification: str,
+    ambiguous: bool = False,
+    location: str | None = None,
+    has_active_non_stale_claim: bool = False,
+) -> str:
+    """Deterministic taxonomy complementary to recovery_classification."""
+    if is_recovery_cancelled(campaign):
+        return ACTION_CANCEL_RECOVERY
+    if last_valid_stage == STATE_FLOW_A_COMPLETE and not ambiguous:
+        return ACTION_NOOP_ALREADY_COMPLETE
+    effective_location = location
+    if effective_location is None and isinstance(campaign, dict):
+        status = normalize_source_file_status(campaign.get("source_file_status"))
+        effective_location = status.get("location")
+    if (
+        recovery_classification == RECOVERY_REQUEUE_REQUIRED
+        or effective_location == SOURCE_LOCATION_ERROR
+    ):
+        return ACTION_REQUEUE
+    if recovery_classification == RECOVERY_REPAIR_REQUIRED or ambiguous:
+        return ACTION_REPAIR
+    if (
+        recovery_classification == RECOVERY_MANUAL_INTERVENTION_REQUIRED
+        or has_active_non_stale_claim
+    ):
+        return ACTION_MANUAL_INTERVENTION
+    if last_valid_stage != STATE_FLOW_A_COMPLETE and recovery_classification in {
+        RECOVERY_RETRYABLE,
+        RECOVERY_NO_ACTION,
+    }:
+        return ACTION_RESUME
+    return ACTION_MANUAL_INTERVENTION
+
+
+def _executed_action_for_resume(result: IncompleteCampaignRecoveryResult) -> str:
+    if (
+        result.outcome == "noop"
+        and result.reason_code == REASON_ALREADY_COMPLETE
+    ):
+        return EXECUTED_NOOP
+    return EXECUTED_RESUME
+
+
+def _executed_action_for_repair(result: IncompleteCampaignRecoveryResult) -> str:
+    if result.outcome == "noop":
+        return EXECUTED_NOOP
+    return EXECUTED_REPAIR
+
+
+def _enrich_result_fields(
+    result: IncompleteCampaignRecoveryResult,
+    campaign: dict[str, Any] | None,
+    *,
+    ambiguous: bool = False,
+    include_attempts: bool = False,
+    executed_recovery_action: str | None = None,
+) -> IncompleteCampaignRecoveryResult:
+    location = None
+    has_claim = False
+    if isinstance(campaign, dict):
+        status = normalize_source_file_status(campaign.get("source_file_status"))
+        location = status.get("location")
+        has_claim = (
+            status.get("execution_state") == EXECUTION_STATE_PROCESSING
+            and not is_execution_stale(status)
+        )
+    if result.reason_code == REASON_CANCELLED:
+        recommended = ACTION_CANCEL_RECOVERY
+    elif result.reason_code == REASON_EVIDENCE_AMBIGUOUS:
+        recommended = recommend_recovery_action(
+            campaign,
+            last_valid_stage=result.last_valid_stage,
+            recovery_classification=result.recovery_classification,
+            ambiguous=True,
+            location=location,
+            has_active_non_stale_claim=has_claim,
+        )
+    else:
+        recommended = recommend_recovery_action(
+            campaign,
+            last_valid_stage=result.last_valid_stage,
+            recovery_classification=result.recovery_classification,
+            ambiguous=ambiguous,
+            location=location,
+            has_active_non_stale_claim=(
+                has_claim or result.reason_code == REASON_ACTIVE_CLAIM
+            ),
+        )
+    result.recommended_recovery_action = recommended
+    result.recovery_cancel = recovery_cancel_payload(campaign)
+    if include_attempts:
+        result.recovery_attempts = recent_recovery_attempts(campaign)
+    if executed_recovery_action is not None:
+        result.executed_recovery_action = executed_recovery_action
+    return result
+
+
+def _persist_attempt_and_enrich(
+    base_path: Path,
+    result: IncompleteCampaignRecoveryResult,
+    *,
+    operation: str,
+    dry_run: bool,
+    executed_recovery_action: str,
+) -> IncompleteCampaignRecoveryResult:
+    """Enrich response; append ledger only for applied control-path completions."""
+    campaign: dict[str, Any] | None = None
+    try:
+        campaign = load_flow_a_campaign_for_recovery(base_path, result.campaign_id)
+    except CampaignLoadError:
+        campaign = None
+
+    ambiguous = result.reason_code == REASON_EVIDENCE_AMBIGUOUS
+    result = _enrich_result_fields(
+        result,
+        campaign,
+        ambiguous=ambiguous,
+        include_attempts=False,
+        executed_recovery_action=executed_recovery_action,
+    )
+
+    if dry_run or campaign is None:
+        return result
+
+    attempt = build_recovery_attempt(
+        operation=operation,
+        executed_recovery_action=executed_recovery_action,
+        outcome=result.outcome,
+        reason_code=result.reason_code,
+        summary=result.summary,
+        last_valid_stage=result.last_valid_stage,
+        recovery_classification=result.recovery_classification,
+        repair_action=result.repair_action,
+    )
+    updated = append_recovery_attempt(campaign, attempt)
+    write_result = write_campaign_metadata(base_path, result.campaign_id, updated)
+    if write_result.written:
+        result.attempt = attempt
+        result.recovery_cancel = recovery_cancel_payload(updated)
+    return result
+
+
+def _cancelled_block_result(
+    campaign_id: str,
+    campaign: dict[str, Any],
+    *,
+    dry_run: bool,
+    repair_action: str | None = None,
+) -> IncompleteCampaignRecoveryResult:
+    derivation = derive_last_valid_stage(campaign)
+    last_valid = derivation.last_valid_stage
+    return IncompleteCampaignRecoveryResult(
+        campaign_id=campaign_id,
+        outcome="blocked",
+        reason_code=REASON_CANCELLED,
+        summary=(
+            "Incomplete-campaign recovery is cancelled for this campaign; "
+            "resume and repair are blocked"
+        ),
+        recovery_classification=_effective_classification(campaign),
+        last_valid_stage=last_valid,
+        next_stage=None,
+        dry_run=dry_run,
+        block_reason=REASON_CANCELLED,
+        repair_action=repair_action,
+        recommended_recovery_action=ACTION_CANCEL_RECOVERY,
+        recovery_cancel=recovery_cancel_payload(campaign),
+    )
 
 
 def _more_severe_classification(current: str, proposed: str) -> str:
@@ -551,7 +917,11 @@ def inspect_incomplete_campaign_recovery(
     try:
         campaign = load_flow_a_campaign_for_recovery(base_path, campaign_id)
     except CampaignLoadError as exc:
-        return _load_error_result(campaign_id, exc)
+        return _enrich_result_fields(
+            _load_error_result(campaign_id, exc),
+            None,
+            include_attempts=True,
+        )
 
     classification = _effective_classification(campaign)
     derivation = derive_last_valid_stage(campaign)
@@ -559,44 +929,57 @@ def inspect_incomplete_campaign_recovery(
         classification = _more_severe_classification(
             classification, RECOVERY_REPAIR_REQUIRED
         )
-        return IncompleteCampaignRecoveryResult(
-            campaign_id=campaign_id,
-            outcome="blocked",
-            reason_code=REASON_EVIDENCE_AMBIGUOUS,
-            summary=(
-                derivation.ambiguity_detail
-                or "Campaign evidence is ambiguous; repair or manual fix required"
+        return _enrich_result_fields(
+            IncompleteCampaignRecoveryResult(
+                campaign_id=campaign_id,
+                outcome="blocked",
+                reason_code=REASON_EVIDENCE_AMBIGUOUS,
+                summary=(
+                    derivation.ambiguity_detail
+                    or "Campaign evidence is ambiguous; repair or manual fix required"
+                ),
+                recovery_classification=classification,
+                last_valid_stage=derivation.last_valid_stage,
+                next_stage=None,
+                block_reason=REASON_EVIDENCE_AMBIGUOUS,
             ),
-            recovery_classification=classification,
-            last_valid_stage=derivation.last_valid_stage,
-            next_stage=None,
-            block_reason=REASON_EVIDENCE_AMBIGUOUS,
+            campaign,
+            ambiguous=True,
+            include_attempts=True,
         )
 
     last_valid = derivation.last_valid_stage or STATE_READY
     next_stage = _next_stage_for(last_valid)
     if last_valid == STATE_FLOW_A_COMPLETE:
-        return IncompleteCampaignRecoveryResult(
-            campaign_id=campaign_id,
-            outcome="noop",
-            reason_code=REASON_ALREADY_COMPLETE,
-            summary="Campaign lifecycle completion is already consistent",
-            recovery_classification=classification,
-            last_valid_stage=last_valid,
-            next_stage=None,
+        return _enrich_result_fields(
+            IncompleteCampaignRecoveryResult(
+                campaign_id=campaign_id,
+                outcome="noop",
+                reason_code=REASON_ALREADY_COMPLETE,
+                summary="Campaign lifecycle completion is already consistent",
+                recovery_classification=classification,
+                last_valid_stage=last_valid,
+                next_stage=None,
+            ),
+            campaign,
+            include_attempts=True,
         )
 
-    return IncompleteCampaignRecoveryResult(
-        campaign_id=campaign_id,
-        outcome="ok",
-        reason_code=REASON_OK,
-        summary=(
-            f"Last valid stage is {last_valid}; "
-            f"next unfinished worker stage is {next_stage}"
+    return _enrich_result_fields(
+        IncompleteCampaignRecoveryResult(
+            campaign_id=campaign_id,
+            outcome="ok",
+            reason_code=REASON_OK,
+            summary=(
+                f"Last valid stage is {last_valid}; "
+                f"next unfinished worker stage is {next_stage}"
+            ),
+            recovery_classification=classification,
+            last_valid_stage=last_valid,
+            next_stage=next_stage,
         ),
-        recovery_classification=classification,
-        last_valid_stage=last_valid,
-        next_stage=next_stage,
+        campaign,
+        include_attempts=True,
     )
 
 
@@ -673,10 +1056,35 @@ def resume_incomplete_campaign_recovery(
     stop_after_stage: str | None = None,
 ) -> IncompleteCampaignRecoveryResult:
     """Resume unfinished Flow A worker stages for one campaign."""
+    result = _resume_incomplete_campaign_recovery_impl(
+        base_path,
+        campaign_id=campaign_id,
+        dry_run=dry_run,
+        stop_after_stage=stop_after_stage,
+    )
+    return _persist_attempt_and_enrich(
+        base_path,
+        result,
+        operation=RECOVERY_OPERATION_RESUME,
+        dry_run=dry_run,
+        executed_recovery_action=_executed_action_for_resume(result),
+    )
+
+
+def _resume_incomplete_campaign_recovery_impl(
+    base_path: Path,
+    *,
+    campaign_id: str,
+    dry_run: bool = False,
+    stop_after_stage: str | None = None,
+) -> IncompleteCampaignRecoveryResult:
     try:
         campaign = load_flow_a_campaign_for_recovery(base_path, campaign_id)
     except CampaignLoadError as exc:
         return _load_error_result(campaign_id, exc)
+
+    if is_recovery_cancelled(campaign):
+        return _cancelled_block_result(campaign_id, campaign, dry_run=dry_run)
 
     classification = _effective_classification(campaign)
     derivation = derive_last_valid_stage(campaign)
@@ -1141,10 +1549,37 @@ def repair_incomplete_campaign_recovery(
     dry_run: bool = False,
 ) -> IncompleteCampaignRecoveryResult:
     """Apply an allowlisted metadata/filesystem repair for one campaign."""
+    result = _repair_incomplete_campaign_recovery_impl(
+        base_path,
+        campaign_id=campaign_id,
+        repair_action=repair_action,
+        dry_run=dry_run,
+    )
+    return _persist_attempt_and_enrich(
+        base_path,
+        result,
+        operation=RECOVERY_OPERATION_REPAIR,
+        dry_run=dry_run,
+        executed_recovery_action=_executed_action_for_repair(result),
+    )
+
+
+def _repair_incomplete_campaign_recovery_impl(
+    base_path: Path,
+    *,
+    campaign_id: str,
+    repair_action: str,
+    dry_run: bool = False,
+) -> IncompleteCampaignRecoveryResult:
     try:
         campaign = load_flow_a_campaign_for_recovery(base_path, campaign_id)
     except CampaignLoadError as exc:
         return _load_error_result(campaign_id, exc)
+
+    if is_recovery_cancelled(campaign):
+        return _cancelled_block_result(
+            campaign_id, campaign, dry_run=dry_run, repair_action=repair_action
+        )
 
     if repair_action not in REPAIR_ACTIONS:
         # Caller/HTTP layer should 422; defensive service guard.
@@ -1622,4 +2057,147 @@ def repair_incomplete_campaign_recovery(
         repair_action=repair_action,
         before=before,
         after=_safe_source_status_summary(refreshed),
+    )
+
+
+def cancel_incomplete_campaign_recovery(
+    base_path: Path,
+    *,
+    campaign_id: str,
+    dry_run: bool = False,
+    reason_code: str | None = None,
+    summary: str | None = None,
+) -> IncompleteCampaignRecoveryResult:
+    """Cancel incomplete-campaign recovery eligibility without inventing stage success."""
+    try:
+        campaign = load_flow_a_campaign_for_recovery(base_path, campaign_id)
+    except CampaignLoadError as exc:
+        return _enrich_result_fields(
+            _load_error_result(campaign_id, exc),
+            None,
+            executed_recovery_action=EXECUTED_CANCEL,
+        )
+
+    classification = _effective_classification(campaign)
+    derivation = derive_last_valid_stage(campaign)
+    last_valid = derivation.last_valid_stage
+    next_stage = _next_stage_for(last_valid) if last_valid else None
+    cancel_reason = _sanitize_reason_code(
+        reason_code, default=REASON_OPERATOR_CANCELLED
+    )
+    cancel_summary = _sanitize_operator_text(summary) or (
+        "Incomplete-campaign recovery cancelled by operator"
+    )
+
+    if is_recovery_cancelled(campaign):
+        result = IncompleteCampaignRecoveryResult(
+            campaign_id=campaign_id,
+            outcome="noop",
+            reason_code=REASON_NOOP,
+            summary=(
+                "Incomplete-campaign recovery is already cancelled; "
+                "no additional cancel attempt recorded"
+            ),
+            recovery_classification=classification,
+            last_valid_stage=last_valid,
+            next_stage=None,
+            dry_run=dry_run,
+            recommended_recovery_action=ACTION_CANCEL_RECOVERY,
+            executed_recovery_action=EXECUTED_NOOP,
+            recovery_cancel=recovery_cancel_payload(campaign),
+            recovery_attempts=recent_recovery_attempts(campaign),
+        )
+        return result
+
+    if dry_run:
+        would_be_cancel = {
+            "cancelled": True,
+            "cancelled_at": utc_now_iso(),
+            "reason_code": cancel_reason,
+            "summary": cancel_summary,
+        }
+        return IncompleteCampaignRecoveryResult(
+            campaign_id=campaign_id,
+            outcome="ok",
+            reason_code=REASON_DRY_RUN,
+            summary=(
+                "Dry-run would cancel incomplete-campaign recovery "
+                "without changing pipeline state or stage evidence"
+            ),
+            recovery_classification=classification,
+            last_valid_stage=last_valid,
+            next_stage=next_stage,
+            dry_run=True,
+            recommended_recovery_action=ACTION_CANCEL_RECOVERY,
+            executed_recovery_action=EXECUTED_CANCEL,
+            recovery_cancel={
+                "cancelled": False,
+                "would_cancel": would_be_cancel,
+            },
+            recovery_attempts=recent_recovery_attempts(campaign),
+        )
+
+    working = deepcopy(campaign)
+    recovery = normalize_flow_a_recovery(working)
+    cancelled_at = utc_now_iso()
+    recovery["cancelled"] = True
+    recovery["cancelled_at"] = cancelled_at
+    recovery["cancel_reason_code"] = cancel_reason
+    recovery["cancel_summary"] = cancel_summary
+    # Leave recovery_classification unchanged by default.
+    working["flow_a_recovery"] = recovery
+    working["updated_at"] = cancelled_at
+
+    attempt = build_recovery_attempt(
+        operation=RECOVERY_OPERATION_CANCEL,
+        executed_recovery_action=EXECUTED_CANCEL,
+        outcome="ok",
+        reason_code=cancel_reason,
+        summary=cancel_summary,
+        last_valid_stage=last_valid,
+        recovery_classification=classification,
+    )
+    working = append_recovery_attempt(working, attempt)
+    # append_recovery_attempt re-normalizes from campaign; re-apply cancel flags.
+    recovery = normalize_flow_a_recovery(working)
+    recovery["cancelled"] = True
+    recovery["cancelled_at"] = cancelled_at
+    recovery["cancel_reason_code"] = cancel_reason
+    recovery["cancel_summary"] = cancel_summary
+    working["flow_a_recovery"] = recovery
+    working["updated_at"] = cancelled_at
+
+    write_result = write_campaign_metadata(base_path, campaign_id, working)
+    if not write_result.written:
+        return IncompleteCampaignRecoveryResult(
+            campaign_id=campaign_id,
+            outcome="failed",
+            reason_code=REASON_REPAIR_REFUSED,
+            summary="Failed to persist incomplete-campaign recovery cancel state",
+            recovery_classification=classification,
+            last_valid_stage=last_valid,
+            next_stage=next_stage,
+            executed_recovery_action=EXECUTED_CANCEL,
+            recommended_recovery_action=ACTION_CANCEL_RECOVERY,
+            recovery_cancel=recovery_cancel_payload(campaign),
+            errors=[write_result.error_code or REASON_REPAIR_REFUSED],
+        )
+
+    refreshed = read_campaign_metadata(base_path, campaign_id) or working
+    return IncompleteCampaignRecoveryResult(
+        campaign_id=campaign_id,
+        outcome="ok",
+        reason_code=REASON_OK,
+        summary=(
+            "Incomplete-campaign recovery cancelled; "
+            "resume and repair are blocked; stage evidence unchanged"
+        ),
+        recovery_classification=_effective_classification(refreshed),
+        last_valid_stage=derive_last_valid_stage(refreshed).last_valid_stage,
+        next_stage=None,
+        recommended_recovery_action=ACTION_CANCEL_RECOVERY,
+        executed_recovery_action=EXECUTED_CANCEL,
+        recovery_cancel=recovery_cancel_payload(refreshed),
+        recovery_attempts=recent_recovery_attempts(refreshed),
+        attempt=attempt,
     )

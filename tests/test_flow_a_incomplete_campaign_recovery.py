@@ -1,4 +1,4 @@
-"""Behavioral tests for Flow A incomplete-campaign recovery (US-031)."""
+"""Behavioral tests for Flow A incomplete-campaign recovery (US-031 + US-032)."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     EXECUTION_STATE_PROCESSING,
     EXECUTION_STATE_STALE,
     PHYSICAL_MOVE_STATE_PARTIAL,
+    RECOVERY_CLASSIFICATIONS,
     RECOVERY_MANUAL_INTERVENTION_REQUIRED,
     RECOVERY_NO_ACTION,
     RECOVERY_REPAIR_REQUIRED,
@@ -33,14 +34,31 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     read_campaign_metadata,
 )
 from silverman_blog_linkedin.flow_a_incomplete_campaign_recovery import (
+    ACTION_CANCEL_RECOVERY,
+    ACTION_MANUAL_INTERVENTION,
+    ACTION_NOOP_ALREADY_COMPLETE,
+    ACTION_REPAIR,
+    ACTION_REQUEUE,
+    ACTION_RESUME,
+    ATTEMPT_LEDGER_MAX,
+    EXECUTED_CANCEL,
+    EXECUTED_NOOP,
+    EXECUTED_REPAIR,
+    EXECUTED_RESUME,
+    INSPECT_ATTEMPTS_MAX,
     REASON_ACTIVE_CLAIM,
     REASON_ALREADY_COMPLETE,
     REASON_CAMPAIGN_NOT_FOUND,
+    REASON_CANCELLED,
     REASON_REQUEUE_REQUIRED,
     REASON_REPAIR_AMBIGUOUS_LOCATION,
     REASON_REPAIR_INVENT_SUCCESS,
+    append_recovery_attempt,
+    build_recovery_attempt,
+    cancel_incomplete_campaign_recovery,
     derive_last_valid_stage,
     inspect_incomplete_campaign_recovery,
+    recommend_recovery_action,
     repair_incomplete_campaign_recovery,
     resume_incomplete_campaign_recovery,
 )
@@ -698,3 +716,421 @@ def test_resume_http_validation_stop_after_stage(recovery_base: Path):
         },
     )
     assert response.status_code == 422
+
+
+def test_taxonomy_mapping_closed_set_and_not_written_as_classification(
+    recovery_base: Path,
+):
+    incomplete = _write_campaign(
+        recovery_base,
+        state=STATE_BLOG_PUBLISHED,
+        source_status={
+            "location": SOURCE_LOCATION_QUEUED,
+            "execution_state": EXECUTION_STATE_IDLE,
+            "recovery_classification": RECOVERY_RETRYABLE,
+            "physical_move_state": "completed",
+        },
+        **_blog_published_fields(),
+    )
+    assert (
+        recommend_recovery_action(
+            incomplete,
+            last_valid_stage=STATE_BLOG_PUBLISHED,
+            recovery_classification=RECOVERY_RETRYABLE,
+        )
+        == ACTION_RESUME
+    )
+
+    complete = _write_campaign(
+        recovery_base,
+        "flow-a-2026-07-18-tax-complete",
+        state=STATE_FLOW_A_COMPLETE,
+        **{k: v for k, v in _schedule_fields().items() if k != "state_history"},
+        source_status={
+            "location": "processed",
+            "execution_state": EXECUTION_STATE_IDLE,
+            "recovery_classification": RECOVERY_NO_ACTION,
+            "physical_move_state": "completed",
+        },
+        processed_source_relative_path=f"blog-posts/processed/{SOURCE_SLUG}.md",
+        state_history=[
+            {"to_state": STATE_DISTRIBUTION_SCHEDULED, "at": "2026-07-18T10:15:00Z"},
+            {"to_state": STATE_FLOW_A_COMPLETE, "at": "2026-07-18T10:20:00Z"},
+        ],
+    )
+    assert (
+        recommend_recovery_action(
+            complete,
+            last_valid_stage=STATE_FLOW_A_COMPLETE,
+            recovery_classification=RECOVERY_NO_ACTION,
+        )
+        == ACTION_NOOP_ALREADY_COMPLETE
+    )
+
+    assert (
+        recommend_recovery_action(
+            incomplete,
+            last_valid_stage=STATE_BLOG_PUBLISHED,
+            recovery_classification=RECOVERY_REPAIR_REQUIRED,
+            ambiguous=True,
+        )
+        == ACTION_REPAIR
+    )
+    assert (
+        recommend_recovery_action(
+            incomplete,
+            last_valid_stage=STATE_BLOG_PUBLISHED,
+            recovery_classification=RECOVERY_REQUEUE_REQUIRED,
+            location=SOURCE_LOCATION_ERROR,
+        )
+        == ACTION_REQUEUE
+    )
+    assert (
+        recommend_recovery_action(
+            incomplete,
+            last_valid_stage=STATE_BLOG_PUBLISHED,
+            recovery_classification=RECOVERY_MANUAL_INTERVENTION_REQUIRED,
+            has_active_non_stale_claim=True,
+        )
+        == ACTION_MANUAL_INTERVENTION
+    )
+
+    cancelled = dict(incomplete)
+    cancelled["flow_a_recovery"] = {"cancelled": True, "attempts": []}
+    assert (
+        recommend_recovery_action(
+            cancelled,
+            last_valid_stage=STATE_BLOG_PUBLISHED,
+            recovery_classification=RECOVERY_RETRYABLE,
+        )
+        == ACTION_CANCEL_RECOVERY
+    )
+
+    inspected = inspect_incomplete_campaign_recovery(recovery_base, CAMPAIGN_ID)
+    assert inspected.recommended_recovery_action == ACTION_RESUME
+    assert inspected.recovery_classification in RECOVERY_CLASSIFICATIONS
+    for action in (
+        ACTION_RESUME,
+        ACTION_REPAIR,
+        ACTION_REQUEUE,
+        ACTION_CANCEL_RECOVERY,
+        ACTION_NOOP_ALREADY_COMPLETE,
+        ACTION_MANUAL_INTERVENTION,
+    ):
+        assert action not in RECOVERY_CLASSIFICATIONS
+
+
+def test_attempt_history_append_dry_run_auth_trim_and_secrets(recovery_base: Path):
+    _write_campaign(
+        recovery_base,
+        state=STATE_BLOG_PUBLISHED,
+        api_key="ledger-secret-token",
+        markdown_content="# body must not land in ledger",
+        source_status={
+            "location": SOURCE_LOCATION_QUEUED,
+            "execution_state": EXECUTION_STATE_IDLE,
+            "recovery_classification": RECOVERY_RETRYABLE,
+            "physical_move_state": "completed",
+        },
+        queued_source_relative_path=f"blog-posts/queued/{SOURCE_SLUG}.md",
+        source_relative_path=f"blog-posts/queued/{SOURCE_SLUG}.md",
+        **_blog_published_fields(),
+    )
+    (recovery_base / f"blog-posts/queued/{SOURCE_SLUG}.md").write_text(
+        SOURCE_MARKDOWN, encoding="utf-8"
+    )
+
+    before = _snapshot_tree(recovery_base)
+    dry = resume_incomplete_campaign_recovery(
+        recovery_base, campaign_id=CAMPAIGN_ID, dry_run=True
+    )
+    assert dry.dry_run is True
+    assert dry.attempt is None
+    assert _snapshot_tree(recovery_base) == before
+    campaign = read_campaign_metadata(recovery_base, CAMPAIGN_ID)
+    assert campaign.get("flow_a_recovery") in (None, {}) or not campaign.get(
+        "flow_a_recovery", {}
+    ).get("attempts")
+
+    client = TestClient(create_app(make_settings(recovery_base)))
+    assert (
+        client.post(
+            "/flow-a/incomplete-campaign-recovery/resume",
+            json={"campaign_id": CAMPAIGN_ID},
+        ).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            "/flow-a/incomplete-campaign-recovery/repair",
+            headers=auth_header(),
+            json={"campaign_id": CAMPAIGN_ID, "repair_action": "not_allowed"},
+        ).status_code
+        == 422
+    )
+    campaign_after_auth = read_campaign_metadata(recovery_base, CAMPAIGN_ID)
+    assert not (campaign_after_auth.get("flow_a_recovery") or {}).get("attempts")
+
+    with (
+        patch(
+            "silverman_blog_linkedin.flow_a_incomplete_campaign_recovery.publish_blog_post"
+        ) as publish,
+        patch(
+            "silverman_blog_linkedin.flow_a_incomplete_campaign_recovery.generate_linkedin_package"
+        ) as package,
+        patch(
+            "silverman_blog_linkedin.flow_a_incomplete_campaign_recovery.schedule_linkedin_distribution"
+        ) as schedule,
+        patch(
+            "silverman_blog_linkedin.flow_a_incomplete_campaign_recovery.complete_flow_a_source_lifecycle"
+        ) as lifecycle,
+    ):
+        package.return_value.status = "completed"
+        package.return_value.errors = []
+        schedule.return_value.status = "completed"
+        schedule.return_value.errors = []
+        lifecycle.return_value.status = "completed"
+        lifecycle.return_value.errors = []
+        resumed = resume_incomplete_campaign_recovery(
+            recovery_base, campaign_id=CAMPAIGN_ID
+        )
+    publish.assert_not_called()
+    assert resumed.outcome == "ok"
+    assert resumed.executed_recovery_action == EXECUTED_RESUME
+    assert resumed.attempt is not None
+    assert resumed.attempt["operation"] == "resume"
+
+    campaign = read_campaign_metadata(recovery_base, CAMPAIGN_ID)
+    attempts = campaign["flow_a_recovery"]["attempts"]
+    assert len(attempts) == 1
+    serialized = json.dumps(attempts)
+    assert "ledger-secret-token" not in serialized
+    assert "body must not land" not in serialized
+    assert str(recovery_base.resolve()) not in serialized
+
+    repaired = repair_incomplete_campaign_recovery(
+        recovery_base,
+        campaign_id=CAMPAIGN_ID,
+        repair_action="sync_location_from_filesystem",
+        dry_run=True,
+    )
+    assert repaired.dry_run is True
+    assert len(read_campaign_metadata(recovery_base, CAMPAIGN_ID)["flow_a_recovery"]["attempts"]) == 1
+
+    # Seed 50 attempts then append → FIFO trim keeps newest 50.
+    seeded = read_campaign_metadata(recovery_base, CAMPAIGN_ID)
+    recovery = {"cancelled": False, "attempts": []}
+    for index in range(ATTEMPT_LEDGER_MAX):
+        recovery["attempts"].append(
+            build_recovery_attempt(
+                operation="resume",
+                executed_recovery_action=EXECUTED_RESUME,
+                outcome="ok",
+                reason_code=f"seed_{index}",
+                summary=f"seed {index}",
+            )
+        )
+    seeded["flow_a_recovery"] = recovery
+    _write_json(recovery_base / "metadata/campaigns" / f"{CAMPAIGN_ID}.json", seeded)
+    oldest_id = recovery["attempts"][0]["attempt_id"]
+    newest_seed = recovery["attempts"][-1]["attempt_id"]
+    updated = append_recovery_attempt(
+        seeded,
+        build_recovery_attempt(
+            operation="repair",
+            executed_recovery_action=EXECUTED_REPAIR,
+            outcome="ok",
+            reason_code="trim_probe",
+            summary="newest",
+            repair_action="sync_location_from_filesystem",
+        ),
+    )
+    trimmed = updated["flow_a_recovery"]["attempts"]
+    assert len(trimmed) == ATTEMPT_LEDGER_MAX
+    assert trimmed[0]["attempt_id"] != oldest_id
+    assert trimmed[-1]["reason_code"] == "trim_probe"
+    assert any(entry["attempt_id"] == newest_seed for entry in trimmed)
+
+    # Inspect returns at most 20 recent attempts and remains read-only.
+    _write_json(recovery_base / "metadata/campaigns" / f"{CAMPAIGN_ID}.json", updated)
+    before_inspect = _snapshot_tree(recovery_base)
+    inspected = inspect_incomplete_campaign_recovery(recovery_base, CAMPAIGN_ID)
+    assert inspected.recovery_attempts is not None
+    assert len(inspected.recovery_attempts) == INSPECT_ATTEMPTS_MAX
+    assert inspected.recovery_attempts[-1]["reason_code"] == "trim_probe"
+    assert _snapshot_tree(recovery_base) == before_inspect
+
+
+def test_cancel_persist_idempotent_dry_run_gates_and_preserves_evidence(
+    recovery_base: Path,
+):
+    blog_fields = _blog_published_fields()
+    history = list(blog_fields["state_history"])
+    _write_campaign(
+        recovery_base,
+        state=STATE_BLOG_PUBLISHED,
+        source_status={
+            "location": SOURCE_LOCATION_QUEUED,
+            "execution_state": EXECUTION_STATE_IDLE,
+            "recovery_classification": RECOVERY_RETRYABLE,
+            "physical_move_state": "completed",
+        },
+        queued_source_relative_path=f"blog-posts/queued/{SOURCE_SLUG}.md",
+        **blog_fields,
+    )
+    (recovery_base / f"blog-posts/queued/{SOURCE_SLUG}.md").write_text(
+        SOURCE_MARKDOWN, encoding="utf-8"
+    )
+
+    before = _snapshot_tree(recovery_base)
+    dry = cancel_incomplete_campaign_recovery(
+        recovery_base, campaign_id=CAMPAIGN_ID, dry_run=True
+    )
+    assert dry.dry_run is True
+    assert dry.outcome == "ok"
+    assert dry.executed_recovery_action == EXECUTED_CANCEL
+    assert dry.recommended_recovery_action == ACTION_CANCEL_RECOVERY
+    assert _snapshot_tree(recovery_base) == before
+    assert not (read_campaign_metadata(recovery_base, CAMPAIGN_ID).get("flow_a_recovery") or {}).get(
+        "cancelled"
+    )
+
+    cancelled = cancel_incomplete_campaign_recovery(
+        recovery_base,
+        campaign_id=CAMPAIGN_ID,
+        reason_code="operator_stopped",
+        summary="not appropriate",
+    )
+
+    assert cancelled.outcome == "ok"
+    assert cancelled.executed_recovery_action == EXECUTED_CANCEL
+    assert cancelled.attempt is not None
+    campaign = read_campaign_metadata(recovery_base, CAMPAIGN_ID)
+    assert campaign["flow_a_recovery"]["cancelled"] is True
+    assert campaign["flow_a_recovery"]["cancel_reason_code"] == "operator_stopped"
+    assert campaign["state"] == STATE_BLOG_PUBLISHED
+    assert campaign["blog_publish"]["status"] == "published"
+    assert campaign["state_history"] == history
+    assert campaign["source_file_status"]["recovery_classification"] == RECOVERY_RETRYABLE
+    assert len(campaign["flow_a_recovery"]["attempts"]) == 1
+    assert campaign["flow_a_recovery"]["attempts"][0]["operation"] == "cancel"
+
+    noop = cancel_incomplete_campaign_recovery(
+        recovery_base, campaign_id=CAMPAIGN_ID
+    )
+    assert noop.outcome == "noop"
+    assert noop.executed_recovery_action == EXECUTED_NOOP
+    assert noop.attempt is None
+    assert (
+        len(read_campaign_metadata(recovery_base, CAMPAIGN_ID)["flow_a_recovery"]["attempts"])
+        == 1
+    )
+
+    blocked_resume = resume_incomplete_campaign_recovery(
+        recovery_base, campaign_id=CAMPAIGN_ID
+    )
+    assert blocked_resume.outcome == "blocked"
+    assert blocked_resume.reason_code == REASON_CANCELLED
+    assert blocked_resume.recommended_recovery_action == ACTION_CANCEL_RECOVERY
+    assert blocked_resume.attempt is not None
+    assert (
+        read_campaign_metadata(recovery_base, CAMPAIGN_ID)["blog_publish"]["status"]
+        == "published"
+    )
+    assert (
+        len(read_campaign_metadata(recovery_base, CAMPAIGN_ID)["flow_a_recovery"]["attempts"])
+        == 2
+    )
+
+    before_dry_block = _snapshot_tree(recovery_base)
+    blocked_dry = resume_incomplete_campaign_recovery(
+        recovery_base, campaign_id=CAMPAIGN_ID, dry_run=True
+    )
+    assert blocked_dry.outcome == "blocked"
+    assert blocked_dry.reason_code == REASON_CANCELLED
+    assert blocked_dry.attempt is None
+    assert _snapshot_tree(recovery_base) == before_dry_block
+
+    blocked_repair = repair_incomplete_campaign_recovery(
+        recovery_base,
+        campaign_id=CAMPAIGN_ID,
+        repair_action="sync_location_from_filesystem",
+    )
+    assert blocked_repair.outcome == "blocked"
+    assert blocked_repair.reason_code == REASON_CANCELLED
+    assert (
+        len(read_campaign_metadata(recovery_base, CAMPAIGN_ID)["flow_a_recovery"]["attempts"])
+        == 3
+    )
+
+    # Incomplete-campaign cancel must not invoke LinkedIn publication cancel helpers.
+    import silverman_blog_linkedin.flow_a_incomplete_campaign_recovery as recovery_mod
+
+    assert not hasattr(recovery_mod, "cancel_linkedin_publication")
+
+    client = TestClient(create_app(make_settings(recovery_base)))
+    http_cancel = client.post(
+        "/flow-a/incomplete-campaign-recovery/cancel",
+        headers=auth_header(),
+        json={"campaign_id": CAMPAIGN_ID},
+    )
+    assert http_cancel.status_code == 200
+    assert http_cancel.json()["outcome"] == "noop"
+
+    inspect_payload = client.get(
+        f"/flow-a/incomplete-campaign-recovery/{CAMPAIGN_ID}",
+        headers=auth_header(),
+    ).json()
+    assert inspect_payload["recommended_recovery_action"] == ACTION_CANCEL_RECOVERY
+    assert inspect_payload["recovery_cancel"]["cancelled"] is True
+    assert isinstance(inspect_payload["recovery_attempts"], list)
+    assert inspect_payload["recovery_classification"] == RECOVERY_RETRYABLE
+
+
+def test_us031_regression_additive_fields_present(recovery_base: Path):
+    _write_campaign(
+        recovery_base,
+        state=STATE_BLOG_PUBLISHED,
+        source_status={
+            "location": SOURCE_LOCATION_QUEUED,
+            "execution_state": EXECUTION_STATE_IDLE,
+            "recovery_classification": RECOVERY_RETRYABLE,
+            "physical_move_state": "completed",
+        },
+        queued_source_relative_path=f"blog-posts/queued/{SOURCE_SLUG}.md",
+        **_blog_published_fields(),
+    )
+    (recovery_base / f"blog-posts/queued/{SOURCE_SLUG}.md").write_text(
+        SOURCE_MARKDOWN, encoding="utf-8"
+    )
+    client = TestClient(create_app(make_settings(recovery_base)))
+    inspect_body = client.get(
+        f"/flow-a/incomplete-campaign-recovery/{CAMPAIGN_ID}",
+        headers=auth_header(),
+    ).json()
+    for key in (
+        "campaign_id",
+        "last_valid_stage",
+        "recovery_classification",
+        "outcome",
+        "reason_code",
+        "summary",
+        "recommended_recovery_action",
+        "recovery_cancel",
+        "recovery_attempts",
+    ):
+        assert key in inspect_body
+    assert inspect_body["last_valid_stage"] == STATE_BLOG_PUBLISHED
+    assert inspect_body["recommended_recovery_action"] == ACTION_RESUME
+    assert inspect_body["recovery_cancel"]["cancelled"] is False
+
+    dry = client.post(
+        "/flow-a/incomplete-campaign-recovery/resume",
+        headers=auth_header(),
+        json={"campaign_id": CAMPAIGN_ID, "dry_run": True},
+    ).json()
+    assert dry["outcome"] == "ok"
+    assert dry["dry_run"] is True
+    assert dry["recommended_recovery_action"] == ACTION_RESUME
+    assert dry["executed_recovery_action"] == EXECUTED_RESUME
+    assert "attempt" not in dry or dry.get("attempt") is None

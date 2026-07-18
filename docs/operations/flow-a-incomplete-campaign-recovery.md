@@ -1,25 +1,27 @@
-# Flow A Incomplete Campaign Recovery (US-031)
+# Flow A Incomplete Campaign Recovery (US-031 + US-032)
 
 Operator contract for authenticated incomplete Flow A campaign recovery:
-inspect last-valid-stage, resume unfinished worker stages idempotently, and
-repair allowlisted metadata/filesystem mismatches.
+inspect last-valid-stage, resume unfinished worker stages idempotently, repair
+allowlisted metadata/filesystem mismatches, classify recovery actions, preserve
+attempt history, and safely cancel recovery when it is not appropriate.
 
-This capability covers **BL-012 / US-031 only**. It does **not** implement
-US-032 (recovery-action taxonomy, attempt history ledger, or safe cancellation),
-LinkedIn API publication recovery (BL-008 / US-021–US-022), production n8n
-activation, Git push, live-site confirmation, or LinkedIn API publish.
+This capability covers **BL-012 / US-031 + US-032** (implemented/tested). It does
+**not** close BL-012, accept either story from code alone, or implement LinkedIn
+API publication recovery (BL-008 / US-021–US-022), production n8n activation,
+Git push, live-site confirmation, or LinkedIn API publish.
 
 ## Endpoints
 
-All three require the worker Bearer API key (`Depends(require_api_key)`).
+All four require the worker Bearer API key (`Depends(require_api_key)`).
 Missing/invalid auth returns HTTP 401. Invalid bodies return HTTP 422.
 Clients must not supply absolute filesystem paths.
 
 | Operation | Method / path | Mutation |
 |-----------|---------------|----------|
-| Inspect | `GET /flow-a/incomplete-campaign-recovery/{campaign_id}` | None (read-only) |
+| Inspect | `GET /flow-a/incomplete-campaign-recovery/{campaign_id}` | None (read-only; no ledger writes) |
 | Resume | `POST /flow-a/incomplete-campaign-recovery/resume` | Yes (optional `dry_run`) |
 | Repair | `POST /flow-a/incomplete-campaign-recovery/repair` | Yes (optional `dry_run`) |
+| Cancel | `POST /flow-a/incomplete-campaign-recovery/cancel` | Yes (optional `dry_run`) |
 
 ### Inspect
 
@@ -29,9 +31,10 @@ curl -sS \
   "http://localhost:8010/flow-a/incomplete-campaign-recovery/flow-a-2026-07-18-example"
 ```
 
-Returns `last_valid_stage`, effective `recovery_classification`, `outcome`,
-`reason_code`, `summary`, and `next_stage` when unfinished work remains.
-Performs zero metadata or filesystem writes.
+Returns `last_valid_stage`, effective `recovery_classification`,
+`recommended_recovery_action`, `outcome`, `reason_code`, `summary`,
+`recovery_cancel`, recent `recovery_attempts` (≤20), and `next_stage` when
+unfinished work remains. Performs zero metadata or filesystem writes.
 
 ### Resume
 
@@ -46,7 +49,7 @@ curl -sS -X POST \
 Body fields:
 
 - `campaign_id` (required)
-- `dry_run` (boolean, default `false`) — plan skips/runs without mutation
+- `dry_run` (boolean, default `false`) — plan skips/runs without mutation or ledger append
 - `stop_after_stage` (optional durable milestone) — stop after that stage
 
 Default resume advances remaining unfinished worker stages in order:
@@ -59,6 +62,8 @@ confirmation, or LinkedIn API publish.
 
 Gates:
 
+- Cancelled recovery (`flow_a_recovery.cancelled`) → blocked
+  `flow_a_recovery_cancelled` with `recommended_recovery_action=cancel_recovery`
 - Non-stale `processing` claim → blocked `manual_intervention_required`
 - `location=error` → blocked `requeue_required` (explicit requeue required;
   resume never silent-requeues)
@@ -84,7 +89,61 @@ Allowlisted `repair_action` values:
 
 Unknown `repair_action` → HTTP 422. Ambiguous multi-location matches, inventing
 publish/package/schedule success, or unsafe `flow_a_complete` marking are
-refused with zero mutation.
+refused with zero mutation. Cancelled recovery blocks repair the same way as
+resume.
+
+### Cancel
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer ${SILVERMAN_BLOG_LINKEDIN_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"campaign_id":"flow-a-2026-07-18-example","reason_code":"operator_cancelled","summary":"Recovery not appropriate"}' \
+  "http://localhost:8010/flow-a/incomplete-campaign-recovery/cancel"
+```
+
+Body fields:
+
+- `campaign_id` (required)
+- `dry_run` (boolean, default `false`) — describe would-be cancel without writes
+- `reason_code` (optional short token; default `operator_cancelled`)
+- `summary` (optional short operator text)
+
+Cancel marks incomplete-campaign **recovery eligibility** cancelled
+(`flow_a_recovery.cancelled=true`). It does **not** move editorial files, rewrite
+pipeline `state` / `state_history`, invent durable stage success, or call
+LinkedIn publication cancel endpoints.
+
+Idempotency: already-cancelled → `outcome=noop` with no extra ledger append.
+There is no reopen/uncancel endpoint in this change.
+
+## Recovery-action taxonomy (US-032)
+
+`recommended_recovery_action` complements (does not replace)
+`recovery_classification`. Closed values:
+
+| Value | Meaning |
+|-------|---------|
+| `noop_already_complete` | Consistent `flow_a_complete` |
+| `resume` | Unfinished eligible worker stages |
+| `repair` | Ambiguous / repair_required evidence |
+| `requeue` | Error location / requeue_required |
+| `manual_intervention` | Active claim or severe block |
+| `cancel_recovery` | Recovery cancelled (or cancel is the operator choice when already cancelled) |
+
+Taxonomy strings are never written into `source_file_status.recovery_classification`.
+
+Mutating responses may include `executed_recovery_action`: `resume` | `repair` |
+`cancel` | `noop`.
+
+## Attempt history
+
+Applied resume / repair / cancel (first cancel) append one secret-safe entry under
+`flow_a_recovery.attempts` (max **50**, oldest trimmed first). Dry-run, HTTP 401,
+and HTTP 422 never append. Inspect never appends and returns at most the **20**
+most recent attempts.
+
+Ledger writes do not invent stage success or rewrite `state_history`.
 
 ## Last-valid-stage rules
 
@@ -109,31 +168,33 @@ Responses include at least:
 - `campaign_id`
 - `last_valid_stage` when derivable
 - `recovery_classification` (canonical five-value enum)
+- `recommended_recovery_action`
 - `outcome` (`ok` / `blocked` / `failed` / `noop` / `partial`)
 - `reason_code`
 - short `summary`
+- `recovery_cancel` (`cancelled`, and when cancelled: timestamps/reason/summary)
 
-Mutating responses also include `dry_run` and per-stage or before/after safe
+Mutating responses also include `dry_run`, `executed_recovery_action` when
+applicable, optional `attempt` echo, and per-stage or before/after safe
 summaries. Payloads never include Markdown/draft bodies, tokens, secrets, or
 the absolute editorial base path.
 
-Recovery outcomes are **response-only** for US-031 (no dedicated recovery
-attempt history — that is US-032).
-
 ## Suggested operator workflow
 
-1. Inspect the campaign.
-2. Repair allowlisted inconsistencies if inspect reports `repair_required` /
-   ambiguity that a listed repair can fix.
+1. Inspect the campaign (taxonomy + cancel state + recent attempts).
+2. Repair allowlisted inconsistencies if inspect reports `repair` /
+   `repair_required` / ambiguity that a listed repair can fix.
 3. Resume with `dry_run=true`.
 4. Resume for real (optionally with `stop_after_stage`).
 5. If `location=error`, requeue via the existing queue helper path before resume.
+6. If recovery is not appropriate, cancel (then resume/repair stay blocked).
 
 ## Non-goals
 
-- US-032 action taxonomy / attempt ledger / safe cancellation
+- Reopen/uncancel after cancel
+- LinkedIn publication cancel via this surface
 - BL-013/014/015
-- LinkedIn publication recovery surface (`/queue-linkedin-publication`, etc.)
 - Changing `GET /flow-a/operational-status` or operational-alerts contracts
+- Marking US-032 accepted or BL-012 closed from implementation alone
 - Deploy, production n8n activation, or live operational validation as part of
-  the US-031 implementation change
+  the US-032 implementation change

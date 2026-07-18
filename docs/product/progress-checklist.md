@@ -320,12 +320,13 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [ ] Story accepted
     - Implementation evidence: [flow-a-incomplete-campaign-recovery.md](../operations/flow-a-incomplete-campaign-recovery.md)
   - [ ] **US-032**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — automated fixtures (action taxonomy, attempt history, cancel + post-cancel gating, secret-safe outcomes, completed work preserved); not operator-accepted yet
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
+    - Implementation evidence: [flow-a-incomplete-campaign-recovery.md](../operations/flow-a-incomplete-campaign-recovery.md)
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed

@@ -46,6 +46,7 @@ from silverman_blog_linkedin.flow_a_incomplete_campaign_recovery import (
     REASON_MALFORMED_CAMPAIGN,
     REASON_NOT_FLOW_A,
     STOP_AFTER_STAGE_VALUES,
+    cancel_incomplete_campaign_recovery,
     inspect_incomplete_campaign_recovery,
     repair_incomplete_campaign_recovery,
     resume_incomplete_campaign_recovery,
@@ -769,6 +770,53 @@ class RepairIncompleteCampaignRecoveryRequest(BaseModel):
             validate_campaign_id(stripped)
         except CampaignLifecycleError as exc:
             raise ValueError(str(exc)) from exc
+        return stripped
+
+
+class CancelIncompleteCampaignRecoveryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str
+    dry_run: bool = False
+    reason_code: str | None = None
+    summary: str | None = None
+
+    @field_validator("campaign_id")
+    @classmethod
+    def validate_campaign_id_field(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("campaign_id must not be empty")
+        if stripped.startswith("/") or ".." in stripped or "\\" in stripped:
+            raise ValueError("campaign_id must not be an absolute or escaping path")
+        try:
+            validate_campaign_id(stripped)
+        except CampaignLifecycleError as exc:
+            raise ValueError(str(exc)) from exc
+        return stripped
+
+    @field_validator("reason_code")
+    @classmethod
+    def validate_reason_code(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            return None
+        if len(stripped) > 64:
+            raise ValueError("reason_code must be at most 64 characters")
+        return stripped
+
+    @field_validator("summary")
+    @classmethod
+    def validate_summary(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = " ".join(value.split())
+        if not stripped:
+            return None
+        if len(stripped) > 200:
+            raise ValueError("summary must be at most 200 characters")
         return stripped
 
 
@@ -2203,6 +2251,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             result.outcome,
             result.reason_code,
             body.repair_action,
+            body.dry_run,
+        )
+        payload = result.to_dict()
+        if result.reason_code in {
+            REASON_CAMPAIGN_NOT_FOUND,
+            REASON_INVALID_CAMPAIGN_ID,
+            REASON_MALFORMED_CAMPAIGN,
+            REASON_NOT_FLOW_A,
+        }:
+            raise HTTPException(status_code=404, detail=payload)
+        return payload
+
+    @app.post("/flow-a/incomplete-campaign-recovery/cancel")
+    def flow_a_incomplete_campaign_recovery_cancel(
+        body: CancelIncompleteCampaignRecoveryRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        result = cancel_incomplete_campaign_recovery(
+            settings.base_path,
+            campaign_id=body.campaign_id,
+            dry_run=body.dry_run,
+            reason_code=body.reason_code,
+            summary=body.summary,
+        )
+        logger.info(
+            "flow-a/incomplete-campaign-recovery cancel campaign_id=%s "
+            "outcome=%s reason_code=%s dry_run=%s",
+            result.campaign_id,
+            result.outcome,
+            result.reason_code,
             body.dry_run,
         )
         payload = result.to_dict()
