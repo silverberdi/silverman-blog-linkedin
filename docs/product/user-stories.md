@@ -643,14 +643,16 @@ As a system operator, I want to classify recovery actions, so that incomplete ca
 
 As a system operator, I want to prevent duplicate post processing, so that concurrent triggers do not create duplicate artifacts or external publications.
 
+**Status:** Implemented, automated-tested, and acceptance criteria validated against fixture evidence (2026-07-18). Not deployed / not operationally validated on the live worker. BL-013 remains open (US-034 / US-035 pending). See [flow-a-concurrency-duplicate-execution-protection-us-033.md](../operations/flow-a-concurrency-duplicate-execution-protection-us-033.md).
+
 **Acceptance criteria**
 
-- [ ] Prevent duplicate post processing.
-- [ ] Prevent duplicate image generation.
-- [ ] Prevent duplicate blog publication.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Prevent duplicate post processing.
+- [x] Prevent duplicate image generation.
+- [x] Prevent duplicate blog publication.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-034 — Validate Concurrency and Duplicate Execution Protection: Story 2
 

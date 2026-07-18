@@ -19,6 +19,7 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     FLOW_B,
     INVALID_OPERATIONAL_TRANSITION,
     RECOVERY_NO_ACTION,
+    RECOVERY_MANUAL_INTERVENTION_REQUIRED,
     RECOVERY_REPAIR_REQUIRED,
     RECOVERY_RETRYABLE,
     RECOVERY_REQUEUE_REQUIRED,
@@ -246,6 +247,9 @@ def test_claim_and_duplicate_active_claim_rejection(editorial_base: Path):
     duplicate = claim_flow_a_execution(editorial_base, campaign_id=CAMPAIGN_ID)
     assert duplicate.status == "failed"
     assert FLOW_A_EXECUTION_ALREADY_CLAIMED in duplicate.errors
+    assert duplicate.already_claimed is True
+    assert duplicate.recovery_classification == RECOVERY_MANUAL_INTERVENTION_REQUIRED
+    assert duplicate.metadata_written is False
 
 
 def test_stale_detection_from_last_progress_at(editorial_base: Path):
@@ -742,7 +746,7 @@ def test_move_queued_source_to_error_failed(editorial_base: Path):
 def test_claim_metadata_write_failure(editorial_base: Path):
     _queued_campaign(editorial_base)
     with patch(
-        "silverman_blog_linkedin.flow_a_operational_queue.write_campaign_metadata",
+        "silverman_blog_linkedin.flow_a_operational_queue.write_campaign_metadata_cas",
         return_value=_mock_metadata_write_failure(),
     ):
         result = claim_flow_a_execution(editorial_base, campaign_id=CAMPAIGN_ID)

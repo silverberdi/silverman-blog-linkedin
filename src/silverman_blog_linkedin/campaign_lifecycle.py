@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import uuid
 from copy import deepcopy
 from silverman_blog_linkedin.file_reader import normalize_relative_path
 from dataclasses import dataclass
@@ -15,7 +16,13 @@ from typing import Any
 
 from silverman_blog_linkedin.run_metadata import utc_now_iso
 
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - non-POSIX fallback
+    fcntl = None  # type: ignore[assignment]
+
 METADATA_CAMPAIGNS_RELATIVE = "metadata/campaigns"
+CAMPAIGN_METADATA_CONCURRENT_UPDATE = "campaign_metadata_concurrent_update"
 
 FLOW_A = "flow_a"
 FLOW_B = "flow_b"
@@ -648,6 +655,41 @@ def check_metadata_campaigns_ready(base_path: Path) -> MetadataCampaignsReadines
     return MetadataCampaignsReadiness(ready=True)
 
 
+def campaign_metadata_file_content_fingerprint(path: Path) -> str | None:
+    """Return SHA-256 hex digest of raw on-disk campaign JSON bytes, or None if absent."""
+    if not path.is_file():
+        return None
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def campaign_metadata_content_fingerprint(
+    base_path: Path, campaign_id: str
+) -> str | None:
+    """Return SHA-256 fingerprint of the campaign metadata document, or None if absent."""
+    try:
+        validate_campaign_id(campaign_id)
+    except CampaignLifecycleError:
+        return None
+    metadata_path = base_path / campaign_metadata_relative_path(campaign_id)
+    return campaign_metadata_file_content_fingerprint(metadata_path)
+
+
+def _fsync_parent_directory(path: Path) -> None:
+    try:
+        dir_fd = os.open(str(path.parent), os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(dir_fd)
+    except OSError:
+        pass
+    finally:
+        os.close(dir_fd)
+
+
 def write_campaign_metadata(
     base_path: Path, campaign_id: str, payload: dict[str, Any]
 ) -> CampaignMetadataWriteResult:
@@ -676,6 +718,124 @@ def write_campaign_metadata(
             written=False, error_code="campaign_metadata_write_failed"
         )
     return CampaignMetadataWriteResult(written=True)
+
+
+def write_campaign_metadata_cas(
+    base_path: Path,
+    campaign_id: str,
+    payload: dict[str, Any],
+    *,
+    expected_fingerprint: str | None,
+) -> CampaignMetadataWriteResult:
+    """Persist campaign metadata only when on-disk fingerprint still matches.
+
+    Used for execution-claim transitions (US-033). Unrelated writers continue to
+    use ``write_campaign_metadata`` without CAS.
+
+    Fingerprint compare-and-swap is paired with an exclusive flock on a sibling
+    lock file so two overlapping claim writers cannot both pass the pre-replace
+    check and both replace successfully.
+    """
+    try:
+        validate_campaign_id(campaign_id)
+    except CampaignLifecycleError:
+        return CampaignMetadataWriteResult(
+            written=False, error_code="invalid_campaign_id"
+        )
+
+    readiness = check_metadata_campaigns_ready(base_path)
+    if not readiness.ready:
+        return CampaignMetadataWriteResult(
+            written=False, error_code=readiness.error_code
+        )
+
+    metadata_path = base_path / campaign_metadata_relative_path(campaign_id)
+    lock_path = metadata_path.with_name(f"{metadata_path.name}.claim.lock")
+
+    try:
+        lock_handle = open(lock_path, "a+", encoding="utf-8")
+    except OSError:
+        return CampaignMetadataWriteResult(
+            written=False, error_code="campaign_metadata_write_failed"
+        )
+
+    try:
+        if fcntl is not None:
+            try:
+                fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+            except OSError:
+                return CampaignMetadataWriteResult(
+                    written=False, error_code="campaign_metadata_write_failed"
+                )
+
+        current_fingerprint = campaign_metadata_file_content_fingerprint(metadata_path)
+        if (
+            expected_fingerprint is None
+            or current_fingerprint is None
+            or current_fingerprint != expected_fingerprint
+        ):
+            return CampaignMetadataWriteResult(
+                written=False, error_code=CAMPAIGN_METADATA_CONCURRENT_UPDATE
+            )
+
+        original_mode: int | None = None
+        if metadata_path.is_file():
+            try:
+                original_mode = metadata_path.stat().st_mode
+            except OSError:
+                original_mode = None
+
+        sanitized = sanitize_campaign_metadata(payload)
+        tmp_path = metadata_path.with_name(
+            f".{metadata_path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+        )
+        replaced = False
+        try:
+            encoded = json.dumps(sanitized, indent=2) + "\n"
+            with open(tmp_path, "w", encoding="utf-8") as handle:
+                handle.write(encoded)
+                handle.flush()
+                os.fsync(handle.fileno())
+
+            pre_replace_fingerprint = campaign_metadata_file_content_fingerprint(
+                metadata_path
+            )
+            if pre_replace_fingerprint != expected_fingerprint:
+                return CampaignMetadataWriteResult(
+                    written=False, error_code=CAMPAIGN_METADATA_CONCURRENT_UPDATE
+                )
+
+            os.replace(tmp_path, metadata_path)
+            replaced = True
+
+            if original_mode is not None:
+                try:
+                    os.chmod(metadata_path, original_mode)
+                except OSError:
+                    pass
+            _fsync_parent_directory(metadata_path)
+        except OSError:
+            return CampaignMetadataWriteResult(
+                written=False, error_code="campaign_metadata_write_failed"
+            )
+        finally:
+            if not replaced and tmp_path.is_file():
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    pass
+
+        return CampaignMetadataWriteResult(written=True)
+    finally:
+        if fcntl is not None:
+            try:
+                fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+        try:
+            lock_handle.close()
+        except OSError:
+            pass
 
 
 def _campaign_source_path_candidates(campaign: dict[str, Any]) -> list[str]:

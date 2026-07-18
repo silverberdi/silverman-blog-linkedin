@@ -931,6 +931,106 @@ def _ensure_editorial_blog_image_impl(
         )
         return result
 
+    # US-033: re-check reusable assets immediately before ComfyUI so concurrent
+    # or repeated paths skip generation and do not overwrite a readable public asset.
+    recheck = _detection_outcome(
+        frontmatter=frontmatter,
+        public_slug=public_slug,
+        source_slug=source_slug,
+        base_path=base_path,
+        source_relative_path=normalized,
+        github_pages_repo_path=repo_path,
+    )
+    if not recheck.needs_comfyui:
+        if recheck.reuse_public_asset or (
+            recheck.skip_reason == SKIP_REASON_ALREADY_VALID
+        ):
+            if recheck.backfill_ready_sibling and repo_path is not None:
+                public_png = _public_asset_path(repo_path, public_slug)
+                backfill_status = _backfill_active_sibling_from_public(
+                    public_png, active_png_path
+                )
+                _record_backfill_status(result, backfill_status)
+                if backfill_status == "failed":
+                    return _finalize_failure(
+                        result,
+                        error_code=BLOG_IMAGE_GENERATION_BACKFILL_FAILED,
+                        base_path=base_path,
+                        campaign_id=campaign_id,
+                        started_at=started_at,
+                        run_id=run_id,
+                    )
+            else:
+                _record_backfill_status(result, "not_needed")
+            needs_frontmatter_patch = _is_blank(frontmatter.get("image")) or str(
+                frontmatter.get("image", "")
+            ).strip() != public_image_path
+            if needs_frontmatter_patch:
+                try:
+                    _patch_frontmatter_image(source_md, public_slug)
+                    result.front_matter_updated = True
+                except (OSError, PublishError):
+                    return _finalize_failure(
+                        result,
+                        error_code=BLOG_IMAGE_GENERATION_FRONTMATTER_UPDATE_FAILED,
+                        base_path=base_path,
+                        campaign_id=campaign_id,
+                        started_at=started_at,
+                        run_id=run_id,
+                    )
+            if recheck.skip_reason == SKIP_REASON_ALREADY_VALID:
+                result.skip_reason = SKIP_REASON_ALREADY_VALID
+                result.public_asset_handoff_status = "reused"
+                result.public_asset_source = PUBLIC_ASSET_SOURCE_EXISTING
+            else:
+                result.skip_reason = SKIP_REASON_PUBLIC_ASSET_REUSE
+            return _finalize_success(
+                result,
+                base_path=base_path,
+                campaign_id=campaign_id,
+                started_at=started_at,
+                run_id=run_id,
+                status="skipped",
+            )
+        if recheck.adopt_ready_sibling or active_png_path.is_file():
+            needs_frontmatter_patch = _is_blank(frontmatter.get("image")) or str(
+                frontmatter.get("image", "")
+            ).strip() != public_image_path
+            if needs_frontmatter_patch:
+                try:
+                    _patch_frontmatter_image(source_md, public_slug)
+                    result.front_matter_updated = True
+                except (OSError, PublishError):
+                    return _finalize_failure(
+                        result,
+                        error_code=BLOG_IMAGE_GENERATION_FRONTMATTER_UPDATE_FAILED,
+                        base_path=base_path,
+                        campaign_id=campaign_id,
+                        started_at=started_at,
+                        run_id=run_id,
+                    )
+            _record_backfill_status(result, "not_needed")
+            result.skip_reason = recheck.skip_reason or SKIP_REASON_ALREADY_VALID
+            return _finalize_success(
+                result,
+                base_path=base_path,
+                campaign_id=campaign_id,
+                started_at=started_at,
+                run_id=run_id,
+                status="skipped",
+            )
+        # Non-ComfyUI outcome without reuse/adopt (e.g. non-canonical): still skip.
+        result.skip_reason = recheck.skip_reason or SKIP_REASON_NOT_APPLICABLE
+        _record_backfill_status(result, "not_needed")
+        return _finalize_success(
+            result,
+            base_path=base_path,
+            campaign_id=campaign_id,
+            started_at=started_at,
+            run_id=run_id,
+            status="skipped",
+        )
+
     owns_client = False
     comfy_client = client
     if comfy_client is None:
@@ -958,6 +1058,58 @@ def _ensure_editorial_blog_image_impl(
             campaign_id=campaign_id,
             started_at=started_at,
             run_id=run_id,
+        )
+
+    # US-033 final guard: if a reusable asset appeared during generation, do not
+    # overwrite the public asset (or an existing active sibling).
+    public_now_readable = _public_asset_readable(repo_path, public_slug)
+    active_now_exists = active_png_path.is_file()
+    if public_now_readable or active_now_exists:
+        if public_now_readable and not active_now_exists and repo_path is not None:
+            public_png = _public_asset_path(repo_path, public_slug)
+            backfill_status = _backfill_active_sibling_from_public(
+                public_png, active_png_path
+            )
+            _record_backfill_status(result, backfill_status)
+            if backfill_status == "failed":
+                return _finalize_failure(
+                    result,
+                    error_code=BLOG_IMAGE_GENERATION_BACKFILL_FAILED,
+                    base_path=base_path,
+                    campaign_id=campaign_id,
+                    started_at=started_at,
+                    run_id=run_id,
+                )
+        else:
+            _record_backfill_status(result, "not_needed")
+        needs_frontmatter_patch = _is_blank(frontmatter.get("image")) or str(
+            frontmatter.get("image", "")
+        ).strip() != public_image_path
+        if needs_frontmatter_patch:
+            try:
+                _patch_frontmatter_image(source_md, public_slug)
+                result.front_matter_updated = True
+            except (OSError, PublishError):
+                return _finalize_failure(
+                    result,
+                    error_code=BLOG_IMAGE_GENERATION_FRONTMATTER_UPDATE_FAILED,
+                    base_path=base_path,
+                    campaign_id=campaign_id,
+                    started_at=started_at,
+                    run_id=run_id,
+                )
+        result.skip_reason = (
+            SKIP_REASON_PUBLIC_ASSET_REUSE
+            if public_now_readable
+            else SKIP_REASON_ALREADY_VALID
+        )
+        return _finalize_success(
+            result,
+            base_path=base_path,
+            campaign_id=campaign_id,
+            started_at=started_at,
+            run_id=run_id,
+            status="skipped",
         )
 
     try:

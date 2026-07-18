@@ -334,12 +334,12 @@ Use this checklist to track business progress. Mark items only when the stated b
 - [ ] **BL-013 — Validate Concurrency and Duplicate Execution Protection**
   - Business outcome: Concurrent triggers do not create duplicate artifacts or external publications.
   - [ ] **US-033**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted
   - [ ] **US-034**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed

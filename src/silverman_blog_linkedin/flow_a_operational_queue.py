@@ -10,6 +10,7 @@ from typing import Any
 
 from silverman_blog_linkedin.campaign_lifecycle import (
     ACTOR_WORKER,
+    CAMPAIGN_METADATA_CONCURRENT_UPDATE,
     ERROR_SOURCE_PREFIX,
     FLOW_A,
     PHYSICAL_MOVE_STATE_COMPLETED,
@@ -29,6 +30,7 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     EXECUTION_STATE_PROCESSING,
     EXECUTION_STATE_STALE,
     build_initial_campaign_metadata,
+    campaign_metadata_content_fingerprint,
     compute_source_content_sha256,
     find_campaign_by_source_path,
     generate_campaign_id,
@@ -36,6 +38,7 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     read_campaign_metadata,
     validate_operational_transition,
     write_campaign_metadata,
+    write_campaign_metadata_cas,
 )
 from silverman_blog_linkedin.file_reader import normalize_relative_path
 from silverman_blog_linkedin.flow_a_config import load_flow_a_processing_stale_seconds
@@ -68,6 +71,24 @@ QUEUE_ACCEPTANCE_SKIPPED_ALREADY_QUEUED = "skipped_already_queued"
 QUEUE_ACCEPTANCE_FAILED = "failed"
 QUEUE_ACCEPTANCE_PARTIAL = "partial"
 QUEUE_ACCEPTANCE_REPAIR_REQUIRED = "repair_required"
+
+# Bounded CAS retries for overlapping claim writers (US-033). Keep small.
+CLAIM_CAS_MAX_ATTEMPTS = 3
+
+
+def _already_claimed_result(
+    campaign_id: str,
+    *,
+    execution_state: str | None = None,
+) -> ExecutionClaimResult:
+    return ExecutionClaimResult(
+        status="failed",
+        campaign_id=campaign_id,
+        execution_state=execution_state,
+        errors=[FLOW_A_EXECUTION_ALREADY_CLAIMED],
+        already_claimed=True,
+        recovery_classification=RECOVERY_MANUAL_INTERVENTION_REQUIRED,
+    )
 
 
 @dataclass
@@ -290,81 +311,109 @@ def claim_flow_a_execution(
     campaign_id: str,
     now_utc: str | None = None,
 ) -> ExecutionClaimResult:
-    """Claim Flow A execution for a queued campaign."""
-    campaign = read_campaign_metadata(base_path, campaign_id)
-    if campaign is None:
-        return ExecutionClaimResult(
-            status="failed",
-            campaign_id=campaign_id,
-            errors=[FLOW_A_QUEUE_CAMPAIGN_NOT_FOUND],
-        )
+    """Claim Flow A execution for a queued campaign.
 
-    source_status = normalize_source_file_status(campaign.get("source_file_status"))
-    location = source_status.get("location")
-    if location not in (SOURCE_LOCATION_QUEUED,):
-        return ExecutionClaimResult(
-            status="failed",
-            campaign_id=campaign_id,
-            errors=[FLOW_A_QUEUE_INTAKE_FAILED],
-        )
-
-    execution_state = source_status.get("execution_state", EXECUTION_STATE_IDLE)
+    Persists ``execution_state=processing`` via compare-and-swap against the
+    on-disk campaign metadata fingerprint so overlapping claim attempts cannot
+    both succeed (US-033).
+    """
     current_dt, now = _canonical_utc_now(now_utc)
     stale_seconds = load_flow_a_processing_stale_seconds()
-    reclaimed = execution_state == EXECUTION_STATE_STALE
 
-    if execution_state == EXECUTION_STATE_PROCESSING:
-        if is_execution_stale(
-            source_status, now=current_dt, stale_seconds=stale_seconds
-        ):
-            detect_stale_flow_a_execution(
-                base_path, campaign_id=campaign_id, now_utc=now
-            )
-            campaign = read_campaign_metadata(base_path, campaign_id) or campaign
-            source_status = normalize_source_file_status(campaign.get("source_file_status"))
-            execution_state = source_status.get("execution_state", EXECUTION_STATE_IDLE)
-            reclaimed = True
-        else:
+    for _cas_attempt in range(CLAIM_CAS_MAX_ATTEMPTS):
+        campaign = read_campaign_metadata(base_path, campaign_id)
+        if campaign is None:
             return ExecutionClaimResult(
                 status="failed",
                 campaign_id=campaign_id,
-                errors=[FLOW_A_EXECUTION_ALREADY_CLAIMED],
-                already_claimed=True,
-                recovery_classification=RECOVERY_MANUAL_INTERVENTION_REQUIRED,
+                errors=[FLOW_A_QUEUE_CAMPAIGN_NOT_FOUND],
             )
 
-    from_execution = execution_state
-    if from_execution not in (EXECUTION_STATE_IDLE, EXECUTION_STATE_STALE):
-        return ExecutionClaimResult(
-            status="failed",
-            campaign_id=campaign_id,
-            errors=[FLOW_A_EXECUTION_ALREADY_CLAIMED],
+        source_status = normalize_source_file_status(campaign.get("source_file_status"))
+        location = source_status.get("location")
+        if location not in (SOURCE_LOCATION_QUEUED,):
+            return ExecutionClaimResult(
+                status="failed",
+                campaign_id=campaign_id,
+                errors=[FLOW_A_QUEUE_INTAKE_FAILED],
+            )
+
+        execution_state = source_status.get("execution_state", EXECUTION_STATE_IDLE)
+        reclaimed = execution_state == EXECUTION_STATE_STALE
+
+        if execution_state == EXECUTION_STATE_PROCESSING:
+            if is_execution_stale(
+                source_status, now=current_dt, stale_seconds=stale_seconds
+            ):
+                detect_stale_flow_a_execution(
+                    base_path, campaign_id=campaign_id, now_utc=now
+                )
+                # Stale detect mutates on-disk metadata; restart CAS with fresh read.
+                continue
+            return _already_claimed_result(
+                campaign_id, execution_state=EXECUTION_STATE_PROCESSING
+            )
+
+        from_execution = execution_state
+        if from_execution not in (EXECUTION_STATE_IDLE, EXECUTION_STATE_STALE):
+            return _already_claimed_result(
+                campaign_id, execution_state=from_execution
+            )
+
+        validate_operational_transition(
+            from_location=location,
+            from_execution=from_execution,
+            to_location=location,
+            to_execution=EXECUTION_STATE_PROCESSING,
         )
 
-    validate_operational_transition(
-        from_location=location,
-        from_execution=from_execution,
-        to_location=location,
-        to_execution=EXECUTION_STATE_PROCESSING,
-    )
+        expected_fingerprint = campaign_metadata_content_fingerprint(
+            base_path, campaign_id
+        )
+        if expected_fingerprint is None:
+            return ExecutionClaimResult(
+                status="failed",
+                campaign_id=campaign_id,
+                errors=[FLOW_A_QUEUE_CAMPAIGN_NOT_FOUND],
+            )
 
-    attempt_count = int(source_status.get("attempt_count") or 0) + 1
-    attempt_id = str(uuid.uuid4())
-    source_status["execution_state"] = EXECUTION_STATE_PROCESSING
-    source_status["execution_attempt_id"] = attempt_id
-    source_status["attempt_count"] = attempt_count
-    source_status["processing_claimed_at"] = now
-    source_status["processing_started_at"] = now
-    source_status["last_progress_at"] = now
-    source_status["processing_lease_expires_at"] = _derived_lease_expires_at(
-        now, stale_seconds
-    )
-    source_status["recovery_classification"] = RECOVERY_NO_ACTION
-    campaign["source_file_status"] = source_status
-    campaign["updated_at"] = now
+        attempt_count = int(source_status.get("attempt_count") or 0) + 1
+        attempt_id = str(uuid.uuid4())
+        source_status["execution_state"] = EXECUTION_STATE_PROCESSING
+        source_status["execution_attempt_id"] = attempt_id
+        source_status["attempt_count"] = attempt_count
+        source_status["processing_claimed_at"] = now
+        source_status["processing_started_at"] = now
+        source_status["last_progress_at"] = now
+        source_status["processing_lease_expires_at"] = _derived_lease_expires_at(
+            now, stale_seconds
+        )
+        source_status["recovery_classification"] = RECOVERY_NO_ACTION
+        campaign["source_file_status"] = source_status
+        campaign["updated_at"] = now
 
-    write_result = write_campaign_metadata(base_path, campaign_id, campaign)
-    if not _metadata_write_succeeded(write_result):
+        write_result = write_campaign_metadata_cas(
+            base_path,
+            campaign_id,
+            campaign,
+            expected_fingerprint=expected_fingerprint,
+        )
+        if _metadata_write_succeeded(write_result):
+            return ExecutionClaimResult(
+                status="completed",
+                campaign_id=campaign_id,
+                execution_attempt_id=attempt_id,
+                attempt_count=attempt_count,
+                execution_state=EXECUTION_STATE_PROCESSING,
+                reclaimed_from_stale=reclaimed,
+                metadata_written=True,
+                metadata_error_code=None,
+            )
+
+        if write_result.error_code == CAMPAIGN_METADATA_CONCURRENT_UPDATE:
+            # Peer writer changed the document; re-read and either claim or fail closed.
+            continue
+
         return ExecutionClaimResult(
             status="failed",
             campaign_id=campaign_id,
@@ -376,16 +425,21 @@ def claim_flow_a_execution(
             metadata_error_code=write_result.error_code,
             errors=[write_result.error_code or CAMPAIGN_METADATA_WRITE_FAILED],
         )
-    return ExecutionClaimResult(
-        status="completed",
-        campaign_id=campaign_id,
-        execution_attempt_id=attempt_id,
-        attempt_count=attempt_count,
-        execution_state=EXECUTION_STATE_PROCESSING,
-        reclaimed_from_stale=reclaimed,
-        metadata_written=True,
-        metadata_error_code=None,
-    )
+
+    # Retry exhaustion: fail closed as already-claimed when a peer holds processing.
+    final_campaign = read_campaign_metadata(base_path, campaign_id)
+    if final_campaign is not None:
+        final_status = normalize_source_file_status(
+            final_campaign.get("source_file_status")
+        )
+        if final_status.get("execution_state") == EXECUTION_STATE_PROCESSING:
+            if not is_execution_stale(
+                final_status, now=current_dt, stale_seconds=stale_seconds
+            ):
+                return _already_claimed_result(
+                    campaign_id, execution_state=EXECUTION_STATE_PROCESSING
+                )
+    return _already_claimed_result(campaign_id)
 
 
 def record_flow_a_progress(

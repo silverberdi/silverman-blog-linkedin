@@ -891,6 +891,88 @@ def _target_exists_failure(
     )
 
 
+def _reread_publish_race_outcome(
+    base_path: Path,
+    preflight: PreflightContext,
+    *,
+    campaign_id: str,
+    repo_path: Path,
+    site_url: str,
+    pub_date: date,
+    post_relative: str,
+    image_relative: str,
+    warnings: list[str],
+    validation_summary: dict[str, Any],
+    blog_image_generation: dict[str, Any] | None,
+    execution_time: datetime,
+) -> BlogPublishResult | None:
+    """Re-read campaign/targets for concurrent first-publish races (US-033).
+
+    Returns already_published, reconciliation success, or fail-closed target_exists
+    without mutating the on-disk campaign into ERROR. Returns None when no race
+    evidence is present and the caller may proceed with apply.
+    """
+    fresh = read_campaign_metadata(base_path, campaign_id)
+    if fresh is None:
+        return None
+
+    if (
+        preflight.expected_idempotency_key
+        and preflight.source_content_sha256
+        and _check_idempotent_already_published(
+            fresh,
+            expected_idempotency_key=preflight.expected_idempotency_key,
+            source_content_sha256=preflight.source_content_sha256,
+        )
+    ):
+        return _already_published_result(preflight, fresh)
+
+    if fresh.get("state") in (
+        *POST_SCHEDULE_SOURCE_RESOLUTION_STATES,
+        STATE_FLOW_A_COMPLETE,
+    ) and fresh.get("source_public_url"):
+        return _already_published_result(preflight, fresh)
+
+    reconciliation = _attempt_blog_publish_reconciliation(
+        base_path,
+        preflight,
+        fresh,
+        campaign_id=campaign_id,
+        repo_path=repo_path,
+        site_url=site_url,
+        pub_date=pub_date,
+        post_relative=post_relative,
+        image_relative=image_relative,
+        warnings=warnings,
+        validation_summary=validation_summary,
+        blog_image_generation=blog_image_generation,
+        execution_time=execution_time,
+    )
+    if reconciliation is not None:
+        return reconciliation
+
+    # Only the public Markdown post is a hard first-publish race signal.
+    # Image-only presence is normal after editorial handoff and must not
+    # short-circuit as blog_publish_target_exists before run_publish.
+    post_exists, _image_exists = _public_target_existence(
+        repo_path,
+        post_relative=post_relative,
+        image_relative=image_relative,
+    )
+    if post_exists:
+        return _target_exists_failure(
+            preflight,
+            campaign=fresh,
+            campaign_id=campaign_id,
+            site_url=site_url,
+            skip_reason=None,
+            warnings=warnings,
+            validation_summary=validation_summary,
+            blog_image_generation=blog_image_generation,
+        )
+    return None
+
+
 def _attempt_blog_publish_reconciliation(
     base_path: Path,
     preflight: PreflightContext,
@@ -1260,14 +1342,14 @@ def _apply_post_handoff_publication_layers(
 def _build_environ(
     base_path: Path,
     site_url: str,
-    github_pages_repo_path: str | None,
+    github_pages_repo_path: str | Path | None,
     environ: dict[str, str] | None,
 ) -> dict[str, str]:
     env = dict(os.environ if environ is None else environ)
     env["SILVERMAN_BLOG_LINKEDIN_BASE_PATH"] = str(base_path)
     env["SILVERMAN_SITE_URL"] = site_url.rstrip("/")
     if github_pages_repo_path:
-        env[ENV_REPO_PATH] = github_pages_repo_path
+        env[ENV_REPO_PATH] = str(github_pages_repo_path)
     return env
 
 
@@ -1836,6 +1918,35 @@ def publish_blog_post(
                 metadata_error_code=metadata_error_code,
             )
 
+    # US-033: re-check identity/targets immediately before public apply so a
+    # concurrent winner's artifacts are not overwritten or corrupted.
+    race_outcome = _reread_publish_race_outcome(
+        base_path,
+        preflight,
+        campaign_id=campaign_id,
+        repo_path=config.repo_path,
+        site_url=site_url,
+        pub_date=pub_date,
+        post_relative=post_relative,
+        image_relative=image_relative,
+        warnings=warnings,
+        validation_summary=validation_summary,
+        blog_image_generation=blog_image_generation_summary,
+        execution_time=publish_execution_time,
+    )
+    if race_outcome is not None:
+        return _apply_post_handoff_publication_layers(
+            base_path,
+            race_outcome,
+            git_publication=git_publication,
+            live_site_confirmation=live_site_confirmation,
+            site_url=site_url,
+            github_pages_repo_path=github_pages_repo_path,
+            environ=environ,
+            git_runner=git_runner,
+            http_client=http_client,
+        )
+
     try:
         plan: PublishPlan = run_publish(
             preflight.source_slug,
@@ -1852,10 +1963,9 @@ def publish_blog_post(
         if "refusing to overwrite" not in message:
             error_code = BLOG_PUBLISH_FAILED
         else:
-            overwrite_reconciliation = _attempt_blog_publish_reconciliation(
+            overwrite_race = _reread_publish_race_outcome(
                 base_path,
                 preflight,
-                campaign,
                 campaign_id=campaign_id,
                 repo_path=config.repo_path,
                 site_url=site_url,
@@ -1867,10 +1977,10 @@ def publish_blog_post(
                 blog_image_generation=blog_image_generation_summary,
                 execution_time=publish_execution_time,
             )
-            if overwrite_reconciliation is not None:
+            if overwrite_race is not None:
                 return _apply_post_handoff_publication_layers(
                     base_path,
-                    overwrite_reconciliation,
+                    overwrite_race,
                     git_publication=git_publication,
                     live_site_confirmation=live_site_confirmation,
                     site_url=site_url,
@@ -1879,6 +1989,21 @@ def publish_blog_post(
                     git_runner=git_runner,
                     http_client=http_client,
                 )
+
+        # Preserve peer/completed publish evidence: do not force ERROR when the
+        # failure is an overwrite refusal for existing public targets.
+        if error_code == BLOG_PUBLISH_TARGET_EXISTS:
+            fresh = read_campaign_metadata(base_path, campaign_id) or campaign
+            return _target_exists_failure(
+                preflight,
+                campaign=fresh,
+                campaign_id=campaign_id,
+                site_url=site_url,
+                skip_reason=None,
+                warnings=warnings,
+                validation_summary=validation_summary,
+                blog_image_generation=blog_image_generation_summary,
+            )
 
         blog_publish = dict(campaign.get("blog_publish") or {})
         blog_publish.update({"status": "failed", "error_code": error_code})
