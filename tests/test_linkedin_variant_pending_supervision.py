@@ -1,4 +1,4 @@
-"""Behavioral tests for US-038 pending LinkedIn variant supervision (read-only)."""
+"""Behavioral tests for US-038/US-039 LinkedIn variant supervision console."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from silverman_blog_linkedin.linkedin_variant_pending_supervision import (
     CALENDAR_CAMPAIGN_AMBIGUOUS,
     CALENDAR_FILE_NOT_FOUND,
     CAMPAIGN_FILE_INVALID,
+    DRAFT_ARTIFACT_MISSING,
     console_html_path,
     get_pending_linkedin_variant_supervision,
     load_console_html,
@@ -23,6 +24,8 @@ from tests.conftest import auth_header, make_settings
 CAMPAIGN_ID = "flow-a-2026-07-18-supervision-console"
 PENDING_API = "/flow-a/linkedin-variants/pending-supervision"
 CONSOLE_PATH = "/flow-a/console/linkedin-variant-supervision"
+CORRECT_PATH = "/correct-linkedin-variant"
+DEFER_PATH = "/defer-linkedin-variant"
 
 # Patterns that must never appear in the committed console HTML asset.
 _SECRET_LIKE_PATTERNS = (
@@ -44,6 +47,7 @@ def supervision_base(tmp_path: Path) -> Path:
         "blog-posts/queued",
         "blog-posts/processed",
         "blog-posts/error",
+        "linkedin-posts/generated",
         "linkedin-posts/review",
         "linkedin-posts/approved",
         "linkedin-posts/published",
@@ -55,6 +59,18 @@ def supervision_base(tmp_path: Path) -> Path:
 def _write_json(path: Path, payload: object) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def _write_draft(
+    base: Path,
+    campaign_id: str,
+    variant_id: str,
+    content: str = "Draft body for supervision.\n",
+) -> Path:
+    path = base / "linkedin-posts/generated" / campaign_id / f"{variant_id}.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
     return path
 
 
@@ -166,6 +182,18 @@ def test_pending_rows_include_required_fields_and_calendar_join(
             ),
         ],
     )
+    _write_draft(
+        supervision_base,
+        CAMPAIGN_ID,
+        "hiring-manager",
+        "Hiring manager draft.\n",
+    )
+    _write_draft(
+        supervision_base,
+        CAMPAIGN_ID,
+        "engineering-leadership",
+        "Engineering leadership draft.\n",
+    )
     _write_calendar(
         supervision_base,
         [_calendar_item("cal-item-1", campaign_id=CAMPAIGN_ID)],
@@ -194,9 +222,32 @@ def test_pending_rows_include_required_fields_and_calendar_join(
     assert first["calendar_title"] == "Item cal-item-1"
     assert first["calendar_due_at_utc"] == "2026-07-19T11:00:00Z"
     assert first["calendar_status"] == "scheduled"
+    assert first["draft_content"] == "Hiring manager draft.\n"
     second = result.variants[1].to_dict()
     assert second["operator_supervision_last_action"] == "defer"
     assert second["auto_queue_eligible"] is True
+    assert second["draft_content"] == "Engineering leadership draft.\n"
+
+
+def test_missing_draft_still_lists_pending_row_with_null_content(
+    supervision_base: Path,
+):
+    _write_campaign(
+        supervision_base,
+        variants=[_variant("engineering-leadership")],
+    )
+    _write_calendar(supervision_base, [])
+
+    result = get_pending_linkedin_variant_supervision(supervision_base)
+
+    assert result.status == "partial"
+    assert len(result.variants) == 1
+    assert result.variants[0].draft_content is None
+    assert any(
+        issue.reason == DRAFT_ARTIFACT_MISSING
+        and issue.identifier == f"{CAMPAIGN_ID}:engineering-leadership"
+        for issue in result.issues
+    )
 
 
 def test_empty_pending_set_is_success_not_failure(supervision_base: Path):
@@ -221,6 +272,7 @@ def test_calendar_missing_still_lists_pending_variants(supervision_base: Path):
         supervision_base,
         variants=[_variant("engineering-leadership")],
     )
+    _write_draft(supervision_base, CAMPAIGN_ID, "engineering-leadership")
     calendar_path = supervision_base / "editorial-calendar/calendar.json"
     assert not calendar_path.exists()
 
@@ -231,6 +283,7 @@ def test_calendar_missing_still_lists_pending_variants(supervision_base: Path):
     row = result.variants[0]
     assert row.variant_id == "engineering-leadership"
     assert row.calendar_item_id is None
+    assert row.draft_content is not None
     assert any(
         issue.reason == CALENDAR_FILE_NOT_FOUND for issue in result.issues
     )
@@ -241,6 +294,7 @@ def test_calendar_invalid_still_lists_pending_variants(supervision_base: Path):
         supervision_base,
         variants=[_variant("engineering-leadership")],
     )
+    _write_draft(supervision_base, CAMPAIGN_ID, "engineering-leadership")
     (supervision_base / "editorial-calendar/calendar.json").write_text(
         "{not-json",
         encoding="utf-8",
@@ -264,6 +318,7 @@ def test_partial_campaign_read_failure_keeps_other_pending_rows(
         good_id,
         variants=[_variant("engineering-leadership")],
     )
+    _write_draft(supervision_base, good_id, "engineering-leadership")
     (supervision_base / "metadata/campaigns" / f"{bad_id}.json").write_text(
         "{broken",
         encoding="utf-8",
@@ -287,6 +342,7 @@ def test_enablement_off_is_display_context_only(supervision_base: Path):
         supervision_base,
         variants=[_variant("engineering-leadership")],
     )
+    _write_draft(supervision_base, CAMPAIGN_ID, "engineering-leadership")
     _write_calendar(supervision_base, [])
 
     result = get_pending_linkedin_variant_supervision(
@@ -306,6 +362,7 @@ def test_ambiguous_calendar_campaign_uses_first_item_id_and_flags_issue(
         supervision_base,
         variants=[_variant("engineering-leadership")],
     )
+    _write_draft(supervision_base, CAMPAIGN_ID, "engineering-leadership")
     _write_calendar(
         supervision_base,
         [
@@ -327,6 +384,7 @@ def test_read_path_does_not_mutate_campaign_or_calendar(supervision_base: Path):
         supervision_base,
         variants=[_variant("engineering-leadership")],
     )
+    _write_draft(supervision_base, CAMPAIGN_ID, "engineering-leadership")
     calendar_path = _write_calendar(
         supervision_base,
         [_calendar_item("cal-1", campaign_id=CAMPAIGN_ID)],
@@ -338,8 +396,14 @@ def test_read_path_does_not_mutate_campaign_or_calendar(supervision_base: Path):
     after = _snapshot_tree(supervision_base)
 
     assert before == after
-    assert campaign_path.read_bytes() == before[str(campaign_path.relative_to(supervision_base))][0]
-    assert calendar_path.read_bytes() == before[str(calendar_path.relative_to(supervision_base))][0]
+    assert (
+        campaign_path.read_bytes()
+        == before[str(campaign_path.relative_to(supervision_base))][0]
+    )
+    assert (
+        calendar_path.read_bytes()
+        == before[str(calendar_path.relative_to(supervision_base))][0]
+    )
     assert first.to_dict()["variants"] == second.to_dict()["variants"]
     assert first.to_dict()["issues"] == second.to_dict()["issues"]
 
@@ -348,6 +412,12 @@ def test_http_pending_supervision_auth_and_payload(supervision_base: Path):
     _write_campaign(
         supervision_base,
         variants=[_variant("engineering-leadership")],
+    )
+    _write_draft(
+        supervision_base,
+        CAMPAIGN_ID,
+        "engineering-leadership",
+        "HTTP draft body.\n",
     )
     _write_calendar(
         supervision_base,
@@ -369,6 +439,7 @@ def test_http_pending_supervision_auth_and_payload(supervision_base: Path):
     assert row["scheduled_at_utc"] == "2026-07-20T14:00:00Z"
     assert row["publish_state"] == "pending"
     assert row["calendar_item_id"] == "cal-1"
+    assert row["draft_content"] == "HTTP draft body.\n"
     body_text = response.text
     assert "SILVERMAN_LINKEDIN_ACCESS_TOKEN" not in body_text
     assert "sk-" not in body_text
@@ -384,13 +455,35 @@ def test_console_html_served_at_fixed_path_without_auth(
     body = response.text
     assert "LinkedIn variant supervision" in body
     assert PENDING_API in body
+    assert CORRECT_PATH in body
+    assert DEFER_PATH in body
     assert "US-039" in body
     assert "US-040" in body
-    assert "correct-linkedin-variant" not in body
-    assert "defer-linkedin-variant" not in body
     assert "cancel-linkedin-publication" not in body
     assert "not LinkedIn API published" in body
     assert "flow_a_complete" in body
+    assert "edit-dry-run" in body
+    assert "defer-dry-run" in body
+    assert "linkedin_supervision_variant_not_pending" in body
+    assert "linkedin_supervision_defer_time_invalid" in body
+    assert "actions not available" not in body.lower()
+
+
+def test_console_action_contract_wiring_in_static_html():
+    """Story 2 console wires edit/defer to US-017 POSTs with dry-run default on."""
+    html = load_console_html()
+    assert 'var CORRECT_PATH = "/correct-linkedin-variant";' in html
+    assert 'var DEFER_PATH = "/defer-linkedin-variant";' in html
+    assert 'id="edit-dry-run" checked' in html
+    assert 'id="defer-dry-run" checked' in html
+    assert "dry_run: dryRun" in html
+    assert "draft_content:" in html
+    assert "new_scheduled_at_utc:" in html
+    assert "validated (dry-run, no mutation)" in html
+    assert "persisted (real write)" in html
+    assert "does not auto-update the editorial calendar" in html
+    assert "cancel-linkedin-publication" not in html
+    assert 'data-action="cancel"' not in html
 
 
 def test_static_html_secrets_audit_fails_on_secret_like_patterns():

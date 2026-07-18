@@ -1,4 +1,4 @@
-"""Read-only aggregation of pending Flow A LinkedIn variants for supervision (US-038)."""
+"""Read-only aggregation of pending Flow A LinkedIn variants for supervision (US-038/US-039)."""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ from silverman_blog_linkedin.run_metadata import utc_now_iso
 
 CAMPAIGNS_SOURCE = "campaigns"
 CALENDAR_SOURCE = "calendar"
+DRAFT_SOURCE = "draft"
 
 CAMPAIGNS_DIRECTORY_NOT_FOUND = "campaigns_directory_not_found"
 CAMPAIGNS_DIRECTORY_INVALID = "campaigns_directory_invalid"
@@ -36,6 +37,11 @@ LINKEDIN_VARIANTS_INVALID = "linkedin_variants_invalid"
 LINKEDIN_VARIANT_INVALID = "linkedin_variant_invalid"
 LINKEDIN_PUBLISH_STATE_INVALID = "linkedin_publish_state_invalid"
 CALENDAR_CAMPAIGN_AMBIGUOUS = "calendar_campaign_ambiguous"
+DRAFT_ARTIFACT_MISSING = "draft_artifact_missing"
+DRAFT_ARTIFACT_UNREADABLE = "draft_artifact_unreadable"
+DRAFT_ARTIFACT_PATH_INVALID = "draft_artifact_path_invalid"
+
+GENERATED_DRAFT_RELATIVE = "linkedin-posts/generated"
 
 PUBLISH_STATE_PENDING = "pending"
 KNOWN_PUBLISH_STATES = frozenset(
@@ -69,9 +75,59 @@ class PendingSupervisionVariant:
     calendar_status: str | None = None
     operator_supervision_last_action: str | None = None
     auto_queue_eligible: bool | None = None
+    draft_content: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def _default_draft_relative_path(campaign_id: str, variant_id: str) -> str:
+    return f"{GENERATED_DRAFT_RELATIVE}/{campaign_id}/{variant_id}.md"
+
+
+def _read_draft_content(
+    base_path: Path,
+    *,
+    campaign_id: str,
+    variant_id: str,
+    artifact_relative: object,
+    issues: list[SupervisionIssue],
+) -> str | None:
+    """Read generated draft text for edit-form population (read-only; no writes)."""
+    identifier = f"{campaign_id}:{variant_id}"
+    if isinstance(artifact_relative, str) and artifact_relative.strip():
+        relative = artifact_relative.strip()
+    else:
+        relative = _default_draft_relative_path(campaign_id, variant_id)
+
+    try:
+        base_resolved = base_path.resolve(strict=True)
+        candidate = (base_path / relative).resolve(strict=False)
+        candidate.relative_to(base_resolved)
+    except FileNotFoundError:
+        issues.append(
+            SupervisionIssue(DRAFT_SOURCE, identifier, DRAFT_ARTIFACT_UNREADABLE)
+        )
+        return None
+    except (OSError, ValueError):
+        issues.append(
+            SupervisionIssue(DRAFT_SOURCE, identifier, DRAFT_ARTIFACT_PATH_INVALID)
+        )
+        return None
+
+    if not candidate.is_file():
+        issues.append(
+            SupervisionIssue(DRAFT_SOURCE, identifier, DRAFT_ARTIFACT_MISSING)
+        )
+        return None
+
+    try:
+        return candidate.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        issues.append(
+            SupervisionIssue(DRAFT_SOURCE, identifier, DRAFT_ARTIFACT_UNREADABLE)
+        )
+        return None
 
 
 @dataclass(frozen=True)
@@ -237,6 +293,7 @@ def _supervision_context(
 
 
 def _pending_rows_from_campaign(
+    base_path: Path,
     campaign: dict[str, Any],
     *,
     campaign_id: str,
@@ -291,6 +348,13 @@ def _pending_rows_from_campaign(
             continue
 
         last_action, auto_queue_eligible = _supervision_context(entry)
+        draft_content = _read_draft_content(
+            base_path,
+            campaign_id=campaign_id,
+            variant_id=variant_id,
+            artifact_relative=entry.get("artifact_relative_path"),
+            issues=issues,
+        )
         rows.append(
             PendingSupervisionVariant(
                 campaign_id=campaign_id,
@@ -316,6 +380,7 @@ def _pending_rows_from_campaign(
                 ),
                 operator_supervision_last_action=last_action,
                 auto_queue_eligible=auto_queue_eligible,
+                draft_content=draft_content,
             )
         )
     return rows
@@ -399,6 +464,7 @@ def _load_pending_variants(
 
         rows.extend(
             _pending_rows_from_campaign(
+                base_path,
                 campaign,
                 campaign_id=persisted_id,
                 calendar_item=calendar_by_campaign.get(persisted_id),
@@ -452,6 +518,6 @@ def console_html_path() -> Path:
 
 
 def load_console_html() -> str:
-    """Load Story 1 static console HTML from the package static asset."""
+    """Load static supervision console HTML from the package static asset."""
     path = console_html_path()
     return path.read_text(encoding="utf-8")

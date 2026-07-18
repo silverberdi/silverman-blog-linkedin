@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Flow A LinkedIn variant supervision (US-038)</title>
+  <title>Flow A LinkedIn variant supervision (US-038 / US-039)</title>
   <style>
     :root {
       --bg: #f6f4ef;
@@ -77,6 +77,11 @@
       color: var(--accent);
       border: 1px solid var(--accent);
     }
+    button.row-action {
+      padding: 0.25rem 0.55rem;
+      font-size: 0.85rem;
+      margin: 0 0.25rem 0.25rem 0;
+    }
     button:disabled { opacity: 0.55; cursor: not-allowed; }
     table {
       width: 100%;
@@ -134,26 +139,115 @@
       color: var(--muted);
       font-size: 0.92rem;
     }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      padding: 1rem 1.1rem;
+      margin: 0 0 1.25rem;
+    }
+    .panel[hidden] { display: none !important; }
+    .panel h2 {
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 1.05rem;
+      margin: 0 0 0.75rem;
+    }
+    label {
+      display: block;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin: 0.65rem 0 0.25rem;
+    }
+    textarea, input[type="text"], input[type="datetime-local"] {
+      width: 100%;
+      font: inherit;
+      font-family: "IBM Plex Mono", "SF Mono", Menlo, monospace;
+      font-size: 0.9rem;
+      padding: 0.45rem 0.55rem;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #fff;
+      color: var(--ink);
+    }
+    textarea { min-height: 10rem; resize: vertical; }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0.75rem 0;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 0.9rem;
+    }
+    .check-row input { width: auto; }
+    .panel-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.85rem;
+    }
+    .sup-meta {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-top: 0.25rem;
+    }
   </style>
 </head>
 <body>
   <main>
     <h1>LinkedIn variant supervision</h1>
     <p class="lede">
-      Read-only view of Flow A LinkedIn variants in the optional supervision window
+      Flow A LinkedIn variants in the optional supervision window
       (<span class="mono">publish_state=pending</span>).
+      Edit and defer persist through US-017 worker HTTP.
       Pending is not LinkedIn API published. Campaign
       <span class="mono">flow_a_complete</span> is also not LinkedIn API published.
     </p>
 
     <div id="enablement-banner" class="banner info" hidden></div>
     <div id="status-banner" class="banner info" hidden></div>
+    <div id="action-banner" class="banner info" hidden></div>
 
     <div class="toolbar">
       <button type="button" id="load-btn">Load pending variants</button>
       <button type="button" id="clear-key-btn" class="secondary">Clear stored API key</button>
     </div>
     <p class="meta" id="meta-line">Supply your worker API key when prompted. It stays in this browser session only and is never embedded in this page.</p>
+
+    <div id="edit-panel" class="panel" hidden>
+      <h2>Edit draft content</h2>
+      <p class="meta" id="edit-target"></p>
+      <label for="edit-content">Draft content</label>
+      <textarea id="edit-content" spellcheck="true"></textarea>
+      <label for="edit-reason">Reason (optional)</label>
+      <input type="text" id="edit-reason" placeholder="e.g. operator_choice or criteria_failure">
+      <div class="check-row">
+        <input type="checkbox" id="edit-dry-run" checked>
+        <label for="edit-dry-run" style="margin:0">Dry-run (default on — validates without mutating)</label>
+      </div>
+      <div class="panel-actions">
+        <button type="button" id="edit-submit-btn">Submit edit</button>
+        <button type="button" id="edit-cancel-btn" class="secondary">Close</button>
+      </div>
+    </div>
+
+    <div id="defer-panel" class="panel" hidden>
+      <h2>Defer / reschedule</h2>
+      <p class="meta" id="defer-target"></p>
+      <label for="defer-schedule">New scheduled time (UTC)</label>
+      <input type="datetime-local" id="defer-schedule" step="1">
+      <p class="sup-meta">Stored as <span class="mono">new_scheduled_at_utc</span>. Must be strictly in the future. Defer does not auto-update the editorial calendar.</p>
+      <label for="defer-reason">Reason (optional)</label>
+      <input type="text" id="defer-reason" placeholder="e.g. operator_choice">
+      <div class="check-row">
+        <input type="checkbox" id="defer-dry-run" checked>
+        <label for="defer-dry-run" style="margin:0">Dry-run (default on — validates without mutating)</label>
+      </div>
+      <div class="panel-actions">
+        <button type="button" id="defer-submit-btn">Submit defer</button>
+        <button type="button" id="defer-cancel-btn" class="secondary">Close</button>
+      </div>
+    </div>
 
     <div id="empty-state" class="banner ok" hidden>
       No pending variants in the supervision window.
@@ -170,6 +264,7 @@
             <th>Scheduled (UTC)</th>
             <th>Publish state</th>
             <th>Calendar</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody id="variant-rows"></tbody>
@@ -182,12 +277,14 @@
     </div>
 
     <p class="note">
-      Story 1 is read-only. Edit, defer, and cancel actions arrive in later stories (US-039 / US-040)
-      and are not available on this page.
+      Story 2 supports edit and defer for pending variants via
+      <span class="mono">POST /correct-linkedin-variant</span> and
+      <span class="mono">POST /defer-linkedin-variant</span>.
+      Cancel remains US-040 and is not available on this page.
     </p>
 
     <footer>
-      Guidance (read-only, repo docs — not mutation endpoints):
+      Guidance (repo docs — not mutation endpoints):
       <span class="mono">docs/operations/linkedin-variant-review-policy.md</span> (US-015),
       <span class="mono">docs/operations/linkedin-variant-quality-criteria.md</span> (US-016),
       <span class="mono">docs/operations/linkedin-variant-supervision-mechanics.md</span> (US-017).
@@ -199,7 +296,25 @@
   <script>
     (function () {
       var API_PATH = "/flow-a/linkedin-variants/pending-supervision";
+      var CORRECT_PATH = "/correct-linkedin-variant";
+      var DEFER_PATH = "/defer-linkedin-variant";
       var STORAGE_KEY = "silverman_flow_a_supervision_api_key";
+      var lastVariants = [];
+      var activeCampaignId = null;
+      var activeVariantId = null;
+
+      var ERROR_MESSAGES = {
+        linkedin_supervision_variant_not_pending:
+          "Variant is no longer in the pending supervision window. Reload the list.",
+        linkedin_supervision_defer_time_invalid:
+          "New schedule must be strictly in the future (UTC).",
+        linkedin_supervision_edit_unchanged:
+          "Draft content is unchanged or empty after normalize. Edit was not applied.",
+        linkedin_supervision_idempotency_conflict:
+          "Idempotency conflict: same key with a different payload.",
+        linkedin_supervision_action_not_allowed:
+          "Action is not allowed for the current variant state."
+      };
 
       function $(id) {
         return document.getElementById(id);
@@ -241,6 +356,13 @@
           .replace(/"/g, "&quot;");
       }
 
+      function newIdempotencyKey() {
+        if (window.crypto && typeof window.crypto.randomUUID === "function") {
+          return window.crypto.randomUUID();
+        }
+        return "console-" + String(Date.now()) + "-" + String(Math.random()).slice(2, 10);
+      }
+
       function calendarCell(row) {
         if (!row.calendar_item_id && !row.calendar_title && !row.calendar_due_at_utc) {
           return "<span class=\"meta\">(no calendar join)</span>";
@@ -261,18 +383,156 @@
         return parts.join("<br>");
       }
 
+      function supervisionCell(row) {
+        var parts = [];
+        if (row.operator_supervision_last_action) {
+          parts.push(
+            "last: <span class=\"mono\">" +
+              escapeHtml(row.operator_supervision_last_action) +
+              "</span>"
+          );
+        }
+        if (typeof row.auto_queue_eligible === "boolean") {
+          parts.push(
+            "auto_queue_eligible=<span class=\"mono\">" +
+              String(row.auto_queue_eligible) +
+              "</span>"
+          );
+        }
+        if (!parts.length) {
+          return "";
+        }
+        return "<div class=\"sup-meta\">" + parts.join(" · ") + "</div>";
+      }
+
+      function closePanels() {
+        $("edit-panel").hidden = true;
+        $("defer-panel").hidden = true;
+        activeCampaignId = null;
+        activeVariantId = null;
+      }
+
+      function openEdit(campaignId, variantId) {
+        var row = null;
+        for (var i = 0; i < lastVariants.length; i++) {
+          if (
+            lastVariants[i].campaign_id === campaignId &&
+            lastVariants[i].variant_id === variantId
+          ) {
+            row = lastVariants[i];
+            break;
+          }
+        }
+        activeCampaignId = campaignId;
+        activeVariantId = variantId;
+        $("defer-panel").hidden = true;
+        $("edit-panel").hidden = false;
+        $("edit-target").textContent =
+          "Campaign " + campaignId + " · variant " + variantId;
+        $("edit-content").value = row && row.draft_content != null ? row.draft_content : "";
+        $("edit-reason").value = "";
+        $("edit-dry-run").checked = true;
+        $("edit-panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+
+      function openDefer(campaignId, variantId) {
+        var row = null;
+        for (var i = 0; i < lastVariants.length; i++) {
+          if (
+            lastVariants[i].campaign_id === campaignId &&
+            lastVariants[i].variant_id === variantId
+          ) {
+            row = lastVariants[i];
+            break;
+          }
+        }
+        activeCampaignId = campaignId;
+        activeVariantId = variantId;
+        $("edit-panel").hidden = true;
+        $("defer-panel").hidden = false;
+        $("defer-target").textContent =
+          "Campaign " + campaignId + " · variant " + variantId;
+        $("defer-reason").value = "";
+        $("defer-dry-run").checked = true;
+        var scheduleInput = $("defer-schedule");
+        scheduleInput.value = "";
+        if (row && row.scheduled_at_utc) {
+          var parsed = Date.parse(row.scheduled_at_utc);
+          if (!isNaN(parsed)) {
+            var d = new Date(parsed);
+            var pad = function (n) {
+              return String(n).padStart(2, "0");
+            };
+            scheduleInput.value =
+              d.getUTCFullYear() +
+              "-" +
+              pad(d.getUTCMonth() + 1) +
+              "-" +
+              pad(d.getUTCDate()) +
+              "T" +
+              pad(d.getUTCHours()) +
+              ":" +
+              pad(d.getUTCMinutes()) +
+              ":" +
+              pad(d.getUTCSeconds());
+          }
+        }
+        $("defer-panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+
+      function datetimeLocalToUtcIso(value) {
+        if (!value) {
+          return null;
+        }
+        var match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
+        if (!match) {
+          return null;
+        }
+        var sec = match[6] || "00";
+        return (
+          match[1] +
+          "-" +
+          match[2] +
+          "-" +
+          match[3] +
+          "T" +
+          match[4] +
+          ":" +
+          match[5] +
+          ":" +
+          sec +
+          "Z"
+        );
+      }
+
+      function explainErrors(errors) {
+        if (!Array.isArray(errors) || !errors.length) {
+          return "Request failed without a structured error code.";
+        }
+        return errors
+          .map(function (code) {
+            var message = ERROR_MESSAGES[code];
+            if (message) {
+              return code + " — " + message;
+            }
+            return String(code);
+          })
+          .join("; ");
+      }
+
       function render(payload) {
         var enabled = payload.linkedin_publication_enabled === true;
         setBanner(
           $("enablement-banner"),
           enabled ? "ok" : "warn",
           enabled
-            ? "LinkedIn publication enablement is on (display context only; this page does not publish)."
+            ? "LinkedIn publication enablement is on (display context only; this page does not publish to LinkedIn)."
             : "LinkedIn publication enablement is off (display context only). Pending variants remain listed; this does not hide the supervision window."
         );
 
         var issues = Array.isArray(payload.issues) ? payload.issues : [];
         var variants = Array.isArray(payload.variants) ? payload.variants : [];
+        lastVariants = variants;
         var status = payload.status || "unknown";
 
         $("meta-line").textContent =
@@ -289,7 +549,7 @@
           setBanner(
             $("status-banner"),
             "warn",
-            "Partial read: some campaign or calendar data could not be fully aligned. Successful pending rows are still shown below when available."
+            "Partial read: some campaign, calendar, or draft data could not be fully aligned. Successful pending rows are still shown below when available."
           );
         } else {
           setBanner($("status-banner"), "ok", "Read completed without data issues.");
@@ -332,12 +592,15 @@
         results.hidden = false;
         variants.forEach(function (row) {
           var tr = document.createElement("tr");
+          var campaignId = row.campaign_id || "";
+          var variantId = row.variant_id || "";
           tr.innerHTML =
             "<td class=\"mono\">" +
-            escapeHtml(row.campaign_id) +
+            escapeHtml(campaignId) +
             "</td>" +
             "<td class=\"mono\">" +
-            escapeHtml(row.variant_id) +
+            escapeHtml(variantId) +
+            supervisionCell(row) +
             "</td>" +
             "<td>" +
             escapeHtml(row.audience || "") +
@@ -350,12 +613,25 @@
             "</span> <span class=\"meta\">(supervision window; not LinkedIn API published)</span></td>" +
             "<td>" +
             calendarCell(row) +
+            "</td>" +
+            "<td>" +
+            "<button type=\"button\" class=\"row-action\" data-action=\"edit\" data-campaign=\"" +
+            escapeHtml(campaignId) +
+            "\" data-variant=\"" +
+            escapeHtml(variantId) +
+            "\">Edit</button>" +
+            "<button type=\"button\" class=\"row-action secondary\" data-action=\"defer\" data-campaign=\"" +
+            escapeHtml(campaignId) +
+            "\" data-variant=\"" +
+            escapeHtml(variantId) +
+            "\">Defer</button>" +
             "</td>";
           tbody.appendChild(tr);
         });
       }
 
-      function loadPending() {
+      function loadPending(options) {
+        var opts = options || {};
         var key = getApiKey();
         if (!key) {
           setBanner(
@@ -363,10 +639,10 @@
             "error",
             "API key required. Reload and enter your worker API key when prompted."
           );
-          return;
+          return Promise.resolve(false);
         }
         $("load-btn").disabled = true;
-        fetch(API_PATH, {
+        return fetch(API_PATH, {
           method: "GET",
           headers: {
             Accept: "application/json",
@@ -385,19 +661,225 @@
           })
           .then(function (payload) {
             render(payload);
+            if (!opts.preserveActionBanner) {
+              setBanner($("action-banner"), "", "");
+            }
+            return true;
           })
           .catch(function (err) {
             setBanner($("status-banner"), "error", String(err.message || err));
             $("results").hidden = true;
             $("empty-state").hidden = true;
             $("issues-panel").hidden = true;
+            return false;
           })
           .finally(function () {
             $("load-btn").disabled = false;
           });
       }
 
-      $("load-btn").addEventListener("click", loadPending);
+      function postMutation(path, body) {
+        var key = getApiKey();
+        if (!key) {
+          setBanner(
+            $("action-banner"),
+            "error",
+            "API key required before submitting an edit or defer."
+          );
+          return Promise.resolve(null);
+        }
+        return fetch(path, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + key
+          },
+          body: JSON.stringify(body)
+        }).then(function (response) {
+          if (response.status === 401) {
+            window.sessionStorage.removeItem(STORAGE_KEY);
+            return {
+              httpStatus: 401,
+              payload: null,
+              message: "Unauthorized (401). Cleared stored key; enter a valid API key and try again."
+            };
+          }
+          return response
+            .json()
+            .then(function (payload) {
+              return { httpStatus: response.status, payload: payload, message: null };
+            })
+            .catch(function () {
+              return {
+                httpStatus: response.status,
+                payload: null,
+                message: "Request failed with HTTP " + response.status + " (non-JSON response)."
+              };
+            });
+        });
+      }
+
+      function handleMutationResult(actionLabel, dryRun, result) {
+        if (!result) {
+          return;
+        }
+        if (result.message) {
+          setBanner($("action-banner"), "error", result.message);
+          return;
+        }
+        if (result.httpStatus === 422) {
+          setBanner(
+            $("action-banner"),
+            "error",
+            actionLabel + " rejected (HTTP 422). Check required fields and types."
+          );
+          return;
+        }
+        var payload = result.payload || {};
+        if (payload.status === "failed" || result.httpStatus >= 400) {
+          setBanner(
+            $("action-banner"),
+            "error",
+            actionLabel +
+              " failed — not persisted. " +
+              explainErrors(payload.errors)
+          );
+          return;
+        }
+        if (dryRun) {
+          setBanner(
+            $("action-banner"),
+            "ok",
+            actionLabel +
+              " validated (dry-run, no mutation) for " +
+              (payload.campaign_id || activeCampaignId) +
+              " / " +
+              (payload.variant || activeVariantId) +
+              ". Still pending supervision window — not LinkedIn API published."
+          );
+          return;
+        }
+        var scheduleNote =
+          payload.scheduled_at_utc
+            ? " New schedule: " + payload.scheduled_at_utc + "."
+            : "";
+        setBanner(
+          $("action-banner"),
+          "ok",
+          actionLabel +
+            " persisted (real write) for " +
+            (payload.campaign_id || activeCampaignId) +
+            " / " +
+            (payload.variant || activeVariantId) +
+            "." +
+            scheduleNote +
+            " Still pending supervision window — not LinkedIn API published. Editorial calendar is not auto-updated by defer."
+        );
+        closePanels();
+        loadPending({ preserveActionBanner: true });
+      }
+
+      function submitEdit() {
+        if (!activeCampaignId || !activeVariantId) {
+          setBanner($("action-banner"), "error", "No variant selected for edit.");
+          return;
+        }
+        var dryRun = $("edit-dry-run").checked === true;
+        if (!dryRun) {
+          var confirmed = window.confirm(
+            "Submit a REAL edit (dry-run off)? This writes the draft artifact and campaign metadata."
+          );
+          if (!confirmed) {
+            return;
+          }
+        }
+        var body = {
+          campaign_id: activeCampaignId,
+          variant: activeVariantId,
+          draft_content: $("edit-content").value,
+          dry_run: dryRun
+        };
+        var reason = $("edit-reason").value.trim();
+        if (reason) {
+          body.reason = reason;
+        }
+        if (!dryRun) {
+          body.idempotency_key = newIdempotencyKey();
+        }
+        $("edit-submit-btn").disabled = true;
+        postMutation(CORRECT_PATH, body)
+          .then(function (result) {
+            handleMutationResult("Edit", dryRun, result);
+          })
+          .catch(function (err) {
+            setBanner(
+              $("action-banner"),
+              "error",
+              "Edit request failed: " + String(err.message || err)
+            );
+          })
+          .finally(function () {
+            $("edit-submit-btn").disabled = false;
+          });
+      }
+
+      function submitDefer() {
+        if (!activeCampaignId || !activeVariantId) {
+          setBanner($("action-banner"), "error", "No variant selected for defer.");
+          return;
+        }
+        var dryRun = $("defer-dry-run").checked === true;
+        var newScheduled = datetimeLocalToUtcIso($("defer-schedule").value);
+        if (!newScheduled) {
+          setBanner(
+            $("action-banner"),
+            "error",
+            "Provide a valid future UTC schedule for defer."
+          );
+          return;
+        }
+        if (!dryRun) {
+          var confirmed = window.confirm(
+            "Submit a REAL defer (dry-run off)? This updates scheduled_at_utc in campaign metadata. It does not auto-update the editorial calendar."
+          );
+          if (!confirmed) {
+            return;
+          }
+        }
+        var body = {
+          campaign_id: activeCampaignId,
+          variant: activeVariantId,
+          new_scheduled_at_utc: newScheduled,
+          dry_run: dryRun
+        };
+        var reason = $("defer-reason").value.trim();
+        if (reason) {
+          body.reason = reason;
+        }
+        if (!dryRun) {
+          body.idempotency_key = newIdempotencyKey();
+        }
+        $("defer-submit-btn").disabled = true;
+        postMutation(DEFER_PATH, body)
+          .then(function (result) {
+            handleMutationResult("Defer", dryRun, result);
+          })
+          .catch(function (err) {
+            setBanner(
+              $("action-banner"),
+              "error",
+              "Defer request failed: " + String(err.message || err)
+            );
+          })
+          .finally(function () {
+            $("defer-submit-btn").disabled = false;
+          });
+      }
+
+      $("load-btn").addEventListener("click", function () {
+        loadPending({});
+      });
       $("clear-key-btn").addEventListener("click", function () {
         window.sessionStorage.removeItem(STORAGE_KEY);
         setBanner(
@@ -405,6 +887,30 @@
           "info",
           "Stored API key cleared from this browser session."
         );
+      });
+      $("edit-cancel-btn").addEventListener("click", closePanels);
+      $("defer-cancel-btn").addEventListener("click", closePanels);
+      $("edit-submit-btn").addEventListener("click", submitEdit);
+      $("defer-submit-btn").addEventListener("click", submitDefer);
+      $("variant-rows").addEventListener("click", function (event) {
+        var target = event.target;
+        if (!target || !target.getAttribute) {
+          return;
+        }
+        var action = target.getAttribute("data-action");
+        if (!action) {
+          return;
+        }
+        var campaignId = target.getAttribute("data-campaign");
+        var variantId = target.getAttribute("data-variant");
+        if (!campaignId || !variantId) {
+          return;
+        }
+        if (action === "edit") {
+          openEdit(campaignId, variantId);
+        } else if (action === "defer") {
+          openDefer(campaignId, variantId);
+        }
       });
     })();
   </script>

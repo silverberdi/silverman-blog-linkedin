@@ -18,7 +18,7 @@ This document answers: **“How does the operator persist correction, rejection,
 **Out of scope (explicit non-goals):**
 
 - BL-007 US-019 publication-evidence polish and US-020 cadence/sequence. US-018 `auto_queue_pending` is implemented separately and consumes this supervision contract.
-- **BL-015** — supervision console UI (US-038–US-040). US-038 Story 1 read-only view: `GET /flow-a/console/linkedin-variant-supervision` / `GET /flow-a/linkedin-variants/pending-supervision`. US-039/US-040 action surfaces remain out of scope for US-017.
+- **BL-015** — supervision console UI (US-038–US-040). US-038 Story 1 read view + US-039 Story 2 edit/defer UI: `GET /flow-a/console/linkedin-variant-supervision` / `GET /flow-a/linkedin-variants/pending-supervision` (nullable `draft_content`). Console exercises existing US-017 `POST /correct-linkedin-variant` and `POST /defer-linkedin-variant` (does not rewrite these contracts). Cancel UI remains US-040.
 - Flow B mandatory review implementation.
 - New `publish_state` values (`deferred`, `rejected`) — supervision uses parallel `operator_supervision` metadata.
 - US-016 criteria as automatic queue gates.

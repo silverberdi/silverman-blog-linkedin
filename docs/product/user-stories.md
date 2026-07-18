@@ -764,12 +764,12 @@ As a content operator, I want to edit variant text and adjust scheduled timing b
 
 **Acceptance criteria**
 
-- [ ] Edit variant content before queue authorization.
-- [ ] Defer or reschedule relative to distribution strategy rules.
-- [ ] Persist operator changes traceably (aligned with US-017 when implemented).
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Edit variant content before queue authorization. — Demonstrated: console Edit control calls `POST /correct-linkedin-variant` (`tests/test_linkedin_variant_pending_supervision.py`).
+- [x] Defer or reschedule relative to distribution strategy rules. — Demonstrated: console Defer control calls `POST /defer-linkedin-variant` with `new_scheduled_at_utc`.
+- [x] Persist operator changes traceably (aligned with US-017 when implemented). — Demonstrated: persistence via existing US-017 POSTs only; no parallel mutation SoT.
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: dry-run vs real banners; list refresh after real success; `draft_content` on pending-supervision GET.
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: US-017 codes surfaced in console (`linkedin_supervision_variant_not_pending`, `linkedin_supervision_defer_time_invalid`, etc.).
+- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: no cancel UI; no new mutation endpoints; secrets audit still passes; BL-007 / publication guards untouched.
 
 ### US-040 — Implement Flow A LinkedIn Variant Supervision Console: Story 3
 
