@@ -9,6 +9,13 @@ import {
 import type { ApiError } from "../api/errors";
 import type { SupervisionApiClient } from "../api/client";
 import { apiClient } from "../api/client";
+import {
+  effectiveCapabilities,
+  sessionBannerKind,
+  sessionBannerText,
+  sessionStateFromApiError,
+  type SessionState,
+} from "../api/session";
 import { currentUtcMonth, type MonthCursor } from "./dateHelpers";
 import {
   applyFilters,
@@ -59,6 +66,10 @@ interface SupervisionStoreValue {
   loading: boolean;
   statusBanner: BannerState;
   actionBanner: BannerState;
+  sessionBanner: BannerState;
+  sessionState: SessionState;
+  canRead: boolean;
+  canMutate: boolean;
   setStatusBanner: (banner: BannerState) => void;
   setActionBanner: (banner: BannerState) => void;
   loadPending: (options?: { preserveActionBanner?: boolean }) => Promise<boolean>;
@@ -72,6 +83,7 @@ interface SupervisionStoreValue {
   filteredScheduleItems: ScheduleItem[];
   hiddenCriticalCount: number;
   clearAuth: () => void;
+  signIn: () => Promise<boolean>;
   client: SupervisionApiClient;
 }
 
@@ -83,12 +95,32 @@ function emptyBanner(): BannerState {
   return { kind: "", text: "" };
 }
 
+function sessionBannerFromState(state: SessionState): BannerState {
+  return {
+    kind: sessionBannerKind(state),
+    text: sessionBannerText(state),
+  };
+}
+
+function isPreservingAuthFailure(err: ApiError): boolean {
+  return (
+    err.kind === "unauthorized" ||
+    err.kind === "forbidden" ||
+    err.kind === "network" ||
+    (err.kind === "http" &&
+      err.httpStatus != null &&
+      err.httpStatus >= 500)
+  );
+}
+
 export function SupervisionStoreProvider({
   children,
   client = apiClient,
+  initialSessionState,
 }: {
   children: ReactNode;
   client?: SupervisionApiClient;
+  initialSessionState?: SessionState;
 }) {
   const [snapshot, setSnapshot] = useState<SupervisionSnapshot | null>(null);
   const [scheduleSnapshot, setScheduleSnapshot] =
@@ -105,14 +137,53 @@ export function SupervisionStoreProvider({
   const [loading, setLoading] = useState(false);
   const [statusBanner, setStatusBanner] = useState<BannerState>(emptyBanner);
   const [actionBanner, setActionBanner] = useState<BannerState>(emptyBanner);
+  const [sessionState, setSessionState] = useState<SessionState>(
+    () =>
+      initialSessionState ??
+      (client.hasCredential() ? "authenticated" : "anonymous"),
+  );
+  const [authEpoch, setAuthEpoch] = useState(0);
+
+  const bumpAuth = useCallback(() => {
+    setAuthEpoch((n) => n + 1);
+  }, []);
+
+  const applySessionFromError = useCallback((err: ApiError) => {
+    const next = sessionStateFromApiError(err);
+    if (next) {
+      setSessionState(next);
+    }
+  }, []);
 
   const clearAuth = useCallback(() => {
     client.clearAuth();
+    bumpAuth();
+    setSessionState("anonymous");
+    // Do not clear snapshots or schedule-editor drafts — operator may re-auth.
     setStatusBanner({
       kind: "info",
-      text: "In-memory API key cleared. You will be prompted again on the next load.",
+      text: "Credential cleared for this browser session. Sign in again to load or mutate. Visible context and unsaved drafts are kept until you discard them.",
     });
-  }, [client]);
+  }, [client, bumpAuth]);
+
+  const signIn = useCallback(async () => {
+    const ok = await client.signIn();
+    bumpAuth();
+    if (ok) {
+      setSessionState("authenticated");
+      setStatusBanner({
+        kind: "ok",
+        text: "Signed in. Refresh to reload pending and schedule data. Unsaved schedule drafts remain available.",
+      });
+    } else {
+      setSessionState("anonymous");
+      setStatusBanner({
+        kind: "warn",
+        text: "Sign-in cancelled or empty credential. Still not authenticated.",
+      });
+    }
+    return ok;
+  }, [client, bumpAuth]);
 
   const setActiveView = useCallback((view: ConsoleView) => {
     setActiveViewState(view);
@@ -170,6 +241,8 @@ export function SupervisionStoreProvider({
         const payload = await client.getPendingSupervision();
         const next = normalizePendingSupervision(payload);
         setSnapshot(next);
+        bumpAuth();
+        setSessionState("authenticated");
         if (next.status === "partial" || next.issues.length) {
           setStatusBanner({
             kind: "warn",
@@ -187,17 +260,22 @@ export function SupervisionStoreProvider({
         return true;
       } catch (err) {
         const apiErr = err as ApiError;
+        applySessionFromError(apiErr);
+        bumpAuth();
         setStatusBanner({
           kind: "error",
           text: apiErr?.message || String(err),
         });
-        setSnapshot(null);
+        // Preserve visible list context on expiry / forbidden / unavailable.
+        if (!isPreservingAuthFailure(apiErr)) {
+          setSnapshot(null);
+        }
         return false;
       } finally {
         setLoading(false);
       }
     },
-    [client],
+    [client, applySessionFromError, bumpAuth],
   );
 
   const loadScheduleVisibility = useCallback(
@@ -213,6 +291,8 @@ export function SupervisionStoreProvider({
         const payload = await client.getScheduleVisibility({ year, month });
         const next = normalizeScheduleVisibility(payload);
         setScheduleSnapshot(next);
+        bumpAuth();
+        setSessionState("authenticated");
         if (next.status === "partial" || next.issues.length) {
           setStatusBanner({
             kind: "warn",
@@ -230,18 +310,21 @@ export function SupervisionStoreProvider({
         return true;
       } catch (err) {
         const apiErr = err as ApiError;
+        applySessionFromError(apiErr);
+        bumpAuth();
         setStatusBanner({
           kind: "error",
           text: apiErr?.message || String(err),
         });
-        // Soft-degrade: keep list usable if schedule GET fails.
-        setScheduleSnapshot(null);
+        if (!isPreservingAuthFailure(apiErr)) {
+          setScheduleSnapshot(null);
+        }
         return false;
       } finally {
         setLoading(false);
       }
     },
-    [client, monthCursor.month, monthCursor.year],
+    [client, monthCursor.month, monthCursor.year, applySessionFromError, bumpAuth],
   );
 
   const refreshAll = useCallback(
@@ -259,6 +342,8 @@ export function SupervisionStoreProvider({
         const nextSchedule = normalizeScheduleVisibility(schedulePayload);
         setSnapshot(nextPending);
         setScheduleSnapshot(nextSchedule);
+        bumpAuth();
+        setSessionState("authenticated");
         const partial =
           nextPending.status === "partial" ||
           nextPending.issues.length > 0 ||
@@ -281,16 +366,25 @@ export function SupervisionStoreProvider({
         return true;
       } catch (err) {
         const apiErr = err as ApiError;
+        applySessionFromError(apiErr);
+        bumpAuth();
         setStatusBanner({
           kind: "error",
           text: apiErr?.message || String(err),
         });
+        // Keep last-loaded snapshots on auth/availability failures (expiry mid-edit).
         return false;
       } finally {
         setLoading(false);
       }
     },
-    [client, monthCursor.month, monthCursor.year],
+    [
+      client,
+      monthCursor.month,
+      monthCursor.year,
+      applySessionFromError,
+      bumpAuth,
+    ],
   );
 
   const filteredListItems = useMemo(() => {
@@ -308,7 +402,6 @@ export function SupervisionStoreProvider({
   const hiddenCriticalCount = useMemo(() => {
     const scheduleAll = scheduleSnapshot?.items ?? [];
     const listAsSchedule = (snapshot?.items ?? []).map(supervisionToFilterable);
-    // Prefer schedule universe for critical discoverability; fall back to list.
     const universe = scheduleAll.length > 0 ? scheduleAll : listAsSchedule;
     const visible =
       scheduleAll.length > 0
@@ -321,6 +414,21 @@ export function SupervisionStoreProvider({
     filteredScheduleItems,
     filteredListItems,
   ]);
+
+  const caps = useMemo(
+    () =>
+      effectiveCapabilities(
+        client.canRead(),
+        client.canMutate(),
+        sessionState,
+      ),
+    [client, sessionState, authEpoch],
+  );
+
+  const sessionBanner = useMemo(
+    () => sessionBannerFromState(sessionState),
+    [sessionState],
+  );
 
   const value = useMemo(
     () => ({
@@ -349,6 +457,10 @@ export function SupervisionStoreProvider({
       loading,
       statusBanner,
       actionBanner,
+      sessionBanner,
+      sessionState,
+      canRead: caps.canRead,
+      canMutate: caps.canMutate,
       setStatusBanner,
       setActionBanner,
       loadPending,
@@ -358,6 +470,7 @@ export function SupervisionStoreProvider({
       filteredScheduleItems,
       hiddenCriticalCount,
       clearAuth,
+      signIn,
       client,
     }),
     [
@@ -380,6 +493,10 @@ export function SupervisionStoreProvider({
       loading,
       statusBanner,
       actionBanner,
+      sessionBanner,
+      sessionState,
+      caps.canRead,
+      caps.canMutate,
       loadPending,
       loadScheduleVisibility,
       refreshAll,
@@ -387,6 +504,7 @@ export function SupervisionStoreProvider({
       filteredScheduleItems,
       hiddenCriticalCount,
       clearAuth,
+      signIn,
       client,
     ],
   );

@@ -98,6 +98,7 @@ export function ListView() {
     setUnsavedScheduleDraft,
     setSelectedItemId,
     openScheduleEditor,
+    canMutate,
   } = useSupervisionStore();
 
   const [panel, setPanel] = useState<PanelMode>(null);
@@ -127,7 +128,21 @@ export function ListView() {
     setUnsavedScheduleDraft(false);
   }
 
+  function requireMutate(action: string): boolean {
+    if (canMutate) {
+      return true;
+    }
+    setActionBanner({
+      kind: "error",
+      text: `Cannot ${action}: authentication with mutation permission is required. This is not a successful schedule or content change.`,
+    });
+    return false;
+  }
+
   function openEdit(item: SupervisionItem) {
+    if (!requireMutate("edit")) {
+      return;
+    }
     setActive({ campaignId: item.campaignId, variantId: item.variantId });
     setSelectedItemId(item.itemId);
     setDraftContent(item.draftContent ?? "");
@@ -138,6 +153,9 @@ export function ListView() {
   }
 
   function openDefer(item: SupervisionItem) {
+    if (!requireMutate("defer")) {
+      return;
+    }
     setPanel(null);
     setActive(null);
     openScheduleEditor({
@@ -158,6 +176,9 @@ export function ListView() {
   }
 
   function openCancel(item: SupervisionItem) {
+    if (!requireMutate("cancel")) {
+      return;
+    }
     setActive({ campaignId: item.campaignId, variantId: item.variantId });
     setSelectedItemId(item.itemId);
     setCancelReason("");
@@ -188,6 +209,9 @@ export function ListView() {
     if (!active) {
       return;
     }
+    if (!requireMutate("edit")) {
+      return;
+    }
     if (!editDryRun && !confirmRealMutation("edit")) {
       return;
     }
@@ -216,6 +240,9 @@ export function ListView() {
 
   async function submitCancel() {
     if (!active) {
+      return;
+    }
+    if (!requireMutate("cancel")) {
       return;
     }
     if (!cancelDryRun && !confirmRealMutation("cancel")) {
@@ -279,7 +306,8 @@ export function ListView() {
           <div className="panel-actions">
             <button
               type="button"
-              disabled={submitting}
+              data-testid="edit-submit"
+              disabled={submitting || !canMutate}
               onClick={() => void submitEdit()}
             >
               Submit edit
@@ -330,7 +358,8 @@ export function ListView() {
           <div className="panel-actions">
             <button
               type="button"
-              disabled={submitting}
+              data-testid="cancel-submit"
+              disabled={submitting || !canMutate}
               onClick={() => void submitCancel()}
             >
               Submit cancel
@@ -401,6 +430,8 @@ export function ListView() {
                         type="button"
                         className="row-action"
                         data-action="edit"
+                        data-testid="row-edit"
+                        disabled={!canMutate}
                         onClick={() => openEdit(item)}
                       >
                         Edit
@@ -409,6 +440,8 @@ export function ListView() {
                         type="button"
                         className="row-action secondary"
                         data-action="defer"
+                        data-testid="row-defer"
+                        disabled={!canMutate}
                         onClick={() => openDefer(item)}
                       >
                         Defer
@@ -417,6 +450,8 @@ export function ListView() {
                         type="button"
                         className="row-action secondary"
                         data-action="cancel"
+                        data-testid="row-cancel"
+                        disabled={!canMutate}
                         onClick={() => openCancel(item)}
                       >
                         Cancel
@@ -455,6 +490,7 @@ export function ListView() {
                     type="button"
                     className="row-action"
                     data-action="edit"
+                    disabled={!canMutate}
                     onClick={() => openEdit(item)}
                   >
                     Edit
@@ -463,6 +499,7 @@ export function ListView() {
                     type="button"
                     className="row-action secondary"
                     data-action="defer"
+                    disabled={!canMutate}
                     onClick={() => openDefer(item)}
                   >
                     Defer
@@ -471,6 +508,7 @@ export function ListView() {
                     type="button"
                     className="row-action secondary"
                     data-action="cancel"
+                    disabled={!canMutate}
                     onClick={() => openCancel(item)}
                   >
                     Cancel

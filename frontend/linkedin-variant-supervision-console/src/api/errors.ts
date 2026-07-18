@@ -1,5 +1,5 @@
 /**
- * Operator-facing API error mapping for 401/422 and known US-017 codes.
+ * Operator-facing API error mapping for 401/403/5xx/422 and known US-017 codes.
  * Secrets must never appear in messages or logs.
  */
 
@@ -37,6 +37,8 @@ export const SUPERVISION_ERROR_MESSAGES: Record<string, string> = {
 
 export type ApiErrorKind =
   | "unauthorized"
+  | "forbidden"
+  | "mutation_denied"
   | "validation"
   | "business"
   | "http"
@@ -65,8 +67,28 @@ export function explainErrorCodes(codes: string[]): string {
 export function unauthorizedError(): ApiError {
   return {
     kind: "unauthorized",
-    message: "Unauthorized (401). Enter a valid API key and try again.",
+    message:
+      "Unauthorized (401). Session expired or credential rejected. Sign in again and retry.",
     httpStatus: 401,
+    codes: [],
+  };
+}
+
+export function forbiddenError(): ApiError {
+  return {
+    kind: "forbidden",
+    message:
+      "Forbidden (403). Authenticated but not authorized for this action. This is not a successful schedule or content change.",
+    httpStatus: 403,
+    codes: [],
+  };
+}
+
+export function mutationDeniedError(): ApiError {
+  return {
+    kind: "mutation_denied",
+    message:
+      "Read-only session: edit, defer, cancel, and calendar schedule-update are not allowed.",
     codes: [],
   };
 }
@@ -89,6 +111,14 @@ export function businessFailureError(codes: string[]): ApiError {
 }
 
 export function httpError(status: number): ApiError {
+  if (status >= 500) {
+    return {
+      kind: "http",
+      message: `Service unavailable (HTTP ${status}). The worker did not complete the request.`,
+      httpStatus: status,
+      codes: [],
+    };
+  }
   return {
     kind: "http",
     message: `Request failed with HTTP ${status}`,
@@ -100,7 +130,9 @@ export function httpError(status: number): ApiError {
 export function networkError(reason: string): ApiError {
   return {
     kind: "network",
-    message: reason || "Network request failed.",
+    message:
+      reason ||
+      "Network request failed. Service unavailable — distinct from missing authentication.",
     codes: [],
   };
 }
@@ -110,8 +142,8 @@ export function authMissingError(context: "load" | "mutate"): ApiError {
     kind: "auth_missing",
     message:
       context === "load"
-        ? "API key required. Reload and enter your worker API key when prompted."
-        : "API key required before submitting an edit, defer, or cancel.",
+        ? "Authentication required. Sign in to load pending supervision or schedule visibility."
+        : "Authentication required before submitting an edit, defer, cancel, or calendar schedule-update.",
     codes: [],
   };
 }

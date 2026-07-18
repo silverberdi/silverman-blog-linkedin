@@ -3,8 +3,10 @@ import { defaultAuthProvider } from "./auth";
 import {
   authMissingError,
   businessFailureError,
+  forbiddenError,
   format422Detail,
   httpError,
+  mutationDeniedError,
   networkError,
   unauthorizedError,
   validationError,
@@ -39,11 +41,28 @@ export class SupervisionApiClient {
     this.auth.clear();
   }
 
+  getAuth(): AuthProvider {
+    return this.auth;
+  }
+
+  canRead(): boolean {
+    return this.auth.canRead();
+  }
+
+  canMutate(): boolean {
+    return this.auth.canMutate();
+  }
+
+  hasCredential(): boolean {
+    return this.auth.hasCredential();
+  }
+
+  async signIn(): Promise<boolean> {
+    return this.auth.signIn();
+  }
+
   async getPendingSupervision(): Promise<PendingSupervisionResponse> {
-    const headers = await this.auth.getRequestHeaders();
-    if (!headers.Authorization) {
-      throw authMissingError("load");
-    }
+    const headers = await this.prepareHeaders("load");
     return this.requestJson<PendingSupervisionResponse>(
       PENDING_SUPERVISION_PATH,
       {
@@ -60,10 +79,7 @@ export class SupervisionApiClient {
     year: number;
     month: number;
   }): Promise<ScheduleVisibilityResponse> {
-    const headers = await this.auth.getRequestHeaders();
-    if (!headers.Authorization) {
-      throw authMissingError("load");
-    }
+    const headers = await this.prepareHeaders("load");
     const query = new URLSearchParams({
       year: String(params.year),
       month: String(params.month),
@@ -97,10 +113,7 @@ export class SupervisionApiClient {
   async updateCalendarItemSchedule(
     body: UpdateCalendarItemScheduleRequest,
   ): Promise<CalendarScheduleUpdateResult> {
-    const headers = await this.auth.getRequestHeaders();
-    if (!headers.Authorization) {
-      throw authMissingError("mutate");
-    }
+    const headers = await this.prepareHeaders("mutate");
     const result = await this.requestJson<CalendarScheduleUpdateResult>(
       UPDATE_CALENDAR_SCHEDULE_PATH,
       {
@@ -121,14 +134,37 @@ export class SupervisionApiClient {
     return result;
   }
 
+  private async prepareHeaders(
+    context: "load" | "mutate",
+  ): Promise<Record<string, string>> {
+    const headers = await this.auth.getRequestHeaders();
+    const mode = this.auth.getCredentialsMode();
+
+    if (context === "mutate" && !this.auth.canMutate()) {
+      if (this.auth.hasCredential() || this.auth.canRead()) {
+        throw mutationDeniedError();
+      }
+      throw authMissingError("mutate");
+    }
+
+    if (context === "load" && !this.auth.canRead()) {
+      throw authMissingError("load");
+    }
+
+    if (mode === "omit") {
+      if (!headers.Authorization) {
+        throw authMissingError(context);
+      }
+    }
+    // Cookie mode: empty headers are expected; credentials: "include" carries the session.
+    return headers;
+  }
+
   private async postMutation(
     path: string,
     body: CorrectVariantRequest | DeferVariantRequest | CancelVariantRequest,
   ): Promise<MutationResult> {
-    const headers = await this.auth.getRequestHeaders();
-    if (!headers.Authorization) {
-      throw authMissingError("mutate");
-    }
+    const headers = await this.prepareHeaders("mutate");
     const result = await this.requestJson<MutationResult>(path, {
       method: "POST",
       headers: {
@@ -150,9 +186,13 @@ export class SupervisionApiClient {
     path: string,
     init: RequestInit,
   ): Promise<T> {
+    const credentials = this.auth.getCredentialsMode();
     let response: Response;
     try {
-      response = await this.fetchImpl(path, init);
+      response = await this.fetchImpl(path, {
+        ...init,
+        credentials,
+      });
     } catch (err) {
       throw networkError(err instanceof Error ? err.message : String(err));
     }
@@ -160,6 +200,10 @@ export class SupervisionApiClient {
     if (response.status === 401) {
       this.auth.clear();
       throw unauthorizedError();
+    }
+
+    if (response.status === 403) {
+      throw forbiddenError();
     }
 
     if (response.status === 422) {

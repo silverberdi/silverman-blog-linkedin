@@ -136,6 +136,7 @@ describe("viewport validation", () => {
     expect(getByTestId("app-shell")).toBeInTheDocument();
     expect(getByTestId("list-view")).toBeInTheDocument();
     expect(getByTestId("load-btn")).toBeInTheDocument();
+    expect(getByTestId("session-banner")).toBeInTheDocument();
 
     await user.click(getByTestId("load-btn"));
     await waitFor(() => {
@@ -145,6 +146,64 @@ describe("viewport validation", () => {
     await user.click(getByTestId("view-calendar"));
     expect(getByTestId("month-calendar-view")).toBeInTheDocument();
     expect(screen.getByTestId("calendar-agenda")).toBeInTheDocument();
+    unmount();
+  });
+
+  it("shows expired-session banner and keeps schedule editor draft at mobile width", async () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 375,
+    });
+    const auth = new MemoryBearerAuthProvider();
+    auth.setTokenForTests("key");
+    let calls = 0;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls += 1;
+      if (calls <= 2) {
+        if (url.includes("pending-supervision")) {
+          return new Response(JSON.stringify(pendingPayload), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        if (url.includes("schedule-visibility")) {
+          return new Response(JSON.stringify(schedulePayload), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+      }
+      return new Response(JSON.stringify({ detail: "Unauthorized" }), {
+        status: 401,
+      });
+    });
+    const client = new SupervisionApiClient(auth, fetchImpl as typeof fetch);
+    const user = userEvent.setup();
+    const { getByTestId, unmount } = render(<App client={client} />);
+
+    await user.click(getByTestId("load-btn"));
+    await waitFor(() => {
+      expect(getByTestId("list-mobile-cards")).toBeInTheDocument();
+    });
+    await user.click(getByTestId("row-defer"));
+    await waitFor(() => {
+      expect(getByTestId("schedule-editor-panel")).toBeInTheDocument();
+    });
+    const datetime = getByTestId("schedule-datetime") as HTMLInputElement;
+    await user.clear(datetime);
+    await user.type(datetime, "2026-09-01T09:00:00");
+
+    await user.click(getByTestId("load-btn"));
+    await waitFor(() => {
+      expect(getByTestId("session-banner").textContent).toMatch(/Session expired/i);
+    });
+    expect(getByTestId("schedule-editor-panel")).toBeInTheDocument();
+    expect(
+      (getByTestId("schedule-datetime") as HTMLInputElement).value,
+    ).toContain("2026-09-01");
+    expect(getByTestId("sign-in-btn")).toBeInTheDocument();
+    expect(getByTestId("schedule-submit")).toBeDisabled();
     unmount();
   });
 });

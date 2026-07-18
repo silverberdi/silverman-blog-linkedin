@@ -122,6 +122,8 @@ export function ScheduleEditorPanel() {
     setUnsavedScheduleDraft,
     dryRunDefault,
     scheduleSnapshot,
+    canMutate,
+    sessionState,
   } = useSupervisionStore();
 
   const target = scheduleEditorTarget;
@@ -146,6 +148,7 @@ export function ScheduleEditorPanel() {
 
   const active = target;
   const readOnly = !active.scheduleEditable;
+  const mutationBlocked = !canMutate;
 
   function onScheduleChange(value: string) {
     setSchedule(value);
@@ -158,6 +161,16 @@ export function ScheduleEditorPanel() {
   }
 
   async function submit() {
+    if (mutationBlocked) {
+      setActionBanner({
+        kind: "error",
+        text:
+          sessionState === "expired"
+            ? "Session expired. Sign in again to commit. Your unsaved schedule draft is still here."
+            : "Cannot commit schedule change: authentication with mutation permission is required. This is not a successful schedule update.",
+      });
+      return;
+    }
     if (readOnly) {
       setActionBanner({
         kind: "error",
@@ -302,6 +315,15 @@ export function ScheduleEditorPanel() {
       <p className="meta">
         {active.title || active.itemId} · {active.channel} · entry {active.entry}
       </p>
+      {mutationBlocked && (
+        <div className="banner warn" data-testid="schedule-editor-auth-blocked">
+          {sessionState === "expired"
+            ? "Session expired. Sign in to resume this draft — fields below are preserved."
+            : "Sign in with mutation permission to commit. Draft fields stay visible; this is not a successful schedule change."}{" "}
+          Pending, queued, cancelled, and flow_a_complete are not LinkedIn API
+          published.
+        </div>
+      )}
       {readOnly ? (
         <div className="banner warn" data-testid="schedule-editor-readonly">
           Read-only for schedule.{" "}
@@ -323,7 +345,10 @@ export function ScheduleEditorPanel() {
             data-testid="schedule-reason"
             type="text"
             value={reason}
-            onChange={(e) => setReason(e.target.value)}
+            onChange={(e) => {
+              setReason(e.target.value);
+              setUnsavedScheduleDraft(true);
+            }}
             placeholder="e.g. operator_choice"
           />
           <div className="check-row">
@@ -345,7 +370,7 @@ export function ScheduleEditorPanel() {
           <button
             type="button"
             data-testid="schedule-submit"
-            disabled={submitting}
+            disabled={submitting || mutationBlocked}
             onClick={() => void submit()}
           >
             {dryRun ? "Validate schedule (dry-run)" : "Commit schedule change"}

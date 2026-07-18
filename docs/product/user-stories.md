@@ -872,17 +872,17 @@ As a system owner, I want the Flow A supervision console architecture to be read
 
 **Acceptance criteria**
 
-- [ ] Keep authentication and authorization concerns behind a clear frontend API client and backend middleware boundary.
-- [ ] Represent anonymous, authenticated, expired-session, forbidden, and service-unavailable states in the UI, even if the current local implementation uses the existing worker auth mechanism.
-- [ ] Avoid hardcoding API keys, tokens, operational secrets, mount paths, or local-only assumptions in frontend source, rendered HTML, logs, or browser storage.
-- [ ] Use same-origin calls or an explicitly documented CORS strategy that can be safely restricted when the console is exposed publicly.
-- [ ] Design the API request layer so a later Google/OIDC bearer token or secure session cookie can replace the current auth header without changing calendar components.
-- [ ] Prevent unauthenticated or read-only sessions from executing schedule mutations.
-- [ ] Handle mobile session expiry gracefully by preserving visible context and guiding the operator back to authentication without losing unsaved edits.
-- [ ] Document that public deployment and Google authentication activation are out of scope for this BL and require a separate security change before internet exposure.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Keep authentication and authorization concerns behind a clear frontend API client and backend middleware boundary.
+- [x] Represent anonymous, authenticated, expired-session, forbidden, and service-unavailable states in the UI, even if the current local implementation uses the existing worker auth mechanism.
+- [x] Avoid hardcoding API keys, tokens, operational secrets, mount paths, or local-only assumptions in frontend source, rendered HTML, logs, or browser storage.
+- [x] Use same-origin calls or an explicitly documented CORS strategy that can be safely restricted when the console is exposed publicly.
+- [x] Design the API request layer so a later Google/OIDC bearer token or secure session cookie can replace the current auth header without changing calendar components.
+- [x] Prevent unauthenticated or read-only sessions from executing schedule mutations.
+- [x] Handle mobile session expiry gracefully by preserving visible context and guiding the operator back to authentication without losing unsaved edits.
+- [x] Document that public deployment and Google authentication activation are out of scope for this BL and require a separate security change before internet exposure.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-040E — Implement Flow A LinkedIn Variant Supervision Console: Operational Usability and Safety
 

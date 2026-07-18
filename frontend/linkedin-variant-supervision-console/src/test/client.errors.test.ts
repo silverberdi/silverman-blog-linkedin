@@ -23,6 +23,38 @@ describe("API client error mapping", () => {
     expect(auth.hasCredential()).toBe(false);
   });
 
+  it("maps 403 to Forbidden and keeps credential", async () => {
+    const auth = new MemoryBearerAuthProvider();
+    auth.setTokenForTests("key");
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ detail: "Forbidden" }), { status: 403 }),
+    );
+    const client = new SupervisionApiClient(auth, fetchImpl as typeof fetch);
+
+    await expect(client.getPendingSupervision()).rejects.toMatchObject({
+      kind: "forbidden",
+      message: expect.stringContaining("Forbidden (403)"),
+      httpStatus: 403,
+    });
+    expect(auth.hasCredential()).toBe(true);
+  });
+
+  it("maps 5xx to service-unavailable style http error", async () => {
+    const auth = new MemoryBearerAuthProvider();
+    auth.setTokenForTests("key");
+    const fetchImpl = vi.fn(
+      async () => new Response("unavailable", { status: 503 }),
+    );
+    const client = new SupervisionApiClient(auth, fetchImpl as typeof fetch);
+
+    await expect(client.getPendingSupervision()).rejects.toMatchObject({
+      kind: "http",
+      httpStatus: 503,
+      message: expect.stringContaining("Service unavailable"),
+    });
+  });
+
   it("maps 422 to validation ApiError", async () => {
     const auth = new MemoryBearerAuthProvider();
     auth.setTokenForTests("key");
