@@ -700,14 +700,16 @@ As a system operator, I want to define backup scope, so that editorial state can
 
 **Operator policy:** [editorial-backup-scope-retention-integrity.md](../operations/editorial-backup-scope-retention-integrity.md) (scope, retention, integrity — US-036; restore is US-037).
 
+**Status:** Implemented, automated-tested, and acceptance criteria validated against fixture evidence (2026-07-18). Not a live production restore execution. **BL-014 closed 2026-07-18**. Evidence: [bl-014 acceptance](../operations/bl-014-editorial-backup-restore-acceptance-2026-07-18.md).
+
 **Acceptance criteria**
 
-- [ ] Define backup scope.
-- [ ] Define retention.
-- [ ] Verify backup integrity.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Define backup scope.
+- [x] Define retention.
+- [x] Verify backup integrity.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-037 — Establish Backup and Restore for Editorial State: Story 2
 
@@ -717,14 +719,16 @@ As a system operator, I want to test restoration, so that editorial state can be
 
 **Operator recovery procedure:** [editorial-backup-restore-recovery.md](../operations/editorial-backup-restore-recovery.md) (restore drills + recovery — US-037; integrity verify remains US-036).
 
+**Status:** Implemented, automated-tested, and acceptance criteria validated against fixture restore drills + recovery procedure (2026-07-18). Live production restore remains operator-gated; not required for acceptance. **BL-014 closed 2026-07-18**. Evidence: [bl-014 acceptance](../operations/bl-014-editorial-backup-restore-acceptance-2026-07-18.md).
+
 **Acceptance criteria**
 
-- [ ] Test restoration.
-- [ ] Document the recovery procedure.
-- [ ] Protect calendar, campaigns, runs, posts, images, and LinkedIn artifacts.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Test restoration.
+- [x] Document the recovery procedure.
+- [x] Protect calendar, campaigns, runs, posts, images, and LinkedIn artifacts.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ## BL-015 — Implement Flow A LinkedIn Variant Supervision Console
 

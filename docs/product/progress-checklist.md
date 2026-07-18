@@ -358,27 +358,27 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated
   - [x] Backlog item closed
 
-- [ ] **BL-014 — Establish Backup and Restore for Editorial State**
+- [x] **BL-014 — Establish Backup and Restore for Editorial State**
   - Business outcome: Editorial state can be restored from a verified backup.
-  - [ ] **US-036**
+  - [x] **US-036**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — automated fixtures (scope/retention/integrity policy + verify pass/fail/blocked, builder/prune confined to `metadata/backups/`, secret-safe reports); not operator-accepted yet
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-    - Implementation evidence: [editorial-backup-scope-retention-integrity.md](../operations/editorial-backup-scope-retention-integrity.md)
-  - [ ] **US-037**
+    - [x] Business outcome demonstrated — automated fixtures (scope/retention/integrity policy + verify pass/fail/blocked, builder/prune confined to `metadata/backups/`, secret-safe reports)
+    - [x] Acceptance criteria validated
+    - [x] Story accepted
+    - Implementation evidence: [editorial-backup-scope-retention-integrity.md](../operations/editorial-backup-scope-retention-integrity.md), [bl-014 acceptance](../operations/bl-014-editorial-backup-restore-acceptance-2026-07-18.md)
+  - [x] **US-037**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — automated fixture restore drills (pass/fail/blocked, integrity prerequisite, dry-run no mutation, live confirmation gate, secret-safe reports) + recovery procedure doc; live production restore remains operator-gated; not operator-accepted yet
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-    - Implementation evidence: [editorial-backup-restore-recovery.md](../operations/editorial-backup-restore-recovery.md)
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+    - [x] Business outcome demonstrated — automated fixture restore drills (pass/fail/blocked, integrity prerequisite, dry-run no mutation, live confirmation gate, secret-safe reports) + recovery procedure doc; live production restore remains operator-gated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted
+    - Implementation evidence: [editorial-backup-restore-recovery.md](../operations/editorial-backup-restore-recovery.md), [bl-014 acceptance](../operations/bl-014-editorial-backup-restore-acceptance-2026-07-18.md)
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated
+  - [x] Backlog item closed
 
 - [ ] **BL-015 — Implement Flow A LinkedIn Variant Supervision Console**
   - Business outcome: Operators can supervise Flow A LinkedIn variants from one console during the pre-send window without opening multiple raw files.

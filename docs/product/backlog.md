@@ -254,6 +254,8 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Editorial state can be restored from a verified backup.
 
+**Status:** Closed 2026-07-18 after US-036 + US-037 acceptance against automated fixture evidence and operator policy/recovery artifacts (not a live production restore execution on the editorial mount). Evidence: [bl-014 acceptance](../operations/bl-014-editorial-backup-restore-acceptance-2026-07-18.md), [US-036 policy](../operations/editorial-backup-scope-retention-integrity.md), [US-037 recovery](../operations/editorial-backup-restore-recovery.md).
+
 ### BL-015 — Implement Flow A LinkedIn Variant Supervision Console
 
 **Business need:** Provide an operator-facing console to supervise Flow A LinkedIn variants after distribution scheduling and before LinkedIn API publication.

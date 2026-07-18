@@ -81,8 +81,8 @@ Worker handoff ≠ blog Git publication ≠ live-site confirmation. Git push alo
 |------|------------|
 | **Reconciliation** | Worker aligns campaign/calendar state with filesystem or public-repo evidence without repeating pipeline side effects |
 | **Idempotency** | Repeat calls return `completed` / `already_published` without duplicate artifacts or metadata corruption |
-| **Editorial backup integrity (US-036)** | Defined backup scope, retention under `metadata/backups/`, and automated integrity verification (`pass` / `fail` / `blocked`) for editorial-state packages — see [editorial-backup-scope-retention-integrity.md](operations/editorial-backup-scope-retention-integrity.md). Does **not** mean BL-014 complete or that restore was tested |
-| **Editorial restoration / recovery procedure (US-037)** | Testing restoration and documenting the recovery procedure that can restore calendar, campaigns, runs, posts, images, and LinkedIn artifacts from a verified backup — see [editorial-backup-restore-recovery.md](operations/editorial-backup-restore-recovery.md). Distinct from US-036 scope/retention/integrity definition; not claimed complete by US-036 alone |
+| **Editorial backup integrity (US-036)** | Defined backup scope, retention under `metadata/backups/`, and automated integrity verification (`pass` / `fail` / `blocked`) for editorial-state packages — see [editorial-backup-scope-retention-integrity.md](operations/editorial-backup-scope-retention-integrity.md). Accepted with US-037 under BL-014 (2026-07-18); does **not** mean live production restore was executed |
+| **Editorial restoration / recovery procedure (US-037)** | Testing restoration and documenting the recovery procedure that can restore calendar, campaigns, runs, posts, images, and LinkedIn artifacts from a verified backup — see [editorial-backup-restore-recovery.md](operations/editorial-backup-restore-recovery.md). Distinct from US-036 scope/retention/integrity definition; accepted with US-036 under BL-014 (2026-07-18); live restore remains confirmation-gated |
 
 ## Environment
 

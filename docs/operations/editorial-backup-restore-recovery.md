@@ -4,8 +4,14 @@ Operator recovery procedure for **BL-014 / US-037** only: **test restoration**
 and **recover editorial state** from a verified backup package under
 `metadata/backups/`.
 
-This document does **not** accept US-037 or close BL-014 by itself. Live
-production restore remains operator-gated and fail-closed by default.
+## Status
+
+- **Accepted 2026-07-18** against automated fixture restore drills and this
+  runbook.
+- **BL-014 closed 2026-07-18** after US-036 + US-037 acceptance.
+- Live production restore remains fail-closed and confirmation-gated; acceptance
+  did **not** require mutating a production editorial mount. Evidence:
+  [bl-014-editorial-backup-restore-acceptance-2026-07-18.md](bl-014-editorial-backup-restore-acceptance-2026-07-18.md).
 
 **US-036 boundary:** integrity verification (`pass` / `fail` / `blocked`),
 scope, retention, and package layout remain US-036 — see
@@ -14,8 +20,8 @@ US-037 consumes packages that already integrity-`pass`; it does not redefine
 verify contracts.
 
 Policy terms: [GLOSSARY.md](../GLOSSARY.md) (editorial backup integrity vs
-restoration / recovery procedure). Change artifacts:
-`openspec/changes/add-flow-a-editorial-backup-restore-recovery-us-037/`.
+restoration / recovery procedure). Change artifacts (archived):
+`openspec/changes/archive/2026-07-18-add-flow-a-editorial-backup-restore-recovery-us-037/`.
 
 ## Purpose
 
@@ -185,7 +191,9 @@ Operators interpret outcomes from:
 - LinkedIn API publication
 - Restoring secrets or treating the public checkout as restore SoT
 - New primary worker HTTP restore endpoints
-- Claiming US-037 Story accepted or BL-014 closed from this document alone
+- Claiming US-037 Story accepted or BL-014 closed from this runbook text alone
+  without the acceptance record (acceptance is recorded in
+  [bl-014-editorial-backup-restore-acceptance-2026-07-18.md](bl-014-editorial-backup-restore-acceptance-2026-07-18.md))
 
 ## Related
 

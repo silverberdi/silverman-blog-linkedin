@@ -1,8 +1,14 @@
 # Editorial Backup Scope, Retention, and Integrity (US-036)
 
 Operator contract for **BL-014 / US-036** only: define editorial-state backup
-**scope**, **retention**, and **integrity verification**. This document does
-**not** close BL-014, accept US-036 from docs alone, or implement restoration.
+**scope**, **retention**, and **integrity verification**.
+
+## Status
+
+- **Accepted 2026-07-18** against automated fixture evidence and this policy.
+- **BL-014 closed 2026-07-18** after US-036 + US-037 acceptance.
+- Live production restore is owned by US-037 and remains operator-gated — see
+  [bl-014-editorial-backup-restore-acceptance-2026-07-18.md](bl-014-editorial-backup-restore-acceptance-2026-07-18.md).
 
 **US-037 boundary:** restore drills, live restore mutation of production
 editorial trees, and the recovery procedure are **out of scope** here. They
@@ -12,8 +18,8 @@ US-036 may list which scope classes US-037 must protect; it does not document
 step-by-step restore mutation.
 
 Policy: [GLOSSARY.md](../GLOSSARY.md) (editorial backup integrity vs restoration).
-Change artifacts:
-`openspec/changes/add-flow-a-editorial-backup-scope-retention-integrity-us-036/`.
+Change artifacts (archived):
+`openspec/changes/archive/` (US-036 scope/retention/integrity change).
 
 ## Purpose
 
@@ -192,4 +198,6 @@ distinguish “cannot verify yet” (`blocked`) from “package is broken” (`f
 - Backing up secrets, the public GitHub Pages checkout as editorial substitute,
   or shared-stack services
 - New primary worker HTTP endpoints for backup
-- Claiming BL-014 complete or US-036 operator-accepted from this document alone
+- Claiming BL-014 complete or US-036 operator-accepted from this policy text
+  alone without the acceptance record (acceptance is recorded in
+  [bl-014-editorial-backup-restore-acceptance-2026-07-18.md](bl-014-editorial-backup-restore-acceptance-2026-07-18.md))
