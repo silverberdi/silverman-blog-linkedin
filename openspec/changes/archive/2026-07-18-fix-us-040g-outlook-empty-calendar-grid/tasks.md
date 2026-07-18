@@ -29,5 +29,5 @@
 - [x] 4.2 Explicit user approval → implementation commit
 - [x] 4.3 `/opsx-sync` → separate sync commit
 - [x] 4.4 `/opsx-archive` → separate archive commit
-- [ ] 4.5 Push only with explicit approval
+- [x] 4.5 Push only with explicit approval
 - [ ] 4.6 Deploy only with explicit approval (required before Visual DoD / walkthrough unless an agreed preview is documented)
