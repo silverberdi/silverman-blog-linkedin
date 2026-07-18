@@ -22,7 +22,7 @@ n8n (orchestrator, HTTP only) → Worker (FastAPI) → Editorial dirs + public b
                               ComfyUI (optional images), DeepSeek (LLM)
 ```
 
-- **43** canonical OpenSpec specs (strict validation passing after US-028 sync of `flow-a-operational-alerts` and status scope clarification)
+- **44** canonical OpenSpec specs (includes `flow-a-incomplete-campaign-recovery` after US-031 sync) (strict validation passing after US-028 sync of `flow-a-operational-alerts` and status scope clarification)
 - **1,132** automated tests collected after US-031 incomplete-campaign recovery (13 focused recovery tests + prior suite; full run 1119 passed excluding one pre-existing unrelated compose assertion)
 - Worker deployed at `http://192.168.0.194:8010` (see [RUNTIME-STATE.md](RUNTIME-STATE.md))
 - Editorial base: `/data/silverman-blog-linkedin` (container); public GitHub Pages checkout: `/public-blog`
