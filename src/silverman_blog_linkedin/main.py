@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator, model_validator
 
 from silverman_blog_linkedin import SERVICE_NAME, __version__
@@ -60,6 +61,7 @@ from silverman_blog_linkedin.flow_a_operational_status import (
     get_flow_a_operational_status,
 )
 from silverman_blog_linkedin.linkedin_variant_pending_supervision import (
+    console_assets_dir,
     get_pending_linkedin_variant_supervision,
     load_console_html,
 )
@@ -2204,6 +2206,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail="supervision console asset unavailable",
             ) from None
         return HTMLResponse(content=html_doc, status_code=200)
+
+    _console_assets = console_assets_dir()
+    if _console_assets.is_dir():
+        # Same-origin hashed Vite assets; confined to the build assets directory.
+        app.mount(
+            "/flow-a/console/linkedin-variant-supervision/assets",
+            StaticFiles(directory=str(_console_assets)),
+            name="linkedin_variant_supervision_console_assets",
+        )
 
     @app.get("/flow-a/incomplete-campaign-recovery/{campaign_id}")
     def flow_a_incomplete_campaign_recovery_inspect(

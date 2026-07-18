@@ -25,7 +25,15 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-silverman_blog_linkedin = ["static/*.html"]
+silverman_blog_linkedin = [
+    "static/**/*.html",
+    "static/**/*.js",
+    "static/**/*.css",
+    "static/**/*.svg",
+    "static/**/*.ico",
+    "static/**/*.woff",
+    "static/**/*.woff2",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

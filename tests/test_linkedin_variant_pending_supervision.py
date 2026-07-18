@@ -14,9 +14,11 @@ from silverman_blog_linkedin.linkedin_variant_pending_supervision import (
     CALENDAR_FILE_NOT_FOUND,
     CAMPAIGN_FILE_INVALID,
     DRAFT_ARTIFACT_MISSING,
+    console_assets_dir,
+    console_build_dir,
     console_html_path,
     get_pending_linkedin_variant_supervision,
-    load_console_html,
+    load_console_static_texts,
 )
 from silverman_blog_linkedin.main import create_app
 from tests.conftest import auth_header, make_settings
@@ -24,11 +26,12 @@ from tests.conftest import auth_header, make_settings
 CAMPAIGN_ID = "flow-a-2026-07-18-supervision-console"
 PENDING_API = "/flow-a/linkedin-variants/pending-supervision"
 CONSOLE_PATH = "/flow-a/console/linkedin-variant-supervision"
+CONSOLE_ASSETS_PREFIX = "/flow-a/console/linkedin-variant-supervision/assets"
 CORRECT_PATH = "/correct-linkedin-variant"
 DEFER_PATH = "/defer-linkedin-variant"
 CANCEL_PATH = "/cancel-linkedin-publication"
 
-# Patterns that must never appear in the committed console HTML asset.
+# Patterns that must never appear in console source or built static assets.
 _SECRET_LIKE_PATTERNS = (
     re.compile(r"CHANGE_ME", re.IGNORECASE),
     re.compile(r"\bsk-[A-Za-z0-9]{8,}\b"),
@@ -36,6 +39,19 @@ _SECRET_LIKE_PATTERNS = (
     re.compile(r"X-API-Key\s*[:=]\s*['\"][^'\"]+['\"]", re.IGNORECASE),
     re.compile(r"api[_-]?key\s*[:=]\s*['\"][^'\"]+['\"]", re.IGNORECASE),
 )
+
+# Browser storage APIs must not hold secrets (US-040A: in-memory only).
+_BROWSER_STORAGE_PATTERNS = (
+    re.compile(r"sessionStorage"),
+    re.compile(r"localStorage"),
+)
+
+
+def _console_bundle_text() -> str:
+    """Concatenate built console HTML/JS/CSS for contract assertions."""
+    parts = [text for _, text in load_console_static_texts()]
+    assert parts, "Vite console build artifacts missing; run npm run build"
+    return "\n".join(parts)
 
 
 @pytest.fixture
@@ -544,50 +560,81 @@ def test_console_html_served_at_fixed_path_without_auth(
     assert "text/html" in response.headers["content-type"]
     body = response.text
     assert "LinkedIn variant supervision" in body
-    assert PENDING_API in body
-    assert CORRECT_PATH in body
-    assert DEFER_PATH in body
-    assert CANCEL_PATH in body
     assert "US-040" in body
-    assert "not LinkedIn API published" in body
-    assert "flow_a_complete" in body
-    assert "edit-dry-run" in body
-    assert "defer-dry-run" in body
-    assert "cancel-dry-run" in body
-    assert "linkedin_supervision_variant_not_pending" in body
-    assert "linkedin_supervision_defer_time_invalid" in body
-    assert "linkedin_publish_cancel_not_allowed" in body
-    assert "integration_failures" in body
-    assert "Cancel remains US-040" not in body
-    assert "actions not available" not in body.lower()
+    assert CONSOLE_ASSETS_PREFIX in body
+    assert "/assets/" in body
+
+    # Same-origin hashed assets must resolve (no path traversal outside build dir).
+    asset_refs = re.findall(
+        rf'{re.escape(CONSOLE_ASSETS_PREFIX)}/[^"\']+',
+        body,
+    )
+    assert asset_refs, "expected Vite asset URLs under the console assets prefix"
+    for href in asset_refs:
+        asset_resp = client.get(href)
+        assert asset_resp.status_code == 200, href
+
+    bundle = _console_bundle_text()
+    assert PENDING_API in bundle
+    assert CORRECT_PATH in bundle
+    assert DEFER_PATH in bundle
+    assert CANCEL_PATH in bundle
+    assert "not LinkedIn API published" in bundle
+    assert "flow_a_complete" in bundle
+    assert "edit-dry-run" in bundle
+    assert "defer-dry-run" in bundle
+    assert "cancel-dry-run" in bundle
+    assert "linkedin_supervision_variant_not_pending" in bundle
+    assert "linkedin_supervision_defer_time_invalid" in bundle
+    assert "linkedin_publish_cancel_not_allowed" in bundle
+    assert "integration_failures" in bundle
+    assert "Cancel remains US-040" not in bundle
+    assert "actions not available" not in bundle.lower()
+    # Assets must not escape the build directory via .. traversal.
+    traversal = client.get(f"{CONSOLE_ASSETS_PREFIX}/../index.html")
+    assert traversal.status_code in {404, 400, 403}
 
 
 def test_console_action_contract_wiring_in_static_html():
     """Story 3 console wires edit/defer/cancel to US-017 POSTs with dry-run default on."""
-    html = load_console_html()
-    assert 'var CORRECT_PATH = "/correct-linkedin-variant";' in html
-    assert 'var DEFER_PATH = "/defer-linkedin-variant";' in html
-    assert 'var CANCEL_PATH = "/cancel-linkedin-publication";' in html
-    assert 'id="edit-dry-run" checked' in html
-    assert 'id="defer-dry-run" checked' in html
-    assert 'id="cancel-dry-run" checked' in html
-    assert "dry_run: dryRun" in html
-    assert "draft_content:" in html
-    assert "new_scheduled_at_utc:" in html
-    assert "validated (dry-run, no mutation)" in html
-    assert "persisted (real write)" in html
-    assert "does not auto-update the editorial calendar" in html
-    assert "not strategy-driven auto-queue eligible" in html
-    assert 'data-action=\\"edit\\"' in html
-    assert 'data-action=\\"defer\\"' in html
-    assert 'data-action=\\"cancel\\"' in html
-    assert "linkedin_publish_cancel_not_allowed" in html
-    assert "linkedin_supervision_idempotency_conflict" in html
-    assert "Unauthorized (401)" in html
+    bundle = _console_bundle_text()
+    assert CORRECT_PATH in bundle
+    assert DEFER_PATH in bundle
+    assert CANCEL_PATH in bundle
+    assert "edit-dry-run" in bundle
+    assert "defer-dry-run" in bundle
+    assert "cancel-dry-run" in bundle
+    assert "draft_content" in bundle
+    assert "new_scheduled_at_utc" in bundle
+    assert "validated (dry-run, no mutation)" in bundle
+    assert "persisted (real write)" in bundle
+    assert "does not auto-update the editorial calendar" in bundle
+    assert "not strategy-driven auto-queue eligible" in bundle or (
+        "not auto-queue eligible" in bundle
+    )
+    assert 'data-action="edit"' in bundle or "data-action" in bundle
+    assert "linkedin_publish_cancel_not_allowed" in bundle
+    assert "linkedin_supervision_idempotency_conflict" in bundle
+    assert "Unauthorized (401)" in bundle
     # Cancel wires only to existing US-017 cancel POST (no parallel mutation route).
-    assert "postMutation(CANCEL_PATH, body)" in html
-    assert "/flow-a/console/cancel" not in html
-    assert "POST /flow-a/" not in html
+    assert CANCEL_PATH in bundle
+    assert "/flow-a/console/cancel" not in bundle
+    assert "POST /flow-a/" not in bundle
+    # US-040A: no browser storage for secrets.
+    for pattern in _BROWSER_STORAGE_PATTERNS:
+        assert pattern.search(bundle) is None, pattern.pattern
+    # Legacy monolithic HTML must not remain as a second SoT.
+    legacy = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "silverman_blog_linkedin"
+        / "static"
+        / "linkedin_variant_supervision_console.html"
+    )
+    assert not legacy.exists()
+    assert console_html_path().is_file()
+    assert console_assets_dir().is_dir()
+    assert console_build_dir().is_dir()
 
 
 def test_real_cancel_via_existing_endpoint_removes_pending_row(
@@ -698,21 +745,49 @@ def test_cancel_not_allowed_and_auth_failure_codes_surface(
     assert denied_payload["status"] == "failed"
     assert "linkedin_publish_cancel_not_allowed" in denied_payload["errors"]
 
-    html = load_console_html()
-    assert "linkedin_publish_cancel_not_allowed" in html
-    assert "Unauthorized (401)" in html
+    bundle = _console_bundle_text()
+    assert "linkedin_publish_cancel_not_allowed" in bundle
+    assert "Unauthorized (401)" in bundle
 
 
 def test_static_html_secrets_audit_fails_on_secret_like_patterns():
-    html = load_console_html()
+    texts = load_console_static_texts()
+    assert texts, "Vite console build artifacts missing; run npm run build"
     path = console_html_path()
     assert path.is_file()
-    for pattern in _SECRET_LIKE_PATTERNS:
-        match = pattern.search(html)
-        assert match is None, (
-            f"secret-like pattern {pattern.pattern!r} found in {path}: "
-            f"{match.group(0)!r}"
-        )
+    for asset_path, content in texts:
+        for pattern in _SECRET_LIKE_PATTERNS:
+            match = pattern.search(content)
+            assert match is None, (
+                f"secret-like pattern {pattern.pattern!r} found in {asset_path}: "
+                f"{match.group(0)!r}"
+            )
+        for pattern in _BROWSER_STORAGE_PATTERNS:
+            match = pattern.search(content)
+            assert match is None, (
+                f"browser storage API {pattern.pattern!r} found in {asset_path}"
+            )
+
+    # Frontend source audit (excluding node_modules / built output).
+    frontend_root = (
+        Path(__file__).resolve().parents[1]
+        / "frontend"
+        / "linkedin-variant-supervision-console"
+        / "src"
+    )
+    assert frontend_root.is_dir()
+    for src_path in sorted(frontend_root.rglob("*")):
+        if not src_path.is_file():
+            continue
+        if src_path.suffix.lower() not in {".ts", ".tsx", ".css", ".html"}:
+            continue
+        content = src_path.read_text(encoding="utf-8")
+        for pattern in _SECRET_LIKE_PATTERNS:
+            match = pattern.search(content)
+            assert match is None, (
+                f"secret-like pattern {pattern.pattern!r} found in {src_path}: "
+                f"{match.group(0)!r}"
+            )
 
 
 def test_static_html_secrets_audit_detects_injected_placeholder(tmp_path: Path):

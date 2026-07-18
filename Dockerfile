@@ -1,5 +1,9 @@
 FROM python:3.11-slim
 
+# Before building this image, rebuild console static assets so COPY src includes them:
+#   cd frontend/linkedin-variant-supervision-console && npm ci && npm run build
+# The runtime image has no Node — worker serves prebuilt Vite artifacts only.
+
 ARG BUILD_REVISION=unknown
 ENV BUILD_REVISION=${BUILD_REVISION}
 

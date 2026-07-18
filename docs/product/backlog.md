@@ -270,9 +270,14 @@ This backlog describes the outstanding business and operational capabilities req
 - Allow operators to defer, reschedule, or cancel variants before queue.
 - Persist operator changes traceably.
 - Surface publication blocks and integration failures.
+- Use a modern, componentized frontend stack for the console without rewriting backend workflows.
+- Preserve the existing list-oriented supervision view and make it coexist with the month calendar view.
+- Provide a dark, mobile-friendly month calendar view for upcoming publications.
+- Allow future publication schedule changes directly from the calendar.
+- Keep the console ready for future public URL operation with Google authentication.
 - Use worker HTTP capabilities without bypassing publication guards.
 
-**Completion outcome:** Operators can supervise Flow A LinkedIn variants during the optional pre-send window without opening multiple raw files.
+**Completion outcome:** Operators can supervise Flow A LinkedIn variants and upcoming editorial publication timing from one usable dark console, switching between list and month calendar views during the optional pre-send window, without opening multiple raw files.
 
 
 ## P4 — Flow B

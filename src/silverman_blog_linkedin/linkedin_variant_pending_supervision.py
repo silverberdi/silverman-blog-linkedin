@@ -582,14 +582,41 @@ def get_pending_linkedin_variant_supervision(
     )
 
 
-def console_html_path() -> Path:
-    """Return the committed static console HTML path."""
-    return Path(__file__).resolve().parent / "static" / (
-        "linkedin_variant_supervision_console.html"
+def console_build_dir() -> Path:
+    """Return the Vite production build directory for the supervision console."""
+    return (
+        Path(__file__).resolve().parent
+        / "static"
+        / "linkedin-variant-supervision-console"
     )
 
 
+def console_html_path() -> Path:
+    """Return the Vite-built console index.html path."""
+    return console_build_dir() / "index.html"
+
+
+def console_assets_dir() -> Path:
+    """Return the Vite-built hashed assets directory."""
+    return console_build_dir() / "assets"
+
+
 def load_console_html() -> str:
-    """Load static supervision console HTML from the package static asset."""
+    """Load Vite-built supervision console HTML from the package static assets."""
     path = console_html_path()
     return path.read_text(encoding="utf-8")
+
+
+def load_console_static_texts() -> list[tuple[Path, str]]:
+    """Load index.html plus built JS/CSS for audits and contract checks."""
+    root = console_build_dir()
+    if not root.is_dir():
+        return []
+    texts: list[tuple[Path, str]] = []
+    for path in sorted(root.rglob("*")):
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in {".html", ".js", ".css", ".map"}:
+            continue
+        texts.append((path, path.read_text(encoding="utf-8")))
+    return texts

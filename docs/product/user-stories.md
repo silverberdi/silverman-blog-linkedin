@@ -786,6 +786,126 @@ As a content operator, I want to cancel or defer variants and see why publicatio
 - [x] Failures or blocked states are clearly communicated. — Demonstrated: cancel codes (`linkedin_publish_cancel_not_allowed`, not-pending/action-not-allowed/idempotency, 401/422) plus retained edit/defer mapping.
 - [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: no new mutation SoT; edit/defer preserved; secrets audit still passes; BL-007 / publication guards untouched.
 
+**US-040 variants**
+
+These variants extend US-040 inside BL-015. They are not a new backlog item and MUST NOT be treated as Flow B implementation scope. They improve the same Flow A supervision console so the operator can use it as a dark, mobile-friendly control surface with both list and month calendar views, ready for a future public URL protected by Google authentication. The calendar view is additive: it MUST NOT remove or degrade the current list-oriented supervision workflow.
+
+**Additional prerequisites:** BL-021 SHOULD define cadence and rescheduling rules before the calendar allows real schedule changes that could affect the publication plan. Future Google authentication is intentionally out of scope, but these variants MUST leave the frontend and worker API boundaries ready for it.
+
+### US-040A — Implement Flow A LinkedIn Variant Supervision Console: Modern Frontend Stack Without Rebuild
+
+**Description**
+
+As a system owner, I want the supervision console to use a maintainable modern frontend stack incrementally, so that the operator experience can improve without rewriting the existing worker, n8n workflows, or publication pipeline.
+
+**Acceptance criteria**
+
+- [x] Define the frontend stack decision in the OpenSpec proposal before implementation; the default recommendation SHOULD be React + TypeScript + Vite, or an explicitly justified equivalent modern stack. — Demonstrated: proposal + `frontend/linkedin-variant-supervision-console/` is React + TypeScript + Vite.
+- [x] Treat the stack change as a console-layer modernization only; do not rewrite the worker business logic, n8n workflows, Python utilities, file contracts, publication guards, or existing HTTP mutation semantics as part of this variant. — Demonstrated: worker change is static-asset serving only; US-017 POSTs unchanged.
+- [x] Preserve the existing same-origin console route or provide a compatible replacement route so current operator access remains understandable during migration. — Demonstrated: `GET /flow-a/console/linkedin-variant-supervision` serves Vite `index.html` + same-origin `/assets/*`.
+- [x] Preserve the existing list-oriented pending-variant supervision experience as a first-class view in the modernized console. — Demonstrated: `ListView` with edit/defer/cancel; calendar is scaffold-only via view switcher.
+- [x] Build the UI as componentized operational screens, including list view, month calendar view, item detail, schedule editor, status summary, filters, confirmation flows, and shared API/error handling. — Demonstrated: components under `frontend/.../src/components/` + `api/` (calendar/schedule/filters are scaffolds).
+- [x] Keep the browser API access centralized behind a typed client or equivalent boundary so future Google/OIDC authentication can be added without changing business components. — Demonstrated: `SupervisionApiClient` + injectable `AuthProvider` (in-memory Bearer; no browser storage).
+- [x] Produce static build artifacts that can be served by the existing worker or deployment path without requiring a separate frontend server in production. — Demonstrated: build output under `src/silverman_blog_linkedin/static/linkedin-variant-supervision-console/`; Docker still one worker process (`npm ci && npm run build` before image build).
+- [x] Avoid introducing a backend-for-frontend, database, user-management system, or public hosting change unless a separate OpenSpec change explicitly approves it. — Demonstrated: browser → worker HTTP only; no BFF/DB/user-mgmt/public hosting.
+- [x] Keep list and calendar views backed by the same worker read models or a clearly shared normalized frontend model so they cannot disagree about item identity, state, schedule, or available actions. — Demonstrated: `SupervisionItem` / `SupervisionSnapshot` shared store; calendar scaffold consumes it.
+- [x] Keep dependency additions small, documented, and justified by usability, maintainability, accessibility, or calendar interaction needs. — Demonstrated: production deps are `react` + `react-dom` only; see frontend README.
+- [x] Include frontend validation appropriate to the chosen stack, covering build success, key component behavior, API error mapping, desktop viewport, and mobile viewport. — Demonstrated: `npm run build`, Vitest ListView + error-mapping + viewport tests; pytest console/secrets audit updated.
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: console shell copy, dry-run default, enablement display-only, qualified `pending` / `cancelled` / `flow_a_complete` language.
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: `ApiError` mapping for 401/422 and known US-017 codes; banners for status/actions.
+- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: Stories 1–3 mutation SoT reused; legacy monolithic HTML removed; US-040B–US-040E / Flow B not implemented.
+
+### US-040B — Implement Flow A LinkedIn Variant Supervision Console: List and Month Schedule Visibility
+
+**Description**
+
+As a content operator, I want to switch between a list view and a dark month calendar of upcoming Flow A blog posts and LinkedIn variants, so that I can inspect operational detail quickly and also understand what will be published each day from my laptop or phone.
+
+**Acceptance criteria**
+
+- [ ] Provide two first-class views in the same console: `List` and `Month calendar`; neither view replaces, hides permanently, or weakens the other.
+- [ ] Preserve the list view as the detail-heavy operational view for pending variants, including campaign id, variant id, audience, `scheduled_at_utc`, publication state, draft content visibility where supported, issues, integration failures, and available actions.
+- [ ] Provide a clear, persistent view switcher suitable for desktop and mobile; switching views MUST NOT clear filters, selected campaign context, dry-run mode, or unsaved schedule edits without warning.
+- [ ] Present a month view with current month, next/previous month navigation, today marker, selected-day state, and clear empty-day states.
+- [ ] Show each scheduled blog post and LinkedIn variant on the correct calendar day, including title or campaign label, campaign id where available, variant id where available, audience, channel, publication state, and scheduled time.
+- [ ] Distinguish planned, pending, queued, published, deferred, cancelled, blocked, and failed states without implying that `pending` or `queued` content has already been published.
+- [ ] Make the same item recognizable across both views by preserving stable labels, ids, status colors, and detail fields.
+- [ ] Surface blocking issues and partial-data warnings when campaign, calendar, variant, or integration state cannot be read completely.
+- [ ] Provide filters or toggles for channel, campaign, publication state, blocked items, and due-soon items without hiding critical failure indicators silently.
+- [ ] Apply filters consistently to both list and calendar views, while making hidden critical failures discoverable through a count, warning, or reset affordance.
+- [ ] Display dates and times with explicit timezone handling, including the stored UTC schedule and the operator-local interpretation where useful.
+- [ ] Work comfortably on phone and laptop viewports: the list view SHOULD become readable stacked rows/cards on mobile, and the calendar SHOULD provide an agenda-style day expansion or equivalent mobile pattern instead of forcing horizontal table scrolling.
+- [ ] Use a dark visual theme with readable contrast, stable spacing, clear hierarchy, and touch targets suitable for mobile operation.
+- [ ] Read data through worker HTTP capabilities only; the browser MUST NOT read raw mounted files or infer state from filesystem paths.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-040C — Implement Flow A LinkedIn Variant Supervision Console: Schedule Modification From Calendar
+
+**Description**
+
+As a content operator, I want to modify future Flow A publication timing from the calendar without losing the existing list workflow, so that I can adjust the editorial plan where I notice conflicts or better publishing windows.
+
+**Acceptance criteria**
+
+- [ ] Allow the operator to select a future unpublished item from the month view, mobile agenda view, or list view and open the same schedule editor.
+- [ ] Preserve existing list-based edit, defer, reschedule, and cancel affordances where they are already supported; calendar actions MUST reuse the same business rules and worker semantics.
+- [ ] Support changing the scheduled date and time for future unpublished blog and LinkedIn items only; published historical items MUST be read-only.
+- [ ] For LinkedIn variants, reuse or extend the existing worker supervision semantics for deferring or rescheduling pending variants instead of introducing a second mutation source of truth.
+- [ ] For editorial calendar items, update the canonical calendar through an explicit worker API contract with validation, idempotency, and conflict protection; the browser MUST NOT write raw calendar files directly.
+- [ ] Validate schedule changes against approved cadence and rescheduling rules, including past dates, invalid time formats, saturation, duplicate slots, and unsupported publication states.
+- [ ] Make dry-run behavior visible before any real mutation and require explicit confirmation for committed schedule changes.
+- [ ] After a successful change, refresh the calendar and show the previous schedule, new schedule, affected item, and whether related LinkedIn variants were changed or left as separate overrides.
+- [ ] After a successful change, refresh the list view with the same updated schedule and state so both views remain consistent.
+- [ ] Persist a traceable audit record with actor/source, timestamp, previous value, new value, reason when supplied, idempotency key, and worker result.
+- [ ] Do not call the LinkedIn publication API or publish blog content as part of a schedule edit.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-040D — Implement Flow A LinkedIn Variant Supervision Console: Public URL and Google Auth Readiness
+
+**Description**
+
+As a system owner, I want the Flow A supervision console architecture to be ready for a future public URL protected by Google authentication, so that later security work can add login without rewriting the calendar experience.
+
+**Acceptance criteria**
+
+- [ ] Keep authentication and authorization concerns behind a clear frontend API client and backend middleware boundary.
+- [ ] Represent anonymous, authenticated, expired-session, forbidden, and service-unavailable states in the UI, even if the current local implementation uses the existing worker auth mechanism.
+- [ ] Avoid hardcoding API keys, tokens, operational secrets, mount paths, or local-only assumptions in frontend source, rendered HTML, logs, or browser storage.
+- [ ] Use same-origin calls or an explicitly documented CORS strategy that can be safely restricted when the console is exposed publicly.
+- [ ] Design the API request layer so a later Google/OIDC bearer token or secure session cookie can replace the current auth header without changing calendar components.
+- [ ] Prevent unauthenticated or read-only sessions from executing schedule mutations.
+- [ ] Handle mobile session expiry gracefully by preserving visible context and guiding the operator back to authentication without losing unsaved edits.
+- [ ] Document that public deployment and Google authentication activation are out of scope for this BL and require a separate security change before internet exposure.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-040E — Implement Flow A LinkedIn Variant Supervision Console: Operational Usability and Safety
+
+**Description**
+
+As a content operator, I want the Flow A supervision console to make attention, risk, and next actions obvious in both list and calendar views, so that I can operate the publishing schedule confidently from anywhere.
+
+**Acceptance criteria**
+
+- [ ] Provide at-a-glance counts for upcoming, pending, due soon, deferred, blocked, failed, and recently published items.
+- [ ] Prioritize actionable states visually so blocked or failed items are noticeable without overwhelming normal scheduled content.
+- [ ] Use concise operator-facing labels for technical states and preserve detailed diagnostic codes in expandable details when needed.
+- [ ] Provide clear affordances for switching view, filtering, inspecting, rescheduling, deferring, cancelling where supported, refreshing, and dry-run/commit mode.
+- [ ] Keep the list view optimized for scanning and bulk operational triage, and keep the month calendar optimized for schedule comprehension; do not force one view to carry both jobs poorly.
+- [ ] Keep destructive or irreversible actions protected by confirmation and avoid placing them next to routine navigation controls.
+- [ ] Preserve keyboard accessibility for laptop use and touch accessibility for mobile use.
+- [ ] Validate visual behavior with desktop and mobile screenshots or equivalent UI checks that cover dense lists, empty lists, dense months, empty months, blocked items, long titles, switching views, and schedule editing.
+- [ ] Keep the dark theme consistent across loading, empty, error, detail, confirmation, and success states.
+- [ ] Do not introduce a marketing-style landing page; the first screen MUST be the usable operational calendar experience.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
 ## BL-016 — Define Flow B
 
 **Priority:** P4
