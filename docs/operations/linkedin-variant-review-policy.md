@@ -1,7 +1,7 @@
 # LinkedIn variant review policy (Flow A)
 
 **Scope:** US-015 (BL-006 story 1) — operator-visible publication and supervision policy for Flow A LinkedIn variants.
-**Status:** Policy defined (docs/spec); US-016 criteria defined (see [linkedin-variant-quality-criteria.md](linkedin-variant-quality-criteria.md)); US-017 supervision mechanics defined (see [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md)); US-038 Story 1 read-only console implemented at `GET /flow-a/console/linkedin-variant-supervision` (US-039/US-040 actions still deferred).
+**Status:** Policy defined (docs/spec); US-016 criteria defined (see [linkedin-variant-quality-criteria.md](linkedin-variant-quality-criteria.md)); US-017 supervision mechanics defined (see [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md)); US-038–US-040 supervision console implemented at `GET /flow-a/console/linkedin-variant-supervision` (edit/defer/cancel via US-017 POSTs; not Story accepted / not BL-015 closed).
 **Authority:** Complements [GLOSSARY.md](../GLOSSARY.md), [silverman-editorial-system.md](../../content-strategy/silverman-editorial-system.md) `#flow-a-vs-flow-b`, and [user-stories.md](../product/user-stories.md) US-015.
 
 ## Purpose and scope
@@ -42,7 +42,7 @@ While a variant’s technical `publish_state` is `pending` and before real Linke
 - Supervision is **optional** — not a mandatory approval gate.
 - If the operator does not intervene, publication **proceeds per distribution strategy** when BL-007 (or manual queue/publish) runs.
 
-Recording edits, delays, and cancellations in metadata is defined in [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md) (US-017). The operator surface starts with the US-038 read-only console at `GET /flow-a/console/linkedin-variant-supervision` (data via `GET /flow-a/linkedin-variants/pending-supervision`); edit/defer/cancel UI remains US-039/US-040.
+Recording edits, delays, and cancellations in metadata is defined in [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md) (US-017). The operator surface is the US-038–US-040 console at `GET /flow-a/console/linkedin-variant-supervision` (data via `GET /flow-a/linkedin-variants/pending-supervision`); edit/defer/cancel call existing US-017 POSTs.
 
 ## Mandatory review: Flow A vs Flow B
 
@@ -76,7 +76,7 @@ These concepts are **distinct**:
 | `pending`, operator cancelled/deferred | Override; not eligible for strategy-driven auto-queue | See US-017 mechanics; `auto_queue_eligible` metadata |
 | LinkedIn publication not enabled | Blocked for real API publish (fail-closed) | Enable only for controlled windows; not permanent off (US-011) |
 | `failed`, OAuth action-required, missing URN | Integration failure | Existing publication error semantics; BL-008 later |
-| Supervision console (BL-015) | Deferred UI capability | US-017 worker mechanics implemented; console not yet |
+| Supervision console (BL-015) | Operator UI for pending window | US-038–US-040 console implemented in worker (not Story accepted / not BL-015 closed) |
 | BL-007 not implemented | No scheduled auto-queue yet | Manual queue/publish or wait for BL-007 OpenSpec apply |
 
 ## Future BL-007 eligibility (documentation only)
@@ -89,13 +89,13 @@ When BL-007 scheduled LinkedIn publication is implemented under its own OpenSpec
 
 Reference: [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md) (construction WIP — future consumer only).
 
-## Future supervision console
+## Supervision console (BL-015)
 
 **Backlog:** [BL-015 — Implement Flow A LinkedIn Variant Supervision Console](../product/backlog.md) (US-038–US-040), placed before Flow B (P4). Priority P3; end of operations wave before Flow B starts.
 
-**US-038 (Story 1) surface:** `GET /flow-a/console/linkedin-variant-supervision` (static HTML) consuming authenticated `GET /flow-a/linkedin-variants/pending-supervision`. Read-only pending list with calendar join; not Story accepted / not BL-015 closed. Edit, delay, and cancel UI remain US-039/US-040.
+**US-038–US-040 surface:** `GET /flow-a/console/linkedin-variant-supervision` (static HTML) consuming authenticated `GET /flow-a/linkedin-variants/pending-supervision`. Pending list with calendar join, edit/defer/cancel via US-017 POSTs, and blocked-state display (enablement, deferred eligibility, sibling integration failures). Not Story accepted / not BL-015 closed.
 
-The console is the intended operator surface for calendar-visible supervision (edit, delay, cancel while `pending`). Edit/defer/cancel actions are **not** part of US-015 or US-038. US-017 worker mechanics are defined in [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md); until US-039/US-040 land, operators use worker HTTP mutation routes and campaign metadata for overrides.
+The console is the intended operator surface for calendar-visible supervision (edit, delay, cancel while `pending`). Edit/defer/cancel actions are **not** part of US-015 policy itself. US-017 worker mechanics remain defined in [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md).
 
 ## Preserved behavior (no duplication)
 

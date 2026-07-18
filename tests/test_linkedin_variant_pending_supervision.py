@@ -1,4 +1,4 @@
-"""Behavioral tests for US-038/US-039 LinkedIn variant supervision console."""
+"""Behavioral tests for US-038–US-040 LinkedIn variant supervision console."""
 
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ PENDING_API = "/flow-a/linkedin-variants/pending-supervision"
 CONSOLE_PATH = "/flow-a/console/linkedin-variant-supervision"
 CORRECT_PATH = "/correct-linkedin-variant"
 DEFER_PATH = "/defer-linkedin-variant"
+CANCEL_PATH = "/cancel-linkedin-publication"
 
 # Patterns that must never appear in the committed console HTML asset.
 _SECRET_LIKE_PATTERNS = (
@@ -167,7 +168,8 @@ def test_pending_rows_include_required_fields_and_calendar_join(
                 scheduled_at_utc="2026-07-21T15:00:00Z",
                 operator_supervision={
                     "last_action": "defer",
-                    "auto_queue_eligible": True,
+                    "auto_queue_eligible": False,
+                    "reason": "operator_choice",
                 },
             ),
             _variant(
@@ -225,8 +227,75 @@ def test_pending_rows_include_required_fields_and_calendar_join(
     assert first["draft_content"] == "Hiring manager draft.\n"
     second = result.variants[1].to_dict()
     assert second["operator_supervision_last_action"] == "defer"
-    assert second["auto_queue_eligible"] is True
+    assert second["auto_queue_eligible"] is False
+    assert second["operator_supervision_reason"] == "operator_choice"
     assert second["draft_content"] == "Engineering leadership draft.\n"
+    assert result.integration_failures == []
+
+
+def test_integration_failures_include_failed_siblings_of_pending_campaign(
+    supervision_base: Path,
+):
+    _write_campaign(
+        supervision_base,
+        variants=[
+            _variant("engineering-leadership"),
+            _variant(
+                "executive-recruiter",
+                publish_state="failed",
+                linkedin_publication={
+                    "last_error_code": "linkedin_publish_api_error",
+                    "last_failed_at": "2026-07-18T12:00:00Z",
+                    "retryable": True,
+                    "http_status": 503,
+                },
+            ),
+            _variant("hiring-manager", publish_state="queued"),
+        ],
+    )
+    _write_draft(supervision_base, CAMPAIGN_ID, "engineering-leadership")
+    _write_calendar(supervision_base, [])
+
+    result = get_pending_linkedin_variant_supervision(supervision_base)
+
+    assert len(result.variants) == 1
+    assert result.variants[0].variant_id == "engineering-leadership"
+    assert len(result.integration_failures) == 1
+    failure = result.integration_failures[0].to_dict()
+    assert failure == {
+        "campaign_id": CAMPAIGN_ID,
+        "variant_id": "executive-recruiter",
+        "publish_state": "failed",
+        "last_error_code": "linkedin_publish_api_error",
+        "http_status": 503,
+    }
+
+
+def test_failed_only_campaign_does_not_populate_integration_failures(
+    supervision_base: Path,
+):
+    """Failed siblings are only surfaced when the campaign also has pending rows."""
+    _write_campaign(
+        supervision_base,
+        variants=[
+            _variant(
+                "executive-recruiter",
+                publish_state="failed",
+                linkedin_publication={
+                    "last_error_code": "linkedin_publish_api_error",
+                    "last_failed_at": "2026-07-18T12:00:00Z",
+                    "retryable": True,
+                    "http_status": 500,
+                },
+            ),
+        ],
+    )
+    _write_calendar(supervision_base, [])
+
+    result = get_pending_linkedin_variant_supervision(supervision_base)
+
+    assert result.variants == []
+    assert result.integration_failures == []
 
 
 def test_missing_draft_still_lists_pending_row_with_null_content(
@@ -406,12 +475,27 @@ def test_read_path_does_not_mutate_campaign_or_calendar(supervision_base: Path):
     )
     assert first.to_dict()["variants"] == second.to_dict()["variants"]
     assert first.to_dict()["issues"] == second.to_dict()["issues"]
+    assert first.to_dict()["integration_failures"] == second.to_dict()[
+        "integration_failures"
+    ]
 
 
 def test_http_pending_supervision_auth_and_payload(supervision_base: Path):
     _write_campaign(
         supervision_base,
-        variants=[_variant("engineering-leadership")],
+        variants=[
+            _variant("engineering-leadership"),
+            _variant(
+                "executive-recruiter",
+                publish_state="failed",
+                linkedin_publication={
+                    "last_error_code": "linkedin_publish_token_invalid",
+                    "last_failed_at": "2026-07-18T11:00:00Z",
+                    "retryable": False,
+                    "http_status": 401,
+                },
+            ),
+        ],
     )
     _write_draft(
         supervision_base,
@@ -440,6 +524,12 @@ def test_http_pending_supervision_auth_and_payload(supervision_base: Path):
     assert row["publish_state"] == "pending"
     assert row["calendar_item_id"] == "cal-1"
     assert row["draft_content"] == "HTTP draft body.\n"
+    assert "operator_supervision_reason" in row
+    assert len(payload["integration_failures"]) == 1
+    assert payload["integration_failures"][0]["variant_id"] == "executive-recruiter"
+    assert payload["integration_failures"][0]["last_error_code"] == (
+        "linkedin_publish_token_invalid"
+    )
     body_text = response.text
     assert "SILVERMAN_LINKEDIN_ACCESS_TOKEN" not in body_text
     assert "sk-" not in body_text
@@ -457,33 +547,160 @@ def test_console_html_served_at_fixed_path_without_auth(
     assert PENDING_API in body
     assert CORRECT_PATH in body
     assert DEFER_PATH in body
-    assert "US-039" in body
+    assert CANCEL_PATH in body
     assert "US-040" in body
-    assert "cancel-linkedin-publication" not in body
     assert "not LinkedIn API published" in body
     assert "flow_a_complete" in body
     assert "edit-dry-run" in body
     assert "defer-dry-run" in body
+    assert "cancel-dry-run" in body
     assert "linkedin_supervision_variant_not_pending" in body
     assert "linkedin_supervision_defer_time_invalid" in body
+    assert "linkedin_publish_cancel_not_allowed" in body
+    assert "integration_failures" in body
+    assert "Cancel remains US-040" not in body
     assert "actions not available" not in body.lower()
 
 
 def test_console_action_contract_wiring_in_static_html():
-    """Story 2 console wires edit/defer to US-017 POSTs with dry-run default on."""
+    """Story 3 console wires edit/defer/cancel to US-017 POSTs with dry-run default on."""
     html = load_console_html()
     assert 'var CORRECT_PATH = "/correct-linkedin-variant";' in html
     assert 'var DEFER_PATH = "/defer-linkedin-variant";' in html
+    assert 'var CANCEL_PATH = "/cancel-linkedin-publication";' in html
     assert 'id="edit-dry-run" checked' in html
     assert 'id="defer-dry-run" checked' in html
+    assert 'id="cancel-dry-run" checked' in html
     assert "dry_run: dryRun" in html
     assert "draft_content:" in html
     assert "new_scheduled_at_utc:" in html
     assert "validated (dry-run, no mutation)" in html
     assert "persisted (real write)" in html
     assert "does not auto-update the editorial calendar" in html
-    assert "cancel-linkedin-publication" not in html
-    assert 'data-action="cancel"' not in html
+    assert "not strategy-driven auto-queue eligible" in html
+    assert 'data-action=\\"edit\\"' in html
+    assert 'data-action=\\"defer\\"' in html
+    assert 'data-action=\\"cancel\\"' in html
+    assert "linkedin_publish_cancel_not_allowed" in html
+    assert "linkedin_supervision_idempotency_conflict" in html
+    assert "Unauthorized (401)" in html
+    # Cancel wires only to existing US-017 cancel POST (no parallel mutation route).
+    assert "postMutation(CANCEL_PATH, body)" in html
+    assert "/flow-a/console/cancel" not in html
+    assert "POST /flow-a/" not in html
+
+
+def test_real_cancel_via_existing_endpoint_removes_pending_row(
+    supervision_base: Path,
+):
+    """Console cancel SoT is POST /cancel-linkedin-publication; row leaves pending list."""
+    _write_campaign(
+        supervision_base,
+        variants=[
+            _variant("engineering-leadership"),
+            _variant("hiring-manager"),
+        ],
+    )
+    _write_draft(supervision_base, CAMPAIGN_ID, "engineering-leadership")
+    _write_draft(supervision_base, CAMPAIGN_ID, "hiring-manager")
+    _write_calendar(supervision_base, [])
+    client = TestClient(create_app(make_settings(supervision_base)))
+
+    before = client.get(PENDING_API, headers=auth_header()).json()
+    assert {row["variant_id"] for row in before["variants"]} == {
+        "engineering-leadership",
+        "hiring-manager",
+    }
+
+    cancel = client.post(
+        CANCEL_PATH,
+        headers=auth_header(),
+        json={
+            "campaign_id": CAMPAIGN_ID,
+            "variant": "engineering-leadership",
+            "dry_run": False,
+            "reason": "operator_choice",
+            "idempotency_key": "console-cancel-test-1",
+        },
+    )
+    assert cancel.status_code == 200
+    cancel_payload = cancel.json()
+    assert cancel_payload["status"] == "completed"
+    assert cancel_payload["dry_run"] is False
+
+    after = client.get(PENDING_API, headers=auth_header()).json()
+    assert [row["variant_id"] for row in after["variants"]] == ["hiring-manager"]
+
+
+def test_cancel_dry_run_default_does_not_remove_pending_row(
+    supervision_base: Path,
+):
+    _write_campaign(
+        supervision_base,
+        variants=[_variant("engineering-leadership")],
+    )
+    _write_draft(supervision_base, CAMPAIGN_ID, "engineering-leadership")
+    _write_calendar(supervision_base, [])
+    client = TestClient(create_app(make_settings(supervision_base)))
+
+    # Omit dry_run — request model default is true (matches console default on).
+    response = client.post(
+        CANCEL_PATH,
+        headers=auth_header(),
+        json={
+            "campaign_id": CAMPAIGN_ID,
+            "variant": "engineering-leadership",
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "completed"
+    assert payload["dry_run"] is True
+
+    pending = client.get(PENDING_API, headers=auth_header()).json()
+    assert len(pending["variants"]) == 1
+    assert pending["variants"][0]["variant_id"] == "engineering-leadership"
+
+
+def test_cancel_not_allowed_and_auth_failure_codes_surface(
+    supervision_base: Path,
+):
+    _write_campaign(
+        supervision_base,
+        variants=[
+            _variant("engineering-leadership", publish_state="published"),
+        ],
+    )
+    _write_calendar(supervision_base, [])
+    client = TestClient(create_app(make_settings(supervision_base)))
+
+    unauth = client.post(
+        CANCEL_PATH,
+        json={
+            "campaign_id": CAMPAIGN_ID,
+            "variant": "engineering-leadership",
+            "dry_run": False,
+        },
+    )
+    assert unauth.status_code == 401
+
+    denied = client.post(
+        CANCEL_PATH,
+        headers=auth_header(),
+        json={
+            "campaign_id": CAMPAIGN_ID,
+            "variant": "engineering-leadership",
+            "dry_run": True,
+        },
+    )
+    assert denied.status_code == 200
+    denied_payload = denied.json()
+    assert denied_payload["status"] == "failed"
+    assert "linkedin_publish_cancel_not_allowed" in denied_payload["errors"]
+
+    html = load_console_html()
+    assert "linkedin_publish_cancel_not_allowed" in html
+    assert "Unauthorized (401)" in html
 
 
 def test_static_html_secrets_audit_fails_on_secret_like_patterns():

@@ -779,12 +779,12 @@ As a content operator, I want to cancel or defer variants and see why publicatio
 
 **Acceptance criteria**
 
-- [ ] Cancel or defer variants before queue per the LinkedIn variant review policy.
-- [ ] Surface blocked states (publication enablement, integration failures, deferred capabilities).
-- [ ] Invoke worker capabilities over HTTP only (ADR-0001); do not bypass publication guards.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Cancel or defer variants before queue per the LinkedIn variant review policy. — Demonstrated: console Cancel calls `POST /cancel-linkedin-publication`; Defer retained from US-039 (`tests/test_linkedin_variant_pending_supervision.py`).
+- [x] Surface blocked states (publication enablement, integration failures, deferred capabilities). — Demonstrated: enablement display-only banner; deferred/`auto_queue_eligible`/`operator_supervision_reason` on rows; `integration_failures[]` for failed siblings.
+- [x] Invoke worker capabilities over HTTP only (ADR-0001); do not bypass publication guards. — Demonstrated: browser calls existing US-017 cancel/defer/edit POSTs; GET remains non-mutating; no enablement bypass.
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: dry-run vs real cancel banners; real cancel refreshes list; eligibility exclusion copy; `pending`/`cancelled`/`flow_a_complete` ≠ LinkedIn API published.
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: cancel codes (`linkedin_publish_cancel_not_allowed`, not-pending/action-not-allowed/idempotency, 401/422) plus retained edit/defer mapping.
+- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: no new mutation SoT; edit/defer preserved; secrets audit still passes; BL-007 / publication guards untouched.
 
 ## BL-016 — Define Flow B
 

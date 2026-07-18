@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Flow A LinkedIn variant supervision (US-038 / US-039)</title>
+  <title>Flow A LinkedIn variant supervision (US-038 / US-039 / US-040)</title>
   <style>
     :root {
       --bg: #f6f4ef;
@@ -191,6 +191,9 @@
       color: var(--muted);
       margin-top: 0.25rem;
     }
+    .sup-meta.warn {
+      color: var(--warn-ink);
+    }
   </style>
 </head>
 <body>
@@ -199,9 +202,9 @@
     <p class="lede">
       Flow A LinkedIn variants in the optional supervision window
       (<span class="mono">publish_state=pending</span>).
-      Edit and defer persist through US-017 worker HTTP.
-      Pending is not LinkedIn API published. Campaign
-      <span class="mono">flow_a_complete</span> is also not LinkedIn API published.
+      Edit, defer, and cancel persist through US-017 worker HTTP.
+      Pending, cancelled, and campaign
+      <span class="mono">flow_a_complete</span> are not LinkedIn API published.
     </p>
 
     <div id="enablement-banner" class="banner info" hidden></div>
@@ -249,6 +252,26 @@
       </div>
     </div>
 
+    <div id="cancel-panel" class="panel" hidden>
+      <h2>Cancel pending variant</h2>
+      <p class="meta" id="cancel-target"></p>
+      <p class="sup-meta">
+        Cancel sets worker <span class="mono">publish_state=cancelled</span> and excludes the variant
+        from strategy-driven auto-queue (BL-007 eligibility). It does not call LinkedIn and is not
+        LinkedIn API published or LinkedIn unpublish.
+      </p>
+      <label for="cancel-reason">Reason (optional)</label>
+      <input type="text" id="cancel-reason" placeholder="e.g. operator_choice">
+      <div class="check-row">
+        <input type="checkbox" id="cancel-dry-run" checked>
+        <label for="cancel-dry-run" style="margin:0">Dry-run (default on — validates without mutating)</label>
+      </div>
+      <div class="panel-actions">
+        <button type="button" id="cancel-submit-btn">Submit cancel</button>
+        <button type="button" id="cancel-close-btn" class="secondary">Close</button>
+      </div>
+    </div>
+
     <div id="empty-state" class="banner ok" hidden>
       No pending variants in the supervision window.
     </div>
@@ -271,16 +294,27 @@
       </table>
     </div>
 
+    <div id="failures-panel" hidden>
+      <h2 class="section-title">Integration failures (sibling context)</h2>
+      <p class="meta">
+        Failed siblings from campaigns that still have pending variants.
+        Display-only blocked context — no cancel/edit/defer on failed rows from this console.
+      </p>
+      <ul class="issues" id="failures-list"></ul>
+    </div>
+
     <div id="issues-panel" hidden>
       <h2 class="section-title">Read issues</h2>
       <ul class="issues" id="issues-list"></ul>
     </div>
 
     <p class="note">
-      Story 2 supports edit and defer for pending variants via
-      <span class="mono">POST /correct-linkedin-variant</span> and
-      <span class="mono">POST /defer-linkedin-variant</span>.
-      Cancel remains US-040 and is not available on this page.
+      Story 3 supports edit, defer, and cancel for pending variants via
+      <span class="mono">POST /correct-linkedin-variant</span>,
+      <span class="mono">POST /defer-linkedin-variant</span>, and
+      <span class="mono">POST /cancel-linkedin-publication</span>.
+      Blocked-state context includes publication enablement, deferred /
+      <span class="mono">auto_queue_eligible</span>, and sibling integration failures.
     </p>
 
     <footer>
@@ -298,6 +332,7 @@
       var API_PATH = "/flow-a/linkedin-variants/pending-supervision";
       var CORRECT_PATH = "/correct-linkedin-variant";
       var DEFER_PATH = "/defer-linkedin-variant";
+      var CANCEL_PATH = "/cancel-linkedin-publication";
       var STORAGE_KEY = "silverman_flow_a_supervision_api_key";
       var lastVariants = [];
       var activeCampaignId = null;
@@ -313,7 +348,9 @@
         linkedin_supervision_idempotency_conflict:
           "Idempotency conflict: same key with a different payload.",
         linkedin_supervision_action_not_allowed:
-          "Action is not allowed for the current variant state."
+          "Action is not allowed for the current variant state.",
+        linkedin_publish_cancel_not_allowed:
+          "Cancel is not allowed for this variant state (for example already published)."
       };
 
       function $(id) {
@@ -385,6 +422,15 @@
 
       function supervisionCell(row) {
         var parts = [];
+        var deferred =
+          row.operator_supervision_last_action === "defer" ||
+          row.auto_queue_eligible === false;
+        if (deferred) {
+          parts.push(
+            "<span class=\"sup-meta warn\">Deferred / not auto-queue eligible until due " +
+              "(strategy-driven BL-007 will not pick this up while ineligible).</span>"
+          );
+        }
         if (row.operator_supervision_last_action) {
           parts.push(
             "last: <span class=\"mono\">" +
@@ -399,6 +445,13 @@
               "</span>"
           );
         }
+        if (row.operator_supervision_reason) {
+          parts.push(
+            "reason: <span class=\"mono\">" +
+              escapeHtml(row.operator_supervision_reason) +
+              "</span>"
+          );
+        }
         if (!parts.length) {
           return "";
         }
@@ -408,24 +461,29 @@
       function closePanels() {
         $("edit-panel").hidden = true;
         $("defer-panel").hidden = true;
+        $("cancel-panel").hidden = true;
         activeCampaignId = null;
         activeVariantId = null;
       }
 
-      function openEdit(campaignId, variantId) {
-        var row = null;
+      function findRow(campaignId, variantId) {
         for (var i = 0; i < lastVariants.length; i++) {
           if (
             lastVariants[i].campaign_id === campaignId &&
             lastVariants[i].variant_id === variantId
           ) {
-            row = lastVariants[i];
-            break;
+            return lastVariants[i];
           }
         }
+        return null;
+      }
+
+      function openEdit(campaignId, variantId) {
+        var row = findRow(campaignId, variantId);
         activeCampaignId = campaignId;
         activeVariantId = variantId;
         $("defer-panel").hidden = true;
+        $("cancel-panel").hidden = true;
         $("edit-panel").hidden = false;
         $("edit-target").textContent =
           "Campaign " + campaignId + " · variant " + variantId;
@@ -436,19 +494,11 @@
       }
 
       function openDefer(campaignId, variantId) {
-        var row = null;
-        for (var i = 0; i < lastVariants.length; i++) {
-          if (
-            lastVariants[i].campaign_id === campaignId &&
-            lastVariants[i].variant_id === variantId
-          ) {
-            row = lastVariants[i];
-            break;
-          }
-        }
+        var row = findRow(campaignId, variantId);
         activeCampaignId = campaignId;
         activeVariantId = variantId;
         $("edit-panel").hidden = true;
+        $("cancel-panel").hidden = true;
         $("defer-panel").hidden = false;
         $("defer-target").textContent =
           "Campaign " + campaignId + " · variant " + variantId;
@@ -478,6 +528,19 @@
           }
         }
         $("defer-panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+
+      function openCancel(campaignId, variantId) {
+        activeCampaignId = campaignId;
+        activeVariantId = variantId;
+        $("edit-panel").hidden = true;
+        $("defer-panel").hidden = true;
+        $("cancel-panel").hidden = false;
+        $("cancel-target").textContent =
+          "Campaign " + campaignId + " · variant " + variantId;
+        $("cancel-reason").value = "";
+        $("cancel-dry-run").checked = true;
+        $("cancel-panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
 
       function datetimeLocalToUtcIso(value) {
@@ -520,18 +583,52 @@
           .join("; ");
       }
 
+      function renderFailures(failures) {
+        var panel = $("failures-panel");
+        var list = $("failures-list");
+        list.innerHTML = "";
+        if (!Array.isArray(failures) || !failures.length) {
+          panel.hidden = true;
+          return;
+        }
+        panel.hidden = false;
+        failures.forEach(function (item) {
+          var li = document.createElement("li");
+          var parts = [
+            "<span class=\"mono\">" + escapeHtml(item.campaign_id || "") + "</span>",
+            "<span class=\"mono\">" + escapeHtml(item.variant_id || "") + "</span>",
+            "<span class=\"mono\">" + escapeHtml(item.publish_state || "failed") + "</span>"
+          ];
+          if (item.last_error_code) {
+            parts.push(
+              "code <span class=\"mono\">" + escapeHtml(item.last_error_code) + "</span>"
+            );
+          }
+          if (item.http_status != null) {
+            parts.push(
+              "HTTP <span class=\"mono\">" + escapeHtml(String(item.http_status)) + "</span>"
+            );
+          }
+          li.innerHTML = parts.join(" · ");
+          list.appendChild(li);
+        });
+      }
+
       function render(payload) {
         var enabled = payload.linkedin_publication_enabled === true;
         setBanner(
           $("enablement-banner"),
           enabled ? "ok" : "warn",
           enabled
-            ? "LinkedIn publication enablement is on (display context only; this page does not publish to LinkedIn)."
-            : "LinkedIn publication enablement is off (display context only). Pending variants remain listed; this does not hide the supervision window."
+            ? "LinkedIn publication enablement is on (display-only blocked context; this page does not publish to LinkedIn and does not change SILVERMAN_LINKEDIN_PUBLICATION_ENABLED)."
+            : "LinkedIn publication enablement is off (display-only blocked context for real API publish). Pending variants remain listed; this does not hide the supervision window or bypass the guard."
         );
 
         var issues = Array.isArray(payload.issues) ? payload.issues : [];
         var variants = Array.isArray(payload.variants) ? payload.variants : [];
+        var failures = Array.isArray(payload.integration_failures)
+          ? payload.integration_failures
+          : [];
         lastVariants = variants;
         var status = payload.status || "unknown";
 
@@ -543,7 +640,9 @@
           " · read_only=" +
           String(payload.read_only === true) +
           " · pending=" +
-          variants.length;
+          variants.length +
+          " · integration_failures=" +
+          failures.length;
 
         if (status === "partial" || issues.length) {
           setBanner(
@@ -576,6 +675,8 @@
         } else {
           issuesPanel.hidden = true;
         }
+
+        renderFailures(failures);
 
         var empty = $("empty-state");
         var results = $("results");
@@ -625,6 +726,11 @@
             "\" data-variant=\"" +
             escapeHtml(variantId) +
             "\">Defer</button>" +
+            "<button type=\"button\" class=\"row-action secondary\" data-action=\"cancel\" data-campaign=\"" +
+            escapeHtml(campaignId) +
+            "\" data-variant=\"" +
+            escapeHtml(variantId) +
+            "\">Cancel</button>" +
             "</td>";
           tbody.appendChild(tr);
         });
@@ -671,6 +777,7 @@
             $("results").hidden = true;
             $("empty-state").hidden = true;
             $("issues-panel").hidden = true;
+            $("failures-panel").hidden = true;
             return false;
           })
           .finally(function () {
@@ -684,7 +791,7 @@
           setBanner(
             $("action-banner"),
             "error",
-            "API key required before submitting an edit or defer."
+            "API key required before submitting an edit, defer, or cancel."
           );
           return Promise.resolve(null);
         }
@@ -720,7 +827,8 @@
         });
       }
 
-      function handleMutationResult(actionLabel, dryRun, result) {
+      function handleMutationResult(actionLabel, dryRun, result, options) {
+        var opts = options || {};
         if (!result) {
           return;
         }
@@ -758,6 +866,20 @@
               (payload.variant || activeVariantId) +
               ". Still pending supervision window — not LinkedIn API published."
           );
+          return;
+        }
+        if (opts.cancelSuccess) {
+          setBanner(
+            $("action-banner"),
+            "ok",
+            "Cancel persisted (real write) for " +
+              (payload.campaign_id || activeCampaignId) +
+              " / " +
+              (payload.variant || activeVariantId) +
+              ". Variant publish_state is cancelled; it leaves the pending supervision window and is not strategy-driven auto-queue eligible (BL-007). Cancelled is not LinkedIn API published; flow_a_complete is also not LinkedIn API published."
+          );
+          closePanels();
+          loadPending({ preserveActionBanner: true });
           return;
         }
         var scheduleNote =
@@ -877,6 +999,49 @@
           });
       }
 
+      function submitCancel() {
+        if (!activeCampaignId || !activeVariantId) {
+          setBanner($("action-banner"), "error", "No variant selected for cancel.");
+          return;
+        }
+        var dryRun = $("cancel-dry-run").checked === true;
+        if (!dryRun) {
+          var confirmed = window.confirm(
+            "Submit a REAL cancel (dry-run off)? This sets publish_state=cancelled and excludes the variant from strategy-driven auto-queue. It does not call LinkedIn."
+          );
+          if (!confirmed) {
+            return;
+          }
+        }
+        var body = {
+          campaign_id: activeCampaignId,
+          variant: activeVariantId,
+          dry_run: dryRun
+        };
+        var reason = $("cancel-reason").value.trim();
+        if (reason) {
+          body.reason = reason;
+        }
+        if (!dryRun) {
+          body.idempotency_key = newIdempotencyKey();
+        }
+        $("cancel-submit-btn").disabled = true;
+        postMutation(CANCEL_PATH, body)
+          .then(function (result) {
+            handleMutationResult("Cancel", dryRun, result, { cancelSuccess: true });
+          })
+          .catch(function (err) {
+            setBanner(
+              $("action-banner"),
+              "error",
+              "Cancel request failed: " + String(err.message || err)
+            );
+          })
+          .finally(function () {
+            $("cancel-submit-btn").disabled = false;
+          });
+      }
+
       $("load-btn").addEventListener("click", function () {
         loadPending({});
       });
@@ -890,8 +1055,10 @@
       });
       $("edit-cancel-btn").addEventListener("click", closePanels);
       $("defer-cancel-btn").addEventListener("click", closePanels);
+      $("cancel-close-btn").addEventListener("click", closePanels);
       $("edit-submit-btn").addEventListener("click", submitEdit);
       $("defer-submit-btn").addEventListener("click", submitDefer);
+      $("cancel-submit-btn").addEventListener("click", submitCancel);
       $("variant-rows").addEventListener("click", function (event) {
         var target = event.target;
         if (!target || !target.getAttribute) {
@@ -910,6 +1077,8 @@
           openEdit(campaignId, variantId);
         } else if (action === "defer") {
           openDefer(campaignId, variantId);
+        } else if (action === "cancel") {
+          openCancel(campaignId, variantId);
         }
       });
     })();

@@ -1,4 +1,4 @@
-"""Read-only aggregation of pending Flow A LinkedIn variants for supervision (US-038/US-039)."""
+"""Read-only aggregation of pending Flow A LinkedIn variants for supervision (US-038–US-040)."""
 
 from __future__ import annotations
 
@@ -44,6 +44,7 @@ DRAFT_ARTIFACT_PATH_INVALID = "draft_artifact_path_invalid"
 GENERATED_DRAFT_RELATIVE = "linkedin-posts/generated"
 
 PUBLISH_STATE_PENDING = "pending"
+PUBLISH_STATE_FAILED = "failed"
 KNOWN_PUBLISH_STATES = frozenset(
     {"pending", "queued", "published", "failed", "cancelled"}
 )
@@ -63,6 +64,20 @@ class SupervisionIssue:
 
 
 @dataclass(frozen=True)
+class IntegrationFailureContext:
+    """Secret-safe failed-sibling context for blocked-state display (US-040)."""
+
+    campaign_id: str
+    variant_id: str
+    publish_state: str
+    last_error_code: str | None = None
+    http_status: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class PendingSupervisionVariant:
     campaign_id: str
     variant_id: str
@@ -75,6 +90,7 @@ class PendingSupervisionVariant:
     calendar_status: str | None = None
     operator_supervision_last_action: str | None = None
     auto_queue_eligible: bool | None = None
+    operator_supervision_reason: str | None = None
     draft_content: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -138,6 +154,9 @@ class PendingSupervisionResult:
     linkedin_publication_enabled: bool
     variants: list[PendingSupervisionVariant] = field(default_factory=list)
     issues: list[SupervisionIssue] = field(default_factory=list)
+    integration_failures: list[IntegrationFailureContext] = field(
+        default_factory=list
+    )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -147,6 +166,9 @@ class PendingSupervisionResult:
             "linkedin_publication_enabled": self.linkedin_publication_enabled,
             "variants": [item.to_dict() for item in self.variants],
             "issues": [item.to_dict() for item in self.issues],
+            "integration_failures": [
+                item.to_dict() for item in self.integration_failures
+            ],
         }
 
 
@@ -281,35 +303,65 @@ def _optional_str(value: object) -> str | None:
 
 def _supervision_context(
     entry: dict[str, Any],
-) -> tuple[str | None, bool | None]:
+) -> tuple[str | None, bool | None, str | None]:
     supervision = entry.get("operator_supervision")
     if not isinstance(supervision, dict):
-        return None, None
+        return None, None, None
     last_action = _optional_str(supervision.get("last_action"))
+    reason = _optional_str(supervision.get("reason"))
     eligible = supervision.get("auto_queue_eligible")
     if isinstance(eligible, bool):
-        return last_action, eligible
-    return last_action, None
+        return last_action, eligible, reason
+    return last_action, None, reason
 
 
-def _pending_rows_from_campaign(
+def _optional_http_status(value: object) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    return None
+
+
+def _failed_sibling_context(
+    *,
+    campaign_id: str,
+    entry: dict[str, Any],
+    variant_id: str,
+) -> IntegrationFailureContext:
+    """Build secret-safe failure display fields from variant metadata."""
+    evidence = entry.get("linkedin_publication")
+    last_error_code: str | None = None
+    http_status: int | None = None
+    if isinstance(evidence, dict):
+        last_error_code = _optional_str(evidence.get("last_error_code"))
+        http_status = _optional_http_status(evidence.get("http_status"))
+    return IntegrationFailureContext(
+        campaign_id=campaign_id,
+        variant_id=variant_id,
+        publish_state=PUBLISH_STATE_FAILED,
+        last_error_code=last_error_code,
+        http_status=http_status,
+    )
+
+
+def _pending_rows_and_failures_from_campaign(
     base_path: Path,
     campaign: dict[str, Any],
     *,
     campaign_id: str,
     calendar_item: dict[str, Any] | None,
     issues: list[SupervisionIssue],
-) -> list[PendingSupervisionVariant]:
+) -> tuple[list[PendingSupervisionVariant], list[IntegrationFailureContext]]:
     variants_raw = campaign.get("variants")
     if variants_raw is None:
-        return []
+        return [], []
     if not isinstance(variants_raw, list):
         issues.append(
             SupervisionIssue(CAMPAIGNS_SOURCE, campaign_id, LINKEDIN_VARIANTS_INVALID)
         )
-        return []
+        return [], []
 
     rows: list[PendingSupervisionVariant] = []
+    failed_siblings: list[IntegrationFailureContext] = []
     for index, entry in enumerate(variants_raw):
         if not isinstance(entry, dict):
             issues.append(
@@ -344,10 +396,21 @@ def _pending_rows_from_campaign(
                 )
             )
             continue
+        if publish_state == PUBLISH_STATE_FAILED:
+            failed_siblings.append(
+                _failed_sibling_context(
+                    campaign_id=campaign_id,
+                    entry=entry,
+                    variant_id=variant_id,
+                )
+            )
+            continue
         if publish_state != PUBLISH_STATE_PENDING:
             continue
 
-        last_action, auto_queue_eligible = _supervision_context(entry)
+        last_action, auto_queue_eligible, supervision_reason = _supervision_context(
+            entry
+        )
         draft_content = _read_draft_content(
             base_path,
             campaign_id=campaign_id,
@@ -380,10 +443,14 @@ def _pending_rows_from_campaign(
                 ),
                 operator_supervision_last_action=last_action,
                 auto_queue_eligible=auto_queue_eligible,
+                operator_supervision_reason=supervision_reason,
                 draft_content=draft_content,
             )
         )
-    return rows
+    # Only surface failed siblings when this campaign contributes pending rows.
+    if not rows:
+        return [], []
+    return rows, failed_siblings
 
 
 def _load_pending_variants(
@@ -391,12 +458,13 @@ def _load_pending_variants(
     *,
     calendar_by_campaign: dict[str, dict[str, Any]],
     issues: list[SupervisionIssue],
-) -> list[PendingSupervisionVariant]:
+) -> tuple[list[PendingSupervisionVariant], list[IntegrationFailureContext]]:
     directory = _resolved_campaigns_directory(base_path, issues)
     if directory is None:
-        return []
+        return [], []
 
     rows: list[PendingSupervisionVariant] = []
+    integration_failures: list[IntegrationFailureContext] = []
     for path in _direct_json_entries(directory, issues):
         artifact_identifier = _safe_artifact_identifier(path)
         filename_id = path.stem
@@ -462,15 +530,15 @@ def _load_pending_variants(
         if campaign.get("flow") != FLOW_A:
             continue
 
-        rows.extend(
-            _pending_rows_from_campaign(
-                base_path,
-                campaign,
-                campaign_id=persisted_id,
-                calendar_item=calendar_by_campaign.get(persisted_id),
-                issues=issues,
-            )
+        campaign_rows, campaign_failures = _pending_rows_and_failures_from_campaign(
+            base_path,
+            campaign,
+            campaign_id=persisted_id,
+            calendar_item=calendar_by_campaign.get(persisted_id),
+            issues=issues,
         )
+        rows.extend(campaign_rows)
+        integration_failures.extend(campaign_failures)
 
     rows.sort(
         key=lambda item: (
@@ -479,7 +547,10 @@ def _load_pending_variants(
             item.variant_id,
         )
     )
-    return rows
+    integration_failures.sort(
+        key=lambda item: (item.campaign_id, item.variant_id)
+    )
+    return rows, integration_failures
 
 
 def get_pending_linkedin_variant_supervision(
@@ -490,7 +561,7 @@ def get_pending_linkedin_variant_supervision(
     """Aggregate pending LinkedIn variants without mutation or external calls."""
     issues: list[SupervisionIssue] = []
     calendar_by_campaign = _calendar_index(base_path, issues)
-    variants = _load_pending_variants(
+    variants, integration_failures = _load_pending_variants(
         base_path,
         calendar_by_campaign=calendar_by_campaign,
         issues=issues,
@@ -507,6 +578,7 @@ def get_pending_linkedin_variant_supervision(
         linkedin_publication_enabled=publication.settings.publication_enabled,
         variants=variants,
         issues=issues,
+        integration_failures=integration_failures,
     )
 
 
