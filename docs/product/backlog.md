@@ -221,6 +221,8 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Incomplete campaigns can be resumed or repaired safely and predictably.
 
+**Status:** Closed 2026-07-18 after US-031 + US-032 acceptance against automated fixture evidence; worker recovery endpoints deployed on `192.168.0.194` (`BUILD_REVISION=018aa36`). Evidence: [bl-012 acceptance](../operations/bl-012-incomplete-campaign-recovery-acceptance-2026-07-18.md), [flow-a-incomplete-campaign-recovery.md](../operations/flow-a-incomplete-campaign-recovery.md).
+
 ### BL-013 — Validate Concurrency and Duplicate Execution Protection
 
 **Business need:** Ensure that simultaneous or repeated triggers cannot process the same content twice.

@@ -309,27 +309,27 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated
   - [x] Backlog item closed — 2026-07-17; webhook + n8n Error Trigger follow-up enabled 2026-07-17
 
-- [ ] **BL-012 — Consolidate Recovery for Incomplete Campaigns**
+- [x] **BL-012 — Consolidate Recovery for Incomplete Campaigns**
   - Business outcome: Incomplete campaigns can be resumed or repaired safely and predictably.
-  - [ ] **US-031**
+  - [x] **US-031**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — automated fixtures (inspect last-valid-stage, resume short-circuits, repair allowlist, blocks/failures visible); not operator-accepted yet
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-    - Implementation evidence: [flow-a-incomplete-campaign-recovery.md](../operations/flow-a-incomplete-campaign-recovery.md)
-  - [ ] **US-032**
+    - [x] Business outcome demonstrated — automated fixtures (inspect last-valid-stage, resume short-circuits, repair allowlist, blocks/failures visible); deployed `BUILD_REVISION=018aa36`
+    - [x] Acceptance criteria validated
+    - [x] Story accepted
+    - Implementation evidence: [flow-a-incomplete-campaign-recovery.md](../operations/flow-a-incomplete-campaign-recovery.md), [bl-012 acceptance](../operations/bl-012-incomplete-campaign-recovery-acceptance-2026-07-18.md)
+  - [x] **US-032**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — automated fixtures (action taxonomy, attempt history, cancel + post-cancel gating, secret-safe outcomes, completed work preserved); not operator-accepted yet
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-    - Implementation evidence: [flow-a-incomplete-campaign-recovery.md](../operations/flow-a-incomplete-campaign-recovery.md)
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+    - [x] Business outcome demonstrated — automated fixtures (action taxonomy, attempt history, cancel + post-cancel gating, secret-safe outcomes, completed work preserved); deployed `BUILD_REVISION=018aa36`
+    - [x] Acceptance criteria validated
+    - [x] Story accepted
+    - Implementation evidence: [flow-a-incomplete-campaign-recovery.md](../operations/flow-a-incomplete-campaign-recovery.md), [bl-012 acceptance](../operations/bl-012-incomplete-campaign-recovery-acceptance-2026-07-18.md)
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated
+  - [x] Backlog item closed
 
 - [x] **BL-013 — Validate Concurrency and Duplicate Execution Protection**
   - Business outcome: Concurrent triggers do not create duplicate artifacts or external publications.

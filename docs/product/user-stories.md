@@ -607,14 +607,16 @@ As a system operator, I want to alert on unhealthy worker or failed n8n workflow
 
 As a system operator, I want to identify the last valid stage, so that incomplete campaigns can be resumed or repaired safely and predictably.
 
+**Status:** Implemented, automated-tested, deployed (`BUILD_REVISION=018aa36` on `192.168.0.194`), and acceptance criteria validated against fixture evidence (2026-07-18). **BL-012 closed 2026-07-18**. Evidence: [bl-012 acceptance](../operations/bl-012-incomplete-campaign-recovery-acceptance-2026-07-18.md), [flow-a-incomplete-campaign-recovery.md](../operations/flow-a-incomplete-campaign-recovery.md).
+
 **Acceptance criteria**
 
-- [ ] Identify the last valid stage.
-- [ ] Resume without repeating successful work.
-- [ ] Repair inconsistent metadata.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Identify the last valid stage.
+- [x] Resume without repeating successful work.
+- [x] Repair inconsistent metadata.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-032 — Consolidate Recovery for Incomplete Campaigns: Story 2
 
@@ -622,14 +624,16 @@ As a system operator, I want to identify the last valid stage, so that incomplet
 
 As a system operator, I want to classify recovery actions, so that incomplete campaigns can be resumed or repaired safely and predictably.
 
+**Status:** Implemented, automated-tested, deployed (`BUILD_REVISION=018aa36` on `192.168.0.194`), and acceptance criteria validated against fixture evidence (2026-07-18). **BL-012 closed 2026-07-18**. Evidence: [bl-012 acceptance](../operations/bl-012-incomplete-campaign-recovery-acceptance-2026-07-18.md), [flow-a-incomplete-campaign-recovery.md](../operations/flow-a-incomplete-campaign-recovery.md).
+
 **Acceptance criteria**
 
-- [ ] Classify recovery actions.
-- [ ] Preserve attempt history.
-- [ ] Support safe cancellation when recovery is not appropriate.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Classify recovery actions.
+- [x] Preserve attempt history.
+- [x] Support safe cancellation when recovery is not appropriate.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ## BL-013 — Validate Concurrency and Duplicate Execution Protection
 
@@ -643,7 +647,7 @@ As a system operator, I want to classify recovery actions, so that incomplete ca
 
 As a system operator, I want to prevent duplicate post processing, so that concurrent triggers do not create duplicate artifacts or external publications.
 
-**Status:** Implemented, automated-tested, and acceptance criteria validated against fixture evidence (2026-07-18). Not deployed / not operationally validated on the live worker. **BL-013 closed 2026-07-18**. See [flow-a-concurrency-duplicate-execution-protection-us-033.md](../operations/flow-a-concurrency-duplicate-execution-protection-us-033.md).
+**Status:** Implemented, automated-tested, acceptance criteria validated against fixture evidence (2026-07-18), and **deployed** on `192.168.0.194` (`BUILD_REVISION=018aa36`). **BL-013 closed 2026-07-18**. See [flow-a-concurrency-duplicate-execution-protection-us-033.md](../operations/flow-a-concurrency-duplicate-execution-protection-us-033.md).
 
 **Acceptance criteria**
 
@@ -660,7 +664,7 @@ As a system operator, I want to prevent duplicate post processing, so that concu
 
 As a system operator, I want to prevent duplicate scheduling, so that concurrent triggers do not create duplicate artifacts or external publications.
 
-**Status:** Implemented, automated-tested, and acceptance criteria validated against fixture evidence (2026-07-18). Not deployed / not operationally validated on the live worker. **BL-013 closed 2026-07-18**. See [flow-a-concurrency-duplicate-execution-protection-us-034.md](../operations/flow-a-concurrency-duplicate-execution-protection-us-034.md).
+**Status:** Implemented, automated-tested, acceptance criteria validated against fixture evidence (2026-07-18), and **deployed** on `192.168.0.194` (`BUILD_REVISION=018aa36`). **BL-013 closed 2026-07-18**. See [flow-a-concurrency-duplicate-execution-protection-us-034.md](../operations/flow-a-concurrency-duplicate-execution-protection-us-034.md).
 
 **Acceptance criteria**
 
@@ -677,7 +681,7 @@ As a system operator, I want to prevent duplicate scheduling, so that concurrent
 
 As a system operator, I want to validate behavior during restarts, so that concurrent triggers do not create duplicate artifacts or external publications.
 
-**Status:** Implemented, automated-tested, and acceptance criteria validated against restart-interruption fixture evidence (2026-07-18). Not deployed / not operationally validated on the live worker. US-033 and US-034 remain accepted. **BL-013 closed 2026-07-18** after US-033 + US-034 + US-035 fixture acceptance. See [flow-a-concurrency-duplicate-execution-protection-us-035.md](../operations/flow-a-concurrency-duplicate-execution-protection-us-035.md).
+**Status:** Implemented, automated-tested, acceptance criteria validated against restart-interruption fixture evidence (2026-07-18), and **deployed** on `192.168.0.194` (`BUILD_REVISION=018aa36`). US-033 and US-034 remain accepted. **BL-013 closed 2026-07-18**. See [flow-a-concurrency-duplicate-execution-protection-us-035.md](../operations/flow-a-concurrency-duplicate-execution-protection-us-035.md).
 
 **Acceptance criteria**
 

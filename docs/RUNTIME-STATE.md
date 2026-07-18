@@ -6,17 +6,20 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 ## Snapshot
 
-**`verified_at_utc`:** `2026-07-17T22:55:00Z`
-**Evidence source:** BL-010 live smoke of `GET /flow-a/operational-status` on Ubuntu `192.168.0.194` (`BUILD_REVISION=b67c538`) — deterministic, auth 401, invalid `now_utc` 422, zero mutation; prior BL-011 webhook enablement remains active
+**`verified_at_utc`:** `2026-07-18T14:45:00Z`
+**Evidence source:** Worker deploy on Ubuntu `192.168.0.194` to `BUILD_REVISION=018aa36` (BL-012 recovery endpoints + BL-013 concurrency + BL-014 backup CLI modules); health 200; OpenAPI recovery paths present; unauthenticated recovery inspect 401
 
 | Fact | Value | Evidence |
 |------|-------|----------|
 | Worker URL | `http://192.168.0.194:8010` | Deploy + health check |
-| `BUILD_REVISION` | `b67c53802c048f2952a8ea3267ef415ea2d38fe0` (HEAD after US-030 archive) | Container env after pin rebuild 2026-07-17; `.build_git_sha` on target |
+| `BUILD_REVISION` | `018aa36d041d20d9ca2ae9fa42c4b8cc87f7e8c9` (HEAD after BL-014 acceptance) | Container env after deploy 2026-07-18; deploy log |
 | Editorial mount | `/data/silverman-blog-linkedin` → host `/home/silverman/compartido_mac/silverman-blog-linkedin` | Deploy compose |
 | Public blog mount | `/public-blog` → host `/home/silverman/silverberdi.github.io` | Deploy verification |
 | n8n Flow A workflow | **Active** (`silvermanFlowAPublish01`, **35** nodes, Schedule `0 9 * * *` UTC, single-flight, includes `/complete-flow-a-ready-path`); `settings.errorWorkflow=silvermanFlowAErrorReport01`; repo export `active: false` | Post-enablement export check 2026-07-17 |
 | Flow A operational status | **Validated** — `GET /flow-a/operational-status` live smoke PASS (US-026 + US-027); BL-010 closed | Live smoke 2026-07-17 `now_utc=2026-07-17T22:55:00Z` |
+| Flow A incomplete-campaign recovery | **Deployed + accepted** — OpenAPI inspect/resume/repair/cancel; auth 401 without Bearer; BL-012 closed 2026-07-18 | Deploy 2026-07-18 + fixture acceptance |
+| Flow A concurrency protections (BL-013) | **Deployed** with `018aa36` (fixture-accepted 2026-07-18) | Deploy 2026-07-18 |
+| Editorial backup CLI modules (BL-014) | **Deployed** (`editorial_backup_integrity` / `editorial_backup_restore` importable in worker image); BL-014 closed 2026-07-18 | Deploy 2026-07-18 |
 | Flow A operational alerts emission | **Enabled** — `SILVERMAN_FLOW_A_OPERATIONAL_ALERTS_ENABLED=true`; webhook `http://n8n:5678/webhook/silverman-flow-a-operational-alerts` (internal DNS; worker on `local-ai-stack_backend`) | Server `.env` + container env; emit smoke `emitted` |
 | n8n alerts workflows | **Active** — `silvermanFlowAAlertsWebhook01`, `silvermanFlowAErrorReport01`, `silvermanFlowAAlertsEvaluate01` (cron `30 9 * * *` UTC) | n8n export + activation logs |
 | Set Configuration opt-ins (server) | `git_publication=true`, `live_site_confirmation=true`, `update_calendar=true` | Post-activate export check |
@@ -61,5 +64,6 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 - Pages live-confirmation can 404 briefly after push; resume after HTTP 200 (documented in BL-005).
 - BL-008 (US-021/US-022) and BL-009 (US-023/US-024/US-025) demonstrated and accepted 2026-07-17 — both backlog items closed.
 - BL-010 / US-026–US-027 operator-accepted 2026-07-17 after controlled live smoke of `GET /flow-a/operational-status` (zero mutation); **BL-010 closed**.
-- BL-011 / US-028–US-030 code is deployed (`b67c538`) and **operator-accepted 2026-07-17** after controlled live smoke (evaluate + report + fail-closed emit + zero lifecycle mutation); **BL-011 closed**.
+- BL-011 / US-028–US-030 code is deployed (`b67c538` historically; superseded by `018aa36` on 2026-07-17 enablement baseline + 2026-07-18 full redeploy) and **operator-accepted 2026-07-17** after controlled live smoke (evaluate + report + fail-closed emit + zero lifecycle mutation); **BL-011 closed**.
 - BL-011 follow-up enablement 2026-07-17: production emit **on**; n8n webhook receiver + Error Trigger report + daily evaluate/emit schedule active; Flow A `errorWorkflow` linked. Public gateway `/webhook/*` still requires `X-Avatares-Api-Key` — worker uses internal `n8n` DNS instead.
+- Worker redeployed 2026-07-18 to `BUILD_REVISION=018aa36` (BL-012 recovery + BL-013 concurrency + BL-014 backup modules). **BL-012** and **BL-014** closed 2026-07-18 (fixture acceptance); BL-013 previously closed and now deployed.

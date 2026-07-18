@@ -5,10 +5,16 @@ inspect last-valid-stage, resume unfinished worker stages idempotently, repair
 allowlisted metadata/filesystem mismatches, classify recovery actions, preserve
 attempt history, and safely cancel recovery when it is not appropriate.
 
-This capability covers **BL-012 / US-031 + US-032** (implemented/tested). It does
-**not** close BL-012, accept either story from code alone, or implement LinkedIn
-API publication recovery (BL-008 / US-021–US-022), production n8n activation,
-Git push, live-site confirmation, or LinkedIn API publish.
+## Status
+
+- **Accepted 2026-07-18** against automated fixture evidence.
+- **BL-012 closed 2026-07-18.**
+- Worker endpoints **deployed** on `192.168.0.194` (`BUILD_REVISION=018aa36`).
+- Evidence: [bl-012-incomplete-campaign-recovery-acceptance-2026-07-18.md](bl-012-incomplete-campaign-recovery-acceptance-2026-07-18.md).
+
+This capability covers **BL-012 / US-031 + US-032**. It does **not** implement
+LinkedIn API publication recovery (BL-008 / US-021–US-022), production n8n
+activation, Git push, live-site confirmation, or LinkedIn API publish.
 
 ## Endpoints
 
