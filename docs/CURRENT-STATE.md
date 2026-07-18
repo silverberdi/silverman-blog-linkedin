@@ -22,7 +22,7 @@ n8n (orchestrator, HTTP only) → Worker (FastAPI) → Editorial dirs + public b
                               ComfyUI (optional images), DeepSeek (LLM)
 ```
 
-- **45** canonical OpenSpec specs (includes `flow-a-concurrency-duplicate-execution-protection` after US-033 sync) (strict validation passing)
+- **46** canonical OpenSpec specs (includes `editorial-backup-scope-retention-integrity` after US-036 sync) (strict validation passing)
 - **1,157** automated tests collected after US-035 restart validation (10 focused US-035 tests + prior suite; US-033/US-034/BL-012/BL-008 regression slice 153 passed)
 - Worker deployed at `http://192.168.0.194:8010` (see [RUNTIME-STATE.md](RUNTIME-STATE.md))
 - Editorial base: `/data/silverman-blog-linkedin` (container); public GitHub Pages checkout: `/public-blog`
