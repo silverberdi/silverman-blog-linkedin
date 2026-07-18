@@ -9,7 +9,7 @@ triggers must not duplicate **post processing**, **image generation**, or
 
 - **Implemented, automated-tested, and acceptance criteria validated** against fixture evidence (2026-07-18).
 - **Not** deployed or operationally validated on the live worker by this document alone.
-- US-034 accepted (fixture evidence). US-035 and BL-013 remain open.
+- US-034 accepted (fixture evidence). **BL-013 closed 2026-07-18** (US-035 accepted).
 
 ## In scope (US-033)
 

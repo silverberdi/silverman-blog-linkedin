@@ -643,7 +643,7 @@ As a system operator, I want to classify recovery actions, so that incomplete ca
 
 As a system operator, I want to prevent duplicate post processing, so that concurrent triggers do not create duplicate artifacts or external publications.
 
-**Status:** Implemented, automated-tested, and acceptance criteria validated against fixture evidence (2026-07-18). Not deployed / not operationally validated on the live worker. BL-013 remains open (US-035 pending). See [flow-a-concurrency-duplicate-execution-protection-us-033.md](../operations/flow-a-concurrency-duplicate-execution-protection-us-033.md).
+**Status:** Implemented, automated-tested, and acceptance criteria validated against fixture evidence (2026-07-18). Not deployed / not operationally validated on the live worker. **BL-013 closed 2026-07-18**. See [flow-a-concurrency-duplicate-execution-protection-us-033.md](../operations/flow-a-concurrency-duplicate-execution-protection-us-033.md).
 
 **Acceptance criteria**
 
@@ -660,7 +660,7 @@ As a system operator, I want to prevent duplicate post processing, so that concu
 
 As a system operator, I want to prevent duplicate scheduling, so that concurrent triggers do not create duplicate artifacts or external publications.
 
-**Status:** Implemented, automated-tested, and acceptance criteria validated against fixture evidence (2026-07-18). Not deployed / not operationally validated on the live worker. BL-013 remains open (US-035 pending). See [flow-a-concurrency-duplicate-execution-protection-us-034.md](../operations/flow-a-concurrency-duplicate-execution-protection-us-034.md).
+**Status:** Implemented, automated-tested, and acceptance criteria validated against fixture evidence (2026-07-18). Not deployed / not operationally validated on the live worker. **BL-013 closed 2026-07-18**. See [flow-a-concurrency-duplicate-execution-protection-us-034.md](../operations/flow-a-concurrency-duplicate-execution-protection-us-034.md).
 
 **Acceptance criteria**
 
@@ -677,12 +677,14 @@ As a system operator, I want to prevent duplicate scheduling, so that concurrent
 
 As a system operator, I want to validate behavior during restarts, so that concurrent triggers do not create duplicate artifacts or external publications.
 
+**Status:** Implemented, automated-tested, and acceptance criteria validated against restart-interruption fixture evidence (2026-07-18). Not deployed / not operationally validated on the live worker. US-033 and US-034 remain accepted. **BL-013 closed 2026-07-18** after US-033 + US-034 + US-035 fixture acceptance. See [flow-a-concurrency-duplicate-execution-protection-us-035.md](../operations/flow-a-concurrency-duplicate-execution-protection-us-035.md).
+
 **Acceptance criteria**
 
-- [ ] Validate behavior during restarts.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Validate behavior during restarts.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ## BL-014 — Establish Backup and Restore for Editorial State
 

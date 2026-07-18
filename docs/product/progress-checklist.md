@@ -331,32 +331,32 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed
 
-- [ ] **BL-013 — Validate Concurrency and Duplicate Execution Protection**
+- [x] **BL-013 — Validate Concurrency and Duplicate Execution Protection**
   - Business outcome: Concurrent triggers do not create duplicate artifacts or external publications.
-  - [ ] **US-033**
+  - [x] **US-033**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
     - [x] Business outcome demonstrated
     - [x] Acceptance criteria validated
     - [x] Story accepted
-  - [ ] **US-034**
+  - [x] **US-034**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
     - [x] Business outcome demonstrated
     - [x] Acceptance criteria validated
     - [x] Story accepted
-  - [ ] **US-035**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+  - [x] **US-035**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated
+  - [x] Backlog item closed
 
 - [ ] **BL-014 — Establish Backup and Restore for Editorial State**
   - Business outcome: Editorial state can be restored from a verified backup.

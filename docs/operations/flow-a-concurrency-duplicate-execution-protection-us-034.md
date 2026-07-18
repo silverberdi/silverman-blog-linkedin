@@ -10,7 +10,7 @@ single-flight is complementary defense-in-depth.
 
 - **Implemented, automated-tested, and acceptance criteria validated** against fixture evidence (2026-07-18).
 - **Not** deployed or operationally validated on the live worker by this document alone.
-- US-033 remains accepted (fixture evidence). US-035 and BL-013 remain open.
+- US-033 remains accepted (fixture evidence). **BL-013 closed 2026-07-18** (US-035 accepted).
 
 ## In scope (US-034)
 

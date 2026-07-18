@@ -237,6 +237,8 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Concurrent triggers do not create duplicate artifacts or external publications.
 
+**Status:** Closed 2026-07-18 after US-033 + US-034 + US-035 acceptance against automated fixture evidence (not deployed / not operationally validated on the live worker). Evidence: [us-033](../operations/flow-a-concurrency-duplicate-execution-protection-us-033.md), [us-034](../operations/flow-a-concurrency-duplicate-execution-protection-us-034.md), [us-035](../operations/flow-a-concurrency-duplicate-execution-protection-us-035.md).
+
 ### BL-014 — Establish Backup and Restore for Editorial State
 
 **Business need:** Protect the files and metadata required to recover the editorial system.
