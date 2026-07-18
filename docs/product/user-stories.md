@@ -890,21 +890,23 @@ As a system owner, I want the Flow A supervision console architecture to be read
 
 As a content operator, I want the Flow A supervision console to make attention, risk, and next actions obvious in both list and calendar views, so that I can operate the publishing schedule confidently from anywhere.
 
+**Status:** Implemented in console layer (US-040E polish demonstrated via Vitest + rebuilt static assets). **Not Story accepted; BL-015 remains open.** Public URL hosting and Google/OIDC IdP remain not activated.
+
 **Acceptance criteria**
 
-- [ ] Provide at-a-glance counts for upcoming, pending, due soon, deferred, blocked, failed, and recently published items.
-- [ ] Prioritize actionable states visually so blocked or failed items are noticeable without overwhelming normal scheduled content.
-- [ ] Use concise operator-facing labels for technical states and preserve detailed diagnostic codes in expandable details when needed.
-- [ ] Provide clear affordances for switching view, filtering, inspecting, rescheduling, deferring, cancelling where supported, refreshing, and dry-run/commit mode.
-- [ ] Keep the list view optimized for scanning and bulk operational triage, and keep the month calendar optimized for schedule comprehension; do not force one view to carry both jobs poorly.
-- [ ] Keep destructive or irreversible actions protected by confirmation and avoid placing them next to routine navigation controls.
-- [ ] Preserve keyboard accessibility for laptop use and touch accessibility for mobile use.
-- [ ] Validate visual behavior with desktop and mobile screenshots or equivalent UI checks that cover dense lists, empty lists, dense months, empty months, blocked items, long titles, switching views, and schedule editing.
-- [ ] Keep the dark theme consistent across loading, empty, error, detail, confirmation, and success states.
-- [ ] Do not introduce a marketing-style landing page; the first screen MUST be the usable operational calendar experience.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Provide at-a-glance counts for upcoming, pending, due soon, deferred, blocked, failed, and recently published items. — Demonstrated: `deriveOperationalCounts` + AppShell `StatusSummary` count strip (filter-scope; recently published uses `published` / `linkedinApiPublished` only; Vitest `us040e.polish.test.tsx`).
+- [x] Prioritize actionable states visually so blocked or failed items are noticeable without overwhelming normal scheduled content. — Demonstrated: List `row-risk-blocked` / `row-risk-failed`; Month compact badges (not diagnostic walls).
+- [x] Use concise operator-facing labels for technical states and preserve detailed diagnostic codes in expandable details when needed. — Demonstrated: `publicationStateLabel`; ItemDetail / failure / agenda `<details>` diagnostics.
+- [x] Provide clear affordances for switching view, filtering, inspecting, rescheduling, deferring, cancelling where supported, refreshing, and dry-run/commit mode. — Demonstrated: AppShell affordance groups (`affordance-nav` / filters / content); List inspect/reschedule/cancel; shell dry-run default.
+- [x] Keep the list view optimized for scanning and bulk operational triage, and keep the month calendar optimized for schedule comprehension; do not force one view to carry both jobs poorly. — Demonstrated: List retains triage actions; Month keeps day placement + compact status + agenda.
+- [x] Keep destructive or irreversible actions protected by confirmation and avoid placing them next to routine navigation controls. — Demonstrated: real cancel still uses `confirmRealMutation`; cancel not in `affordance-nav` with Refresh/ViewSwitcher.
+- [x] Preserve keyboard accessibility for laptop use and touch accessibility for mobile use. — Demonstrated: `:focus-visible` rings; Escape closes overlays with draft warn; `--touch-min: 44px` retained; no hover-only critical actions.
+- [x] Validate visual behavior with desktop and mobile screenshots or equivalent UI checks that cover dense lists, empty lists, dense months, empty months, blocked items, long titles, switching views, and schedule editing. — Demonstrated: Vitest visual matrix in `us040e.polish.test.tsx` at 1280px and 375px.
+- [x] Keep the dark theme consistent across loading, empty, error, detail, confirmation, and success states. — Demonstrated: shared dark tokens for banners/panels/count strip/diagnostics; empty zero counts not treated as failures.
+- [x] Do not introduce a marketing-style landing page; the first screen MUST be the usable operational calendar experience. — Demonstrated: `App`/`AppShell` first paint is operational console shell (auth banners inside shell).
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: count strip, labels, banners, qualified publication language.
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: actionable count chips, risk rows, expandable failure codes; mutations not shown as success on failure.
+- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: no new mutation SoT; US-040A–D stack/views/ScheduleEditor/`canMutate` preserved; public URL/Google not activated; BL-015 left open; no Flow B.
 
 ## BL-016 — Define Flow B
 

@@ -21,11 +21,15 @@ import {
   applyFilters,
   countHiddenCritical,
   defaultFilters,
+  deriveOperationalCounts,
+  emptyOperationalCounts,
+  mergeCountUniverse,
   normalizePendingSupervision,
   normalizeScheduleVisibility,
   supervisionToFilterable,
   type ConsoleView,
   type FilterState,
+  type OperationalCounts,
   type ScheduleEditorTarget,
   type ScheduleItem,
   type ScheduleSnapshot,
@@ -82,6 +86,7 @@ interface SupervisionStoreValue {
   filteredListItems: SupervisionItem[];
   filteredScheduleItems: ScheduleItem[];
   hiddenCriticalCount: number;
+  operationalCounts: OperationalCounts;
   clearAuth: () => void;
   signIn: () => Promise<boolean>;
   client: SupervisionApiClient;
@@ -415,6 +420,19 @@ export function SupervisionStoreProvider({
     filteredListItems,
   ]);
 
+  const operationalCounts = useMemo(() => {
+    if (!snapshot && !scheduleSnapshot) {
+      return emptyOperationalCounts();
+    }
+    const filteredUniverse = mergeCountUniverse(
+      filteredScheduleItems,
+      filteredListItems.map(supervisionToFilterable),
+    );
+    return deriveOperationalCounts(filteredUniverse, {
+      integrationFailureCount: snapshot?.integrationFailures.length ?? 0,
+    });
+  }, [snapshot, scheduleSnapshot, filteredScheduleItems, filteredListItems]);
+
   const caps = useMemo(
     () =>
       effectiveCapabilities(
@@ -469,6 +487,7 @@ export function SupervisionStoreProvider({
       filteredListItems,
       filteredScheduleItems,
       hiddenCriticalCount,
+      operationalCounts,
       clearAuth,
       signIn,
       client,
@@ -503,6 +522,7 @@ export function SupervisionStoreProvider({
       filteredListItems,
       filteredScheduleItems,
       hiddenCriticalCount,
+      operationalCounts,
       clearAuth,
       signIn,
       client,

@@ -1,5 +1,6 @@
 import {
   PUBLICATION_STATES,
+  publicationStateLabel,
   type FilterState,
   type PublicationDisplayState,
 } from "../models/supervision";
@@ -103,7 +104,7 @@ export function Filters() {
                 checked={filters.publicationStates.includes(state)}
                 onChange={() => toggleState(state)}
               />
-              <span>{state}</span>
+              <span>{publicationStateLabel(state)}</span>
             </label>
           ))}
         </div>

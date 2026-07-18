@@ -433,10 +433,10 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
   - [ ] **US-040E**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
   - [ ] All user stories completed

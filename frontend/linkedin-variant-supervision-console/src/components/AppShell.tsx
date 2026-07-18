@@ -7,7 +7,8 @@ import { useSupervisionStore } from "../models/store";
 
 /**
  * App shell: session banners (US-040D), dry-run default, enablement display-only,
- * dual views (US-040B).
+ * dual views (US-040B), operational count strip + affordance groups (US-040E).
+ * First screen is the operational console — no marketing landing.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const {
@@ -21,7 +22,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     sessionBanner,
     sessionState,
     refreshAll,
-    loadPending,
     clearAuth,
     signIn,
     dryRunDefault,
@@ -43,14 +43,16 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <main className="console-shell" data-testid="app-shell">
-      <h1>LinkedIn variant supervision</h1>
-      <p className="lede">
-        Flow A dual views: <strong>List</strong> for pending LinkedIn supervision
-        (Stories 1–3) and <strong>Month calendar</strong> for blog + LinkedIn
-        schedule visibility. Pending, queued, cancelled, blog handoff, and
-        campaign <span className="mono">flow_a_complete</span> are not LinkedIn
-        API published.
-      </p>
+      <header className="console-header">
+        <h1>LinkedIn variant supervision</h1>
+        <p className="lede">
+          Operational console for Flow A: <strong>List</strong> for pending
+          LinkedIn triage and <strong>Month</strong> for schedule comprehension.
+          Pending, queued, cancelled, blog handoff, and campaign{" "}
+          <span className="mono">flow_a_complete</span> are not LinkedIn API
+          published.
+        </p>
+      </header>
 
       <Banner
         kind={sessionBanner.kind}
@@ -73,55 +75,62 @@ export function AppShell({ children }: { children: ReactNode }) {
         testId="action-banner"
       />
 
-      <div className="toolbar">
-        <button
-          type="button"
-          data-testid="load-btn"
-          disabled={loading}
-          onClick={() => void refreshAll()}
-        >
-          Refresh list + calendar
-        </button>
-        <button
-          type="button"
-          className="secondary"
-          data-testid="load-pending-btn"
-          disabled={loading}
-          onClick={() => void loadPending()}
-        >
-          Load pending only
-        </button>
-        {needsReauth && (
+      <section
+        className="affordance-group affordance-nav"
+        data-testid="affordance-nav"
+        aria-label="View and refresh"
+      >
+        <ViewSwitcher activeView={activeView} onChange={requestViewChange} />
+        <div className="toolbar toolbar-nav">
           <button
             type="button"
-            data-testid="sign-in-btn"
+            data-testid="load-btn"
             disabled={loading}
-            onClick={() => void signIn()}
+            onClick={() => void refreshAll()}
           >
-            Sign in
+            Refresh
           </button>
-        )}
-        <button
-          type="button"
-          className="secondary"
-          data-testid="clear-key-btn"
-          onClick={clearAuth}
-        >
-          Clear session credential
-        </button>
-        <div className="check-row toolbar-dry-run">
-          <input
-            type="checkbox"
-            id="shell-dry-run-default"
-            data-testid="shell-dry-run-default"
-            checked={dryRunDefault}
-            onChange={(e) => setDryRunDefault(e.target.checked)}
-          />
-          <label htmlFor="shell-dry-run-default">
-            Dry-run default (survives view switch)
-          </label>
+          <div className="check-row toolbar-dry-run">
+            <input
+              type="checkbox"
+              id="shell-dry-run-default"
+              data-testid="shell-dry-run-default"
+              checked={dryRunDefault}
+              onChange={(e) => setDryRunDefault(e.target.checked)}
+            />
+            <label htmlFor="shell-dry-run-default">
+              Dry-run default (survives view switch)
+            </label>
+          </div>
         </div>
-      </div>
+      </section>
+
+      <section
+        className="affordance-group affordance-session"
+        data-testid="affordance-session"
+        aria-label="Session"
+      >
+        <div className="toolbar toolbar-session">
+          {needsReauth && (
+            <button
+              type="button"
+              data-testid="sign-in-btn"
+              disabled={loading}
+              onClick={() => void signIn()}
+            >
+              Sign in
+            </button>
+          )}
+          <button
+            type="button"
+            className="secondary"
+            data-testid="clear-key-btn"
+            onClick={clearAuth}
+          >
+            Clear session credential
+          </button>
+        </div>
+      </section>
 
       {!canMutate && sessionState !== "authenticated" && (
         <p className="note" data-testid="mutation-gated-note">
@@ -138,23 +147,38 @@ export function AppShell({ children }: { children: ReactNode }) {
         </p>
       )}
 
-      <StatusSummary snapshot={snapshot} />
-      <ViewSwitcher activeView={activeView} onChange={requestViewChange} />
-      <Filters />
+      <StatusSummary />
 
-      {children}
+      <section
+        className="affordance-group affordance-filters"
+        data-testid="affordance-filters"
+        aria-label="Filters"
+      >
+        <Filters />
+      </section>
+
+      <section
+        className="affordance-group affordance-content"
+        data-testid="affordance-content"
+        aria-label={
+          activeView === "calendar"
+            ? "Month schedule view"
+            : "List triage view"
+        }
+      >
+        {children}
+      </section>
 
       <p className="note">
-        List mutations use{" "}
+        Inspect / reschedule / defer / cancel live in List rows, Month agenda,
+        and the shared schedule editor — not next to Refresh. Cancel and real
+        commits require confirmation. Mutations use{" "}
         <span className="mono">POST /correct-linkedin-variant</span>,{" "}
-        <span className="mono">POST /defer-linkedin-variant</span>, and{" "}
-        <span className="mono">POST /cancel-linkedin-publication</span>. Month
-        calendar schedule updates use{" "}
-        <span className="mono">POST /editorial-calendar/update-item-schedule</span>{" "}
-        (blog) or defer (LinkedIn). Reads:{" "}
-        <span className="mono">GET /flow-a/schedule-visibility</span>. Public
-        URL hosting and Google/OIDC activation remain deferred (US-040D
-        readiness only). US-040E polish remains out of scope.
+        <span className="mono">POST /defer-linkedin-variant</span>,{" "}
+        <span className="mono">POST /cancel-linkedin-publication</span>, and{" "}
+        <span className="mono">POST /editorial-calendar/update-item-schedule</span>
+        . Public URL hosting and Google/OIDC activation remain deferred
+        (US-040D readiness only).
       </p>
 
       <footer>

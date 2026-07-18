@@ -120,6 +120,7 @@ export function ScheduleEditorPanel() {
     refreshAll,
     setActionBanner,
     setUnsavedScheduleDraft,
+    unsavedScheduleDraft,
     dryRunDefault,
     scheduleSnapshot,
     canMutate,
@@ -142,6 +143,35 @@ export function ScheduleEditorPanel() {
     setUnsavedScheduleDraft(false);
   }, [target, dryRunDefault, setUnsavedScheduleDraft]);
 
+  useEffect(() => {
+    if (!target) {
+      return;
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+      event.preventDefault();
+      if (unsavedScheduleDraft) {
+        const ok = window.confirm(
+          "You have an unsaved schedule draft. Close and discard it?",
+        );
+        if (!ok) {
+          return;
+        }
+      }
+      setUnsavedScheduleDraft(false);
+      closeScheduleEditor();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    target,
+    unsavedScheduleDraft,
+    closeScheduleEditor,
+    setUnsavedScheduleDraft,
+  ]);
+
   if (!target) {
     return null;
   }
@@ -155,7 +185,15 @@ export function ScheduleEditorPanel() {
     setUnsavedScheduleDraft(true);
   }
 
-  function close() {
+function close() {
+    if (unsavedScheduleDraft) {
+      const ok = window.confirm(
+        "You have an unsaved schedule draft. Close and discard it?",
+      );
+      if (!ok) {
+        return;
+      }
+    }
     setUnsavedScheduleDraft(false);
     closeScheduleEditor();
   }

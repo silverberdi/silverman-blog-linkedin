@@ -160,7 +160,7 @@ describe("ScheduleEditor US-040C", () => {
     await waitFor(() => {
       expect(screen.getAllByTestId("variant-row").length).toBeGreaterThan(0);
     });
-    await user.click(screen.getAllByRole("button", { name: "Defer" })[0]);
+    await user.click(screen.getAllByRole("button", { name: "Reschedule / defer" })[0]);
     const panel = screen.getByTestId("schedule-editor-panel");
     expect(panel).toHaveAttribute("data-entry", "list");
     expect(panel).toHaveAttribute("data-channel", "linkedin");
@@ -246,7 +246,7 @@ describe("ScheduleEditor US-040C", () => {
     await waitFor(() => {
       expect(screen.getAllByTestId("variant-row").length).toBeGreaterThan(0);
     });
-    await user.click(screen.getAllByRole("button", { name: "Defer" })[0]);
+    await user.click(screen.getAllByRole("button", { name: "Reschedule / defer" })[0]);
     await user.click(screen.getByTestId("schedule-submit"));
     await waitFor(() => {
       expect(screen.getByTestId("action-banner").textContent).toMatch(

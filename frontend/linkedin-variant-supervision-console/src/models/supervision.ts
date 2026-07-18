@@ -138,6 +138,54 @@ export interface FilterState {
 /** Due-soon window: next 48 hours from reference time. */
 export const DUE_SOON_HOURS = 48;
 
+/** Recently-published window: last 7 days UTC from reference time. */
+export const RECENTLY_PUBLISHED_DAYS = 7;
+
+/** Concise operator-facing labels for publication display states (US-040E). */
+export const PUBLICATION_STATE_LABEL: Record<PublicationDisplayState, string> =
+  {
+    planned: "Planned",
+    pending: "Pending review",
+    queued: "Queued",
+    published: "Published (API evidence)",
+    deferred: "Deferred",
+    cancelled: "Cancelled",
+    blocked: "Blocked",
+    failed: "Failed",
+  };
+
+export function publicationStateLabel(
+  state: PublicationDisplayState,
+  linkedinApiPublished = false,
+): string {
+  if (linkedinApiPublished && state !== "published") {
+    return "Published (API evidence)";
+  }
+  return PUBLICATION_STATE_LABEL[state];
+}
+
+export interface OperationalCounts {
+  upcoming: number;
+  pending: number;
+  dueSoon: number;
+  deferred: number;
+  blocked: number;
+  failed: number;
+  recentlyPublished: number;
+}
+
+export function emptyOperationalCounts(): OperationalCounts {
+  return {
+    upcoming: 0,
+    pending: 0,
+    dueSoon: 0,
+    deferred: 0,
+    blocked: 0,
+    failed: 0,
+    recentlyPublished: 0,
+  };
+}
+
 export function defaultFilters(): FilterState {
   return {
     channel: "all",
@@ -355,9 +403,9 @@ function matchesCampaignQuery(item: ScheduleItem, query: string): boolean {
   return haystack.includes(q);
 }
 
-function isDueSoon(
+export function isDueSoon(
   scheduledAtUtc: string | null,
-  nowMs: number,
+  nowMs: number = Date.now(),
 ): boolean {
   if (!scheduledAtUtc) {
     return false;
@@ -368,6 +416,108 @@ function isDueSoon(
   }
   const windowMs = DUE_SOON_HOURS * 60 * 60 * 1000;
   return ms >= nowMs && ms <= nowMs + windowMs;
+}
+
+/**
+ * Recently published uses `published` display state and/or `linkedinApiPublished`
+ * evidence within the last 7 days — never pending/queued/cancelled/flow_a_complete
+ * or blog handoff alone.
+ */
+export function isRecentlyPublished(
+  item: ScheduleItem,
+  nowMs: number = Date.now(),
+): boolean {
+  const hasApiEvidence =
+    item.publicationState === "published" || item.linkedinApiPublished === true;
+  if (!hasApiEvidence) {
+    return false;
+  }
+  if (!item.scheduledAtUtc) {
+    return false;
+  }
+  const ms = Date.parse(item.scheduledAtUtc);
+  if (Number.isNaN(ms)) {
+    return false;
+  }
+  const windowMs = RECENTLY_PUBLISHED_DAYS * 24 * 60 * 60 * 1000;
+  return ms >= nowMs - windowMs && ms <= nowMs;
+}
+
+function isUpcoming(item: ScheduleItem, nowMs: number): boolean {
+  if (item.publicationState === "cancelled") {
+    return false;
+  }
+  if (!item.scheduledAtUtc) {
+    return false;
+  }
+  const ms = Date.parse(item.scheduledAtUtc);
+  if (Number.isNaN(ms)) {
+    return false;
+  }
+  return ms > nowMs;
+}
+
+/**
+ * Deduplicate schedule + list filterables by itemId (prefer first occurrence).
+ */
+export function mergeCountUniverse(
+  scheduleItems: readonly ScheduleItem[],
+  listItems: readonly ScheduleItem[],
+): ScheduleItem[] {
+  const seen = new Set<string>();
+  const out: ScheduleItem[] = [];
+  for (const item of [...scheduleItems, ...listItems]) {
+    if (seen.has(item.itemId)) {
+      continue;
+    }
+    seen.add(item.itemId);
+    out.push(item);
+  }
+  return out;
+}
+
+/**
+ * At-a-glance operational counts from the shared filtered model (US-040E).
+ * Failed count includes filtered failed items plus sibling integration failures
+ * (display-only) when provided.
+ */
+export function deriveOperationalCounts(
+  items: readonly ScheduleItem[],
+  options?: {
+    nowMs?: number;
+    integrationFailureCount?: number;
+  },
+): OperationalCounts {
+  const nowMs = options?.nowMs ?? Date.now();
+  const counts = emptyOperationalCounts();
+  for (const item of items) {
+    if (isUpcoming(item, nowMs)) {
+      counts.upcoming += 1;
+    }
+    if (item.publicationState === "pending") {
+      counts.pending += 1;
+    }
+    if (isDueSoon(item.scheduledAtUtc, nowMs)) {
+      counts.dueSoon += 1;
+    }
+    if (item.publicationState === "deferred") {
+      counts.deferred += 1;
+    }
+    if (item.blocked || item.publicationState === "blocked") {
+      counts.blocked += 1;
+    }
+    if (item.publicationState === "failed" || item.critical) {
+      counts.failed += 1;
+    }
+    if (isRecentlyPublished(item, nowMs)) {
+      counts.recentlyPublished += 1;
+    }
+  }
+  const siblingFailures = options?.integrationFailureCount ?? 0;
+  if (siblingFailures > 0) {
+    counts.failed += siblingFailures;
+  }
+  return counts;
 }
 
 export function itemMatchesFilters(

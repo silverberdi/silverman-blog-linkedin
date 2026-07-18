@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { ApiError } from "../api/errors";
 import type { MutationResult } from "../api/types";
 import {
@@ -7,7 +7,23 @@ import {
 } from "./ConfirmationFlow";
 import { ItemDetail } from "./ItemDetail";
 import { useSupervisionStore } from "../models/store";
-import type { SupervisionItem } from "../models/supervision";
+import {
+  publicationStateLabel,
+  type SupervisionItem,
+} from "../models/supervision";
+
+function rowRiskClass(item: SupervisionItem): string {
+  if (item.critical || item.publicationState === "failed") {
+    return "row-risk-failed";
+  }
+  if (item.blocked || item.publicationState === "blocked") {
+    return "row-risk-blocked";
+  }
+  if (item.deferredOrIneligible || item.publicationState === "deferred") {
+    return "row-risk-deferred";
+  }
+  return "row-risk-routine";
+}
 
 type PanelMode = "edit" | "cancel" | null;
 
@@ -112,6 +128,7 @@ export function ListView() {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelDryRun, setCancelDryRun] = useState(dryRunDefault);
   const [submitting, setSubmitting] = useState(false);
+  const [editDirty, setEditDirty] = useState(false);
 
   const activeItem =
     snapshot && active
@@ -125,8 +142,47 @@ export function ListView() {
   function closePanels() {
     setPanel(null);
     setActive(null);
+    setEditDirty(false);
     setUnsavedScheduleDraft(false);
   }
+
+  function requestClosePanels() {
+    if (panel === "edit" && editDirty) {
+      const ok = window.confirm(
+        "You have unsaved draft edits. Close and discard them?",
+      );
+      if (!ok) {
+        return;
+      }
+    }
+    closePanels();
+  }
+
+  useEffect(() => {
+    if (!panel) {
+      return;
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+      event.preventDefault();
+      if (panel === "edit" && editDirty) {
+        const ok = window.confirm(
+          "You have unsaved draft edits. Close and discard them?",
+        );
+        if (!ok) {
+          return;
+        }
+      }
+      setPanel(null);
+      setActive(null);
+      setEditDirty(false);
+      setUnsavedScheduleDraft(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [panel, editDirty, setUnsavedScheduleDraft]);
 
   function requireMutate(action: string): boolean {
     if (canMutate) {
@@ -148,6 +204,7 @@ export function ListView() {
     setDraftContent(item.draftContent ?? "");
     setEditReason("");
     setEditDryRun(dryRunDefault);
+    setEditDirty(false);
     setUnsavedScheduleDraft(false);
     setPanel("edit");
   }
@@ -276,19 +333,25 @@ export function ListView() {
   return (
     <div data-testid="list-view" className="list-view">
       {panel === "edit" && activeItem && (
-        <div className="panel" data-testid="edit-panel">
-          <h2>Edit draft content</h2>
+        <div className="panel panel-inspect" data-testid="edit-panel">
+          <h2>Inspect / edit draft</h2>
           <ItemDetail
             item={activeItem}
             draftContent={draftContent}
-            onDraftChange={setDraftContent}
+            onDraftChange={(value) => {
+              setDraftContent(value);
+              setEditDirty(true);
+            }}
           />
           <label htmlFor="edit-reason">Reason (optional)</label>
           <input
             id="edit-reason"
             type="text"
             value={editReason}
-            onChange={(e) => setEditReason(e.target.value)}
+            onChange={(e) => {
+              setEditReason(e.target.value);
+              setEditDirty(true);
+            }}
             placeholder="e.g. operator_choice or criteria_failure"
           />
           <div className="check-row">
@@ -315,7 +378,7 @@ export function ListView() {
             <button
               type="button"
               className="secondary"
-              onClick={closePanels}
+              onClick={requestClosePanels}
             >
               Close
             </button>
@@ -324,8 +387,13 @@ export function ListView() {
       )}
 
       {panel === "cancel" && activeItem && (
-        <div className="panel" data-testid="cancel-panel">
-          <h2>Cancel pending variant</h2>
+        <div
+          className="panel panel-destructive"
+          data-testid="cancel-panel"
+          role="dialog"
+          aria-labelledby="cancel-panel-title"
+        >
+          <h2 id="cancel-panel-title">Cancel pending variant</h2>
           <p className="meta">
             Campaign {activeItem.campaignId} · variant {activeItem.variantId}
           </p>
@@ -333,8 +401,15 @@ export function ListView() {
             Cancel sets worker <span className="mono">publish_state=cancelled</span>{" "}
             and excludes the variant from strategy-driven auto-queue (BL-007
             eligibility). It does not call LinkedIn and is not LinkedIn API
-            published or LinkedIn unpublish.
+            published or LinkedIn unpublish. Real cancel requires confirmation.
           </p>
+          <details className="diagnostics-details" data-testid="cancel-diagnostics">
+            <summary>Diagnostics / technical details</summary>
+            <p className="mono">
+              action=cancel · campaign={activeItem.campaignId} · variant=
+              {activeItem.variantId} · source_state={activeItem.publishState}
+            </p>
+          </details>
           <label htmlFor="cancel-reason">Reason (optional)</label>
           <input
             id="cancel-reason"
@@ -355,7 +430,7 @@ export function ListView() {
               Dry-run (default on — validates without mutating)
             </label>
           </div>
-          <div className="panel-actions">
+          <div className="panel-actions panel-actions-destructive">
             <button
               type="button"
               data-testid="cancel-submit"
@@ -403,10 +478,14 @@ export function ListView() {
                     key={item.itemId}
                     data-testid="variant-row"
                     data-item-id={item.itemId}
+                    data-risk={rowRiskClass(item)}
+                    className={rowRiskClass(item)}
                   >
                     <td className="mono">{item.campaignId}</td>
                     <td>
-                      <span className="mono">{item.variantId}</span>
+                      <span className="title-cell" title={item.title || item.variantId}>
+                        <span className="mono">{item.variantId}</span>
+                      </span>
                       <SupervisionMeta item={item} />
                     </td>
                     <td>{item.audience || ""}</td>
@@ -416,7 +495,10 @@ export function ListView() {
                         className="status-pill"
                         style={{ backgroundColor: item.statusColor }}
                       >
-                        {item.publicationState}
+                        {publicationStateLabel(
+                          item.publicationState,
+                          item.linkedinApiPublished,
+                        )}
                       </span>{" "}
                       <span className="meta">
                         (source {item.publishState}; not LinkedIn API published)
@@ -425,7 +507,7 @@ export function ListView() {
                     <td>
                       <CalendarCell item={item} />
                     </td>
-                    <td>
+                    <td className="row-actions-cell">
                       <button
                         type="button"
                         className="row-action"
@@ -434,7 +516,7 @@ export function ListView() {
                         disabled={!canMutate}
                         onClick={() => openEdit(item)}
                       >
-                        Edit
+                        Inspect / edit
                       </button>
                       <button
                         type="button"
@@ -444,11 +526,11 @@ export function ListView() {
                         disabled={!canMutate}
                         onClick={() => openDefer(item)}
                       >
-                        Defer
+                        Reschedule / defer
                       </button>
                       <button
                         type="button"
-                        className="row-action secondary"
+                        className="row-action row-action-destructive"
                         data-action="cancel"
                         data-testid="row-cancel"
                         disabled={!canMutate}
@@ -466,22 +548,27 @@ export function ListView() {
             {items.map((item) => (
               <article
                 key={`card-${item.itemId}`}
-                className="list-card"
+                className={`list-card ${rowRiskClass(item)}`}
                 data-testid="variant-card"
                 data-item-id={item.itemId}
+                data-risk={rowRiskClass(item)}
               >
                 <header>
                   <span
                     className="status-pill"
                     style={{ backgroundColor: item.statusColor }}
                   >
-                    {item.publicationState}
+                    {publicationStateLabel(
+                      item.publicationState,
+                      item.linkedinApiPublished,
+                    )}
                   </span>{" "}
                   <span className="mono">{item.campaignId}</span>
                 </header>
-                <p>
+                <p className="title-cell" title={item.title || item.variantId}>
                   variant <span className="mono">{item.variantId}</span>
                   {item.audience ? ` · ${item.audience}` : ""}
+                  {item.title ? ` · ${item.title}` : ""}
                 </p>
                 <p className="mono">UTC {item.scheduledAtUtc || "—"}</p>
                 <SupervisionMeta item={item} />
@@ -493,7 +580,7 @@ export function ListView() {
                     disabled={!canMutate}
                     onClick={() => openEdit(item)}
                   >
-                    Edit
+                    Inspect / edit
                   </button>
                   <button
                     type="button"
@@ -502,11 +589,11 @@ export function ListView() {
                     disabled={!canMutate}
                     onClick={() => openDefer(item)}
                   >
-                    Defer
+                    Reschedule / defer
                   </button>
                   <button
                     type="button"
-                    className="row-action secondary"
+                    className="row-action row-action-destructive"
                     data-action="cancel"
                     disabled={!canMutate}
                     onClick={() => openCancel(item)}
@@ -532,16 +619,23 @@ export function ListView() {
             {failures.map((item) => (
               <li
                 key={`${item.campaign_id}::${item.variant_id}::${item.publish_state}`}
+                className="row-risk-failed"
               >
+                <span className="status-pill status-pill-failed">Failed</span>{" "}
                 <span className="mono">{item.campaign_id}</span> ·{" "}
-                <span className="mono">{item.variant_id}</span> ·{" "}
-                <span className="mono">{item.publish_state || "failed"}</span>
-                {item.last_error_code
-                  ? ` · code ${item.last_error_code}`
-                  : ""}
-                {item.http_status != null
-                  ? ` · HTTP ${item.http_status}`
-                  : ""}
+                <span className="mono">{item.variant_id}</span>
+                <details className="diagnostics-details inline-diagnostics">
+                  <summary>Diagnostics</summary>
+                  <span className="mono">
+                    publish_state={item.publish_state || "failed"}
+                    {item.last_error_code
+                      ? ` · code ${item.last_error_code}`
+                      : ""}
+                    {item.http_status != null
+                      ? ` · HTTP ${item.http_status}`
+                      : ""}
+                  </span>
+                </details>
               </li>
             ))}
           </ul>

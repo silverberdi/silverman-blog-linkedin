@@ -107,11 +107,11 @@ describe("ListView", () => {
       expect(screen.getAllByTestId("variant-row").length).toBeGreaterThan(0);
     });
 
-    await user.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+    await user.click(screen.getAllByRole("button", { name: "Inspect / edit" })[0]);
     expect(screen.getByTestId("edit-dry-run")).toBeChecked();
 
     await user.click(screen.getByRole("button", { name: "Close" }));
-    await user.click(screen.getAllByRole("button", { name: "Defer" })[0]);
+    await user.click(screen.getAllByRole("button", { name: "Reschedule / defer" })[0]);
     expect(screen.getByTestId("schedule-editor-panel")).toHaveAttribute(
       "data-entry",
       "list",
@@ -168,7 +168,7 @@ describe("ListView", () => {
       ).toBeGreaterThan(0);
     });
 
-    await user.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+    await user.click(screen.getAllByRole("button", { name: "Inspect / edit" })[0]);
     await user.click(screen.getByRole("button", { name: "Submit edit" }));
     await waitFor(() => {
       expect(screen.getByTestId("action-banner").textContent).toMatch(

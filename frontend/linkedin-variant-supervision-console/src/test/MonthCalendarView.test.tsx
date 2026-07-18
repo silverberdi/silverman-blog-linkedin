@@ -260,7 +260,7 @@ describe("MonthCalendarView dual-view UX", () => {
     });
 
     // Filter to planned only — hides the failed critical item.
-    const plannedCheckbox = screen.getByLabelText("planned");
+    const plannedCheckbox = screen.getByLabelText("Planned");
     await user.click(plannedCheckbox);
 
     await waitFor(() => {

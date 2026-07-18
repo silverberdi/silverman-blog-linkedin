@@ -129,9 +129,232 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 button.active-view {
   background: var(--accent);
   color: var(--accent-ink);
+}
+
+.affordance-group {
+  margin: 0 0 1rem;
+}
+
+.affordance-nav .view-switcher {
+  margin-bottom: 0.65rem;
+}
+
+.toolbar-nav {
+  margin-bottom: 0;
+}
+
+.toolbar-session {
+  margin-bottom: 0;
+}
+
+.affordance-session {
+  opacity: 0.95;
+}
+
+.status-summary {
+  margin: 0 0 1.25rem;
+}
+
+.count-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+}
+
+.count-chip {
+  display: flex;
+  flex-direction: column;
+  min-width: 5.5rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+}
+
+.count-chip-value {
+  font-size: 1.15rem;
+  font-weight: 650;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.count-chip-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.count-chip-zero .count-chip-value {
+  color: var(--muted);
+}
+
+.count-chip-actionable {
+  border-color: #8a4a20;
+  background: #2a1c12;
+}
+
+.count-chip-actionable .count-chip-value {
+  color: var(--warn-ink);
+}
+
+.count-chip-success {
+  border-color: #2a5a48;
+  background: var(--ok-bg);
+}
+
+.count-chip-success .count-chip-value {
+  color: var(--ok-ink);
+}
+
+.status-summary-meta {
+  margin-bottom: 0.5rem;
+}
+
+.title-cell {
+  display: inline-block;
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.row-risk-blocked,
+.list-card.row-risk-blocked {
+  border-left: 4px solid #d97706;
+  background: linear-gradient(90deg, #2a1c12 0%, var(--panel) 28%);
+}
+
+.row-risk-failed,
+.list-card.row-risk-failed {
+  border-left: 4px solid #e35d6a;
+  background: linear-gradient(90deg, #3a1818 0%, var(--panel) 28%);
+}
+
+tr.row-risk-blocked td:first-child,
+tr.row-risk-failed td:first-child {
+  box-shadow: inset 4px 0 0 #d97706;
+}
+
+tr.row-risk-failed td:first-child {
+  box-shadow: inset 4px 0 0 #e35d6a;
+}
+
+.row-risk-routine {
+  /* calmer chrome for routine pending/planned/queued */
+}
+
+.row-action-destructive {
+  background: transparent;
+  color: var(--err-ink);
+  border: 1px solid #6a3030;
+}
+
+.panel-destructive {
+  border-color: #6a3030;
+}
+
+.panel-actions-destructive {
+  border-top: 1px solid #6a3030;
+  padding-top: 0.75rem;
+}
+
+.diagnostics-details {
+  margin: 0.65rem 0;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #0f131a;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.diagnostics-details summary {
+  cursor: pointer;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  color: var(--accent);
+  min-height: var(--touch-min);
+  display: flex;
+  align-items: center;
+}
+
+.diagnostics-details summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.diagnostics-dl {
+  margin: 0.5rem 0 0;
+}
+
+.diagnostics-dl div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 12rem) 1fr;
+  gap: 0.35rem 0.75rem;
+  margin: 0.25rem 0;
+}
+
+.diagnostics-dl dt {
+  color: var(--muted);
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 0.8rem;
+}
+
+.diagnostics-dl dd {
+  margin: 0;
+}
+
+.inline-diagnostics {
+  display: inline-block;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+
+.status-pill-compact {
+  font-size: 0.62rem;
+  padding: 0.08rem 0.3rem;
+}
+
+.status-pill-failed {
+  background: #e35d6a;
+}
+
+.cal-badge-blocked {
+  border-left-width: 4px !important;
+}
+
+.cal-badge-failed {
+  border-left-width: 4px !important;
+  background: rgba(227, 93, 106, 0.12);
+}
+
+.calendar-chip-blocked {
+  background: #2a1c12;
+}
+
+.calendar-chip-failed {
+  background: #3a1818;
+}
+
+.item-detail-status {
+  margin: 0 0 0.75rem;
 }
 
 table {
@@ -504,6 +727,10 @@ textarea {
 .calendar-chip-title {
   font-weight: 600;
   margin-bottom: 0.25rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .calendar-chip-meta {
@@ -569,5 +796,18 @@ textarea {
 
   .view-switcher button {
     flex: 1;
+  }
+
+  .title-cell {
+    max-width: 100%;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .count-chip {
+    min-width: calc(50% - 0.35rem);
+    flex: 1 1 calc(50% - 0.35rem);
   }
 }

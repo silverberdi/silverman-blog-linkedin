@@ -9,8 +9,21 @@ import {
   todayUtcDayKey,
   utcDayKey,
 } from "../models/dateHelpers";
-import type { ScheduleItem } from "../models/supervision";
+import {
+  publicationStateLabel,
+  type ScheduleItem,
+} from "../models/supervision";
 import { useSupervisionStore } from "../models/store";
+
+function compactBadgeClass(item: ScheduleItem): string {
+  if (item.critical || item.publicationState === "failed") {
+    return "cal-badge cal-badge-failed";
+  }
+  if (item.blocked || item.publicationState === "blocked") {
+    return "cal-badge cal-badge-blocked";
+  }
+  return "cal-badge";
+}
 
 function ScheduleChip({
   item,
@@ -19,16 +32,35 @@ function ScheduleChip({
   item: ScheduleItem;
   onOpenSchedule: (item: ScheduleItem, entry: "agenda") => void;
 }) {
+  const label = publicationStateLabel(
+    item.publicationState,
+    item.linkedinApiPublished,
+  );
   return (
     <article
-      className="calendar-chip"
+      className={[
+        "calendar-chip",
+        item.blocked || item.publicationState === "blocked"
+          ? "calendar-chip-blocked"
+          : "",
+        item.critical || item.publicationState === "failed"
+          ? "calendar-chip-failed"
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       data-testid="calendar-chip"
       data-item-id={item.itemId}
       data-channel={item.channel}
       data-schedule-editable={item.scheduleEditable ? "true" : "false"}
       style={{ borderLeftColor: item.statusColor }}
     >
-      <div className="calendar-chip-title">{item.title || item.itemId}</div>
+      <div
+        className="calendar-chip-title title-cell"
+        title={item.title || item.itemId}
+      >
+        {item.title || item.itemId}
+      </div>
       <div className="calendar-chip-meta">
         <span className="mono">{item.channel}</span>
         {" · "}
@@ -36,7 +68,7 @@ function ScheduleChip({
           className="status-pill"
           style={{ backgroundColor: item.statusColor }}
         >
-          {item.publicationState}
+          {label}
         </span>
         {item.linkedinApiPublished ? (
           <span className="meta"> · LinkedIn API published</span>
@@ -62,6 +94,17 @@ function ScheduleChip({
         {" · local "}
         <span className="mono">{formatLocalDisplay(item.scheduledAtUtc)}</span>
       </div>
+      <details className="diagnostics-details" data-testid="chip-diagnostics">
+        <summary>Diagnostics</summary>
+        <p className="mono">
+          state={item.publicationState} · source={item.sourceState || "—"} ·
+          blocked={String(item.blocked)} · critical={String(item.critical)} ·
+          linkedin_api_published={String(item.linkedinApiPublished)}
+          {item.scheduleEditBlockReason
+            ? ` · block=${item.scheduleEditBlockReason}`
+            : ""}
+        </p>
+      </details>
       <div className="calendar-chip-actions">
         <button
           type="button"
@@ -260,24 +303,46 @@ export function MonthCalendarView() {
                   {dayItems.slice(0, 3).map((item) => (
                     <li
                       key={item.itemId}
-                      className={
-                        item.itemId === selectedItemId ? "is-selected-item" : ""
-                      }
+                      className={[
+                        item.itemId === selectedItemId ? "is-selected-item" : "",
+                        compactBadgeClass(item),
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
                       style={{ borderLeftColor: item.statusColor }}
+                      data-risk={
+                        item.critical || item.publicationState === "failed"
+                          ? "failed"
+                          : item.blocked || item.publicationState === "blocked"
+                            ? "blocked"
+                            : "routine"
+                      }
                     >
                       <button
                         type="button"
                         className="calendar-day-item-btn"
                         data-testid="schedule-open-month"
                         data-item-id={item.itemId}
+                        title={item.title || item.variantId || item.campaignId || item.itemId}
                         onClick={(event) => {
                           event.stopPropagation();
                           setSelectedDayKey(dayKey);
                           openSchedule(item, "month");
                         }}
                       >
+                        <span
+                          className="status-pill status-pill-compact"
+                          style={{ backgroundColor: item.statusColor }}
+                        >
+                          {publicationStateLabel(
+                            item.publicationState,
+                            item.linkedinApiPublished,
+                          )}
+                        </span>{" "}
                         <span className="mono">{item.channel}</span>{" "}
-                        {item.title || item.variantId || item.campaignId}
+                        <span className="title-cell">
+                          {item.title || item.variantId || item.campaignId}
+                        </span>
                       </button>
                     </li>
                   ))}

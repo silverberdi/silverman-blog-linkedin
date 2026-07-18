@@ -85,5 +85,8 @@ Local operations continue to use worker API-key auth through the injectable prov
 - **In (US-040C):** shared ScheduleEditor mutations (LinkedIn defer + blog calendar schedule-update)
 - **In (US-040D):** auth-session UI, mutation gating, OIDC/cookie swap readiness, CORS docs;
   public URL + Google **not activated**
-- **Out:** US-040E polish beyond auth-readiness UX, Flow B, BFF/DB/user-management,
-  LinkedIn API publish from the console
+- **In (US-040E):** at-a-glance counts, actionable visual priority, concise labels + expandable
+  diagnostics, affordance grouping, destructive-action safety, keyboard/touch a11y polish,
+  dark-theme state consistency, operational first screen (no marketing landing)
+- **Out:** public URL / Google activation, Flow B, BFF/DB/user-management,
+  LinkedIn API publish from the console, closing BL-015 from implementation alone
