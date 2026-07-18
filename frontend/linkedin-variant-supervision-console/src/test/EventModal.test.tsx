@@ -103,16 +103,16 @@ async function openInterimFromMonth(user: ReturnType<typeof userEvent.setup>) {
   const open = await screen.findByTestId("schedule-open-month");
   await user.click(open);
   await waitFor(() => {
-    expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("event-modal")).toBeInTheDocument();
   });
 }
 
-describe("Interim calendar actions (US-040G)", () => {
+describe("Event modal calendar actions (US-040H)", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("defaults dry-run checkboxes on when opening edit/defer/cancel from interim", async () => {
+  it("defaults dry-run checkboxes on when opening edit/defer/cancel from event modal", async () => {
     const auth = new MemoryBearerAuthProvider();
     auth.setTokenForTests("test-key");
     const client = new SupervisionApiClient(
@@ -123,15 +123,14 @@ describe("Interim calendar actions (US-040G)", () => {
     render(<App client={client} />);
     await openInterimFromMonth(user);
 
-    expect(screen.getByTestId("interim-h-hint").textContent).toMatch(/US-040H/);
-    expect(screen.getByTestId("interim-h-hint").textContent).not.toMatch(
-      /event modal product shipped/i,
-    );
+    expect(screen.getByTestId("event-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("event-modal-diagnostics")).toBeInTheDocument();
+    expect(screen.queryByTestId("interim-event-panel")).toBeNull();
 
     await user.click(screen.getByTestId("row-edit"));
     expect(screen.getByTestId("edit-dry-run")).toBeChecked();
 
-    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByTestId("event-modal-close"));
     await openInterimFromMonth(user);
     await user.click(screen.getByTestId("row-defer"));
     expect(screen.getByTestId("schedule-editor-panel")).toHaveAttribute(
@@ -178,9 +177,9 @@ describe("Interim calendar actions (US-040G)", () => {
     await openInterimFromMonth(user);
 
     await user.click(screen.getByTestId("row-edit"));
-    await user.click(screen.getByRole("button", { name: "Submit edit" }));
+    await user.click(screen.getByTestId("edit-submit"));
     await waitFor(() => {
-      expect(screen.getByTestId("action-banner").textContent).toMatch(
+      expect(screen.getByTestId("toast").textContent).toMatch(
         /validated \(dry-run, no mutation\)/,
       );
     });

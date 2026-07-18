@@ -4,10 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { SupervisionApiClient } from "../api/client";
 import { MemoryBearerAuthProvider } from "../api/auth";
 import { SupervisionStoreProvider } from "../models/store";
-import { ScheduleEditorPanel } from "../components/ScheduleEditor";
 import { MonthCalendarView } from "../components/MonthCalendarView";
 import { WeekView } from "../components/WeekView";
-import { InterimEventPanel } from "../components/InterimEventPanel";
+import { EventModal } from "../components/EventModal";
 import { AppShell } from "../components/AppShell";
 import { explainErrorCodes } from "../api/errors";
 import type {
@@ -138,8 +137,7 @@ function renderConsole(
   return render(
     <SupervisionStoreProvider client={client}>
       <AppShell>
-        <ScheduleEditorPanel />
-        <InterimEventPanel />
+        <EventModal />
         {view === "month" ? <MonthCalendarView /> : <WeekView />}
       </AppShell>
     </SupervisionStoreProvider>,
@@ -171,7 +169,7 @@ describe("ScheduleEditor US-040C / US-040G", () => {
     expect(linkedinOpen).toBeTruthy();
     await user.click(linkedinOpen!);
     await waitFor(() => {
-      expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("event-modal")).toBeInTheDocument();
     });
     await user.click(screen.getByTestId("row-defer"));
     const panel = screen.getByTestId("schedule-editor-panel");
@@ -201,7 +199,7 @@ describe("ScheduleEditor US-040C / US-040G", () => {
     expect(monthOpen).toBeTruthy();
     await user.click(monthOpen);
     await waitFor(() => {
-      expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("event-modal")).toBeInTheDocument();
     });
     await user.click(screen.getByTestId("row-defer"));
     expect(screen.getByTestId("schedule-editor-panel")).toHaveAttribute(
@@ -213,7 +211,7 @@ describe("ScheduleEditor US-040C / US-040G", () => {
       "true",
     );
     await user.click(screen.getByTestId("schedule-close"));
-    await user.click(screen.getByTestId("interim-close"));
+    await user.click(screen.getByTestId("event-modal-close"));
 
     const day22 = screen.getByTestId("calendar-day-2026-07-22");
     const doneOpen = day22.querySelector(
@@ -221,7 +219,7 @@ describe("ScheduleEditor US-040C / US-040G", () => {
     ) as HTMLElement;
     await user.click(doneOpen);
     await waitFor(() => {
-      expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("event-modal")).toBeInTheDocument();
     });
     await user.click(screen.getByTestId("row-defer"));
     expect(screen.getByTestId("schedule-editor-readonly")).toBeInTheDocument();
@@ -270,7 +268,7 @@ describe("ScheduleEditor US-040C / US-040G", () => {
     await user.click(screen.getByTestId("row-defer"));
     await user.click(screen.getByTestId("schedule-submit"));
     await waitFor(() => {
-      expect(screen.getByTestId("action-banner").textContent).toMatch(
+      expect(screen.getByTestId("toast").textContent).toMatch(
         /Dry-run schedule change validated/,
       );
     });
@@ -331,7 +329,7 @@ describe("ScheduleEditor US-040C / US-040G", () => {
     await user.type(screen.getByTestId("schedule-datetime"), "2026-08-01T14:00:00");
     await user.click(screen.getByTestId("schedule-submit"));
     await waitFor(() => {
-      const text = screen.getByTestId("action-banner").textContent || "";
+      const text = screen.getByTestId("toast").textContent || "";
       expect(text).toMatch(/Previous: 2026-07-19T11:00:00Z/);
       expect(text).toMatch(/New: 2026-08-01T14:00:00Z/);
       expect(text).toMatch(/separate overrides/);

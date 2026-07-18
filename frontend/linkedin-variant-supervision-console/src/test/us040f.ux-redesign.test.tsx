@@ -127,7 +127,7 @@ describe("US-040F modern operational UX redesign", () => {
       .find((el) => el.getAttribute("data-item-id")?.includes("operator-friendly"));
     expect(open).toBeTruthy();
     await user.click(open!);
-    expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("event-modal")).toBeInTheDocument();
   });
 
   it("lets metric cards drive focus without manual filter setup", async () => {

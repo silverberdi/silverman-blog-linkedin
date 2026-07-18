@@ -245,12 +245,13 @@ describe("US-040G calendar-first Week + Month", () => {
 
       await user.click(screen.getAllByTestId("week-event-chip")[0]);
       await waitFor(() => {
-        expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
+        expect(screen.getByTestId("event-modal")).toBeInTheDocument();
       });
-      expect(screen.getByTestId("interim-h-hint").textContent).toMatch(/US-040H/);
+      expect(screen.getByTestId("event-modal-diagnostics")).toBeInTheDocument();
       expect(screen.queryByTestId("list-view")).toBeNull();
+      expect(screen.queryByTestId("interim-event-panel")).toBeNull();
 
-      await user.click(screen.getByTestId("interim-close"));
+      await user.click(screen.getByTestId("event-modal-close"));
       await user.click(screen.getByTestId("count-blocked"));
       expect(screen.getByTestId("filter-blocked")).toBeChecked();
       expect(screen.getByTestId("week-view")).toBeInTheDocument();

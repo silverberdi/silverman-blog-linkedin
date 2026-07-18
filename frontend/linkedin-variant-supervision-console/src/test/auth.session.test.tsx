@@ -15,7 +15,7 @@ import {
 import type { ApiError } from "../api/errors";
 import { SupervisionStoreProvider, useSupervisionStore } from "../models/store";
 import { ScheduleEditorPanel } from "../components/ScheduleEditor";
-import { InterimEventPanel } from "../components/InterimEventPanel";
+import { EventModal } from "../components/EventModal";
 import { MonthCalendarView } from "../components/MonthCalendarView";
 import { AppShell } from "../components/AppShell";
 import type {
@@ -112,7 +112,7 @@ function Harness({
       <AppShell>
         <EditorOpener open={Boolean(openEditor)} />
         <ScheduleEditorPanel />
-        <InterimEventPanel />
+        <EventModal />
         <MonthCalendarView />
       </AppShell>
     </SupervisionStoreProvider>
@@ -337,7 +337,7 @@ describe("mutation gating and expiry draft preservation", () => {
     const open = await screen.findByTestId("schedule-open-month");
     await user.click(open);
     await waitFor(() => {
-      expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("event-modal")).toBeInTheDocument();
     });
     expect(screen.getByTestId("readonly-gated-note")).toBeInTheDocument();
     expect(screen.getByTestId("row-edit")).toBeDisabled();
@@ -435,7 +435,7 @@ describe("provider swap without calendar component changes", () => {
     });
     await user.click(await screen.findByTestId("schedule-open-month"));
     await waitFor(() => {
-      expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("event-modal")).toBeInTheDocument();
     });
     expect(screen.getByTestId("row-edit")).not.toBeDisabled();
   });

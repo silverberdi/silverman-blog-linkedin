@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SupervisionApiClient } from "../api/client";
 import { MemoryBearerAuthProvider } from "../api/auth";
@@ -204,21 +204,16 @@ describe("MonthCalendarView dual-view UX", () => {
     const dayBtn = await screen.findByTestId("calendar-day-2026-07-20");
     expect(dayBtn.textContent).toMatch(/linkedin/i);
     await user.click(dayBtn);
-
-    expect(screen.getByTestId("month-day-focus")).toBeInTheDocument();
-    expect(screen.getByTestId("month-day-chip-list")).toBeInTheDocument();
-    expect(
-      within(screen.getByTestId("month-day-chip-list")).getByTestId(
-        "month-focus-chip",
-      ),
-    ).toHaveAttribute(
-      "data-item-id",
-      "linkedin:camp-1:engineering-leadership",
-    );
+    expect(dayBtn).toHaveClass("is-selected");
+    expect(screen.queryByTestId("month-day-focus")).toBeNull();
+    expect(screen.queryByTestId("month-day-chip-list")).toBeNull();
+    expect(screen.queryByTestId("event-modal")).toBeNull();
 
     const emptyDay = screen.getByTestId("calendar-day-2026-07-05");
     await user.click(emptyDay);
-    expect(screen.getByTestId("month-day-focus").textContent).toMatch(/0 items/);
+    expect(emptyDay).toHaveClass("is-selected");
+    expect(screen.queryByTestId("month-day-focus")).toBeNull();
+    expect(screen.queryByTestId("event-modal")).toBeNull();
 
     await user.click(screen.getByTestId("calendar-next"));
     await waitFor(() => {

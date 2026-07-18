@@ -42,7 +42,7 @@ export function WeekView() {
     setWeekCursor,
     setMonthCursor,
     setSelectedDayKey,
-    openInterimDetail,
+    openEventModal,
     loadScheduleForMonths,
     loading,
   } = useSupervisionStore();
@@ -239,7 +239,7 @@ export function WeekView() {
                         data-item-id={item.itemId}
                         data-channel={item.channel}
                         style={{ borderLeftColor: item.statusColor }}
-                        onClick={() => openInterimDetail(item.itemId, "week")}
+                        onClick={() => openEventModal(item.itemId, "week")}
                       >
                         <span className="week-chip-title title-cell">
                           {item.title ||

@@ -295,7 +295,7 @@ describe("US-040E console polish UI", () => {
     expect(pendingOpen).toBeTruthy();
     await user.click(pendingOpen!);
     await waitFor(() => {
-      expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("event-modal")).toBeInTheDocument();
     });
     await user.click(screen.getByTestId("row-cancel"));
     expect(screen.getByTestId("cancel-panel")).toBeInTheDocument();
@@ -452,7 +452,7 @@ describe("US-040E visual validation matrix (equivalent UI checks)", () => {
       if (openBtns.length > 0) {
         await user.click(openBtns[0]);
         await waitFor(() => {
-          expect(screen.getByTestId("interim-event-panel")).toBeInTheDocument();
+          expect(screen.getByTestId("event-modal")).toBeInTheDocument();
         });
         await user.click(screen.getByTestId("row-defer"));
         await waitFor(() => {

@@ -2,7 +2,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -54,6 +56,33 @@ export interface BannerState {
   text: string;
 }
 
+/** Toast kinds for ephemeral overlay feedback (US-040H). */
+export type ToastKind = "ok" | "info" | "warn" | "error";
+
+export interface ToastItem {
+  id: string;
+  kind: ToastKind;
+  text: string;
+}
+
+export interface PushToastInput {
+  kind: ToastKind;
+  text: string;
+}
+
+const TOAST_AUTO_DISMISS_MS = 5000;
+const TOAST_MAX_VISIBLE = 3;
+
+function newToastId(): string {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+  return `toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export type MetricFocusKey =
   | "upcoming"
   | "pending"
@@ -81,14 +110,24 @@ interface SupervisionStoreValue {
   setSelectedDayKey: (dayKey: string | null) => void;
   selectedItemId: string | null;
   setSelectedItemId: (itemId: string | null) => void;
+  eventModalItemId: string | null;
+  eventModalEntry: "week" | "month";
+  openEventModal: (itemId: string, entry?: "week" | "month") => void;
+  closeEventModal: () => void;
+  /** @deprecated US-040H — alias for eventModalItemId */
   interimDetailItemId: string | null;
+  /** @deprecated US-040H — alias for eventModalEntry */
   interimEntry: "week" | "month";
+  /** @deprecated US-040H — use openEventModal */
   openInterimDetail: (itemId: string, entry?: "week" | "month") => void;
+  /** @deprecated US-040H — use closeEventModal */
   closeInterimDetail: () => void;
   dryRunDefault: boolean;
   setDryRunDefault: (value: boolean) => void;
   unsavedScheduleDraft: boolean;
   setUnsavedScheduleDraft: (value: boolean) => void;
+  unsavedEditDraft: boolean;
+  setUnsavedEditDraft: (value: boolean) => void;
   scheduleEditorTarget: ScheduleEditorTarget | null;
   openScheduleEditor: (target: ScheduleEditorTarget) => void;
   closeScheduleEditor: () => void;
@@ -101,6 +140,9 @@ interface SupervisionStoreValue {
   canMutate: boolean;
   setStatusBanner: (banner: BannerState) => void;
   setActionBanner: (banner: BannerState) => void;
+  toasts: ToastItem[];
+  pushToast: (toast: PushToastInput) => void;
+  dismissToast: (id: string) => void;
   loadPending: (options?: { preserveActionBanner?: boolean }) => Promise<boolean>;
   loadScheduleVisibility: (options?: {
     preserveActionBanner?: boolean;
@@ -198,23 +240,61 @@ export function SupervisionStoreProvider({
   const [weekCursor, setWeekCursor] = useState<WeekCursor>(currentUtcWeek);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [interimDetailItemId, setInterimDetailItemId] = useState<string | null>(
-    null,
+  const [eventModalItemId, setEventModalItemId] = useState<string | null>(null);
+  const [eventModalEntry, setEventModalEntry] = useState<"week" | "month">(
+    "week",
   );
-  const [interimEntry, setInterimEntry] = useState<"week" | "month">("week");
   const [dryRunDefault, setDryRunDefault] = useState(true);
   const [unsavedScheduleDraft, setUnsavedScheduleDraft] = useState(false);
+  const [unsavedEditDraft, setUnsavedEditDraft] = useState(false);
   const [scheduleEditorTarget, setScheduleEditorTarget] =
     useState<ScheduleEditorTarget | null>(null);
   const [loading, setLoading] = useState(false);
   const [statusBanner, setStatusBanner] = useState<BannerState>(emptyBanner);
   const [actionBanner, setActionBanner] = useState<BannerState>(emptyBanner);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const toastTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
   const [sessionState, setSessionState] = useState<SessionState>(
     () =>
       initialSessionState ??
       (client.hasCredential() ? "authenticated" : "anonymous"),
   );
   const [authEpoch, setAuthEpoch] = useState(0);
+
+  const dismissToast = useCallback((id: string) => {
+    const timer = toastTimersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      toastTimersRef.current.delete(id);
+    }
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const pushToast = useCallback(
+    (input: PushToastInput) => {
+      const id = newToastId();
+      setToasts((prev) => {
+        const next = [{ id, kind: input.kind, text: input.text }, ...prev];
+        return next.slice(0, TOAST_MAX_VISIBLE);
+      });
+      const timer = setTimeout(() => {
+        dismissToast(id);
+      }, TOAST_AUTO_DISMISS_MS);
+      toastTimersRef.current.set(id, timer);
+    },
+    [dismissToast],
+  );
+
+  useEffect(() => {
+    return () => {
+      for (const timer of toastTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      toastTimersRef.current.clear();
+    };
+  }, []);
 
   const bumpAuth = useCallback(() => {
     setAuthEpoch((n) => n + 1);
@@ -280,18 +360,22 @@ export function SupervisionStoreProvider({
     [activeView, unsavedScheduleDraft],
   );
 
-  const openInterimDetail = useCallback(
+  const openEventModal = useCallback(
     (itemId: string, entry: "week" | "month" = "week") => {
       setSelectedItemId(itemId);
-      setInterimDetailItemId(itemId);
-      setInterimEntry(entry);
+      setEventModalItemId(itemId);
+      setEventModalEntry(entry);
     },
     [],
   );
 
-  const closeInterimDetail = useCallback(() => {
-    setInterimDetailItemId(null);
+  const closeEventModal = useCallback(() => {
+    setEventModalItemId(null);
+    setUnsavedEditDraft(false);
   }, []);
+
+  const openInterimDetail = openEventModal;
+  const closeInterimDetail = closeEventModal;
 
   const openScheduleEditor = useCallback((target: ScheduleEditorTarget) => {
     setScheduleEditorTarget(target);
@@ -655,14 +739,20 @@ export function SupervisionStoreProvider({
       setSelectedDayKey,
       selectedItemId,
       setSelectedItemId,
-      interimDetailItemId,
-      interimEntry,
+      eventModalItemId,
+      eventModalEntry,
+      openEventModal,
+      closeEventModal,
+      interimDetailItemId: eventModalItemId,
+      interimEntry: eventModalEntry,
       openInterimDetail,
       closeInterimDetail,
       dryRunDefault,
       setDryRunDefault,
       unsavedScheduleDraft,
       setUnsavedScheduleDraft,
+      unsavedEditDraft,
+      setUnsavedEditDraft,
       scheduleEditorTarget,
       openScheduleEditor,
       closeScheduleEditor,
@@ -675,6 +765,9 @@ export function SupervisionStoreProvider({
       canMutate: caps.canMutate,
       setStatusBanner,
       setActionBanner,
+      toasts,
+      pushToast,
+      dismissToast,
       loadPending,
       loadScheduleVisibility,
       loadScheduleForMonths,
@@ -701,12 +794,15 @@ export function SupervisionStoreProvider({
       weekCursor,
       selectedDayKey,
       selectedItemId,
-      interimDetailItemId,
-      interimEntry,
+      eventModalItemId,
+      eventModalEntry,
+      openEventModal,
+      closeEventModal,
       openInterimDetail,
       closeInterimDetail,
       dryRunDefault,
       unsavedScheduleDraft,
+      unsavedEditDraft,
       scheduleEditorTarget,
       openScheduleEditor,
       closeScheduleEditor,
@@ -717,6 +813,9 @@ export function SupervisionStoreProvider({
       sessionState,
       caps.canRead,
       caps.canMutate,
+      toasts,
+      pushToast,
+      dismissToast,
       loadPending,
       loadScheduleVisibility,
       loadScheduleForMonths,

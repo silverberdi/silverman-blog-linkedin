@@ -2,13 +2,13 @@ import { type ReactNode } from "react";
 import { Banner } from "./Banner";
 import { Filters } from "./Filters";
 import { StatusSummary } from "./StatusSummary";
+import { ToastHost } from "./ToastHost";
 import { ViewSwitcher } from "./ViewSwitcher";
 import { useSupervisionStore } from "../models/store";
 
 /**
- * App shell: session banners (US-040D), dry-run default, enablement display-only,
- * Week | Month views (US-040G), operational count strip + affordance groups.
- * First screen is the operational console — no marketing landing.
+ * App shell: quiet session + enablement chip (US-040H), dry-run default,
+ * Week | Month views, operational count strip. Happy-path success uses toasts.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const {
@@ -18,7 +18,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     requestViewChange,
     loading,
     statusBanner,
-    actionBanner,
     sessionBanner,
     sessionState,
     refreshAll,
@@ -30,10 +29,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   } = useSupervisionStore();
 
   const enablementSource = snapshot ?? scheduleSnapshot;
+  const publishGuardOn = Boolean(enablementSource?.linkedinPublicationEnabled);
   const enablementText = enablementSource
-    ? enablementSource.linkedinPublicationEnabled
-      ? "LinkedIn API publish guard is on. This console still only supervises."
-      : "LinkedIn API publish guard is off. Supervision stays available."
+    ? publishGuardOn
+      ? "Publish guard on — console supervises only"
+      : "Publish guard off — supervision still available"
     : "";
 
   const needsReauth =
@@ -41,8 +41,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     sessionState === "expired" ||
     sessionState === "forbidden";
 
+  // Structural warn/error only — happy-path ok stays off the primary scan path.
+  const showStatusBanner =
+    Boolean(statusBanner.text) &&
+    (statusBanner.kind === "warn" || statusBanner.kind === "error");
+
   return (
     <main className="console-shell" data-testid="app-shell">
+      <ToastHost />
       <header className="app-bar">
         <div className="brand-lockup">
           <p className="eyebrow">Flow A operations</p>
@@ -77,6 +83,19 @@ export function AppShell({ children }: { children: ReactNode }) {
               {dryRunDefault ? "Dry-run" : "Commit"}
             </label>
           </div>
+          {enablementText && (
+            <span
+              className={`enablement-chip ${publishGuardOn ? "is-on" : "is-off"}`}
+              data-testid="enablement-chip"
+              title={
+                publishGuardOn
+                  ? "LinkedIn API publish guard is on. This console still only supervises."
+                  : "LinkedIn API publish guard is off. Supervision stays available."
+              }
+            >
+              {enablementText}
+            </span>
+          )}
         </section>
       </header>
 
@@ -111,23 +130,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </section>
 
-      <div className="alert-stack">
-        <Banner
-          kind={enablementSource?.linkedinPublicationEnabled ? "ok" : "warn"}
-          text={enablementText}
-          testId="enablement-banner"
-        />
-        <Banner
-          kind={statusBanner.kind}
-          text={statusBanner.text}
-          testId="status-banner"
-        />
-        <Banner
-          kind={actionBanner.kind}
-          text={actionBanner.text}
-          testId="action-banner"
-        />
-      </div>
+      {showStatusBanner && (
+        <div className="alert-stack">
+          <Banner
+            kind={statusBanner.kind}
+            text={statusBanner.text}
+            testId="status-banner"
+          />
+        </div>
+      )}
 
       {!canMutate && sessionState !== "authenticated" && (
         <p className="note" data-testid="mutation-gated-note">
@@ -162,7 +173,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <footer>
         Public URL hosting and Google/OIDC activation remain deferred. Technical
-        diagnostics stay available in detail panels.
+        diagnostics stay available in the event modal.
       </footer>
     </main>
   );

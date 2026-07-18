@@ -969,7 +969,7 @@ As a content operator, I want the Flow A supervision console to feel like a mode
 
 As a content operator, I want the supervision console to open on a clear **week** calendar with **month** as a secondary view and **no list**, so that I immediately understand what publishes when without learning a second triage surface that often looks empty or unexplained.
 
-**Status:** Implemented in console layer (US-040G calendar-first Week + Month; List removed from operator chrome; OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040g`; empty-grid follow-up `fix-us-040g-outlook-empty-calendar-grid` applied and **redeployed** — Week/Month keep day structure visible with calm empty cue; Vitest viewport matrix ~1280/~375 + live static assets `index-SFvEuRPX.js` / `index-DTJ5Tm4v.css` on `192.168.0.194:8010`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated (browser capture / walkthrough not completed). Interim event-chip → ItemDetail/ScheduleEditor path until US-040H. UTC day-bucketing debt remains for US-040I. US-040H modal/toasts, US-040J reopen, and US-040K density not delivered. Filters dock removal and Cancelled metric chip are out of scope for the empty-grid fix.
+**Status:** Implemented in console layer (US-040G calendar-first Week + Month; List removed from operator chrome; OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040g`; empty-grid follow-up `fix-us-040g-outlook-empty-calendar-grid` applied and **redeployed** — Week/Month keep day structure visible with calm empty cue; Vitest viewport matrix ~1280/~375 + live static assets `index-SFvEuRPX.js` / `index-DTJ5Tm4v.css` on `192.168.0.194:8010`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated (browser capture / walkthrough not completed). Interim event panel superseded by US-040H EventModal. UTC day-bucketing debt remains for US-040I. US-040J reopen and US-040K density not delivered. Filters dock removal and Cancelled metric chip are out of scope for the empty-grid fix.
 
 **UX intent (normative)**
 
@@ -1007,7 +1007,7 @@ Required scenes (desktop + mobile): Week first paint; empty week (**day columns 
 
 As a content operator, I want to click a **specific event** and work inside a focused **modal**, with success/info feedback as brief **toasts**, so that I never face a confusing split of “day dump below + detail above” or large green banners that steal the calendar.
 
-**Status:** Not started. **Not Story accepted; BL-015 remains open.**
+**Status:** Implemented in console layer (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040h`; Vitest + rebuilt static assets). **Not Story accepted; BL-015 remains open.** Visual DoD + operator walkthrough gated; browser capture unavailable in apply environment.
 
 **UX intent (normative)**
 
@@ -1027,19 +1027,19 @@ Required scenes (desktop + mobile): event open; modal hierarchy; edit/reschedule
 
 **Acceptance criteria**
 
-- [ ] Clicking an event opens an event modal with view and edit affordances appropriate to state; clicking empty day space MUST NOT open the multi-item agenda dump pattern.
-- [ ] The modal MUST present operator-facing fields first (title/campaign, channel/audience, local datetime, publication state, risk) and bury raw ids, endpoint names, and worker codes in expandable diagnostics.
-- [ ] Edit content, reschedule, defer, and cancel (where supported) MUST be reachable from the modal without returning to a list.
-- [ ] Replace persistent success/enablement/status green banners with ephemeral toasts for non-blocking feedback; toasts MUST auto-dismiss (target ~4–6s) and be dismissible manually.
-- [ ] LinkedIn publish-guard / session context MAY remain as a compact chip or quiet status in the app bar — not a full-width green banner.
-- [ ] Dry-run vs real commit MUST remain visually obvious inside the modal and in toast copy after actions.
-- [ ] Keep destructive cancel behind explicit confirmation separate from toast success feedback.
-- [ ] Preserve keyboard access: focus trap in modal, Escape closes (with draft warn), visible focus rings, no hover-only critical actions.
+- [x] Clicking an event opens an event modal with view and edit affordances appropriate to state; clicking empty day space MUST NOT open the multi-item agenda dump pattern.
+- [x] The modal MUST present operator-facing fields first (title/campaign, channel/audience, local datetime, publication state, risk) and bury raw ids, endpoint names, and worker codes in expandable diagnostics.
+- [x] Edit content, reschedule, defer, and cancel (where supported) MUST be reachable from the modal without returning to a list.
+- [x] Replace persistent success/enablement/status green banners with ephemeral toasts for non-blocking feedback; toasts MUST auto-dismiss (target ~4–6s) and be dismissible manually.
+- [x] LinkedIn publish-guard / session context MAY remain as a compact chip or quiet status in the app bar — not a full-width green banner.
+- [x] Dry-run vs real commit MUST remain visually obvious inside the modal and in toast copy after actions.
+- [x] Keep destructive cancel behind explicit confirmation separate from toast success feedback.
+- [x] Preserve keyboard access: focus trap in modal, Escape closes (with draft warn), visible focus rings, no hover-only critical actions.
 - [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
 - [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms modal + toast UX meets intent before Story accepted.
 - [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated (error toasts or in-modal errors; not silent failure).
-- [ ] Existing completed work is not duplicated or unintentionally changed (reuse ScheduleEditor / US-017 semantics inside the modal shell).
+- [x] Failures or blocked states are clearly communicated (error toasts or in-modal errors; not silent failure).
+- [x] Existing completed work is not duplicated or unintentionally changed (reuse ScheduleEditor / US-017 semantics inside the modal shell).
 
 ### US-040I — Implement Flow A LinkedIn Variant Supervision Console: Operator-Local Time Experience
 

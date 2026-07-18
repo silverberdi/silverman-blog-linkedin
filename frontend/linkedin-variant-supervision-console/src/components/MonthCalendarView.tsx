@@ -27,8 +27,8 @@ function compactBadgeClass(item: ScheduleItem): string {
 
 /**
  * First-class Month calendar density view (US-040B / US-040G secondary).
- * Event chips open interim detail (D3); day click is light focus only — not a
- * list-like multi-item diagnostic dump as the primary action surface.
+ * Event chips open EventModal (US-040H). Day click is light focus only —
+ * no multi-item day-agenda dump.
  */
 export function MonthCalendarView() {
   const {
@@ -45,7 +45,7 @@ export function MonthCalendarView() {
     setSelectedItemId,
     loadScheduleVisibility,
     loading,
-    openInterimDetail,
+    openEventModal,
   } = useSupervisionStore();
 
   useEffect(() => {
@@ -139,7 +139,7 @@ export function MonthCalendarView() {
 
       <p className="sup-meta compact-help" data-testid="calendar-tz-note">
         UTC calendar date placement; local time on event detail. Select a chip to
-        open interim actions (US-040H modal is a follow-up).
+        open the event modal.
       </p>
 
       {scheduleSnapshot?.issues && scheduleSnapshot.issues.length > 0 && (
@@ -279,7 +279,7 @@ export function MonthCalendarView() {
                         onClick={(event) => {
                           event.stopPropagation();
                           setSelectedDayKey(dayKey);
-                          openInterimDetail(item.itemId, "month");
+                          openEventModal(item.itemId, "month");
                         }}
                       >
                         <span
@@ -309,53 +309,6 @@ export function MonthCalendarView() {
           );
         })}
       </div>
-
-      {selectedDayKey && (
-        <div
-          className="month-day-focus"
-          data-testid="month-day-focus"
-        >
-          <p className="meta">
-            Focused day {selectedDayKey} (UTC) —{" "}
-            {(itemsByDay.get(selectedDayKey) ?? []).length} item
-            {(itemsByDay.get(selectedDayKey) ?? []).length === 1
-              ? ""
-              : "s"}
-            . Open a chip for interim actions.
-          </p>
-          <div
-            className="month-day-chip-list"
-            data-testid="month-day-chip-list"
-          >
-            {(itemsByDay.get(selectedDayKey) ?? []).map((item) => (
-              <button
-                key={item.itemId}
-                type="button"
-                className="week-event-chip"
-                data-testid="month-focus-chip"
-                data-item-id={item.itemId}
-                style={{ borderLeftColor: item.statusColor }}
-                onClick={() => openInterimDetail(item.itemId, "month")}
-              >
-                <span className="week-chip-title">
-                  {item.title ||
-                    item.variantId ||
-                    item.campaignId ||
-                    item.itemId}
-                </span>
-                <span className="week-chip-meta">
-                  <span className="mono">{item.channel}</span>
-                  {" · "}
-                  {publicationStateLabel(
-                    item.publicationState,
-                    item.linkedinApiPublished,
-                  )}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </section>
   );
 }

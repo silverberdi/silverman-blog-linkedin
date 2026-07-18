@@ -192,14 +192,10 @@ describe("viewport validation", () => {
     await waitFor(() => {
       expect(getByTestId("month-calendar-view")).toBeInTheDocument();
     });
-    // Mobile hides in-cell chips — select day then open focus chip.
-    await user.click(getByTestId("calendar-day-2026-07-20"));
+    // Mobile keeps in-cell chips clickable (no day-agenda dump).
+    await user.click(getByTestId("schedule-open-month"));
     await waitFor(() => {
-      expect(getByTestId("month-focus-chip")).toBeInTheDocument();
-    });
-    await user.click(getByTestId("month-focus-chip"));
-    await waitFor(() => {
-      expect(getByTestId("interim-event-panel")).toBeInTheDocument();
+      expect(getByTestId("event-modal")).toBeInTheDocument();
     });
     await user.click(getByTestId("row-defer"));
     await waitFor(() => {

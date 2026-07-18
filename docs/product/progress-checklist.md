@@ -456,8 +456,8 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] **US-040H** — Event modal + toast feedback
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+    - [x] Work started
+    - [x] Business outcome demonstrated — console-layer only (Vitest ~1280/~375 + rebuilt static assets); Visual DoD screenshots + walkthrough still open
     - [ ] Acceptance criteria validated — requires Visual DoD + operator walkthrough
     - [ ] Story accepted — operator walkthrough gate (not Vitest alone)
   - [ ] **US-040I** — Operator-local time experience

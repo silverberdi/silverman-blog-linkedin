@@ -110,15 +110,23 @@ export function ScheduleEditor({
 }
 
 /**
- * Shared mutation panel opened from List, Month, or agenda.
+ * Shared mutation panel — embedded in EventModal (US-040H) or standalone.
  */
-export function ScheduleEditorPanel() {
+export function ScheduleEditorPanel({
+  embedded = false,
+  onEmbeddedClose,
+}: {
+  embedded?: boolean;
+  onEmbeddedClose?: () => void;
+} = {}) {
   const {
     scheduleEditorTarget,
     closeScheduleEditor,
+    closeEventModal,
+    eventModalItemId,
     client,
     refreshAll,
-    setActionBanner,
+    pushToast,
     setUnsavedScheduleDraft,
     unsavedScheduleDraft,
     dryRunDefault,
@@ -144,7 +152,7 @@ export function ScheduleEditorPanel() {
   }, [target, dryRunDefault, setUnsavedScheduleDraft]);
 
   useEffect(() => {
-    if (!target) {
+    if (!target || embedded) {
       return;
     }
     function onKeyDown(event: KeyboardEvent) {
@@ -167,12 +175,22 @@ export function ScheduleEditorPanel() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
     target,
+    embedded,
     unsavedScheduleDraft,
     closeScheduleEditor,
     setUnsavedScheduleDraft,
   ]);
 
   if (!target) {
+    return null;
+  }
+
+  // EventModal owns the schedule surface when open for the same item.
+  if (
+    !embedded &&
+    eventModalItemId &&
+    target.itemId === eventModalItemId
+  ) {
     return null;
   }
 
@@ -183,6 +201,10 @@ export function ScheduleEditorPanel() {
   function onScheduleChange(value: string) {
     setSchedule(value);
     setUnsavedScheduleDraft(true);
+  }
+
+  function feedbackError(text: string) {
+    pushToast({ kind: "error", text });
   }
 
   function close() {
@@ -196,34 +218,28 @@ export function ScheduleEditorPanel() {
     }
     setUnsavedScheduleDraft(false);
     closeScheduleEditor();
+    onEmbeddedClose?.();
   }
 
   async function submit() {
     if (mutationBlocked) {
-      setActionBanner({
-        kind: "error",
-        text:
-          sessionState === "expired"
-            ? "Session expired. Sign in again to commit. Your unsaved schedule draft is still here."
-            : "Cannot commit schedule change: authentication with mutation permission is required. This is not a successful schedule update.",
-      });
+      feedbackError(
+        sessionState === "expired"
+          ? "Session expired. Sign in again to commit. Your unsaved schedule draft is still here."
+          : "Cannot commit schedule change: authentication with mutation permission is required. This is not a successful schedule update.",
+      );
       return;
     }
     if (readOnly) {
-      setActionBanner({
-        kind: "error",
-        text:
-          active.scheduleEditBlockReason ||
+      feedbackError(
+        active.scheduleEditBlockReason ||
           "This item is read-only for schedule changes (published/historical).",
-      });
+      );
       return;
     }
     const iso = datetimeLocalToUtcIso(schedule);
     if (!iso) {
-      setActionBanner({
-        kind: "error",
-        text: "Provide a valid new scheduled time (UTC).",
-      });
+      feedbackError("Provide a valid new scheduled time (UTC).");
       return;
     }
     if (!dryRun && !confirmRealMutation("schedule change")) {
@@ -234,10 +250,9 @@ export function ScheduleEditorPanel() {
     try {
       if (active.channel === "linkedin") {
         if (!active.campaignId || !active.variantId) {
-          setActionBanner({
-            kind: "error",
-            text: "LinkedIn schedule edit requires campaign and variant identity.",
-          });
+          feedbackError(
+            "LinkedIn schedule edit requires campaign and variant identity.",
+          );
           return;
         }
         const previous = active.scheduledAtUtc;
@@ -252,22 +267,21 @@ export function ScheduleEditorPanel() {
           source: CONSOLE_SOURCE,
         });
         if (result.status !== "completed") {
-          setActionBanner({
-            kind: "error",
-            text: `Schedule change failed: ${(result.errors || []).join("; ") || "unknown"}`,
-          });
+          feedbackError(
+            `Schedule change failed: ${(result.errors || []).join("; ") || "unknown"}`,
+          );
           return;
         }
         if (dryRun || result.dry_run) {
-          setActionBanner({
-            kind: "ok",
+          pushToast({
+            kind: "info",
             text: `Dry-run schedule change validated for ${active.itemId}. Schedule was not persisted.`,
           });
           setUnsavedScheduleDraft(false);
           return;
         }
         await refreshAll({ preserveActionBanner: true });
-        setActionBanner({
+        pushToast({
           kind: "ok",
           text:
             `Schedule updated for ${active.itemId} (${active.channel}). ` +
@@ -276,16 +290,16 @@ export function ScheduleEditorPanel() {
         });
         setUnsavedScheduleDraft(false);
         closeScheduleEditor();
+        if (embedded) {
+          closeEventModal();
+        }
         return;
       }
 
       // Blog / editorial calendar path
       const calendarItemId = active.calendarItemId;
       if (!calendarItemId) {
-        setActionBanner({
-          kind: "error",
-          text: "Blog schedule edit requires calendar_item_id.",
-        });
+        feedbackError("Blog schedule edit requires calendar_item_id.");
         return;
       }
       const previous = active.scheduledAtUtc;
@@ -302,15 +316,14 @@ export function ScheduleEditorPanel() {
             scheduleSnapshot?.calendarFingerprint ?? null,
         });
       if (result.status !== "completed") {
-        setActionBanner({
-          kind: "error",
-          text: `Schedule change failed: ${(result.errors || []).join("; ") || "unknown"}`,
-        });
+        feedbackError(
+          `Schedule change failed: ${(result.errors || []).join("; ") || "unknown"}`,
+        );
         return;
       }
       if (dryRun || result.dry_run) {
-        setActionBanner({
-          kind: "ok",
+        pushToast({
+          kind: "info",
           text:
             `Dry-run schedule change validated for ${active.itemId}. ` +
             `Previous ${result.previous_due_at_utc || previous || "(none)"} → ` +
@@ -320,7 +333,7 @@ export function ScheduleEditorPanel() {
         return;
       }
       await refreshAll({ preserveActionBanner: true });
-      setActionBanner({
+      pushToast({
         kind: "ok",
         text:
           `Schedule updated for ${active.itemId} (${active.channel}). ` +
@@ -330,12 +343,12 @@ export function ScheduleEditorPanel() {
       });
       setUnsavedScheduleDraft(false);
       closeScheduleEditor();
+      if (embedded) {
+        closeEventModal();
+      }
     } catch (err) {
       const apiErr = err as ApiError;
-      setActionBanner({
-        kind: "error",
-        text: apiErr?.message || String(err),
-      });
+      feedbackError(apiErr?.message || String(err));
     } finally {
       setSubmitting(false);
     }
@@ -343,11 +356,16 @@ export function ScheduleEditorPanel() {
 
   return (
     <div
-      className="detail-drawer schedule-drawer"
+      className={
+        embedded
+          ? "schedule-drawer schedule-drawer-embedded"
+          : "detail-drawer schedule-drawer"
+      }
       data-testid="schedule-editor-panel"
       data-entry={active.entry}
       data-channel={active.channel}
       data-editable={active.scheduleEditable ? "true" : "false"}
+      data-embedded={embedded ? "true" : "false"}
     >
       <div className="drawer-header">
         <div>
