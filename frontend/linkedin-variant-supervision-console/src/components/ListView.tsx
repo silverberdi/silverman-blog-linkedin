@@ -62,6 +62,29 @@ function CalendarCell({ item }: { item: SupervisionItem }) {
   );
 }
 
+function formatSchedule(value: string | null): string {
+  if (!value) {
+    return "Unscheduled";
+  }
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) {
+    return value;
+  }
+  const local = new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(new Date(parsed));
+  // Design D5: local wall clock for triage; Month day placement remains UTC-based.
+  return `${local} (local)`;
+}
+
+function itemSummary(item: SupervisionItem): string {
+  return item.title || item.audience || item.variantId || item.campaignId;
+}
+
 function SupervisionMeta({ item }: { item: SupervisionItem }) {
   const parts: ReactNode[] = [];
   if (item.deferredOrIneligible) {
@@ -112,6 +135,7 @@ export function ListView() {
     filteredListItems,
     dryRunDefault,
     setUnsavedScheduleDraft,
+    selectedItemId,
     setSelectedItemId,
     openScheduleEditor,
     canMutate,
@@ -329,12 +353,25 @@ export function ListView() {
   const items = filteredListItems;
   const issues = snapshot?.issues ?? [];
   const failures = snapshot?.integrationFailures ?? [];
+  const selectedItem =
+    (activeItem ||
+      items.find((item) => item.itemId === selectedItemId) ||
+      null) ??
+    null;
 
   return (
-    <div data-testid="list-view" className="list-view">
+    <div data-testid="list-view" className="list-view operational-workspace">
       {panel === "edit" && activeItem && (
-        <div className="panel panel-inspect" data-testid="edit-panel">
-          <h2>Inspect / edit draft</h2>
+        <aside className="detail-drawer panel-inspect" data-testid="edit-panel">
+          <div className="drawer-header">
+            <div>
+              <p className="eyebrow">Draft review</p>
+              <h2>Inspect and edit</h2>
+            </div>
+            <button type="button" className="secondary" onClick={requestClosePanels}>
+              Close
+            </button>
+          </div>
           <ItemDetail
             item={activeItem}
             draftContent={draftContent}
@@ -375,25 +412,26 @@ export function ListView() {
             >
               Submit edit
             </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={requestClosePanels}
-            >
-              Close
-            </button>
           </div>
-        </div>
+        </aside>
       )}
 
       {panel === "cancel" && activeItem && (
-        <div
-          className="panel panel-destructive"
+        <aside
+          className="detail-drawer panel-destructive"
           data-testid="cancel-panel"
           role="dialog"
           aria-labelledby="cancel-panel-title"
         >
-          <h2 id="cancel-panel-title">Cancel pending variant</h2>
+          <div className="drawer-header">
+            <div>
+              <p className="eyebrow">Destructive action</p>
+              <h2 id="cancel-panel-title">Cancel pending variant</h2>
+            </div>
+            <button type="button" className="secondary" onClick={closePanels}>
+              Close
+            </button>
+          </div>
           <p className="meta">
             Campaign {activeItem.campaignId} · variant {activeItem.variantId}
           </p>
@@ -439,15 +477,8 @@ export function ListView() {
             >
               Submit cancel
             </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={closePanels}
-            >
-              Close
-            </button>
           </div>
-        </div>
+        </aside>
       )}
 
       {snapshot && items.length === 0 && (
@@ -457,76 +488,83 @@ export function ListView() {
       )}
 
       {items.length > 0 && (
-        <div data-testid="results">
-          <h2 className="section-title">Pending variants</h2>
-          <div className="table-wrap list-desktop">
-            <table>
-              <thead>
-                <tr>
-                  <th>Campaign</th>
-                  <th>Variant</th>
-                  <th>Audience</th>
-                  <th>Scheduled (UTC)</th>
-                  <th>Publish state</th>
-                  <th>Calendar</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr
+        <div data-testid="results" className="triage-layout">
+          <section className="triage-list" aria-label="Pending variant triage">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Triage queue</p>
+                <h2 className="section-title">Pending variants</h2>
+              </div>
+              <span className="queue-count">{items.length} items</span>
+            </div>
+            <div className="variant-card-list" data-testid="list-mobile-cards">
+              {items.map((item) => {
+                const label = publicationStateLabel(
+                  item.publicationState,
+                  item.linkedinApiPublished,
+                );
+                return (
+                  <article
                     key={item.itemId}
-                    data-testid="variant-row"
+                    className={`list-card ${rowRiskClass(item)}`}
+                    data-testid="variant-card"
                     data-item-id={item.itemId}
                     data-risk={rowRiskClass(item)}
-                    className={rowRiskClass(item)}
                   >
-                    <td className="mono">{item.campaignId}</td>
-                    <td>
-                      <span className="title-cell" title={item.title || item.variantId}>
-                        <span className="mono">{item.variantId}</span>
-                      </span>
-                      <SupervisionMeta item={item} />
-                    </td>
-                    <td>{item.audience || ""}</td>
-                    <td className="mono">{item.scheduledAtUtc || ""}</td>
-                    <td>
+                    <button
+                      type="button"
+                      className="card-main"
+                      data-testid="variant-row"
+                      onClick={() => {
+                        setActive({
+                          campaignId: item.campaignId,
+                          variantId: item.variantId,
+                        });
+                        setSelectedItemId(item.itemId);
+                      }}
+                    >
                       <span
                         className="status-pill"
                         style={{ backgroundColor: item.statusColor }}
                       >
-                        {publicationStateLabel(
-                          item.publicationState,
-                          item.linkedinApiPublished,
-                        )}
-                      </span>{" "}
-                      <span className="meta">
-                        (source {item.publishState}; not LinkedIn API published)
+                        {label}
                       </span>
-                    </td>
-                    <td>
-                      <CalendarCell item={item} />
-                    </td>
-                    <td className="row-actions-cell">
+                      <span className="card-title title-cell" title={itemSummary(item)}>
+                        {itemSummary(item)}
+                      </span>
+                      <span className="card-meta">
+                        {item.audience || "Audience not set"} ·{" "}
+                        {formatSchedule(item.scheduledAtUtc)}
+                      </span>
+                      <span className="card-identity">
+                        <span className="mono">{item.campaignId}</span>
+                        {" / "}
+                        <span className="mono">{item.variantId}</span>
+                      </span>
+                      <SupervisionMeta item={item} />
+                    </button>
+                    <div className="row-actions-cell">
                       <button
                         type="button"
                         className="row-action"
+                        aria-label="Inspect / edit"
                         data-action="edit"
                         data-testid="row-edit"
                         disabled={!canMutate}
                         onClick={() => openEdit(item)}
                       >
-                        Inspect / edit
+                        Review
                       </button>
                       <button
                         type="button"
                         className="row-action secondary"
+                        aria-label="Reschedule / defer"
                         data-action="defer"
                         data-testid="row-defer"
                         disabled={!canMutate}
                         onClick={() => openDefer(item)}
                       >
-                        Reschedule / defer
+                        Schedule
                       </button>
                       <button
                         type="button"
@@ -538,72 +576,70 @@ export function ListView() {
                       >
                         Cancel
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="list-mobile-cards" data-testid="list-mobile-cards">
-            {items.map((item) => (
-              <article
-                key={`card-${item.itemId}`}
-                className={`list-card ${rowRiskClass(item)}`}
-                data-testid="variant-card"
-                data-item-id={item.itemId}
-                data-risk={rowRiskClass(item)}
-              >
-                <header>
-                  <span
-                    className="status-pill"
-                    style={{ backgroundColor: item.statusColor }}
-                  >
-                    {publicationStateLabel(
-                      item.publicationState,
-                      item.linkedinApiPublished,
-                    )}
-                  </span>{" "}
-                  <span className="mono">{item.campaignId}</span>
-                </header>
-                <p className="title-cell" title={item.title || item.variantId}>
-                  variant <span className="mono">{item.variantId}</span>
-                  {item.audience ? ` · ${item.audience}` : ""}
-                  {item.title ? ` · ${item.title}` : ""}
-                </p>
-                <p className="mono">UTC {item.scheduledAtUtc || "—"}</p>
-                <SupervisionMeta item={item} />
-                <div className="panel-actions">
-                  <button
-                    type="button"
-                    className="row-action"
-                    data-action="edit"
-                    disabled={!canMutate}
-                    onClick={() => openEdit(item)}
-                  >
-                    Inspect / edit
-                  </button>
-                  <button
-                    type="button"
-                    className="row-action secondary"
-                    data-action="defer"
-                    disabled={!canMutate}
-                    onClick={() => openDefer(item)}
-                  >
-                    Reschedule / defer
-                  </button>
-                  <button
-                    type="button"
-                    className="row-action row-action-destructive"
-                    data-action="cancel"
-                    disabled={!canMutate}
-                    onClick={() => openCancel(item)}
-                  >
-                    Cancel
-                  </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+
+          {selectedItem && !panel && (
+            <aside className="detail-drawer" data-testid="selected-detail">
+              <div className="drawer-header">
+                <div>
+                  <p className="eyebrow">Selected item</p>
+                  <h2>{itemSummary(selectedItem)}</h2>
                 </div>
-              </article>
-            ))}
-          </div>
+              </div>
+              <div className="detail-metadata">
+                <span className="meta-label">Campaign</span>
+                <span className="mono">{selectedItem.campaignId}</span>
+                <span className="meta-label">Variant</span>
+                <span className="mono">{selectedItem.variantId}</span>
+                <span className="meta-label">Schedule</span>
+                <span>{formatSchedule(selectedItem.scheduledAtUtc)}</span>
+              </div>
+              <p className="section-title">Calendar context</p>
+              <p className="meta">
+                <CalendarCell item={selectedItem} />
+              </p>
+              <details className="diagnostics-details">
+                <summary>Technical diagnostics</summary>
+                <p className="mono">
+                  source={selectedItem.publishState} ·
+                  linkedin_api_published={String(selectedItem.linkedinApiPublished)}
+                </p>
+              </details>
+              <div className="panel-actions">
+                <button
+                  type="button"
+                  className="row-action"
+                  aria-label="Inspect / edit"
+                  disabled={!canMutate}
+                  onClick={() => openEdit(selectedItem)}
+                >
+                  Review draft
+                </button>
+                <button
+                  type="button"
+                  className="row-action secondary"
+                  aria-label="Reschedule / defer"
+                  disabled={!canMutate}
+                  onClick={() => openDefer(selectedItem)}
+                >
+                  Change schedule
+                </button>
+                <button
+                  type="button"
+                  className="row-action row-action-destructive"
+                  disabled={!canMutate}
+                  onClick={() => openCancel(selectedItem)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </aside>
+          )}
         </div>
       )}
 

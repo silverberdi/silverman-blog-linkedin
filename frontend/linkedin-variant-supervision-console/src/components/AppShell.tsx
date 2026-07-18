@@ -32,8 +32,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const enablementSource = snapshot ?? scheduleSnapshot;
   const enablementText = enablementSource
     ? enablementSource.linkedinPublicationEnabled
-      ? "LinkedIn publication enablement is on (display-only blocked context; this page does not publish to LinkedIn and does not change SILVERMAN_LINKEDIN_PUBLICATION_ENABLED)."
-      : "LinkedIn publication enablement is off (display-only blocked context for real API publish). Pending variants remain listed; this does not hide the supervision window or bypass the guard."
+      ? "LinkedIn API publish guard is on. This console still only supervises."
+      : "LinkedIn API publish guard is off. Supervision stays available."
     : "";
 
   const needsReauth =
@@ -43,54 +43,29 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <main className="console-shell" data-testid="app-shell">
-      <header className="console-header">
-        <h1>LinkedIn variant supervision</h1>
-        <p className="lede">
-          Operational console for Flow A: <strong>List</strong> for pending
-          LinkedIn triage and <strong>Month</strong> for schedule comprehension.
-          Pending, queued, cancelled, blog handoff, and campaign{" "}
-          <span className="mono">flow_a_complete</span> are not LinkedIn API
-          published.
-        </p>
-      </header>
+      <header className="app-bar">
+        <div className="brand-lockup">
+          <p className="eyebrow">Flow A operations</p>
+          <h1>LinkedIn supervision</h1>
+        </div>
 
-      <Banner
-        kind={sessionBanner.kind}
-        text={sessionBanner.text}
-        testId="session-banner"
-      />
-      <Banner
-        kind={enablementSource?.linkedinPublicationEnabled ? "ok" : "warn"}
-        text={enablementText}
-        testId="enablement-banner"
-      />
-      <Banner
-        kind={statusBanner.kind}
-        text={statusBanner.text}
-        testId="status-banner"
-      />
-      <Banner
-        kind={actionBanner.kind}
-        text={actionBanner.text}
-        testId="action-banner"
-      />
-
-      <section
-        className="affordance-group affordance-nav"
-        data-testid="affordance-nav"
-        aria-label="View and refresh"
-      >
-        <ViewSwitcher activeView={activeView} onChange={requestViewChange} />
-        <div className="toolbar toolbar-nav">
+        <section
+          className="app-controls"
+          data-testid="affordance-nav"
+          aria-label="View and refresh"
+        >
+          <ViewSwitcher activeView={activeView} onChange={requestViewChange} />
           <button
             type="button"
+            className="icon-button"
+            aria-label="Refresh pending and schedule data"
             data-testid="load-btn"
             disabled={loading}
             onClick={() => void refreshAll()}
           >
             Refresh
           </button>
-          <div className="check-row toolbar-dry-run">
+          <div className="mode-toggle toolbar-dry-run">
             <input
               type="checkbox"
               id="shell-dry-run-default"
@@ -99,17 +74,21 @@ export function AppShell({ children }: { children: ReactNode }) {
               onChange={(e) => setDryRunDefault(e.target.checked)}
             />
             <label htmlFor="shell-dry-run-default">
-              Dry-run default (survives view switch)
+              {dryRunDefault ? "Dry-run" : "Commit"}
             </label>
           </div>
-        </div>
-      </section>
+        </section>
+      </header>
 
       <section
-        className="affordance-group affordance-session"
+        className="session-strip"
         data-testid="affordance-session"
         aria-label="Session"
       >
+        <div>
+          <span className={`session-dot session-${sessionState}`} aria-hidden="true" />
+          <span data-testid="session-banner">{sessionBanner.text}</span>
+        </div>
         <div className="toolbar toolbar-session">
           {needsReauth && (
             <button
@@ -132,25 +111,39 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </section>
 
+      <div className="alert-stack">
+        <Banner
+          kind={enablementSource?.linkedinPublicationEnabled ? "ok" : "warn"}
+          text={enablementText}
+          testId="enablement-banner"
+        />
+        <Banner
+          kind={statusBanner.kind}
+          text={statusBanner.text}
+          testId="status-banner"
+        />
+        <Banner
+          kind={actionBanner.kind}
+          text={actionBanner.text}
+          testId="action-banner"
+        />
+      </div>
+
       {!canMutate && sessionState !== "authenticated" && (
         <p className="note" data-testid="mutation-gated-note">
-          Schedule mutations (edit / defer / cancel / calendar schedule-update)
-          are disabled until you are authenticated with mutation permission.
-          The worker remains the authoritative rejector for unauthenticated
-          requests.
+          Mutations are disabled until you sign in with write permission.
         </p>
       )}
       {sessionState === "authenticated" && !canMutate && (
         <p className="note" data-testid="readonly-gated-note">
-          Read-only session: schedule mutations are not allowed. Visible
-          pending / queued context is for inspection only.
+          Read-only session: review is available, mutations are disabled.
         </p>
       )}
 
       <StatusSummary />
 
       <section
-        className="affordance-group affordance-filters"
+        className="filter-dock"
         data-testid="affordance-filters"
         aria-label="Filters"
       >
@@ -169,38 +162,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </section>
 
-      <p className="note">
-        Inspect / reschedule / defer / cancel live in List rows, Month agenda,
-        and the shared schedule editor — not next to Refresh. Cancel and real
-        commits require confirmation. Mutations use{" "}
-        <span className="mono">POST /correct-linkedin-variant</span>,{" "}
-        <span className="mono">POST /defer-linkedin-variant</span>,{" "}
-        <span className="mono">POST /cancel-linkedin-publication</span>, and{" "}
-        <span className="mono">POST /editorial-calendar/update-item-schedule</span>
-        . Public URL hosting and Google/OIDC activation remain deferred
-        (US-040D readiness only).
-      </p>
-
       <footer>
-        Guidance (repo docs — not mutation endpoints):{" "}
-        <span className="mono">
-          docs/operations/linkedin-variant-review-policy.md
-        </span>{" "}
-        (US-015),{" "}
-        <span className="mono">
-          docs/operations/linkedin-variant-quality-criteria.md
-        </span>{" "}
-        (US-016),{" "}
-        <span className="mono">
-          docs/operations/linkedin-variant-supervision-mechanics.md
-        </span>{" "}
-        (US-017). Data: authenticated{" "}
-        <span className="mono">
-          GET /flow-a/linkedin-variants/pending-supervision
-        </span>{" "}
-        and{" "}
-        <span className="mono">GET /flow-a/schedule-visibility</span> (ADR-0001
-        worker HTTP).
+        Public URL hosting and Google/OIDC activation remain deferred. Technical
+        diagnostics stay available in detail panels.
       </footer>
     </main>
   );

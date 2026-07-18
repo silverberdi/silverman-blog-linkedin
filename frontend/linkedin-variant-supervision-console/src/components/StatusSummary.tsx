@@ -62,6 +62,7 @@ export function StatusSummary() {
     hiddenCriticalCount,
     showHiddenCritical,
     loading,
+    setFilters,
   } = useSupervisionStore();
 
   const hasData = snapshot != null || scheduleSnapshot != null;
@@ -91,11 +92,43 @@ export function StatusSummary() {
       data-testid="status-summary"
       aria-label="At-a-glance operational counts"
     >
-      <div className="count-strip" data-testid="count-strip" role="list">
+      <div className="count-strip" data-testid="count-strip" role="group">
         {COUNT_DEFS.map((def) => {
           const value = operationalCounts[def.key];
+          const applyMetric = () => {
+            // Design D4: reset focus flags, then apply target (preserve channel/campaign).
+            setFilters((prev) => {
+              const cleared = {
+                ...prev,
+                blockedOnly: false,
+                dueSoonOnly: false,
+                publicationStates: [] as typeof prev.publicationStates,
+              };
+              if (def.key === "blocked") {
+                return { ...cleared, blockedOnly: true };
+              }
+              if (def.key === "dueSoon") {
+                return { ...cleared, dueSoonOnly: true };
+              }
+              if (def.key === "failed") {
+                return { ...cleared, publicationStates: ["failed"] };
+              }
+              if (def.key === "pending") {
+                return { ...cleared, publicationStates: ["pending"] };
+              }
+              if (def.key === "deferred") {
+                return { ...cleared, publicationStates: ["deferred"] };
+              }
+              if (def.key === "recentlyPublished") {
+                return { ...cleared, publicationStates: ["published"] };
+              }
+              // upcoming: clear focus only
+              return cleared;
+            });
+          };
           return (
-            <div
+            <button
+              type="button"
               key={def.key}
               className={[
                 "count-chip",
@@ -105,14 +138,15 @@ export function StatusSummary() {
               ]
                 .filter(Boolean)
                 .join(" ")}
-              role="listitem"
+              aria-label={`${def.label}: ${value}. ${def.hint}`}
               title={def.hint}
               data-testid={`count-${def.key}`}
               data-count={value}
+              onClick={applyMetric}
             >
               <span className="count-chip-value">{value}</span>
               <span className="count-chip-label">{def.label}</span>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -122,10 +156,7 @@ export function StatusSummary() {
         {scheduleSnapshot
           ? ` · schedule ${scheduleSnapshot.year}-${String(scheduleSnapshot.month).padStart(2, "0")} ${scheduleSnapshot.status}`
           : ""}
-        {" · "}
-        Counts follow current filters. Zero is empty, not a system failure.
-        Pending / queued / cancelled / flow_a_complete / blog handoff are not
-        LinkedIn API published.
+        {" · "}Counts follow current filters.
       </p>
       {hiddenCriticalCount > 0 && (
         <div

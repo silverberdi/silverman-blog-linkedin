@@ -185,7 +185,7 @@ export function ScheduleEditorPanel() {
     setUnsavedScheduleDraft(true);
   }
 
-function close() {
+  function close() {
     if (unsavedScheduleDraft) {
       const ok = window.confirm(
         "You have an unsaved schedule draft. Close and discard it?",
@@ -343,16 +343,27 @@ function close() {
 
   return (
     <div
-      className="panel"
+      className="detail-drawer schedule-drawer"
       data-testid="schedule-editor-panel"
       data-entry={active.entry}
       data-channel={active.channel}
       data-editable={active.scheduleEditable ? "true" : "false"}
     >
-      <h2>Schedule editor</h2>
-      <p className="meta">
-        {active.title || active.itemId} · {active.channel} · entry {active.entry}
-      </p>
+      <div className="drawer-header">
+        <div>
+          <p className="eyebrow">Schedule</p>
+          <h2>Schedule editor</h2>
+        </div>
+        <button
+          type="button"
+          className="secondary"
+          data-testid="schedule-close"
+          onClick={close}
+        >
+          Close
+        </button>
+      </div>
+      <p className="meta">{active.title || active.itemId} · {active.channel}</p>
       {mutationBlocked && (
         <div className="banner warn" data-testid="schedule-editor-auth-blocked">
           {sessionState === "expired"
@@ -414,14 +425,6 @@ function close() {
             {dryRun ? "Validate schedule (dry-run)" : "Commit schedule change"}
           </button>
         )}
-        <button
-          type="button"
-          className="secondary"
-          data-testid="schedule-close"
-          onClick={close}
-        >
-          Close
-        </button>
       </div>
     </div>
   );

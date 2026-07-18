@@ -439,6 +439,13 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
+  - [ ] **US-040F**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed

@@ -191,6 +191,14 @@ export function MonthCalendarView() {
 
   return (
     <section data-testid="month-calendar-view" className="month-calendar">
+      <div className="section-heading calendar-heading">
+        <div>
+          <p className="eyebrow">Publication plan</p>
+          <h2 className="section-title">Month calendar</h2>
+        </div>
+        <span className="queue-count">{filteredScheduleItems.length} items</span>
+      </div>
+
       <div className="calendar-nav">
         <button
           type="button"
@@ -201,9 +209,9 @@ export function MonthCalendarView() {
         >
           Previous
         </button>
-        <h2 className="section-title calendar-month-label" data-testid="calendar-month-label">
+        <h3 className="calendar-month-label" data-testid="calendar-month-label">
           {monthLabel(monthCursor)} (UTC)
-        </h2>
+        </h3>
         <button
           type="button"
           className="secondary"
@@ -215,12 +223,8 @@ export function MonthCalendarView() {
         </button>
       </div>
 
-      <p className="sup-meta" data-testid="calendar-tz-note">
-        Day placement uses the <strong>UTC calendar date</strong> of{" "}
-        <span className="mono">scheduled_at_utc</span>. Each chip also shows
-        operator-local time. Future unpublished items open the shared schedule
-        editor; published/historical remain read-only. Schedule edit does not
-        publish to LinkedIn API or blog.
+      <p className="sup-meta compact-help" data-testid="calendar-tz-note">
+        UTC calendar date placement. Select a day for agenda detail and schedule actions.
       </p>
 
       {scheduleSnapshot?.issues && scheduleSnapshot.issues.length > 0 && (

@@ -16,6 +16,35 @@ const CONSOLE_BASE = "/flow-a/console/linkedin-variant-supervision/";
 export default defineConfig({
   plugins: [react()],
   base: CONSOLE_BASE,
+  server: {
+    // Local UX preview: SPA on Vite, APIs proxied to the LAN worker (same relative paths).
+    proxy: {
+      "/flow-a/linkedin-variants": {
+        target: process.env.VITE_WORKER_PROXY || "http://192.168.0.194:8010",
+        changeOrigin: true,
+      },
+      "/flow-a/schedule-visibility": {
+        target: process.env.VITE_WORKER_PROXY || "http://192.168.0.194:8010",
+        changeOrigin: true,
+      },
+      "/correct-linkedin-variant": {
+        target: process.env.VITE_WORKER_PROXY || "http://192.168.0.194:8010",
+        changeOrigin: true,
+      },
+      "/defer-linkedin-variant": {
+        target: process.env.VITE_WORKER_PROXY || "http://192.168.0.194:8010",
+        changeOrigin: true,
+      },
+      "/cancel-linkedin-publication": {
+        target: process.env.VITE_WORKER_PROXY || "http://192.168.0.194:8010",
+        changeOrigin: true,
+      },
+      "/editorial-calendar": {
+        target: process.env.VITE_WORKER_PROXY || "http://192.168.0.194:8010",
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     outDir: path.resolve(
       __dirname,

@@ -34,11 +34,20 @@ export function Filters() {
 
   return (
     <div className="panel filters-panel" data-testid="filters">
-      <h2>Filters</h2>
-      <p className="sup-meta">
-        Same filter selection applies to List and Month calendar. Due soon =
-        next 48 hours. Critical failures are never hidden silently.
-      </p>
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Focus</p>
+          <h2>Filters</h2>
+        </div>
+        <button
+          type="button"
+          className="secondary"
+          data-testid="filters-reset"
+          onClick={resetFilters}
+        >
+          Reset
+        </button>
+      </div>
 
       <div className="filters-grid">
         <div>
@@ -101,6 +110,7 @@ export function Filters() {
             <label key={state} className="filter-chip">
               <input
                 type="checkbox"
+                data-testid={`filter-state-${state}`}
                 checked={filters.publicationStates.includes(state)}
                 onChange={() => toggleState(state)}
               />
@@ -109,17 +119,6 @@ export function Filters() {
           ))}
         </div>
       </fieldset>
-
-      <div className="panel-actions">
-        <button
-          type="button"
-          className="secondary"
-          data-testid="filters-reset"
-          onClick={resetFilters}
-        >
-          Reset filters
-        </button>
-      </div>
 
       {hiddenCriticalCount > 0 && (
         <div

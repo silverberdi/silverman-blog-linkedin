@@ -275,9 +275,10 @@ This backlog describes the outstanding business and operational capabilities req
 - Provide a dark, mobile-friendly month calendar view for upcoming publications.
 - Allow future publication schedule changes directly from the calendar.
 - Keep the console ready for future public URL operation with Google authentication.
+- Provide a modern dark operational UX that uses desktop width effectively, works comfortably from mobile, reduces visible technical noise, and makes triage, calendar comprehension, and safe actions obvious.
 - Use worker HTTP capabilities without bypassing publication guards.
 
-**Completion outcome:** Operators can supervise Flow A LinkedIn variants and upcoming editorial publication timing from one usable dark console, switching between list and month calendar views during the optional pre-send window, without opening multiple raw files.
+**Completion outcome:** Operators can supervise Flow A LinkedIn variants and upcoming editorial publication timing from one modern, usable dark console, switching between list and month calendar views during the optional pre-send window, taking safe actions from laptop or phone without opening multiple raw files or reading technical implementation prose.
 
 
 ## P4 — Flow B
