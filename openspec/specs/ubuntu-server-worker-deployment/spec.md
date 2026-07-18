@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Version-controlled, isolated Docker Compose deployment for the `silverman-blog-linkedin` HTTP worker on Ubuntu server `192.168.0.194`. The worker runs in its own compose project on host port `8010`, mounts the shared editorial tree at `/home/silverman/compartido_mac/silverman-blog-linkedin`, loads secrets from a server-local `.env`, and is operated via deploy and smoke scripts—without modifying `local-ai-stack` or shared-stack services. n8n continues to call the worker over HTTP only (ADR-0001).
+Version-controlled, isolated Docker Compose deployment for the `silverman-blog-linkedin` HTTP worker on Ubuntu server `192.168.0.194`. The worker runs in its own compose project on host port `8010`, mounts the shared editorial tree at `/home/silverman/compartido_mac/silverman-blog-linkedin`, loads secrets from a server-local `.env`, and is operated via deploy and smoke scripts—without modifying `local-ai-stack` or shared-stack services. The worker compose may join the external `local-ai-stack_backend` network for n8n webhook DNS used by operational alerts. n8n continues to call the worker over HTTP only (ADR-0001).
 
 ## Requirements
 
@@ -10,10 +10,17 @@ Version-controlled, isolated Docker Compose deployment for the `silverman-blog-l
 
 The repository SHALL provide an isolated Docker Compose file at `deploy/server/silverman-worker.compose.yaml` for deploying the worker on the Ubuntu server without modifying the existing `local-ai-stack` compose or shared-stack services.
 
-#### Scenario: Compose is self-contained
+Isolation means the worker runs as its own compose project and deploy commands MUST NOT stop or recreate shared-stack containers. The worker compose MAY attach to the Docker network `local-ai-stack_backend` marked `external: true` so the container can resolve the n8n service DNS name for operational-alert webhook emission. The worker compose MUST NOT define or depend_on local-ai-stack application services (n8n, postgres, minio, qdrant, portainer, backup-runner, auto-ingest-runner, n8n-gateway).
+
+#### Scenario: Compose is self-contained for lifecycle
 
 - **WHEN** an operator inspects `deploy/server/silverman-worker.compose.yaml`
-- **THEN** it defines a worker service that builds from the repository Dockerfile, uses `restart: unless-stopped`, and does not reference or depend on `local-ai-stack` services
+- **THEN** it defines a worker service that builds from the repository Dockerfile, uses `restart: unless-stopped`, and does not define or `depends_on` local-ai-stack application services
+
+#### Scenario: Optional external n8n network for alerts
+
+- **WHEN** operational alert emission targets the internal n8n webhook DNS name
+- **THEN** the worker compose MAY list `local-ai-stack_backend` under `networks` with `external: true` and MUST NOT embed that network’s services into the worker project
 
 #### Scenario: Deploy does not affect shared stack
 

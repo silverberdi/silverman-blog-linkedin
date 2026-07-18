@@ -1,6 +1,6 @@
 # Ubuntu server worker deployment
 
-Deploy the `silverman-blog-linkedin` HTTP worker on the Ubuntu server (`silverman@192.168.0.194`) as an **isolated Docker Compose project**. This deployment does **not** modify `local-ai-stack` (n8n, postgres, minio, qdrant, portainer, backup-runner, auto-ingest-runner, n8n-gateway).
+Deploy the `silverman-blog-linkedin` HTTP worker on the Ubuntu server (`silverman@192.168.0.194`) as an **isolated Docker Compose project**. This deployment does **not** modify `local-ai-stack` services (n8n, postgres, minio, qdrant, portainer, backup-runner, auto-ingest-runner, n8n-gateway). The worker compose MAY attach to the external Docker network `local-ai-stack_backend` so operational-alert webhooks can reach n8n via internal DNS (`http://n8n:5678/...`) without the public gateway API-key gate — see [flow-a-operational-alerts.md](../operations/flow-a-operational-alerts.md).
 
 **Status and live flags:** [CURRENT-STATE.md](../CURRENT-STATE.md), [RUNTIME-STATE.md](../RUNTIME-STATE.md).
 **Build identity:** Image built with `BUILD_REVISION` from git HEAD at deploy time (not `SILVERMAN_BUILD_REVISION`).

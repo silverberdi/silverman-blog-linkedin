@@ -902,16 +902,20 @@ def test_concurrent_retrigger_immediately_after_restart_loses_to_non_stale_claim
     results: list = []
     lock = threading.Lock()
 
-    def _retrigger() -> None:
-        barrier.wait()
-        with (
-            patch(
-                "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post"
-            ) as publish_mock,
-            patch(
-                "silverman_blog_linkedin.blog_image_generation.ComfyUIHttpClient"
-            ) as comfy_cls,
-        ):
+    # Patch once in the parent thread. Concurrent patch()/unpatch() of the same
+    # targets from two threads can leave MagicMock installed on the modules and
+    # contaminate later tests in the full suite.
+    with (
+        patch(
+            "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post"
+        ) as publish_mock,
+        patch(
+            "silverman_blog_linkedin.blog_image_generation.ComfyUIHttpClient"
+        ) as comfy_cls,
+    ):
+
+        def _retrigger() -> None:
+            barrier.wait()
             outcome = execute_due_editorial_calendar_flow_a(
                 editorial_base,
                 now_utc="2026-07-09T20:00:00Z",
@@ -919,14 +923,14 @@ def test_concurrent_retrigger_immediately_after_restart_loses_to_non_stale_claim
             )
             publish_mock.assert_not_called()
             comfy_cls.assert_not_called()
-        with lock:
-            results.append(outcome)
+            with lock:
+                results.append(outcome)
 
-    threads = [threading.Thread(target=_retrigger) for _ in range(2)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
+        threads = [threading.Thread(target=_retrigger) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
 
     assert len(results) == 2
     for outcome in results:

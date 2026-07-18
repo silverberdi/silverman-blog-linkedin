@@ -100,8 +100,25 @@ def test_compose_build_revision_arg(compose_text: str) -> None:
     assert "BUILD_REVISION" in compose_text
 
 
-def test_compose_does_not_reference_local_ai_stack(compose_text: str) -> None:
-    assert "local-ai-stack" not in compose_text
+def test_compose_allows_external_n8n_network_only(compose_text: str) -> None:
+    """Option A: external local-ai-stack_backend OK; no shared service defs."""
+    assert "local-ai-stack_backend" in compose_text
+    assert "external: true" in compose_text
+    # Must not embed shared-stack application services into this project
+    forbidden_service_markers = (
+        "image: n8nio/n8n",
+        "container_name: n8n",
+        "postgres:",
+        "minio:",
+        "qdrant:",
+        "portainer:",
+        "backup-runner:",
+        "auto-ingest-runner:",
+        "n8n-gateway:",
+        "depends_on:",
+    )
+    for marker in forbidden_service_markers:
+        assert marker not in compose_text, f"unexpected shared-stack marker: {marker}"
 
 
 def test_env_example_exists() -> None:
