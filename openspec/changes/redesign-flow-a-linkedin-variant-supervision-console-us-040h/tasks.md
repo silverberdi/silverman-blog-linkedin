@@ -64,7 +64,7 @@
 - [x] 7.2 `/opsx-apply` implementation of tasks 1–5 (and 4 evidence)
 - [x] 7.3 `/opsx-verify` after implementation (re-run if post-verify edits)
 - [x] 7.4 Explicit user approval → implementation commit (change + frontend + static + honest docs)
-- [ ] 7.5 `/opsx-sync` → separate sync commit
+- [x] 7.5 `/opsx-sync` → separate sync commit
 - [ ] 7.6 `/opsx-archive` → separate archive commit
 - [ ] 7.7 Push only with explicit approval
 - [ ] 7.8 Deploy only with explicit approval (required before Visual DoD / walkthrough unless an agreed preview is documented)
