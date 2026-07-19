@@ -21,9 +21,9 @@
 
 - [x] 4.1 Update `docs/CURRENT-STATE.md` for the display-mapping behavior (no false claim of Story accepted)
 - [x] 4.2 Run targeted pytest + Vitest for touched modules; `git diff --check`
-- [ ] 4.3 After deploy approval: smoke July schedule-visibility shows completed blogs as `publication_state: completed` with `linkedin_api_published: false`
+- [x] 4.3 After deploy approval: smoke July schedule-visibility shows completed blogs as `publication_state: completed` with `linkedin_api_published: false`
 
 ## 5. Business validation
 
-- [ ] 5.1 Confirm US-040M acceptance criteria against deployed/smoke evidence; update progress checklist only for demonstrated outcomes
-- [ ] 5.2 Leave US-040L and Flow B untouched; do not close BL-015 or mark G–K Story accepted as a side effect
+- [x] 5.1 Confirm US-040M acceptance criteria against deployed/smoke evidence; update progress checklist only for demonstrated outcomes
+- [x] 5.2 Leave US-040L and Flow B untouched; do not close BL-015 or mark G–K Story accepted as a side effect

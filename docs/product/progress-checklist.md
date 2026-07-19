@@ -488,13 +488,13 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated — requires Visual DoD + operator walkthrough
     - [ ] Story accepted — operator walkthrough gate (not Vitest alone)
-  - [ ] **US-040M** — Completed blogs show as Published on blog (not Planned)
+  - [x] **US-040M** — Completed blogs show as Published on blog (not Planned)
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated — requires Visual DoD + operator walkthrough
-    - [ ] Story accepted — operator walkthrough gate (not Vitest alone)
+    - [x] Business outcome demonstrated — deployed `192.168.0.194:8010` (`2d46649`; `index-DXmpFC-X.js`); July blogs `publication_state: completed`
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19 (incognito walkthrough; stale-bundle cache noted)
+    - [x] Story accepted — operator-accepted 2026-07-19
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed
