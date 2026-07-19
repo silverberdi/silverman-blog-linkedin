@@ -1047,7 +1047,7 @@ Required scenes (desktop + mobile): event open; modal hierarchy; edit/reschedule
 
 As a content operator, I want the week/month grids, event times, and reschedule controls to work in **my local timezone**, so that I do not have to translate UTC or “another part of the world’s” calendar days while planning posts.
 
-**Status:** Implemented in console layer (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040i`; Vitest with `TZ=America/Chicago` + ~1280/~375 viewport matrix + production static rebuild `index-DV0R4K8U.js` / `index-BGvbD0Jm.css`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated (browser capture unavailable in apply environment; not deployed). US-040J reopen and US-040K density not delivered. US-040G/H Story accepted remain separately gated.
+**Status:** Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040i` archived; Vitest with `TZ=America/Chicago` + ~1280/~375 viewport matrix + production static rebuild; live `index-DV0R4K8U.js` / `index-BGvbD0Jm.css`; git `a1bd3cd`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated. US-040J reopen and US-040K density not delivered. US-040G/H Story accepted remain separately gated.
 
 **UX intent (normative)**
 
