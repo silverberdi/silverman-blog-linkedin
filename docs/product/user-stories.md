@@ -1394,7 +1394,7 @@ As a content operator, I want Flow B gap and cadence knobs stored in the editori
 
 ### US-077 — Detect Upcoming LinkedIn Calendar Gaps
 
-**Status:** Implemented locally 2026-07-19 (OpenSpec change `detect-flow-b-calendar-gaps-us-077`). Automated AC coverage via `tests/test_flow_b_calendar_gap_detect.py`. **Not Story accepted** (operator walkthrough pending). **Not deployed.** BL-019 remains open. US-078–US-082 not implemented.
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=52fa1c7…`; OpenSpec archive `2026-07-19-detect-flow-b-calendar-gaps-us-077`). Automated AC coverage via `tests/test_flow_b_calendar_gap_detect.py`; deploy verify OVERALL PASS; OpenAPI exposes `GET /flow-b/calendar-gaps`. **Not Story accepted** (operator walkthrough pending). BL-019 remains open. US-078–US-082 not implemented.
 
 **Description**
 

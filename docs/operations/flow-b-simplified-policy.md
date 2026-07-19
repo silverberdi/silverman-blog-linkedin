@@ -1,6 +1,6 @@
 # Flow B simplified policy (US-074 / US-075)
 
-**Status:** Policy defined 2026-07-19 (documentation). **US-076** gap operator settings persistence is **implemented and deployed**. **US-077** next-week gap **detect** is **implemented locally** (authenticated `GET /flow-b/calendar-gaps`; not Story accepted / not deployed as of apply). **US-078–US-082** runtime (discovery, draft, approve, trigger) remains **not** implemented.
+**Status:** Policy defined 2026-07-19 (documentation). **US-076** gap operator settings persistence is **implemented and deployed**. **US-077** next-week gap **detect** is **implemented and deployed** (authenticated `GET /flow-b/calendar-gaps`; not Story accepted). **US-078–US-082** runtime (discovery, draft, approve, trigger) remains **not** implemented.
 **Story IDs:** renumbered 2026-07-19 to match apply order (settings=076 … trigger=082).
 **Product surface:** **Silverman Authority Manager**
 **Planning authority:** [planning-notes-flow-b-simplification.md](../product/planning-notes-flow-b-simplification.md)
