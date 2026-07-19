@@ -201,6 +201,35 @@ export function format422Detail(body: unknown): string {
     if (typeof detail === "string") {
       return `Validation failed (422): ${detail}`;
     }
+    if (
+      detail &&
+      typeof detail === "object" &&
+      "errors" in detail &&
+      Array.isArray((detail as { errors: unknown }).errors)
+    ) {
+      const parts = (detail as { errors: unknown[] }).errors
+        .map((item) => {
+          if (!item || typeof item !== "object") {
+            return null;
+          }
+          const row = item as {
+            field?: unknown;
+            code?: unknown;
+            message?: unknown;
+          };
+          if (typeof row.message === "string" && row.message.trim()) {
+            return row.message;
+          }
+          if (typeof row.code === "string" && row.code.trim()) {
+            return row.code;
+          }
+          return null;
+        })
+        .filter(Boolean);
+      if (parts.length) {
+        return `Validation failed (422): ${parts.join("; ")}`;
+      }
+    }
     if (Array.isArray(detail)) {
       const parts = detail
         .map((item) => {

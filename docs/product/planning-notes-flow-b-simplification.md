@@ -1,7 +1,8 @@
 # Planning notes — Flow B simplification
 
-**Status:** All P4 planning decisions **locked 2026-07-19**. US-074/US-075 normative policy applied: [flow-b-simplified-policy.md](../operations/flow-b-simplified-policy.md). OpenSpec `define-simplified-flow-b-us-074-075` tasks complete (Story accepted pending operator review).  
-**Product surface name:** **Silverman Authority Manager**.  
+**Status:** All P4 planning decisions **locked 2026-07-19**. US-074/US-075 Story accepted; BL-016 closed. Policy: [flow-b-simplified-policy.md](../operations/flow-b-simplified-policy.md).
+**Story IDs renumbered 2026-07-19** so US numbers match apply order (see mapping below).
+**Product surface name:** **Silverman Authority Manager**.
 **Canonical executables:** [backlog.md](backlog.md) P4 (BL-016–BL-019), [user-stories.md](user-stories.md) **US-074–US-082**, [progress-checklist.md](progress-checklist.md).
 
 ## Agreed direction (normative for P4)
@@ -14,7 +15,7 @@
 - After approval: publish → package → schedule → optional LinkedIn supervision (existing Flow A behavior).
 - Operator UI: **extend Silverman Authority Manager** (no separate Flow B app).
 
-## Calendar / gap sensor (BL-019 / US-080–US-081) — locked
+## Calendar / gap sensor (BL-019 / US-076–US-077 + US-082) — locked
 
 Calendar is a **weekly gap sensor**, not a daily “is tomorrow empty?” ping.
 
@@ -41,7 +42,7 @@ Typical run: Friday afternoon (operator-local), configurable
 | Draft layout | **`blog-posts/pending-approval/`** → on approve → **`blog-posts/ready/`** |
 | Spill | **Algorithm A:** target-week gap days → other days in week with capacity → forward day-by-day |
 
-### Operator settings (Postgres `silverman_linkedin_db` + UI) — US-082
+### Operator settings (Postgres `silverman_linkedin_db` + UI) — US-076
 
 | Key | Default | Role |
 |-----|---------|------|
@@ -55,7 +56,7 @@ Typical run: Friday afternoon (operator-local), configurable
 | `max_drafts_per_weekly_run` | `2` | Upstream blogs per weekly batch |
 | `density_max_per_local_day` | `2` | Mirror US-040K until BL-021 |
 
-### Spill algorithm A (US-079) — locked
+### Spill algorithm A (US-081) — locked
 
 When placing LinkedIn variants after Flow B approve + Flow A package:
 
@@ -63,14 +64,14 @@ When placing LinkedIn variants after Flow B approve + Flow A package:
 2. Then other days **in the target week** with remaining capacity.
 3. Then **forward** day-by-day after the week (“siguiente(s) día disponible”) under max 2.
 
-### Draft filesystem (US-077 / US-079) — locked option A
+### Draft filesystem (US-079 / US-081) — locked option A
 
 - Unapproved AI blogs live in **`blog-posts/pending-approval/`** (same Markdown + image pair rules as `ready/`).
 - Flow A MUST NOT consume `pending-approval/` as publishable input.
 - On approve: promote/move into **`blog-posts/ready/`**, then Flow A path.
-- Persist gap batch / ISO week metadata with the draft when created from US-081.
+- Persist gap batch / ISO week metadata with the draft when created from US-082.
 
-## Discovery / models (US-076 / US-077) — locked
+## Discovery / models (US-078 / US-079) — locked
 
 **Positioning:** authority / referent — not news spreader. No “X vs Y”, “what’s new”, or headline rebroadcast as the discovery objective.
 
@@ -91,10 +92,10 @@ When placing LinkedIn variants after Flow B approve + Flow A package:
 ## Apply order (OpenSpec)
 
 ```text
-US-074 → US-075 → US-082 → US-080 → US-076 → US-077 → US-078 → US-079 → US-081
+US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-081 → US-082
 ```
 
-First OpenSpec change (artifacts complete — awaiting approval before `/opsx-apply`): `openspec/changes/define-simplified-flow-b-us-074-075/` (US-074 + US-075 docs/policy). Runtime stories follow in separate approved changes.
+First OpenSpec change **archived** (`2026-07-19-define-simplified-flow-b-us-074-075`): US-074 + US-075 docs/policy. **US-076** settings persistence **implemented locally** (`persist-flow-b-gap-operator-settings-us-076`; not Story accepted / not deployed). Next runtime: **US-077** (gap detect).
 
 ## Topics
 
@@ -105,6 +106,20 @@ BL-020 hand-curated backlog is optional enrichment, not a prerequisite.
 ## Story ID note
 
 Executable P4 stories: **US-074–US-082**. Do not collide with BL-031 **US-041** (calendar DB).
+
+### ID remapping (2026-07-19)
+
+| Apply step | New ID | Former ID | Story |
+|------------|--------|-----------|-------|
+| Settings | **US-076** | US-082 | Persist/edit gap operator settings |
+| Detect | **US-077** | US-080 | Detect next-week gaps |
+| Discovery | **US-078** | US-076 | AI topic discovery |
+| Draft | **US-079** | US-077 | Generate blog draft |
+| Approve UI | **US-080** | US-078 | Present approve/reject |
+| Promote | **US-081** | US-079 | Promote + spill A |
+| Trigger | **US-082** | US-081 | n8n→HTTP weekly trigger |
+
+US-074 / US-075 unchanged.
 
 ## Explicitly deferred / out of early Flow B
 

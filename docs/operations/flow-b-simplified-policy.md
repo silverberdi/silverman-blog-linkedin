@@ -1,12 +1,13 @@
 # Flow B simplified policy (US-074 / US-075)
 
-**Status:** Policy defined 2026-07-19 (documentation). Runtime (US-076–US-082) **not** implemented.  
-**Product surface:** **Silverman Authority Manager**  
-**Planning authority:** [planning-notes-flow-b-simplification.md](../product/planning-notes-flow-b-simplification.md)  
-**Stories:** BL-016 — [US-074](../product/user-stories.md), [US-075](../product/user-stories.md)  
-**OpenSpec:** `openspec/changes/define-simplified-flow-b-us-074-075` (capability `flow-b-simplified-process`)
+**Status:** Policy defined 2026-07-19 (documentation). **US-076** gap operator settings persistence is **implemented locally** (Postgres + Authority Manager UI; not Story accepted / not deployed as of apply). **US-077–US-082** runtime (detect, trigger, discovery, draft, approve) remains **not** implemented.
+**Story IDs:** renumbered 2026-07-19 to match apply order (settings=076 … trigger=082).
+**Product surface:** **Silverman Authority Manager**
+**Planning authority:** [planning-notes-flow-b-simplification.md](../product/planning-notes-flow-b-simplification.md)
+**Stories:** BL-016 — [US-074](../product/user-stories.md), [US-075](../product/user-stories.md); settings SoT — [US-076](../product/user-stories.md)
+**OpenSpec:** `openspec/changes/define-simplified-flow-b-us-074-075` (capability `flow-b-simplified-process`); settings capability `flow-b-gap-operator-settings` (US-076)
 
-This document is the operator-facing normative policy for simplified Flow B. It does **not** implement discovery, settings, gap sensor endpoints, approve UI, or n8n activation.
+This document is the operator-facing normative policy for simplified Flow B. Editable gap operator settings are persisted via **Postgres `silverman_linkedin_db` + Silverman Authority Manager UI** (US-076 / `GET`+`PUT /flow-b/gap-operator-settings`), with documented defaults including `gap_trigger_enabled=false`. This document does **not** implement gap detect, trigger, discovery, draft, or approve endpoints.
 
 ---
 
@@ -38,7 +39,7 @@ weekly gap or explicit trigger
 - News-spreader discovery (“X vs Y”, “what’s new”, headline rebroadcast)  
 - Second mandatory LinkedIn approval after blog OK  
 
-Cross-links (runtime, not this doc): operator settings **US-082**; detect **US-080**; trigger **US-081**; discovery/draft **US-076/US-077**; approve/promote **US-078/US-079**.
+Cross-links (runtime, not this doc): operator settings **US-076**; detect **US-077**; trigger **US-082**; discovery/draft **US-078/US-079**; approve/promote **US-080/US-081**.
 
 ---
 
@@ -61,7 +62,7 @@ Cross-links (runtime, not this doc): operator settings **US-082**; detect **US-0
 Calendar is a **weekly gap sensor** (not a daily “is tomorrow empty?” ping).
 
 ```text
-Typical run: Friday afternoon (operator-local), configurable via DB+UI (US-082)
+Typical run: Friday afternoon (operator-local), configurable via DB+UI (US-076)
   → Scan Mon–Sun of the NEXT operator-local week
   → Gap day = 0 LinkedIn posts (pending / queued / published)
   → Days with ≥1 are NOT gaps
@@ -73,18 +74,18 @@ Typical run: Friday afternoon (operator-local), configurable via DB+UI (US-082)
 |------|---------|--------|
 | Gap definition | **0** LinkedIn posts that local day | ≥1 → not a gap for trigger |
 | Scan window | Next operator-local week (Mon–Sun) | |
-| Typical cron intent | Friday afternoon → following week | Clock truth in DB/UI (US-082) |
+| Typical cron intent | Friday afternoon → following week | Clock truth in DB/UI (US-076) |
 | `min_lead_days` | **5** | Do not target a gap day closer than this lead |
 | `max_drafts_per_weekly_run` | **2** | Upstream blogs per weekly batch |
 | `gap_trigger_enabled` | **false** until validated | Fail-closed |
 | Idempotency key | `flow_b_gap_week:{operator_tz}:{YYYY}-W{ww}` | Re-run → no-op if batch pending/completed |
 | Orchestration | **n8n Schedule → worker HTTP** (ADR-0001) | Worker no-ops outside window / when disabled; no Execute Command |
 
-Full settings key list: see planning notes / US-082.
+Full settings key list and defaults: see planning notes / US-076. **Runtime SoT for those knobs:** Postgres table `flow_b_gap_operator_settings` in `silverman_linkedin_db` (same `SILVERMAN_CALENDAR_DATABASE_URL` as US-041 calendar), edited via authenticated Authority Manager **Gap settings** UI. When no row exists, documented defaults apply (`gap_trigger_enabled=false`, friday/`15:00`, etc.). Saving settings does **not** enable LinkedIn API publish. Detect/trigger remain separate stories (US-077 / US-082).
 
 ---
 
-## 4. Spill algorithm A (US-079 — policy recorded here)
+## 4. Spill algorithm A (US-081 — policy recorded here)
 
 After approve + Flow A package, when placing LinkedIn variants:
 
@@ -92,11 +93,11 @@ After approve + Flow A package, when placing LinkedIn variants:
 2. Then other days **in the target week** with remaining capacity.  
 3. Then **forward** day-by-day after the week (“siguiente(s) día disponible”) under US-040K max 2.
 
-Runtime scheduling behavior is owned by **US-079**; this section locks the algorithm for implementers.
+Runtime scheduling behavior is owned by **US-081**; this section locks the algorithm for implementers.
 
 ---
 
-## 5. Discovery posture (US-076 — policy recorded here)
+## 5. Discovery posture (US-078 — policy recorded here)
 
 | Item | Normative |
 |------|-----------|

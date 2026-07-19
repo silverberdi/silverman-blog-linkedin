@@ -1231,7 +1231,7 @@ Operator walkthrough gate closed 2026-07-19 (incognito confirmation on deployed 
 
 **Business context:** Lock the simplified Flow B process: AI topic discovery → AI blog draft → one human blog-approval gate → then Flow A. Career north star: authority for senior leadership / architecture / transformation / AI roles (≥ ~USD 7,000). Operator surface: **Silverman Authority Manager**. Planning notes: [planning-notes-flow-b-simplification.md](planning-notes-flow-b-simplification.md).
 
-**Status note:** P4 stories **US-074–US-082**. All planning decisions locked 2026-07-19. Apply order: US-074 → US-075 → US-082 → US-080 → US-076 → US-077 → US-078 → US-079 → US-081. First OpenSpec change: US-074 + US-075 (docs/policy).
+**Status note:** P4 stories **US-074–US-082**. IDs renumbered 2026-07-19 to match apply order. Apply order: **US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-081 → US-082**. First OpenSpec change (done): US-074 + US-075 (docs/policy).
 
 ### US-074 — Define Simplified Flow B Process and Approval Boundary
 
@@ -1250,7 +1250,7 @@ As a content operator, I want Flow B defined as AI-generated blog content with a
 - [x] Encode the career/authority objective (senior leadership / Solutions Architect / digital transformation / AI; ≥ ~USD 7,000 positioning) as normative context for discovery and drafting — **authority/referent**, not news rebroadcast.
 - [x] Name the operator product surface **Silverman Authority Manager** (extends existing console; approve UI is an extension, not a separate app).
 - [x] Update glossary / Flow A vs Flow B policy artifacts (`GLOSSARY.md`, editorial `#flow-a-vs-flow-b`, operations policy) so they match this simplified model.
-- [x] Cross-link weekly gap policy and operator-settings intent (US-075 / US-082) without implementing runtime sensor/settings in this story.
+- [x] Cross-link weekly gap policy and operator-settings intent (US-075 / US-076) without implementing runtime sensor/settings in this story.
 - [x] The outcome is visible and understandable to the intended user.
 - [x] Failures or blocked states are clearly communicated.
 - [x] Existing completed work is not duplicated or unintentionally changed (Flow A supervision and publication guards remain as-is).
@@ -1267,11 +1267,11 @@ As a content operator, I want publication eligibility and the calendar gap-trigg
 
 - [x] Define eligibility: unapproved drafts in `blog-posts/pending-approval/` MUST NOT publish blog or LinkedIn; Flow A MUST NOT consume that folder; on approve, promote to `blog-posts/ready/` then Flow A MAY run.
 - [x] Define the calendar **gap sensor** as a **next-week** scan (operator-local Mon–Sun): gap day = **0** LinkedIn posts (`pending`/`queued`/`published`); days with ≥1 are not gaps for trigger.
-- [x] Document default run intent: **Friday afternoon** (local) builds for the following week; `min_lead_days` default **5**; knobs are **DB + UI** (US-082); orchestration is **n8n Schedule → worker HTTP** (ADR-0001), worker no-ops outside configured window / when `gap_trigger_enabled=false`.
+- [x] Document default run intent: **Friday afternoon** (local) builds for the following week; `min_lead_days` default **5**; knobs are **DB + UI** (US-076); orchestration is **n8n Schedule → worker HTTP** (ADR-0001), worker no-ops outside configured window / when `gap_trigger_enabled=false`.
 - [x] Document `max_drafts_per_weekly_run` default **2** and ISO-week idempotency key `flow_b_gap_week:{operator_tz}:{YYYY}-W{ww}`.
-- [x] Document **spill algorithm A** (US-079): (1) target-week gap days chronological → (2) other days in target week with capacity under max 2 → (3) forward day-by-day after the week.
+- [x] Document **spill algorithm A** (US-081): (1) target-week gap days chronological → (2) other days in target week with capacity under max 2 → (3) forward day-by-day after the week.
 - [x] Document discovery posture: authority thesis (not news); DeepSeek-only v1 with provider-pluggable path for later models.
-- [x] Publish the normative policy into repo docs (operations + glossary) referenced by US-080/US-081 — **documentation story**, not runtime sensor.
+- [x] Publish the normative policy into repo docs (operations + glossary) referenced by US-077/US-082 — **documentation story**, not runtime sensor.
 - [x] The outcome is visible and understandable to the intended user.
 - [x] Failures or blocked states are clearly communicated.
 - [x] Existing completed work is not duplicated or unintentionally changed.
@@ -1280,11 +1280,11 @@ As a content operator, I want publication eligibility and the calendar gap-trigg
 
 **Priority:** P4
 
-**Business context:** AI discovers objective-aligned **authority** topics (not news) and generates approval-ready blog drafts (with image) without publishing. v1 model: **DeepSeek**; provider interface MUST allow other models soon. BL-020 optional. Weekly gap runs MAY request up to two drafts (US-081).
+**Business context:** AI discovers objective-aligned **authority** topics (not news) and generates approval-ready blog drafts (with image) without publishing. v1 model: **DeepSeek**; provider interface MUST allow other models soon. BL-020 optional. Weekly gap runs MAY request up to two drafts (US-082).
 
-### US-076 — Discover Current Objective-Aligned Topics With AI
+### US-078 — Discover Current Objective-Aligned Topics With AI
 
-**Status:** Not started. AC locked 2026-07-19. Ready for OpenSpec after US-074/075 (and typically after US-082/080 for gap context).
+**Status:** Not started. AC locked 2026-07-19; **ID renumbered 2026-07-19** (was US-076). Ready for OpenSpec after US-076/077 (and typically after settings + detect for gap context).
 
 **Description**
 
@@ -1296,7 +1296,7 @@ As a content operator, I want AI to propose authority-aligned topics for senior-
 - [ ] **v1 uses DeepSeek only** for discovery calls; implement (or leave a clear seam for) a **provider-pluggable** client so additional models can be enabled later without rewriting Flow B.
 - [ ] Discovery inputs v1: authority brief + editorial canon topic spaces + soft anti-dup vs recent published blogs; optional durable primary material for thesis formation — **not** RSS/news APIs as primary driver.
 - [ ] Do not require a hand-curated BL-020 backlog to run.
-- [ ] When invoked from a gap batch (US-081), accept optional context: target ISO week and `empty_days[]` (informational; MUST NOT invent filesystem inventory requirements).
+- [ ] When invoked from a gap batch (US-082), accept optional context: target ISO week and `empty_days[]` (informational; MUST NOT invent filesystem inventory requirements).
 - [ ] Support producing up to N distinct topic choices in one batch (N ≤ `max_drafts_per_weekly_run`, default 2).
 - [ ] Surface the chosen topic (thesis + why it positions as referent + brief rationale) with each draft package for operator review.
 - [ ] Fail closed with a clear operator-visible error when discovery cannot produce an objective-aligned topic.
@@ -1304,9 +1304,9 @@ As a content operator, I want AI to propose authority-aligned topics for senior-
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-077 — Generate Flow B Blog Draft and Image Without Publishing
+### US-079 — Generate Flow B Blog Draft and Image Without Publishing
 
-**Status:** Not started. AC locked 2026-07-19. Ready for OpenSpec after US-076.
+**Status:** Not started. AC locked 2026-07-19; **ID renumbered 2026-07-19** (was US-077). Ready for OpenSpec after US-078.
 
 **Description**
 
@@ -1314,9 +1314,9 @@ As a content operator, I want a complete blog draft (and hero image) generated f
 
 **Acceptance criteria**
 
-- [ ] Generate a complete blog draft that follows the editorial canon and includes required metadata/structure; **v1 generation uses DeepSeek**; keep provider-pluggable seam consistent with US-076.
+- [ ] Generate a complete blog draft that follows the editorial canon and includes required metadata/structure; **v1 generation uses DeepSeek**; keep provider-pluggable seam consistent with US-078.
 - [ ] Create or request a hero image as part of the draft package.
-- [ ] Persist the draft as a Markdown + image pair under **`blog-posts/pending-approval/`** (same pair rules as `ready/`), including durable link to gap batch / ISO week when created from US-081.
+- [ ] Persist the draft as a Markdown + image pair under **`blog-posts/pending-approval/`** (same pair rules as `ready/`), including durable link to gap batch / ISO week when created from US-082.
 - [ ] MUST NOT write to `blog-posts/ready/` on this path; MUST NOT auto-publish; MUST NOT run Flow A publish/package/schedule; MUST NOT call LinkedIn API publish.
 - [ ] Preserve Silverio voice / anti-AI-writing rules per editorial canon at draft time (warnings or blocking per canon for Flow B drafts).
 - [ ] A single weekly gap batch MAY create up to **`max_drafts_per_weekly_run` (default 2)** drafts in `pending-approval/` without skipping the blog gate.
@@ -1330,9 +1330,9 @@ As a content operator, I want a complete blog draft (and hero image) generated f
 
 **Business context:** Simple approve/reject in **Silverman Authority Manager**; promote `pending-approval/` → `ready/`; spill LinkedIn slots with algorithm A.
 
-### US-078 — Present Flow B Blog Drafts for Approve or Reject
+### US-080 — Present Flow B Blog Drafts for Approve or Reject
 
-**Status:** Not started. AC locked 2026-07-19. Ready for OpenSpec after US-077.
+**Status:** Not started. AC locked 2026-07-19; **ID renumbered 2026-07-19** (was US-078). Ready for OpenSpec after US-079.
 
 **Description**
 
@@ -1348,9 +1348,9 @@ As a content operator, I want pending AI blog drafts presented in Silverman Auth
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-079 — Promote Approved Flow B Blogs Onto the Flow A Path
+### US-081 — Promote Approved Flow B Blogs Onto the Flow A Path
 
-**Status:** Not started. AC locked 2026-07-19. Ready for OpenSpec after US-078.
+**Status:** Not started. AC locked 2026-07-19; **ID renumbered 2026-07-19** (was US-079). Ready for OpenSpec after US-080.
 
 **Description**
 
@@ -1371,11 +1371,11 @@ As a content operator, I want an approved AI blog promoted from `pending-approva
 
 **Priority:** P4
 
-**Business context:** Weekly gap sensor + settings + n8n→HTTP trigger. Policy: [planning-notes-flow-b-simplification.md](planning-notes-flow-b-simplification.md).
+**Business context:** Weekly gap sensor + settings + n8n→HTTP trigger. Policy: [planning-notes-flow-b-simplification.md](planning-notes-flow-b-simplification.md). **Apply order within BL-019:** US-076 → US-077 → US-082.
 
-### US-082 — Persist and Edit Flow B Gap Operator Settings
+### US-076 — Persist and Edit Flow B Gap Operator Settings
 
-**Status:** Not started. AC locked 2026-07-19. Ready for OpenSpec after US-074/075.
+**Status:** Implemented locally 2026-07-19 (OpenSpec `persist-flow-b-gap-operator-settings-us-076`). Automated AC coverage via pytest + Vitest. **Not Story accepted** (operator walkthrough pending). **Not deployed.** BL-019 remains open.
 
 **Description**
 
@@ -1383,18 +1383,18 @@ As a content operator, I want Flow B gap and cadence knobs stored in the editori
 
 **Acceptance criteria**
 
-- [ ] Persist operator settings in Postgres (`silverman_linkedin_db` or documented sibling store on the same deployment), not as the long-term SoT in env files.
-- [ ] Support at least: `operator_timezone`, `gap_trigger_enabled` (default false), `gap_scan_mode` (`next_week`), `weekly_run_local_day` / `weekly_run_local_time` (defaults friday / 15:00), `min_lead_days` (default 5), `gap_posts_threshold` (0), `max_drafts_per_weekly_run` (default 2), `density_max_per_local_day` (default 2).
-- [ ] Provide authenticated UI in **Silverman Authority Manager** to view and update these settings with validation (IANA timezone, time-of-day, non-negative integers, enums).
-- [ ] Worker/sensor paths MUST read DB settings when present; documented defaults apply when a row is missing.
-- [ ] MUST NOT expose secrets; MUST NOT enable LinkedIn API publish merely by saving settings; `gap_trigger_enabled=false` keeps auto-trigger fail-closed.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed (calendar SoT / US-041 contracts remain authoritative for schedule rows).
+- [x] Persist operator settings in Postgres (`silverman_linkedin_db` or documented sibling store on the same deployment), not as the long-term SoT in env files. *(local implementation + `memory://` tests; live Postgres cutover pending deploy)*
+- [x] Support at least: `operator_timezone`, `gap_trigger_enabled` (default false), `gap_scan_mode` (`next_week`), `weekly_run_local_day` / `weekly_run_local_time` (defaults friday / 15:00), `min_lead_days` (default 5), `gap_posts_threshold` (0), `max_drafts_per_weekly_run` (default 2), `density_max_per_local_day` (default 2).
+- [x] Provide authenticated UI in **Silverman Authority Manager** to view and update these settings with validation (IANA timezone, time-of-day, non-negative integers, enums). *(console Gap settings modal; Vitest)*
+- [x] Worker/sensor paths MUST read DB settings when present; documented defaults apply when a row is missing. *(`load_gap_operator_settings()`)*
+- [x] MUST NOT expose secrets; MUST NOT enable LinkedIn API publish merely by saving settings; `gap_trigger_enabled=false` keeps auto-trigger fail-closed.
+- [ ] The outcome is visible and understandable to the intended user. *(operator walkthrough pending)*
+- [x] Failures or blocked states are clearly communicated. *(422/auth messaging in API + UI; operator UX confirmation pending)*
+- [x] Existing completed work is not duplicated or unintentionally changed (calendar SoT / US-041 contracts remain authoritative for schedule rows).
 
-### US-080 — Detect Upcoming LinkedIn Calendar Gaps
+### US-077 — Detect Upcoming LinkedIn Calendar Gaps
 
-**Status:** Not started. AC locked 2026-07-19. Ready for OpenSpec after US-082 (defaults allowed for early spike).
+**Status:** Not started. AC locked 2026-07-19; **ID renumbered 2026-07-19** (was US-080). Ready for OpenSpec after US-076 (defaults allowed for early spike).
 
 **Description**
 
@@ -1405,16 +1405,16 @@ As a content operator, I want the system to detect when the next local week has 
 - [ ] Scan the **next** operator-local week (Mon–Sun) and list days with **0** LinkedIn posts as gaps; apply configurable `min_lead_days` (default 5).
 - [ ] Treat days with ≥1 LinkedIn post as non-gaps for trigger; still respect US-040K max **2** as the scheduling capacity ceiling elsewhere.
 - [ ] Return a clear result (`gaps[]` / no-gap, target ISO week, operator timezone used) suitable for orchestration, without mutating campaigns on the detect-only path.
-- [ ] Read sensor knobs from DB-backed operator settings (US-082) when present (with documented defaults).
+- [ ] Read sensor knobs from DB-backed operator settings (US-076) when present (with documented defaults).
 - [ ] Document that empty coverage is a proxy for needing upstream content (not a filesystem inventory of `ready/` or `pending-approval/`).
 - [ ] Expose an authenticated worker endpoint (and/or dry-run diagnostic) so operators can inspect the next-week gap result without triggering drafts.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-081 — Trigger Flow B Draft Generation on Calendar Gaps
+### US-082 — Trigger Flow B Draft Generation on Calendar Gaps
 
-**Status:** Not started. AC locked 2026-07-19. Ready for OpenSpec after US-082, US-080, US-076, US-077.
+**Status:** Not started. AC locked 2026-07-19; **ID renumbered 2026-07-19** (was US-081). Ready for OpenSpec after US-076, US-077, US-078, US-079.
 
 **Description**
 
@@ -1424,9 +1424,9 @@ As a content operator, I want a detected next-week LinkedIn gap batch to start F
 
 - [ ] When `gap_trigger_enabled` is true and the sensor reports one or more gaps for the target week, trigger Flow B discovery + draft generation up to **`max_drafts_per_weekly_run` (default 2)** into `pending-approval/` without auto-publishing.
 - [ ] When there is no gap, trigger is disabled, or an idempotent batch already exists for that ISO week (`flow_b_gap_week:{operator_tz}:{YYYY}-W{ww}`), perform a clean no-op (no duplicate draft spam).
-- [ ] Orchestration MUST use **n8n Schedule → worker HTTP** (no Execute Command); worker enforces local day/time / enablement from US-082 (no-op outside window); repo export stays `active: false` until operator activation.
-- [ ] Pass gap context (ISO week, `empty_days[]`) into US-076/US-077; leave drafts for US-078/US-079; do not skip the blog gate.
-- [ ] Surplus LinkedIn scheduling after approve is owned by US-079 (spill algorithm A); this story MUST NOT mark LinkedIn API published.
+- [ ] Orchestration MUST use **n8n Schedule → worker HTTP** (no Execute Command); worker enforces local day/time / enablement from US-076 (no-op outside window); repo export stays `active: false` until operator activation.
+- [ ] Pass gap context (ISO week, `empty_days[]`) into US-078/US-079; leave drafts for US-080/US-081; do not skip the blog gate.
+- [ ] Surplus LinkedIn scheduling after approve is owned by US-081 (spill algorithm A); this story MUST NOT mark LinkedIn API published.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.

@@ -14,7 +14,7 @@
 | Authority/referent objective | PASS | policy §1 |
 | Silverman Authority Manager named; extend not separate app | PASS | policy §1; GLOSSARY |
 | Glossary / editorial / ops updated | PASS | GLOSSARY; `#flow-a-vs-flow-b`; this policy |
-| Cross-link US-075 / US-082 without runtime impl | PASS | policy §1 cross-links; no `src/` in this change |
+| Cross-link US-075 / US-076 without runtime impl | PASS | policy §1 cross-links; no `src/` in this change |
 
 ## US-075 acceptance criteria
 

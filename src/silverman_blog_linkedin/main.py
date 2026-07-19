@@ -41,6 +41,16 @@ from silverman_blog_linkedin.editorial_calendar_plan import (
 from silverman_blog_linkedin.editorial_calendar_schedule_update import (
     update_editorial_calendar_item_schedule,
 )
+from silverman_blog_linkedin.flow_b_gap_operator_settings import (
+    ALLOWED_GAP_SCAN_MODES,
+    ALLOWED_WEEKDAYS,
+    ERROR_SETTINGS_STORE_NOT_CONFIGURED,
+    ERROR_SETTINGS_STORE_UNAVAILABLE,
+    is_valid_hh_mm,
+    is_valid_iana_timezone,
+    load_gap_operator_settings,
+    save_gap_operator_settings,
+)
 from silverman_blog_linkedin.flow_a_ready_path_completion import (
     complete_flow_a_ready_path,
 )
@@ -827,6 +837,69 @@ class UpdateEditorialCalendarItemScheduleRequest(BaseModel):
                 "expected_calendar_fingerprint must be a SHA-256 hex digest"
             )
         return stripped
+
+
+class GapOperatorSettingsPutRequest(BaseModel):
+    """Full-document PUT body for Flow B gap operator settings (US-076)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    operator_timezone: str
+    gap_trigger_enabled: bool
+    gap_scan_mode: str
+    weekly_run_local_day: str
+    weekly_run_local_time: str
+    min_lead_days: int
+    gap_posts_threshold: int
+    max_drafts_per_weekly_run: int
+    density_max_per_local_day: int
+    expected_row_version: int | None = None
+
+    @field_validator("operator_timezone")
+    @classmethod
+    def validate_operator_timezone(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped or not is_valid_iana_timezone(stripped):
+            raise ValueError("operator_timezone must be a valid IANA timezone")
+        return stripped
+
+    @field_validator("gap_scan_mode")
+    @classmethod
+    def validate_gap_scan_mode(cls, value: str) -> str:
+        stripped = value.strip()
+        if stripped not in ALLOWED_GAP_SCAN_MODES:
+            raise ValueError("gap_scan_mode must be one of: next_week")
+        return stripped
+
+    @field_validator("weekly_run_local_day")
+    @classmethod
+    def validate_weekly_run_local_day(cls, value: str) -> str:
+        stripped = value.strip().lower()
+        if stripped not in ALLOWED_WEEKDAYS:
+            raise ValueError(
+                "weekly_run_local_day must be a lowercase weekday (monday–sunday)"
+            )
+        return stripped
+
+    @field_validator("weekly_run_local_time")
+    @classmethod
+    def validate_weekly_run_local_time(cls, value: str) -> str:
+        stripped = value.strip()
+        if not is_valid_hh_mm(stripped):
+            raise ValueError("weekly_run_local_time must be HH:MM in 24-hour form")
+        return stripped
+
+    @field_validator(
+        "min_lead_days",
+        "gap_posts_threshold",
+        "max_drafts_per_weekly_run",
+        "density_max_per_local_day",
+    )
+    @classmethod
+    def validate_non_negative_int(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("must be a non-negative integer")
+        return value
 
 
 class CompleteFlowAReadyPathRequest(BaseModel):
@@ -2672,6 +2745,98 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             result.counts,
         )
         return result.to_dict()
+
+    @app.get("/flow-b/gap-operator-settings")
+    def get_flow_b_gap_operator_settings(
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        """Authenticated read of Flow B gap operator settings (US-076)."""
+        try:
+            snapshot = load_gap_operator_settings(environ=os.environ)
+        except RuntimeError as exc:
+            code = str(exc)
+            if code in {
+                ERROR_SETTINGS_STORE_NOT_CONFIGURED,
+                "gap_operator_settings_store_not_configured",
+            }:
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "errors": [
+                            {
+                                "field": "_store",
+                                "code": ERROR_SETTINGS_STORE_NOT_CONFIGURED,
+                                "message": "settings store is not configured",
+                            }
+                        ]
+                    },
+                ) from exc
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "errors": [
+                        {
+                            "field": "_store",
+                            "code": ERROR_SETTINGS_STORE_UNAVAILABLE,
+                            "message": "settings store is unavailable",
+                        }
+                    ]
+                },
+            ) from exc
+        logger.info(
+            "flow-b/gap-operator-settings GET source=%s gap_trigger_enabled=%s",
+            snapshot.source,
+            snapshot.settings.get("gap_trigger_enabled"),
+        )
+        return snapshot.to_response_dict()
+
+    @app.put("/flow-b/gap-operator-settings")
+    def put_flow_b_gap_operator_settings(
+        body: GapOperatorSettingsPutRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        """Authenticated full-document update of Flow B gap operator settings (US-076).
+
+        Does not mutate SILVERMAN_LINKEDIN_PUBLICATION_ENABLED or publish to LinkedIn.
+        """
+        document = {
+            "operator_timezone": body.operator_timezone,
+            "gap_trigger_enabled": body.gap_trigger_enabled,
+            "gap_scan_mode": body.gap_scan_mode,
+            "weekly_run_local_day": body.weekly_run_local_day,
+            "weekly_run_local_time": body.weekly_run_local_time,
+            "min_lead_days": body.min_lead_days,
+            "gap_posts_threshold": body.gap_posts_threshold,
+            "max_drafts_per_weekly_run": body.max_drafts_per_weekly_run,
+            "density_max_per_local_day": body.density_max_per_local_day,
+        }
+        try:
+            snapshot, errors = save_gap_operator_settings(
+                document,
+                expected_row_version=body.expected_row_version,
+            )
+        except RuntimeError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "errors": [
+                        {
+                            "field": "_store",
+                            "code": ERROR_SETTINGS_STORE_UNAVAILABLE,
+                            "message": "settings store is unavailable",
+                        }
+                    ]
+                },
+            ) from exc
+        if errors:
+            raise HTTPException(status_code=422, detail={"errors": errors})
+        assert snapshot is not None
+        logger.info(
+            "flow-b/gap-operator-settings PUT source=%s gap_trigger_enabled=%s",
+            snapshot.source,
+            snapshot.settings.get("gap_trigger_enabled"),
+        )
+        return snapshot.to_response_dict()
 
     return app
 

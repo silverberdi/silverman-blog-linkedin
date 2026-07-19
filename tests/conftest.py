@@ -26,6 +26,10 @@ from silverman_blog_linkedin.editorial_calendar_store import (
     MemoryCalendarStore,
     reset_calendar_store_for_tests,
 )
+from silverman_blog_linkedin.flow_b_gap_operator_settings_store import (
+    MemoryGapOperatorSettingsStore,
+    reset_gap_operator_settings_store_for_tests,
+)
 from silverman_blog_linkedin.paths import EXPECTED_FOLDERS
 
 COMFYUI_ENV_VARS: tuple[str, ...] = (
@@ -62,6 +66,18 @@ def isolate_calendar_store(monkeypatch: pytest.MonkeyPatch) -> MemoryCalendarSto
     reset_calendar_store_for_tests(store)
     yield store
     reset_calendar_store_for_tests(None)
+
+
+@pytest.fixture(autouse=True)
+def isolate_gap_operator_settings_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> MemoryGapOperatorSettingsStore:
+    """Use an isolated in-memory Flow B gap settings store for every test."""
+    monkeypatch.setenv(ENV_CALENDAR_DATABASE_URL, "memory://")
+    store = MemoryGapOperatorSettingsStore()
+    reset_gap_operator_settings_store_for_tests(store)
+    yield store
+    reset_gap_operator_settings_store_for_tests(None)
 
 
 @pytest.fixture(autouse=True)

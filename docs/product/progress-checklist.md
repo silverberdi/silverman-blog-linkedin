@@ -502,7 +502,8 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 ## P4 — Flow B
 
-**Apply order (when on LAN):** US-074 → US-075 → US-082 → US-080 → US-076 → US-077 → US-078 → US-079 → US-081.
+**Apply order (when on LAN):** US-074 → US-075 → **US-076** → US-077 → US-078 → US-079 → US-080 → US-081 → US-082.
+*(IDs renumbered 2026-07-19 to match this sequence.)*
 
 - [x] **BL-016 — Define Simplified Flow B**
   - Business outcome: Flow B has an approved simplified process with a clear blog-only human approval boundary and Flow A reuse after approval.
@@ -526,14 +527,14 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 - [ ] **BL-017 — Discover Topics and Generate Flow B Blog Drafts**
   - Business outcome: The system can produce objective-aligned, approval-ready Flow B blog drafts (with image) without publishing.
-  - [ ] **US-076** — Discover current objective-aligned topics with AI
+  - [ ] **US-078** — Discover current objective-aligned topics with AI
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [ ] Work started
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
-  - [ ] **US-077** — Generate Flow B blog draft and image without publishing
+  - [ ] **US-079** — Generate Flow B blog draft and image without publishing
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [ ] Work started
@@ -546,14 +547,14 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 - [ ] **BL-018 — Approve Flow B Blog Drafts Into Flow A**
   - Business outcome: AI blog drafts cannot publish until recorded operator approval; approved drafts proceed on the Flow A path (surplus LinkedIn slots spill forward).
-  - [ ] **US-078** — Present Flow B blog drafts for approve or reject
+  - [ ] **US-080** — Present Flow B blog drafts for approve or reject
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [ ] Work started
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
-  - [ ] **US-079** — Promote approved Flow B blogs onto the Flow A path
+  - [ ] **US-081** — Promote approved Flow B blogs onto the Flow A path
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [ ] Work started
@@ -566,21 +567,21 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 - [ ] **BL-019 — Trigger Flow B From Calendar Publication Gaps**
   - Business outcome: Zero-post days in the next local week trigger up to 2 Flow B blog drafts (ISO-week idempotent); surplus LinkedIn slots spill to next available days; weeks without gaps are no-op.
-  - [ ] **US-082** — Persist and edit Flow B gap operator settings (Postgres + UI)
+  - [ ] **US-076** — Persist and edit Flow B gap operator settings (Postgres + UI)
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated *(local automated evidence; operator UI walkthrough pending)*
+    - [ ] Acceptance criteria validated *(operator walkthrough)*
+    - [ ] Story accepted
+  - [ ] **US-077** — Detect upcoming LinkedIn calendar gaps
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [ ] Work started
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
-  - [ ] **US-080** — Detect upcoming LinkedIn calendar gaps
-    - [x] Story reviewed
-    - [x] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-081** — Trigger Flow B draft generation on calendar gaps
+  - [ ] **US-082** — Trigger Flow B draft generation on calendar gaps
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [ ] Work started

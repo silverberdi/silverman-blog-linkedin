@@ -1,6 +1,7 @@
 import { type ReactNode, useCallback, useState } from "react";
 import { Banner } from "./Banner";
 import { FiltersModal } from "./FiltersModal";
+import { GapSettingsModal } from "./GapSettingsModal";
 import { StatusSummary } from "./StatusSummary";
 import { ToastHost } from "./ToastHost";
 import { ViewSwitcher } from "./ViewSwitcher";
@@ -33,6 +34,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const closeFilters = useCallback(() => setFiltersOpen(false), []);
+  const [gapSettingsOpen, setGapSettingsOpen] = useState(false);
+  const closeGapSettings = useCallback(() => setGapSettingsOpen(false), []);
 
   const activeFilterCount = countActiveFilters(filters);
   const filtersActive = activeFilterCount > 0;
@@ -93,6 +96,17 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {activeFilterCount}
               </span>
             )}
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Flow B gap operator settings"
+            aria-haspopup="dialog"
+            aria-expanded={gapSettingsOpen}
+            data-testid="header-gap-settings-btn"
+            onClick={() => setGapSettingsOpen(true)}
+          >
+            Gap settings
           </button>
           <button
             type="button"
@@ -202,6 +216,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </footer>
 
       <FiltersModal open={filtersOpen} onClose={closeFilters} />
+      <GapSettingsModal open={gapSettingsOpen} onClose={closeGapSettings} />
     </main>
   );
 }

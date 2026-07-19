@@ -16,6 +16,7 @@ import {
   CANCEL_PATH,
   CORRECT_PATH,
   DEFER_PATH,
+  GAP_OPERATOR_SETTINGS_PATH,
   PENDING_SUPERVISION_PATH,
   REOPEN_PATH,
   SCHEDULE_VISIBILITY_PATH,
@@ -24,6 +25,8 @@ import {
   type CalendarScheduleUpdateResult,
   type CorrectVariantRequest,
   type DeferVariantRequest,
+  type GapOperatorSettingsPutRequest,
+  type GapOperatorSettingsResponse,
   type MutationResult,
   type PendingSupervisionResponse,
   type ReopenVariantRequest,
@@ -138,6 +141,38 @@ export class SupervisionApiClient {
       );
     }
     return result;
+  }
+
+  async getGapOperatorSettings(): Promise<GapOperatorSettingsResponse> {
+    const headers = await this.prepareHeaders("load");
+    return this.requestJson<GapOperatorSettingsResponse>(
+      GAP_OPERATOR_SETTINGS_PATH,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          ...headers,
+        },
+      },
+    );
+  }
+
+  async putGapOperatorSettings(
+    body: GapOperatorSettingsPutRequest,
+  ): Promise<GapOperatorSettingsResponse> {
+    const headers = await this.prepareHeaders("mutate");
+    return this.requestJson<GapOperatorSettingsResponse>(
+      GAP_OPERATOR_SETTINGS_PATH,
+      {
+        method: "PUT",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify(body),
+      },
+    );
   }
 
   private async prepareHeaders(

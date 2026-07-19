@@ -9,6 +9,7 @@ export const CANCEL_PATH = "/cancel-linkedin-publication";
 export const REOPEN_PATH = "/reopen-linkedin-variant";
 export const UPDATE_CALENDAR_SCHEDULE_PATH =
   "/editorial-calendar/update-item-schedule";
+export const GAP_OPERATOR_SETTINGS_PATH = "/flow-b/gap-operator-settings";
 
 export type PendingSupervisionStatus = "ok" | "partial";
 
@@ -188,4 +189,39 @@ export interface CalendarScheduleUpdateResult {
   audit?: Record<string, unknown> | null;
   errors: string[];
   warnings?: string[];
+}
+
+/** US-076 Flow B gap operator settings. */
+export type GapScanMode = "next_week";
+
+export type WeeklyRunLocalDay =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
+
+export interface GapOperatorSettingsDocument {
+  operator_timezone: string;
+  gap_trigger_enabled: boolean;
+  gap_scan_mode: GapScanMode | string;
+  weekly_run_local_day: WeeklyRunLocalDay | string;
+  weekly_run_local_time: string;
+  min_lead_days: number;
+  gap_posts_threshold: number;
+  max_drafts_per_weekly_run: number;
+  density_max_per_local_day: number;
+}
+
+export interface GapOperatorSettingsResponse extends GapOperatorSettingsDocument {
+  settings_id: string;
+  source: "defaults" | "database" | string;
+  updated_at_utc: string | null;
+  row_version: number | null;
+}
+
+export interface GapOperatorSettingsPutRequest extends GapOperatorSettingsDocument {
+  expected_row_version?: number | null;
 }
