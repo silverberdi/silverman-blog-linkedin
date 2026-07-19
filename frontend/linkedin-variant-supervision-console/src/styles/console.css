@@ -418,8 +418,8 @@ code {
 .filters-modal {
   position: relative;
   z-index: 1;
-  width: min(40rem, calc(100vw - 2rem));
-  max-height: min(90vh, 44rem);
+  width: min(52rem, calc(100vw - 2rem));
+  max-height: min(92vh, 48rem);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -430,13 +430,13 @@ code {
 }
 
 .filters-modal-header {
-  padding: 1rem 1.1rem 0.75rem;
+  padding: 1rem 1.25rem 0.75rem;
   border-bottom: 1px solid var(--line);
   margin-bottom: 0;
 }
 
 .filters-modal-body {
-  padding: 0.75rem 1.1rem 1.15rem;
+  padding: 0.85rem 1.25rem 1.25rem;
   overflow: auto;
   flex: 1;
 }
@@ -451,6 +451,25 @@ code {
 .filters-panel-actions {
   justify-content: flex-end;
   margin-bottom: 0.75rem;
+}
+
+/* Modal-only layout: 2×2 reads better than the old 4-column dock strip */
+.filters-modal .filters-grid {
+  grid-template-columns: minmax(11rem, 0.85fr) minmax(16rem, 1.35fr);
+  gap: 0.9rem 1.1rem;
+  align-items: end;
+}
+
+.filters-modal .filters-grid .check-row {
+  padding: 0.15rem 0;
+}
+
+.filters-modal .filter-state-chips {
+  gap: 0.55rem;
+}
+
+.filters-modal .filter-chip {
+  padding: 0.35rem 0.65rem;
 }
 
 .panel,
