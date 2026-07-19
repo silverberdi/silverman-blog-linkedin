@@ -1082,7 +1082,7 @@ Required scenes (desktop + mobile): local times on Week/Month/modal with timezon
 
 As a content operator, I want cancelled calendar events to be visually honest and actionable (or clearly non-actionable), so that when I see a cancelled item on today/this week I understand **why** and what I can do next — including reopen/reschedule when product allows — instead of a mute grey chip with no path.
 
-**Status:** Implemented in console + worker (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040j`; Vitest ~1280/~375 + pytest + static rebuild `index-BJwARkPN.js` / `index-BLiwrDxd.css`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated (not deployed; browser capture unavailable in apply environment). US-040K density not delivered. US-040G/H/I Story accepted remain separately gated.
+**Status:** Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040j` archived; Vitest ~1280/~375 + pytest + static rebuild; live `index-BJwARkPN.js` / `index-BLiwrDxd.css`; git `ec2d000`; OpenAPI `/reopen-linkedin-variant`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated. US-040K density not delivered. US-040G/H/I Story accepted remain separately gated.
 
 **UX intent (normative)**
 
