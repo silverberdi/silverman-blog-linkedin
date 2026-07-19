@@ -1115,7 +1115,7 @@ Required scenes (desktop + mobile): cancelled chip on Week/Month; cancelled moda
 
 As a content operator, I want the console and schedule rules to **cap publications at two per local calendar day**, so that I cannot accidentally look like a spammer by stacking three or more posts on the same day.
 
-**Status:** Implemented in console+worker layer (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040k`; pytest + Vitest ~1280/~375 + production static rebuild `index-CoeIIs9v.js` / `index-CfjReggH.css`). **Not Story accepted; BL-015 remains open.** **Not deployed** — Visual DoD screenshots + operator walkthrough gated. Interim product rule for BL-015; BL-021 MAY later supersede with richer cadence windows. US-040G/H/I/J Story accepted remain separately gated.
+**Status:** Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040k` archived; pytest + Vitest ~1280/~375 + production static rebuild; live `index-CoeIIs9v.js` / `index-CfjReggH.css`; git `0d90b3d`; `BUILD_REVISION=0d90b3daacee…`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated. Interim product rule for BL-015; BL-021 MAY later supersede with richer cadence windows. US-040G/H/I/J Story accepted remain separately gated.
 
 **UX intent (normative)**
 

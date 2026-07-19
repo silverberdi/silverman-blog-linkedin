@@ -478,7 +478,7 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — console+worker implementation evidence (pytest + Vitest ~1280/~375 + static rebuild `index-CoeIIs9v.js` / `index-CfjReggH.css`); **not deployed**; Visual DoD screenshots + walkthrough still open
+    - [x] Business outcome demonstrated — deployed console+worker (Vitest ~1280/~375 + pytest + live static assets `index-CoeIIs9v.js` / `index-CfjReggH.css` on `192.168.0.194:8010`); Visual DoD screenshots + walkthrough still open
     - [ ] Acceptance criteria validated — requires Visual DoD + operator walkthrough
     - [ ] Story accepted — operator walkthrough gate (not Vitest alone)
   - [ ] All user stories completed
