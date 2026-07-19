@@ -1375,7 +1375,7 @@ As a content operator, I want an approved AI blog promoted from `pending-approva
 
 ### US-076 — Persist and Edit Flow B Gap Operator Settings
 
-**Status:** Implemented locally 2026-07-19 (OpenSpec `persist-flow-b-gap-operator-settings-us-076`). Automated AC coverage via pytest + Vitest. **Not Story accepted** (operator walkthrough pending). **Not deployed.** BL-019 remains open.
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=b89c429…`; OpenSpec archive `2026-07-19-persist-flow-b-gap-operator-settings-us-076`). Automated AC coverage via pytest + Vitest; live authenticated GET smoke returned defaults. **Not Story accepted** (operator walkthrough pending). BL-019 remains open.
 
 **Description**
 
