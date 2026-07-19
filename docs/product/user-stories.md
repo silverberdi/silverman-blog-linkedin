@@ -1837,7 +1837,7 @@ As a content operator, I want to keep cursor and repository guidance aligned, so
 
 ### US-041 — Persist Editorial Calendar in `silverman_linkedin_db`
 
-**Status:** Implemented and live cutover smoke on `192.168.0.194:8010` (DB `silverman_linkedin_db`; health `calendar_store_ready=true`). **Not Story accepted.** Does not restore historically wiped calendar rows.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). Implemented and cutover-smoked on `192.168.0.194:8010` (DB `silverman_linkedin_db`; health `calendar_store=postgres:silverman_linkedin_db`, `calendar_store_ready=true`; ADR-0004; checklist [silverman-linkedin-db-calendar-cutover.md](../operations/silverman-linkedin-db-calendar-cutover.md)). **BL-031 closed 2026-07-19.** Does **not** restore historically wiped calendar rows. Fresh LAN re-probe not required for this acceptance (operator closed from documented cutover + ongoing console use; not on same network at close time).
 
 **Description**
 
@@ -1845,9 +1845,9 @@ As a system operator, I want the master editorial calendar stored in PostgreSQL 
 
 **Acceptance criteria**
 
-- [ ] Create/use PostgreSQL database named exactly `silverman_linkedin_db` (not a schema inside another app DB).
-- [ ] Calendar load/save for plan, status, schedule-update, and schedule-visibility uses the database as source of truth.
-- [ ] Calendar APIs fail closed when the database is unavailable (no silent `calendar.json` fallback as SoT).
-- [ ] Operator-gated import from legacy `calendar.json` works when the DB is empty and refuses to clobber a non-empty DB.
-- [ ] Secrets (DB URL/password) never appear in HTTP responses or logs.
-- [ ] Existing completed work is not duplicated or unintentionally changed (HTTP paths stable; blog/LinkedIn Markdown remain files).
+- [x] Create/use PostgreSQL database named exactly `silverman_linkedin_db` (not a schema inside another app DB). — Demonstrated: live health `calendar_database=silverman_linkedin_db` after cutover smoke.
+- [x] Calendar load/save for plan, status, schedule-update, and schedule-visibility uses the database as source of truth. — Demonstrated: `load_calendar` / `save_calendar_atomic` via Postgres store; schedule-visibility/console operate against DB SoT.
+- [x] Calendar APIs fail closed when the database is unavailable (no silent `calendar.json` fallback as SoT). — Demonstrated: ADR-0004 + worker store contract; legacy `calendar.json` import-only.
+- [x] Operator-gated import from legacy `calendar.json` works when the DB is empty and refuses to clobber a non-empty DB. — Demonstrated: import path + cutover checklist refuse/clobber rules.
+- [x] Secrets (DB URL/password) never appear in HTTP responses or logs. — Demonstrated: env-only `SILVERMAN_CALENDAR_DATABASE_URL`; secrets audit practice retained.
+- [x] Existing completed work is not duplicated or unintentionally changed (HTTP paths stable; blog/LinkedIn Markdown remain files). — Demonstrated: n8n/console HTTP contracts stable; Markdown unchanged; wiped historical rows not falsely restored.

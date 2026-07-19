@@ -536,3 +536,5 @@ This backlog describes the outstanding business and operational capabilities req
 - Document database backup ownership separate from BL-014 filesystem packages.
 
 **Completion outcome:** Calendar schedule state survives editorial mount wipe and code sync; operators can plan and supervise from database-backed calendar reads.
+
+**Status:** Closed 2026-07-19 after US-041 Story accepted (cutover smoke previously recorded on `192.168.0.194:8010`; does not restore historically wiped calendar rows).

@@ -829,15 +829,16 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed
 
-- [ ] **BL-031 — Persist Editorial Calendar in Database**
+- [x] **BL-031 — Persist Editorial Calendar in Database**
   - Business outcome: Calendar schedule state survives editorial mount wipe and code sync; operators can plan and supervise from database-backed calendar reads.
-  - [ ] **US-041**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
+  - Status: **Closed 2026-07-19** (US-041 Story accepted; cutover smoke previously recorded; no wiped-row restore claimed).
+  - [x] **US-041**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
     - [x] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+    - [x] Business outcome demonstrated — cutover smoke on `192.168.0.194:8010` (`calendar_store_ready=true`, DB `silverman_linkedin_db`)
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19
+    - [x] Story accepted — operator-accepted 2026-07-19
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated
+  - [x] Backlog item closed

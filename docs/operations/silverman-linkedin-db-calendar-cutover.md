@@ -1,5 +1,7 @@
 # Operator checklist: `silverman_linkedin_db` calendar cutover (BL-031 / US-041)
 
+**Status:** Cutover completed; **US-041 Story accepted / BL-031 closed 2026-07-19** (does not restore historically wiped calendar rows).
+
 Implemented in worker code ≠ live cutover. Complete these steps on `192.168.0.194` before treating calendar APIs as production-ready against Postgres.
 
 ## 1. Create database
