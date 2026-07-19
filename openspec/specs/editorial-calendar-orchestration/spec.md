@@ -2,15 +2,15 @@
 
 ## Purpose
 
-Master editorial calendar planning for the `silverman-blog-linkedin` HTTP worker: canonical `editorial-calendar/calendar.json` artifact, due-item discovery, deterministic source document selection, Flow A vs Flow B planning policy, read-only `plan_editorial_calendar_due()` entry point, and API-key-protected `POST /editorial-calendar/plan-due` / `GET /editorial-calendar/status` endpoints. Staged rollout step 1 only—no n8n activation, cron, or automatic publish/package/schedule/LinkedIn publication.
+Master editorial calendar planning for the `silverman-blog-linkedin` HTTP worker: PostgreSQL-backed master calendar (capability `editorial-calendar-database`, database `silverman_linkedin_db`), due-item discovery, deterministic source document selection, Flow A vs Flow B planning policy, read-only `plan_editorial_calendar_due()` entry point, and API-key-protected `POST /editorial-calendar/plan-due` / `GET /editorial-calendar/status` endpoints. Staged rollout step 1 only—no n8n activation, cron, or automatic publish/package/schedule/LinkedIn publication.
 
 ## Requirements
 
 ### Requirement: Editorial calendar artifact location and shape
 
-The worker SHALL treat `{editorial_base}/editorial-calendar/calendar.json` as the canonical master editorial calendar, where `editorial_base` is `SILVERMAN_BLOG_LINKEDIN_BASE_PATH`.
+The worker SHALL treat a PostgreSQL-backed master editorial calendar (see capability `editorial-calendar-database`) as the canonical master editorial calendar. The editorial filesystem path `{editorial_base}/editorial-calendar/calendar.json` MUST NOT be the durable source of truth after cutover. The `editorial-calendar/` directory under `editorial_base` MAY remain for layout/health compatibility and MAY hold a non-authoritative legacy file used only for operator-gated import.
 
-The calendar JSON document MUST include:
+The calendar document MUST include:
 
 - `schema_version` (string, for example `"1"`)
 - `updated_at_utc` (ISO-8601 UTC with `Z` suffix)
@@ -45,17 +45,17 @@ Calendar item statuses are distinct from campaign lifecycle states in `flow-a-li
 
 #### Scenario: Valid calendar loads successfully
 
-- **WHEN** `editorial-calendar/calendar.json` exists with `schema_version`, `updated_at_utc`, and a valid `items` array
+- **WHEN** the calendar database contains a document with `schema_version`, `updated_at_utc`, and a valid `items` set
 - **THEN** the planner loads and validates the document without error
 
-#### Scenario: Missing calendar reported by planner
+#### Scenario: Empty database calendar is loadable
 
-- **WHEN** `editorial-calendar/` exists but `editorial-calendar/calendar.json` does not exist
-- **THEN** planning returns `status` `calendar_missing` and error code `calendar_file_not_found`
+- **WHEN** the calendar database is reachable and contains zero items
+- **THEN** planning treats the calendar as present and empty rather than as a missing filesystem file SoT failure
 
 #### Scenario: Invalid calendar shape rejected
 
-- **WHEN** the calendar file is not valid JSON or an item is missing required fields
+- **WHEN** stored calendar data is corrupt or an item is missing required fields
 - **THEN** planning returns `status` `calendar_invalid` with error code `calendar_schema_invalid`
 
 ### Requirement: Editorial calendar distinct from campaign distribution scheduling
@@ -73,36 +73,32 @@ This capability MUST NOT modify campaign distribution scheduling metadata.
 
 ### Requirement: Calendar atomic persistence
 
-The worker SHALL provide `save_calendar_atomic(base_path, calendar)` that persists `{editorial_base}/editorial-calendar/calendar.json` using write-then-replace semantics.
+The worker SHALL provide `save_calendar_atomic` (name stable for callers) that persists the master editorial calendar to the calendar database using a transaction.
 
-Before write, the function MUST validate the full calendar document using the same rules as `load_calendar`.
+Before commit, the function MUST validate the full calendar document using the same rules as `load_calendar`.
 
 The function MUST set `updated_at_utc` to the write timestamp in canonical UTC `Z` format.
 
-The function MUST write JSON to a uniquely named temporary file in the same directory as `calendar.json` and atomically replace the target file only after the temporary file is fully written, flushed, and fsynced.
+The function MUST enforce optimistic concurrency via a document version (or equivalent). When the caller's expected version does not match the stored version, the function MUST NOT commit changes, MUST leave stored calendar rows intact, and MUST return `calendar_completion_concurrent_update`.
 
-Before atomic replace, when `calendar.json` already exists, the function MUST verify that the on-disk file fingerprint still matches the caller-supplied pre-mutation fingerprint (raw-file SHA-256 hex digest). If the file changed concurrently, the function MUST NOT replace it, MUST leave the current calendar valid and untouched, MUST clean up any temporary file, and MUST return `calendar_completion_concurrent_update`.
+Database write failures MUST return `calendar_completion_write_failed` (or equivalent structured write failure) and MUST leave the prior committed calendar intact.
 
-Filesystem write or replace failures MUST return `calendar_completion_write_failed` and MUST leave the original valid file intact.
-
-If validation or write fails before replace, the original `calendar.json` MUST remain unchanged and valid.
-
-The function MUST NOT introduce a database, distributed lock, or queue service.
+The durable calendar store MUST be the database defined by `editorial-calendar-database`. Filesystem write of `calendar.json` MUST NOT be required for a successful save after cutover.
 
 #### Scenario: Successful atomic save updates timestamp
 
-- **WHEN** `save_calendar_atomic` is called with a valid calendar document
-- **THEN** `calendar.json` is replaced atomically and `updated_at_utc` reflects the write instant
+- **WHEN** `save_calendar_atomic` is called with a valid calendar document and matching expected version
+- **THEN** the database calendar is updated transactionally and `updated_at_utc` reflects the write instant
 
 #### Scenario: Failed save leaves original calendar intact
 
-- **WHEN** `save_calendar_atomic` fails during validation or before atomic replace
-- **THEN** the previous `calendar.json` content remains valid and unchanged
+- **WHEN** `save_calendar_atomic` fails during validation or before commit
+- **THEN** the previously committed database calendar remains valid and unchanged
 
 #### Scenario: Concurrent calendar modification is not overwritten
 
-- **WHEN** `save_calendar_atomic` is called with an expected fingerprint and the on-disk `calendar.json` changes before atomic replace
-- **THEN** the function returns `calendar_completion_concurrent_update`, does not replace the current calendar, and leaves concurrent changes intact
+- **WHEN** `save_calendar_atomic` is called with an expected version that no longer matches the database
+- **THEN** the function returns `calendar_completion_concurrent_update`, does not commit, and leaves concurrent changes intact
 
 ### Requirement: Flow A calendar item completion optional fields
 
