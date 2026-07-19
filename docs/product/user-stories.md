@@ -969,7 +969,7 @@ As a content operator, I want the Flow A supervision console to feel like a mode
 
 As a content operator, I want the supervision console to open on a clear **week** calendar with **month** as a secondary view and **no list**, so that I immediately understand what publishes when without learning a second triage surface that often looks empty or unexplained.
 
-**Status:** Implemented in console layer (US-040G calendar-first Week + Month; List removed from operator chrome; OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040g`; empty-grid follow-up `fix-us-040g-outlook-empty-calendar-grid` applied and **redeployed** — Week/Month keep day structure visible with calm empty cue; Vitest viewport matrix ~1280/~375 + live static assets `index-SFvEuRPX.js` / `index-DTJ5Tm4v.css` on `192.168.0.194:8010`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated (browser capture / walkthrough not completed). Interim event panel superseded by US-040H EventModal. UTC day-bucketing debt remains for US-040I. US-040J reopen and US-040K density not delivered. Filters dock removal and Cancelled metric chip are out of scope for the empty-grid fix.
+**Status:** Implemented in console layer (US-040G calendar-first Week + Month; List removed from operator chrome; OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040g`; empty-grid follow-up `fix-us-040g-outlook-empty-calendar-grid` applied and **redeployed** — Week/Month keep day structure visible with calm empty cue; Vitest viewport matrix ~1280/~375 + live static assets `index-SFvEuRPX.js` / `index-DTJ5Tm4v.css` on `192.168.0.194:8010`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated (browser capture / walkthrough not completed). Interim event panel superseded by US-040H EventModal. UTC day-bucketing debt addressed by US-040I (console-layer; not yet Story accepted / not yet deployed). US-040J reopen and US-040K density not delivered. Filters dock removal and Cancelled metric chip are out of scope for the empty-grid fix.
 
 **UX intent (normative)**
 
@@ -989,7 +989,7 @@ Required scenes (desktop + mobile): Week first paint; empty week (**day columns 
 
 - [x] Remove the List view from the operator-facing console chrome (no List tab, no list-first landing, no empty list as the default workspace). — Demonstrated: ViewSwitcher is Week|Month only; Vitest asserts List chrome absent.
 - [x] Provide **Week** as the default first-class view and **Month** as the secondary first-class view; switching MUST preserve filters, dry-run/commit mode, and unsaved modal drafts with warning. — Demonstrated via Vitest (filters survive Week↔Month; draft-warn path preserved in store).
-- [x] Week view MUST show a readable local-week grid or column layout with day headers, today emphasis, and events as scannable chips/cards (title or campaign label, channel, local time, state) — not raw ids as the primary label. — Demonstrated: day-column Week (not hour grid); local time on chips; UTC day placement interim (US-040I debt).
+- [x] Week view MUST show a readable local-week grid or column layout with day headers, today emphasis, and events as scannable chips/cards (title or campaign label, channel, local time, state) — not raw ids as the primary label. — Demonstrated: day-column Week (not hour grid); local time on chips; local-day placement delivered in US-040I (console-layer).
 - [x] Month view MUST remain density-oriented: compact event indicators per day, overflow handling, today/selected styling, without turning cells into diagnostic forms. — Demonstrated: agenda dump removed as primary surface; light day focus + event chips.
 - [x] Navigation: previous/next week, previous/next month, and a one-click “Today / This week” affordance MUST be visible and thumb-friendly on mobile. — Demonstrated via Vitest + CSS touch targets.
 - [x] When a week or month has zero items after filters, show a deliberate empty state with short copy and a path to clear filters if filters hid everything — never an unexplained blank content area. — Demonstrated via Vitest: empty cue + persistent `week-columns` / `calendar-grid` (Outlook-like); filter-zero clear path; live Visual DoD still gated pending redeploy + walkthrough.
@@ -1047,7 +1047,7 @@ Required scenes (desktop + mobile): event open; modal hierarchy; edit/reschedule
 
 As a content operator, I want the week/month grids, event times, and reschedule controls to work in **my local timezone**, so that I do not have to translate UTC or “another part of the world’s” calendar days while planning posts.
 
-**Status:** Not started. **Not Story accepted; BL-015 remains open.**
+**Status:** Implemented in console layer (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040i`; Vitest with `TZ=America/Chicago` + ~1280/~375 viewport matrix + production static rebuild `index-DV0R4K8U.js` / `index-BGvbD0Jm.css`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated (browser capture unavailable in apply environment; not deployed). US-040J reopen and US-040K density not delivered. US-040G/H Story accepted remain separately gated.
 
 **UX intent (normative)**
 
@@ -1065,16 +1065,16 @@ Required scenes (desktop + mobile): local times on Week/Month/modal with timezon
 
 **Acceptance criteria**
 
-- [ ] All primary schedule displays in Week, Month, and event modal use operator-local date/time with visible timezone cue.
-- [ ] Week/Month placement uses local-day bucketing; document any remaining UTC-only diagnostics as secondary.
-- [ ] Schedule editor datetime controls are local-first; conversion to `*_utc` fields happens at the API boundary.
-- [ ] Validation copy and client-side guards match “strictly after now” in absolute time, presented as local; earlier-than-previous-schedule moves are allowed when still future.
-- [ ] Empty/error states never instruct the operator to “think in UTC” for routine edits.
+- [x] All primary schedule displays in Week, Month, and event modal use operator-local date/time with visible timezone cue. — Demonstrated via Vitest DOM (Week/Month/EventModal local formatting + timezone cue; not Visual DoD).
+- [x] Week/Month placement uses local-day bucketing; document any remaining UTC-only diagnostics as secondary. — Demonstrated: near-midnight fixture places on local day; UTC day only under EventModal diagnostics.
+- [x] Schedule editor datetime controls are local-first; conversion to `*_utc` fields happens at the API boundary. — Demonstrated: picker round-trip Vitest (`new_scheduled_at_utc`).
+- [x] Validation copy and client-side guards match “strictly after now” in absolute time, presented as local; earlier-than-previous-schedule moves are allowed when still future. — Demonstrated via Vitest.
+- [x] Empty/error states never instruct the operator to “think in UTC” for routine edits. — Demonstrated: ScheduleEditor help + error map assertions.
 - [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
 - [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms local-time UX meets intent before Story accepted.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated (`*_time_invalid` mapped to plain language).
-- [ ] Existing completed work is not duplicated or unintentionally changed (worker UTC contracts preserved unless a paired OpenSpec change extends them).
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated at console-layer via Vitest; operator confirmation still gated.
+- [x] Failures or blocked states are clearly communicated (`*_time_invalid` mapped to plain language). — Demonstrated: error map remapped to local-language copy.
+- [x] Existing completed work is not duplicated or unintentionally changed (worker UTC contracts preserved unless a paired OpenSpec change extends them). — Demonstrated: prior Week/Month/EventModal/ScheduleEditor/session suites still pass; `*_utc` wire fields unchanged.
 
 ### US-040J — Implement Flow A LinkedIn Variant Supervision Console: Cancelled Event Handling
 
@@ -1724,7 +1724,7 @@ As a content operator, I want to keep cursor and repository guidance aligned, so
 
 ### US-041 — Persist Editorial Calendar in `silverman_linkedin_db`
 
-**Status:** In progress (implementation). Not operator-validated. Does not restore historically wiped calendar rows.
+**Status:** Implemented and live cutover smoke on `192.168.0.194:8010` (DB `silverman_linkedin_db`; health `calendar_store_ready=true`). **Not Story accepted.** Does not restore historically wiped calendar rows.
 
 **Description**
 

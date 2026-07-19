@@ -1,7 +1,10 @@
 /**
  * Shared schedule editor — Week, Month, and interim agenda entry points
- * (US-040C / US-040G). LinkedIn uses POST /defer-linkedin-variant; blog uses
+ * (US-040C / US-040G / US-040I). LinkedIn uses POST /defer-linkedin-variant; blog uses
  * POST /editorial-calendar/update-item-schedule. Browser never writes mounts.
+ *
+ * Picker digits are operator-local wall time; conversion to *_utc happens only
+ * at the typed API client boundary (design D3).
  */
 import { useEffect, useState } from "react";
 import type { ApiError } from "../api/errors";
@@ -9,6 +12,7 @@ import type {
   CalendarScheduleUpdateResult,
   MutationResult,
 } from "../api/types";
+import { operatorTimezoneCue } from "../models/dateHelpers";
 import { confirmRealMutation, newIdempotencyKey } from "./ConfirmationFlow";
 import type { ScheduleEditorTarget } from "../models/supervision";
 import { useSupervisionStore } from "../models/store";
@@ -18,7 +22,10 @@ export const CONSOLE_ACTOR = "operator";
 
 export type { ScheduleEditorTarget };
 
-/** Convert datetime-local value (interpreted as UTC wall clock) to ISO Z. */
+/**
+ * Convert datetime-local value (operator-local wall clock) to UTC ISO Z
+ * for new_scheduled_at_utc / new_due_at_utc wire fields.
+ */
 export function datetimeLocalToUtcIso(value: string): string | null {
   if (!value) {
     return null;
@@ -28,10 +35,31 @@ export function datetimeLocalToUtcIso(value: string): string | null {
   if (!match) {
     return null;
   }
-  const sec = match[6] || "00";
-  return `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${sec}Z`;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const sec = Number(match[6] || "00");
+  const local = new Date(year, month - 1, day, hour, minute, sec);
+  if (Number.isNaN(local.getTime())) {
+    return null;
+  }
+  // Reject rollover from invalid calendar digits (e.g. Feb 31).
+  if (
+    local.getFullYear() !== year ||
+    local.getMonth() !== month - 1 ||
+    local.getDate() !== day ||
+    local.getHours() !== hour ||
+    local.getMinutes() !== minute ||
+    local.getSeconds() !== sec
+  ) {
+    return null;
+  }
+  return local.toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
+/** Map a UTC ISO instant to datetime-local digits in operator-local wall time. */
 export function utcIsoToDatetimeLocal(iso: string | null): string {
   if (!iso) {
     return "";
@@ -43,9 +71,21 @@ export function utcIsoToDatetimeLocal(iso: string | null): string {
   const d = new Date(parsed);
   const pad = (n: number) => String(n).padStart(2, "0");
   return (
-    `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}` +
-    `T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
   );
+}
+
+/** True when the absolute instant is strictly after now. */
+export function isStrictlyAfterNow(
+  isoUtc: string,
+  nowMs: number = Date.now(),
+): boolean {
+  const ms = Date.parse(isoUtc);
+  if (Number.isNaN(ms)) {
+    return false;
+  }
+  return ms > nowMs;
 }
 
 function formatRelatedOutcome(outcome: string | null | undefined): string {
@@ -73,9 +113,12 @@ export function ScheduleEditorFields({
   idPrefix?: string;
 }) {
   const inputId = `${idPrefix}-datetime`;
+  const tzCue = operatorTimezoneCue();
   return (
     <div data-testid="schedule-editor-fields">
-      <label htmlFor={inputId}>New scheduled time (UTC)</label>
+      <label htmlFor={inputId}>
+        New scheduled time{tzCue ? ` (${tzCue})` : ""}
+      </label>
       <input
         id={inputId}
         data-testid="schedule-datetime"
@@ -85,10 +128,10 @@ export function ScheduleEditorFields({
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
       />
-      <p className="sup-meta">
-        Stored as UTC <span className="mono">…Z</span>. Must be strictly in the
-        future. Schedule edit does not call LinkedIn publication API and does
-        not publish blog content.
+      <p className="sup-meta" data-testid="schedule-editor-help">
+        Enter the time in your local timezone
+        {tzCue ? ` (${tzCue})` : ""}. It must be after now. Schedule edit does
+        not call LinkedIn publication API and does not publish blog content.
       </p>
     </div>
   );
@@ -239,7 +282,13 @@ export function ScheduleEditorPanel({
     }
     const iso = datetimeLocalToUtcIso(schedule);
     if (!iso) {
-      feedbackError("Provide a valid new scheduled time (UTC).");
+      feedbackError("Provide a valid new scheduled time.");
+      return;
+    }
+    if (!isStrictlyAfterNow(iso)) {
+      feedbackError(
+        "New schedule must be after now in your local time. Moving earlier than the previous schedule is allowed when the new time is still in the future.",
+      );
       return;
     }
     if (!dryRun && !confirmRealMutation("schedule change")) {

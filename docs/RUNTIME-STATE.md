@@ -6,15 +6,16 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 
 ## Snapshot
 
-**`verified_at_utc`:** `2026-07-18T23:25:00Z`
-**Evidence source:** Worker redeploy on Ubuntu `192.168.0.194` after empty-calendar-grid archive push (`git` HEAD `4ebf3b8`); health 200; console HTML serves `index-SFvEuRPX.js` / `index-DTJ5Tm4v.css`; OpenAPI Flow A verify OVERALL PASS (12/12)
+**`verified_at_utc`:** `2026-07-19T00:53:00Z`
+**Evidence source:** Worker redeploy on Ubuntu `192.168.0.194` after BL-031 / US-041 archive push (`.build_git_sha` `43f773e`); health 200 with calendar store ready; OpenAPI Flow A verify OVERALL PASS (12/12)
 
 | Fact | Value | Evidence |
 |------|-------|----------|
 | Worker URL | `http://192.168.0.194:8010` | Deploy + health check |
-| `BUILD_REVISION` | Container env `1784416996` (target-layout timestamp stamp); `.build_git_sha` = `4ebf3b844d9085c209d8c30045802fcf5607f9d0` (empty-grid archive HEAD) | Container env + server `.build_git_sha` after deploy 2026-07-18 |
-| Supervision console assets | `index-SFvEuRPX.js`, `index-DTJ5Tm4v.css` (US-040G empty-grid Outlook-like fix) | `GET /flow-a/console/linkedin-variant-supervision` |
-| Editorial mount | `/data/silverman-blog-linkedin` → host `/home/silverman/compartido_mac/silverman-blog-linkedin` | Deploy compose |
+| `BUILD_REVISION` | Container env remains a target-layout timestamp stamp; `.build_git_sha` = `43f773e` (US-041 archive HEAD) | Server `.build_git_sha` after deploy 2026-07-18 evening |
+| Supervision console assets | Prior US-040H assets remain served (`index-P0TKf1cr.js` / `index-BGvbD0Jm.css` unless rebuilt) | `GET /flow-a/console/linkedin-variant-supervision` |
+| Editorial mount | `/data/silverman-blog-linkedin` → host `/home/silverman/silverman-blog-linkedin-worker/data/silverman-blog-linkedin` | Deploy compose (durable path; not compartido) |
+| Calendar SoT (BL-031 / US-041) | Postgres DB `silverman_linkedin_db`; health `calendar_store=postgres:silverman_linkedin_db`, `calendar_store_ready=true` | Live `/health` after cutover; URL via `SILVERMAN_CALENDAR_DATABASE_URL` (secret not recorded here) |
 | Public blog mount | `/public-blog` → host `/home/silverman/silverberdi.github.io` | Deploy verification |
 | n8n Flow A workflow | **Active** (`silvermanFlowAPublish01`, **35** nodes, Schedule `0 9 * * *` UTC, single-flight, includes `/complete-flow-a-ready-path`); `settings.errorWorkflow=silvermanFlowAErrorReport01`; repo export `active: false` | Post-enablement export check 2026-07-17 |
 | Flow A operational status | **Validated** — `GET /flow-a/operational-status` live smoke PASS (US-026 + US-027); BL-010 closed | Live smoke 2026-07-17 `now_utc=2026-07-17T22:55:00Z` |
@@ -68,4 +69,5 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 - BL-011 / US-028–US-030 code is deployed (`b67c538` historically; superseded by `018aa36` on 2026-07-17 enablement baseline + 2026-07-18 full redeploy) and **operator-accepted 2026-07-17** after controlled live smoke (evaluate + report + fail-closed emit + zero lifecycle mutation); **BL-011 closed**.
 - BL-011 follow-up enablement 2026-07-17: production emit **on**; n8n webhook receiver + Error Trigger report + daily evaluate/emit schedule active; Flow A `errorWorkflow` linked. Public gateway `/webhook/*` still requires `X-Avatares-Api-Key` — worker uses internal `n8n` DNS instead.
 - Worker redeployed 2026-07-18 to `BUILD_REVISION=018aa36` (BL-012 recovery + BL-013 concurrency + BL-014 backup modules). **BL-012** and **BL-014** closed 2026-07-18 (fixture acceptance); BL-013 previously closed and now deployed.
-- Worker redeployed 2026-07-18 evening to git `bea6106` (US-040G calendar-first console), then again to `4ebf3b8` (Outlook-like empty Week/Month grid persistence). Container `BUILD_REVISION` remains a target-layout timestamp (`1784416996`); pin via `.build_git_sha` if SHA-stamped env is needed. Live console serves `index-SFvEuRPX.js` / `index-DTJ5Tm4v.css` (empty cue + persistent `week-columns`/`calendar-grid` present in assets). **US-040G deployed + empty-grid fix deployed ≠ Story accepted**. **US-040H deployed** to `192.168.0.194:8010` (git `3aa9394`; live console `index-P0TKf1cr.js` / `index-BGvbD0Jm.css`) ≠ Story accepted — Visual DoD / walkthrough still open; BL-015 open — Visual DoD / operator walkthrough still open; BL-015 open.
+- Worker redeployed 2026-07-18 evening to git `bea6106` (US-040G calendar-first console), then again to `4ebf3b8` (Outlook-like empty Week/Month grid persistence). Container `BUILD_REVISION` remains a target-layout timestamp (`1784416996`); pin via `.build_git_sha` if SHA-stamped env is needed. Live console serves `index-SFvEuRPX.js` / `index-DTJ5Tm4v.css` (empty cue + persistent `week-columns`/`calendar-grid` present in assets). **US-040G deployed + empty-grid fix deployed ≠ Story accepted**. **US-040H deployed** to `192.168.0.194:8010` (git `3aa9394`; live console `index-P0TKf1cr.js` / `index-BGvbD0Jm.css`) ≠ Story accepted — Visual DoD / walkthrough still open; BL-015 open. **US-040I** local-time console layer is implemented in workspace source/static (`index-DV0R4K8U.js`) but **not yet deployed** — live server still serves US-040H assets until explicit deploy approval.
+- **BL-031 / US-041** calendar DB cutover smoke deployed 2026-07-18 evening (`.build_git_sha` `43f773e`): Postgres `silverman_linkedin_db` created; worker `SILVERMAN_CALENDAR_DATABASE_URL` set; health `calendar_store_ready=true`. Editorial mount remains durable worker `data/` path (not compartido). **≠ Story accepted**; does not restore wiped calendar rows.

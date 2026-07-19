@@ -7,11 +7,11 @@ export const SUPERVISION_ERROR_MESSAGES: Record<string, string> = {
   linkedin_supervision_variant_not_pending:
     "Variant is no longer in the pending supervision window. Reload the list.",
   linkedin_supervision_defer_time_invalid:
-    "New schedule must be strictly in the future (UTC).",
+    "New schedule must be after now in your local time.",
   linkedin_supervision_defer_duplicate_slot:
     "Another variant in this campaign already uses that exact schedule instant.",
   linkedin_supervision_defer_saturation:
-    "Interim cadence: another campaign variant is already on that UTC day within 72h.",
+    "Interim cadence: another campaign variant is already scheduled that local day within 72h.",
   linkedin_supervision_edit_unchanged:
     "Draft content is unchanged or empty after normalize. Edit was not applied.",
   linkedin_supervision_idempotency_conflict:
@@ -22,11 +22,11 @@ export const SUPERVISION_ERROR_MESSAGES: Record<string, string> = {
     "Cancel is not allowed for this variant state (for example already published).",
   calendar_item_not_found: "Calendar item was not found.",
   calendar_schedule_time_invalid:
-    "New calendar due time must be canonical UTC Z and strictly in the future.",
+    "New calendar due time must be after now in your local time.",
   calendar_schedule_duplicate_slot:
-    "Another blog calendar item already occupies that UTC day (interim 1/day).",
+    "Another blog calendar item already occupies that local day (interim 1/day).",
   calendar_schedule_saturation:
-    "Target UTC day is saturated under interim blog density rules.",
+    "Target local day is saturated under interim blog density rules.",
   calendar_schedule_unsupported_state:
     "Calendar item status does not allow schedule mutation (published/historical).",
   calendar_schedule_idempotency_conflict:

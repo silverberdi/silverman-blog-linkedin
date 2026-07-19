@@ -124,7 +124,7 @@ describe("API client error mapping", () => {
     ).toContain(SUPERVISION_ERROR_MESSAGES.linkedin_supervision_variant_not_pending);
     expect(
       explainErrorCodes(["linkedin_supervision_defer_time_invalid"]),
-    ).toContain("strictly in the future");
+    ).toContain("after now in your local time");
     expect(
       explainErrorCodes(["linkedin_supervision_idempotency_conflict"]),
     ).toContain("Idempotency conflict");

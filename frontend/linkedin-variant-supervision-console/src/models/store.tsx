@@ -19,12 +19,13 @@ import {
   type SessionState,
 } from "../api/session";
 import {
-  currentUtcMonth,
-  currentUtcWeek,
+  currentLocalMonth,
+  currentLocalWeek,
+  localDayKey,
   monthCursorFromDayKey,
+  monthsCoveringLocalMonth,
   monthsCoveringWeek,
-  sundayUtcWeekStart,
-  utcDayKey,
+  sundayLocalWeekStart,
   type MonthCursor,
   type WeekCursor,
 } from "./dateHelpers";
@@ -236,8 +237,8 @@ export function SupervisionStoreProvider({
     useState<ScheduleSnapshot | null>(null);
   const [activeView, setActiveViewState] = useState<ConsoleView>("week");
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
-  const [monthCursor, setMonthCursor] = useState<MonthCursor>(currentUtcMonth);
-  const [weekCursor, setWeekCursor] = useState<WeekCursor>(currentUtcWeek);
+  const [monthCursor, setMonthCursor] = useState<MonthCursor>(currentLocalMonth);
+  const [weekCursor, setWeekCursor] = useState<WeekCursor>(currentLocalWeek);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [eventModalItemId, setEventModalItemId] = useState<string | null>(null);
@@ -510,7 +511,7 @@ export function SupervisionStoreProvider({
     }) => {
       const year = options?.year ?? monthCursor.year;
       const month = options?.month ?? monthCursor.month;
-      return loadScheduleForMonths([{ year, month }], {
+      return loadScheduleForMonths(monthsCoveringLocalMonth({ year, month }), {
         preserveActionBanner: options?.preserveActionBanner,
       });
     },
@@ -524,7 +525,7 @@ export function SupervisionStoreProvider({
         const months =
           activeView === "week"
             ? monthsCoveringWeek(weekCursor.weekStartKey)
-            : [monthCursor];
+            : monthsCoveringLocalMonth(monthCursor);
         const [pendingPayload, ...schedulePayloads] = await Promise.all([
           client.getPendingSupervision(),
           ...months.map((m) =>
@@ -658,7 +659,7 @@ export function SupervisionStoreProvider({
       }
 
       const next = matches[0];
-      const dayKey = utcDayKey(next.scheduledAtUtc);
+      const dayKey = localDayKey(next.scheduledAtUtc);
       if (!dayKey) {
         return;
       }
@@ -667,7 +668,7 @@ export function SupervisionStoreProvider({
         setMonthCursor(monthCursorFromDayKey(dayKey));
         setSelectedDayKey(dayKey);
       } else {
-        setWeekCursor({ weekStartKey: sundayUtcWeekStart(dayKey) });
+        setWeekCursor({ weekStartKey: sundayLocalWeekStart(dayKey) });
         setMonthCursor(monthCursorFromDayKey(dayKey));
         setSelectedDayKey(dayKey);
       }

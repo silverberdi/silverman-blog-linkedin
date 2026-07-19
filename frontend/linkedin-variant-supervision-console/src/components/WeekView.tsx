@@ -1,14 +1,15 @@
 import { useEffect, useMemo } from "react";
 import {
-  buildWeekDayKeys,
-  currentUtcWeek,
+  buildLocalWeekDayKeys,
+  currentLocalWeek,
   dayNumberFromKey,
   formatLocalTime,
+  localDayKey,
   monthsCoveringWeek,
   monthCursorFromDayKey,
+  operatorTimezoneCue,
   shiftWeek,
-  todayUtcDayKey,
-  utcDayKey,
+  todayLocalDayKey,
   weekdayShortLabel,
   weekLabel,
 } from "../models/dateHelpers";
@@ -30,7 +31,7 @@ function chipClass(item: ScheduleItem): string {
 
 /**
  * Week day-column calendar (US-040G design D1) — not an hour time-grid.
- * UTC day placement with local time on chips (US-040I bucketing debt).
+ * Operator-local day placement with local time + timezone cue on chips (US-040I).
  */
 export function WeekView() {
   const {
@@ -49,7 +50,7 @@ export function WeekView() {
 
   useEffect(() => {
     const months = monthsCoveringWeek(weekCursor.weekStartKey);
-    setMonthCursor(months[0] ?? monthCursorFromDayKey(weekCursor.weekStartKey));
+    setMonthCursor(monthCursorFromDayKey(weekCursor.weekStartKey));
     void loadScheduleForMonths(months, { preserveActionBanner: true });
   }, [
     weekCursor.weekStartKey,
@@ -57,9 +58,10 @@ export function WeekView() {
     setMonthCursor,
   ]);
 
-  const todayKey = todayUtcDayKey();
+  const todayKey = todayLocalDayKey();
+  const tzCue = operatorTimezoneCue();
   const dayKeys = useMemo(
-    () => buildWeekDayKeys(weekCursor.weekStartKey),
+    () => buildLocalWeekDayKeys(weekCursor.weekStartKey),
     [weekCursor.weekStartKey],
   );
 
@@ -69,7 +71,7 @@ export function WeekView() {
       map.set(key, []);
     }
     for (const item of filteredScheduleItems) {
-      const key = utcDayKey(item.scheduledAtUtc);
+      const key = localDayKey(item.scheduledAtUtc);
       if (!key || !map.has(key)) {
         continue;
       }
@@ -104,8 +106,8 @@ export function WeekView() {
   }
 
   function goThisWeek() {
-    const today = todayUtcDayKey();
-    setWeekCursor(currentUtcWeek());
+    const today = todayLocalDayKey();
+    setWeekCursor(currentLocalWeek());
     setSelectedDayKey(today);
   }
 
@@ -153,8 +155,8 @@ export function WeekView() {
       </div>
 
       <p className="sup-meta compact-help" data-testid="week-tz-note">
-        UTC day columns; chips show local time. Local-day bucketing is a follow-up
-        (US-040I).
+        Local calendar days
+        {tzCue ? ` (${tzCue})` : ""}; chips show local time.
       </p>
 
       {scheduleSnapshot?.issues && scheduleSnapshot.issues.length > 0 && (
@@ -176,7 +178,7 @@ export function WeekView() {
           <p className="meta">
             {filtersActive
               ? "Active filters hid every item in this week."
-              : "Nothing is scheduled in this UTC week after the current read."}
+              : "Nothing is scheduled in this week after the current read."}
           </p>
           {filtersActive && (
             <button

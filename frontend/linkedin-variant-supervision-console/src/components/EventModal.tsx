@@ -490,7 +490,10 @@ export function EventModal() {
                   </>
                 ) : null}
                 {" · "}
-                <span className="mono">
+                <span
+                  className="mono"
+                  data-testid="event-modal-schedule-local"
+                >
                   {formatLocalDisplay(item.scheduledAtUtc)}
                 </span>
               </p>
@@ -582,10 +585,18 @@ export function EventModal() {
                       <dd className="mono">{item.variantId}</dd>
                     </div>
                   )}
+                  {item.scheduledAtUtc && (
+                    <div>
+                      <dt>scheduled_at_utc</dt>
+                      <dd className="mono" data-testid="event-modal-scheduled-at-utc">
+                        {item.scheduledAtUtc}
+                      </dd>
+                    </div>
+                  )}
                   {utcDayKey(item.scheduledAtUtc) && (
                     <div>
                       <dt>UTC day</dt>
-                      <dd className="mono">
+                      <dd className="mono" data-testid="event-modal-utc-day">
                         {utcDayKey(item.scheduledAtUtc)}
                       </dd>
                     </div>

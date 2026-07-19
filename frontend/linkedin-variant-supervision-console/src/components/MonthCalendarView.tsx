@@ -1,13 +1,15 @@
 import { useEffect, useMemo } from "react";
 import {
-  buildMonthGrid,
-  currentUtcMonth,
+  buildLocalMonthGrid,
+  currentLocalMonth,
   dayNumberFromKey,
+  localDayKey,
   monthLabel,
+  monthsCoveringLocalMonth,
+  operatorTimezoneCue,
   shiftMonth,
-  sundayUtcWeekStart,
-  todayUtcDayKey,
-  utcDayKey,
+  sundayLocalWeekStart,
+  todayLocalDayKey,
 } from "../models/dateHelpers";
 import {
   publicationStateLabel,
@@ -28,7 +30,7 @@ function compactBadgeClass(item: ScheduleItem): string {
 /**
  * First-class Month calendar density view (US-040B / US-040G secondary).
  * Event chips open EventModal (US-040H). Day click is light focus only —
- * no multi-item day-agenda dump.
+ * no multi-item day-agenda dump. Operator-local day placement (US-040I).
  */
 export function MonthCalendarView() {
   const {
@@ -43,26 +45,25 @@ export function MonthCalendarView() {
     setSelectedDayKey,
     selectedItemId,
     setSelectedItemId,
-    loadScheduleVisibility,
+    loadScheduleForMonths,
     loading,
     openEventModal,
   } = useSupervisionStore();
 
   useEffect(() => {
-    void loadScheduleVisibility({
-      year: monthCursor.year,
-      month: monthCursor.month,
+    void loadScheduleForMonths(monthsCoveringLocalMonth(monthCursor), {
       preserveActionBanner: true,
     });
-  }, [monthCursor.year, monthCursor.month, loadScheduleVisibility]);
+  }, [monthCursor.year, monthCursor.month, loadScheduleForMonths, monthCursor]);
 
-  const todayKey = todayUtcDayKey();
-  const grid = useMemo(() => buildMonthGrid(monthCursor), [monthCursor]);
+  const todayKey = todayLocalDayKey();
+  const tzCue = operatorTimezoneCue();
+  const grid = useMemo(() => buildLocalMonthGrid(monthCursor), [monthCursor]);
 
   const itemsByDay = useMemo(() => {
     const map = new Map<string, ScheduleItem[]>();
     for (const item of filteredScheduleItems) {
-      const key = utcDayKey(item.scheduledAtUtc);
+      const key = localDayKey(item.scheduledAtUtc);
       if (!key) {
         continue;
       }
@@ -73,7 +74,22 @@ export function MonthCalendarView() {
     return map;
   }, [filteredScheduleItems]);
 
-  const monthItemCount = filteredScheduleItems.length;
+  const monthDayKeys = useMemo(
+    () => new Set(grid.filter((k): k is string => k !== null)),
+    [grid],
+  );
+
+  const monthItemCount = useMemo(() => {
+    let n = 0;
+    for (const item of filteredScheduleItems) {
+      const key = localDayKey(item.scheduledAtUtc);
+      if (key && monthDayKeys.has(key)) {
+        n += 1;
+      }
+    }
+    return n;
+  }, [filteredScheduleItems, monthDayKeys]);
+
   const filtersActive =
     filters.channel !== "all" ||
     filters.campaignQuery.trim() !== "" ||
@@ -88,10 +104,10 @@ export function MonthCalendarView() {
   }
 
   function goThisMonth() {
-    const today = todayUtcDayKey();
-    setMonthCursor(currentUtcMonth());
+    const today = todayLocalDayKey();
+    setMonthCursor(currentLocalMonth());
     setSelectedDayKey(today);
-    setWeekCursor({ weekStartKey: sundayUtcWeekStart(today) });
+    setWeekCursor({ weekStartKey: sundayLocalWeekStart(today) });
   }
 
   return (
@@ -115,7 +131,8 @@ export function MonthCalendarView() {
           Previous
         </button>
         <h3 className="calendar-month-label" data-testid="calendar-month-label">
-          {monthLabel(monthCursor)} (UTC)
+          {monthLabel(monthCursor)}
+          {tzCue ? ` (${tzCue})` : ""}
         </h3>
         <button
           type="button"
@@ -138,8 +155,8 @@ export function MonthCalendarView() {
       </div>
 
       <p className="sup-meta compact-help" data-testid="calendar-tz-note">
-        UTC calendar date placement; local time on event detail. Select a chip to
-        open the event modal.
+        Local calendar date placement
+        {tzCue ? ` (${tzCue})` : ""}. Select a chip to open the event modal.
       </p>
 
       {scheduleSnapshot?.issues && scheduleSnapshot.issues.length > 0 && (
@@ -161,7 +178,7 @@ export function MonthCalendarView() {
           <p className="meta">
             {filtersActive
               ? "Active filters hid every item in this month."
-              : "Nothing is scheduled in this UTC month after the current read."}
+              : "Nothing is scheduled in this month after the current read."}
           </p>
           {filtersActive && (
             <button

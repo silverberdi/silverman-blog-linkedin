@@ -338,7 +338,7 @@ describe("ScheduleEditor US-040C / US-040G", () => {
 
   it("maps calendar and LinkedIn schedule failure codes", () => {
     expect(explainErrorCodes(["calendar_schedule_time_invalid"])).toMatch(
-      /strictly in the future/,
+      /after now in your local time/,
     );
     expect(explainErrorCodes(["linkedin_supervision_defer_saturation"])).toMatch(
       /72h/,

@@ -14,6 +14,8 @@ import {
 } from "../models/supervision";
 import {
   buildMonthGrid,
+  localDayKey,
+  monthsCoveringLocalMonth,
   shiftMonth,
   utcDayKey,
 } from "../models/dateHelpers";
@@ -127,11 +129,18 @@ function createClient() {
   return new SupervisionApiClient(auth, fetchImpl as typeof fetch);
 }
 
-describe("dateHelpers UTC day bucketing", () => {
-  it("buckets scheduled_at_utc onto UTC calendar days", () => {
+describe("dateHelpers local day bucketing (US-040I)", () => {
+  it("keeps utcDayKey for diagnostics only", () => {
     expect(utcDayKey("2026-07-20T15:00:00Z")).toBe("2026-07-20");
     expect(utcDayKey("2026-07-31T23:59:59Z")).toBe("2026-07-31");
     expect(utcDayKey("2026-08-01T00:00:00Z")).toBe("2026-08-01");
+  });
+
+  it("buckets scheduled_at_utc onto operator-local calendar days", () => {
+    // America/Chicago (CDT, UTC−5): 04:00Z is still previous local evening.
+    expect(localDayKey("2026-07-20T04:00:00Z")).toBe("2026-07-19");
+    expect(utcDayKey("2026-07-20T04:00:00Z")).toBe("2026-07-20");
+    expect(localDayKey("2026-07-20T15:00:00Z")).toBe("2026-07-20");
   });
 
   it("builds a Sunday-start month grid with empty padding", () => {
@@ -142,6 +151,15 @@ describe("dateHelpers UTC day bucketing", () => {
       year: 2026,
       month: 8,
     });
+  });
+
+  it("pads local month fetch windows across adjacent UTC months", () => {
+    const months = monthsCoveringLocalMonth({ year: 2026, month: 7 });
+    expect(months).toEqual([
+      { year: 2026, month: 6 },
+      { year: 2026, month: 7 },
+      { year: 2026, month: 8 },
+    ]);
   });
 });
 
@@ -183,7 +201,7 @@ describe("MonthCalendarView dual-view UX", () => {
     vi.restoreAllMocks();
   });
 
-  it("navigates months, places items on UTC days, and focuses day chips", async () => {
+  it("navigates months, places items on local days, and focuses day chips", async () => {
     const client = createClient();
     const user = userEvent.setup();
     render(<App client={client} />);
@@ -198,7 +216,12 @@ describe("MonthCalendarView dual-view UX", () => {
       expect(screen.getByTestId("month-calendar-view")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("calendar-tz-note").textContent).toMatch(/UTC calendar date/);
+    expect(screen.getByTestId("calendar-tz-note").textContent).toMatch(
+      /Local calendar date/,
+    );
+    expect(screen.getByTestId("calendar-tz-note").textContent).not.toMatch(
+      /\(UTC\)/,
+    );
     expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
 
     const dayBtn = await screen.findByTestId("calendar-day-2026-07-20");

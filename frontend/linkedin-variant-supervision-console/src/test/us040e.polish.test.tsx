@@ -15,6 +15,10 @@ import {
   type ScheduleItem,
 } from "../models/supervision";
 import { confirmRealMutation } from "../components/ConfirmationFlow";
+import {
+  buildLocalWeekDayKeys,
+  currentLocalWeek,
+} from "../models/dateHelpers";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -391,21 +395,26 @@ describe("US-040E visual validation matrix (equivalent UI checks)", () => {
     return new SupervisionApiClient(auth, fetchImpl as typeof fetch);
   }
 
-  const denseItems = Array.from({ length: 8 }, (_, i) => ({
-    item_id: `linkedin:camp-${i}:v`,
-    channel: "linkedin",
-    campaign_id: `camp-${i}`,
-    variant_id: "v",
-    title: `Dense title ${i} `.repeat(8),
-    audience: "eng",
-    scheduled_at_utc: `2026-07-${String(10 + (i % 18)).padStart(2, "0")}T15:00:00Z`,
-    publication_state: i % 3 === 0 ? "blocked" : "pending",
-    source_state: "pending",
-    blocked: i % 3 === 0,
-    critical: false,
-    linkedin_api_published: false,
-    schedule_editable: true,
-  }));
+  const weekDays = buildLocalWeekDayKeys(currentLocalWeek().weekStartKey);
+  const denseItems = Array.from({ length: 8 }, (_, i) => {
+    const day = weekDays[i % weekDays.length];
+    return {
+      item_id: `linkedin:camp-${i}:v`,
+      channel: "linkedin",
+      campaign_id: `camp-${i}`,
+      variant_id: "v",
+      title: `Dense title ${i} `.repeat(8),
+      audience: "eng",
+      // Midday UTC stays on the same local calendar day in America/Chicago.
+      scheduled_at_utc: `${day}T15:00:00Z`,
+      publication_state: i % 3 === 0 ? "blocked" : "pending",
+      source_state: "pending",
+      blocked: i % 3 === 0,
+      critical: false,
+      linkedin_api_published: false,
+      schedule_editable: true,
+    };
+  });
 
   const denseVariants = denseItems.slice(0, 5).map((item) => ({
     campaign_id: item.campaign_id,
