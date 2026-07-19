@@ -8,11 +8,19 @@
  */
 import { useEffect, useState } from "react";
 import type { ApiError } from "../api/errors";
+import { explainErrorCodes } from "../api/errors";
 import type {
   CalendarScheduleUpdateResult,
   MutationResult,
 } from "../api/types";
-import { operatorTimezoneCue } from "../models/dateHelpers";
+import { localDayKey, operatorTimezoneCue } from "../models/dateHelpers";
+import {
+  LOCAL_DAY_FULL_MESSAGE,
+  excludeForScheduleItem,
+  isLocalDayFull,
+  operatorTimezone,
+  othersOnLocalDay,
+} from "../models/localDayDensity";
 import { confirmRealMutation, newIdempotencyKey } from "./ConfirmationFlow";
 import type { ScheduleEditorTarget } from "../models/supervision";
 import { useSupervisionStore } from "../models/store";
@@ -291,6 +299,24 @@ export function ScheduleEditorPanel({
       );
       return;
     }
+
+    const targetDay = localDayKey(iso);
+    const densityItems = scheduleSnapshot?.items ?? [];
+    if (targetDay) {
+      const exclude = excludeForScheduleItem({
+        itemId: active.itemId,
+        channel: active.channel,
+        campaignId: active.campaignId,
+        variantId: active.variantId,
+        calendarItemId: active.calendarItemId,
+      });
+      const others = othersOnLocalDay(densityItems, targetDay, exclude);
+      if (isLocalDayFull(others)) {
+        feedbackError(LOCAL_DAY_FULL_MESSAGE);
+        return;
+      }
+    }
+
     if (!dryRun && !confirmRealMutation("schedule change")) {
       return;
     }
@@ -314,10 +340,11 @@ export function ScheduleEditorPanel({
           idempotency_key: dryRun ? null : newIdempotencyKey(),
           actor: CONSOLE_ACTOR,
           source: CONSOLE_SOURCE,
+          operator_timezone: operatorTimezone() || null,
         });
         if (result.status !== "completed") {
           feedbackError(
-            `Schedule change failed: ${(result.errors || []).join("; ") || "unknown"}`,
+            `Schedule change failed: ${explainErrorCodes(result.errors || [])}`,
           );
           return;
         }
@@ -363,10 +390,11 @@ export function ScheduleEditorPanel({
           source: CONSOLE_SOURCE,
           expected_calendar_fingerprint:
             scheduleSnapshot?.calendarFingerprint ?? null,
+          operator_timezone: operatorTimezone() || null,
         });
       if (result.status !== "completed") {
         feedbackError(
-          `Schedule change failed: ${(result.errors || []).join("; ") || "unknown"}`,
+          `Schedule change failed: ${explainErrorCodes(result.errors || [])}`,
         );
         return;
       }

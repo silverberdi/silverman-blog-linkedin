@@ -12,6 +12,10 @@ import {
   todayLocalDayKey,
 } from "../models/dateHelpers";
 import {
+  densityCueLevel,
+  isDensityMember,
+} from "../models/localDayDensity";
+import {
   publicationStateLabel,
   type ScheduleItem,
 } from "../models/supervision";
@@ -76,6 +80,23 @@ export function MonthCalendarView() {
     }
     return map;
   }, [filteredScheduleItems]);
+
+  /** Density cues use unfiltered snapshot for honesty (US-040K). */
+  const densityByDay = useMemo(() => {
+    const map = new Map<string, number>();
+    const allItems = scheduleSnapshot?.items ?? filteredScheduleItems;
+    for (const item of allItems) {
+      if (!isDensityMember(item)) {
+        continue;
+      }
+      const key = localDayKey(item.scheduledAtUtc);
+      if (!key) {
+        continue;
+      }
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return map;
+  }, [scheduleSnapshot?.items, filteredScheduleItems]);
 
   const monthDayKeys = useMemo(
     () => new Set(grid.filter((k): k is string => k !== null)),
@@ -224,6 +245,8 @@ export function MonthCalendarView() {
           const isToday = dayKey === todayKey;
           const isSelected = dayKey === selectedDayKey;
           const isEmpty = dayItems.length === 0;
+          const densityCount = densityByDay.get(dayKey) ?? 0;
+          const cue = densityCueLevel(densityCount);
           return (
             <div
               key={dayKey}
@@ -232,11 +255,14 @@ export function MonthCalendarView() {
                 isToday ? "is-today" : "",
                 isSelected ? "is-selected" : "",
                 isEmpty ? "is-empty" : "",
+                cue === "full" ? "day-density-full" : "",
+                cue === "over" ? "day-density-over" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
               data-testid={`calendar-day-${dayKey}`}
               data-day={dayKey}
+              data-density={cue}
               role="button"
               tabIndex={0}
               aria-pressed={isSelected}
@@ -260,6 +286,22 @@ export function MonthCalendarView() {
                 {dayNumberFromKey(dayKey)}
                 {isToday ? " · today" : ""}
               </span>
+              {cue === "full" && (
+                <span
+                  className="day-density-cue day-density-full"
+                  data-testid="day-density-full"
+                >
+                  Full (2)
+                </span>
+              )}
+              {cue === "over" && (
+                <span
+                  className="day-density-cue day-density-over"
+                  data-testid="day-density-over"
+                >
+                  Over capacity ({densityCount})
+                </span>
+              )}
               {isEmpty ? (
                 <span className="calendar-empty">No items</span>
               ) : (

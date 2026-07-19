@@ -969,7 +969,7 @@ As a content operator, I want the Flow A supervision console to feel like a mode
 
 As a content operator, I want the supervision console to open on a clear **week** calendar with **month** as a secondary view and **no list**, so that I immediately understand what publishes when without learning a second triage surface that often looks empty or unexplained.
 
-**Status:** Implemented in console layer (US-040G calendar-first Week + Month; List removed from operator chrome; OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040g`; empty-grid follow-up `fix-us-040g-outlook-empty-calendar-grid` applied and **redeployed** — Week/Month keep day structure visible with calm empty cue; Vitest viewport matrix ~1280/~375 + live static assets `index-SFvEuRPX.js` / `index-DTJ5Tm4v.css` on `192.168.0.194:8010`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated (browser capture / walkthrough not completed). Interim event panel superseded by US-040H EventModal. UTC day-bucketing debt addressed by US-040I (console-layer; not yet Story accepted / not yet deployed). US-040J reopen and US-040K density not delivered. Filters dock removal and Cancelled metric chip are out of scope for the empty-grid fix.
+**Status:** Implemented in console layer (US-040G calendar-first Week + Month; List removed from operator chrome; OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040g`; empty-grid follow-up `fix-us-040g-outlook-empty-calendar-grid` applied and **redeployed** — Week/Month keep day structure visible with calm empty cue; Vitest viewport matrix ~1280/~375 + live static assets `index-SFvEuRPX.js` / `index-DTJ5Tm4v.css` on `192.168.0.194:8010`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated (browser capture / walkthrough not completed). Interim event panel superseded by US-040H EventModal. UTC day-bucketing debt addressed by US-040I (console-layer; not yet Story accepted). US-040J reopen and US-040K density are implemented in separate changes (not yet Story accepted). Filters dock removal and Cancelled metric chip are out of scope for the empty-grid fix.
 
 **UX intent (normative)**
 
@@ -1047,7 +1047,7 @@ Required scenes (desktop + mobile): event open; modal hierarchy; edit/reschedule
 
 As a content operator, I want the week/month grids, event times, and reschedule controls to work in **my local timezone**, so that I do not have to translate UTC or “another part of the world’s” calendar days while planning posts.
 
-**Status:** Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040i` archived; Vitest with `TZ=America/Chicago` + ~1280/~375 viewport matrix + production static rebuild; live `index-DV0R4K8U.js` / `index-BGvbD0Jm.css`; git `a1bd3cd`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated. US-040J reopen is implemented in a separate change (not yet Story accepted / not yet deployed). US-040K density not delivered. US-040G/H Story accepted remain separately gated.
+**Status:** Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040i` archived; Vitest with `TZ=America/Chicago` + ~1280/~375 viewport matrix + production static rebuild; live `index-DV0R4K8U.js` / `index-BGvbD0Jm.css`; git `a1bd3cd`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated. US-040J reopen and US-040K density are implemented in separate changes (not yet Story accepted / not yet deployed for K). US-040G/H Story accepted remain separately gated.
 
 **UX intent (normative)**
 
@@ -1082,7 +1082,7 @@ Required scenes (desktop + mobile): local times on Week/Month/modal with timezon
 
 As a content operator, I want cancelled calendar events to be visually honest and actionable (or clearly non-actionable), so that when I see a cancelled item on today/this week I understand **why** and what I can do next — including reopen/reschedule when product allows — instead of a mute grey chip with no path.
 
-**Status:** Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040j` archived; Vitest ~1280/~375 + pytest + static rebuild; live `index-BJwARkPN.js` / `index-BLiwrDxd.css`; git `ec2d000`; OpenAPI `/reopen-linkedin-variant`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated. US-040K density not delivered. US-040G/H/I Story accepted remain separately gated.
+**Status:** Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040j` archived; Vitest ~1280/~375 + pytest + static rebuild; live `index-BJwARkPN.js` / `index-BLiwrDxd.css`; git `ec2d000`; OpenAPI `/reopen-linkedin-variant`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated. US-040K density is implemented in a separate change (not yet Story accepted / not yet deployed). US-040G/H/I Story accepted remain separately gated.
 
 **UX intent (normative)**
 
@@ -1102,7 +1102,7 @@ Required scenes (desktop + mobile): cancelled chip on Week/Month; cancelled moda
 - [x] Cancelled events are visible on Week/Month with clear cancelled styling and label. — Demonstrated: calm cancelled chip classes on Week/Month; Vitest ~1280/~375.
 - [x] Event modal for cancelled items explains cancellation (reason/source/timestamp when available) in operator language; raw codes only in diagnostics. — Demonstrated: cancelled EventModal what/why/what-next; diagnostics hold machine fields.
 - [x] Define and implement an approved **reopen or reschedule-from-cancelled** path via worker HTTP (new or extended contract under OpenSpec) OR, if temporarily deferred inside the same change, ship an explicit read-only cancelled modal — do not leave “mystery cancelled” UX. Prefer shipping the reopen/reschedule path as the business outcome of this story. — Demonstrated: `POST /reopen-linkedin-variant` + console reopen panel (reopen shipped; read-only escape hatch unused).
-- [x] Reopened items MUST reappear as editable supervision targets (pending/planned as applicable) and respect dry-run/confirm, local time, and density limits (US-040I/K). — Demonstrated: real reopen → `pending` + future schedule + dry-run/confirm + local ScheduleEditor fields; US-040K density noted as follow-up (interim saturation/duplicate-slot only).
+- [x] Reopened items MUST reappear as editable supervision targets (pending/planned as applicable) and respect dry-run/confirm, local time, and density limits (US-040I/K). — Demonstrated: real reopen → `pending` + future schedule + dry-run/confirm + local ScheduleEditor fields; US-040K density enforced on reopen in a separate change (not Story accepted).
 - [x] Cancel from an active event remains destructive, confirmed, and irreversible except through the new reopen path. — Demonstrated: cancel confirmation retained; defer refused on cancelled; reopen is the restore path.
 - [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
 - [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms cancelled-event UX meets intent before Story accepted.
@@ -1115,7 +1115,7 @@ Required scenes (desktop + mobile): cancelled chip on Week/Month; cancelled moda
 
 As a content operator, I want the console and schedule rules to **cap publications at two per local calendar day**, so that I cannot accidentally look like a spammer by stacking three or more posts on the same day.
 
-**Status:** Not started. **Not Story accepted; BL-015 remains open.** Interim product rule for BL-015; BL-021 MAY later supersede with richer cadence windows.
+**Status:** Implemented in console+worker layer (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040k`; pytest + Vitest ~1280/~375 + production static rebuild `index-CoeIIs9v.js` / `index-CfjReggH.css`). **Not Story accepted; BL-015 remains open.** **Not deployed** — Visual DoD screenshots + operator walkthrough gated. Interim product rule for BL-015; BL-021 MAY later supersede with richer cadence windows. US-040G/H/I/J Story accepted remain separately gated.
 
 **UX intent (normative)**
 
@@ -1132,17 +1132,17 @@ Required scenes (desktop + mobile): local day at 2 publications (full cue); atte
 
 **Acceptance criteria**
 
-- [ ] Enforce a maximum of **2** publications per **operator-local** calendar day for items in scope of the supervision plan (exact inclusion set defined in the OpenSpec change; default intent: live planned LinkedIn — and blog if shown — excluding cancelled unless reopen restores them).
-- [ ] Week/Month MUST surface day density so a day with 2 items looks “full” and a conflict attempt is understandable before commit.
-- [ ] Reschedule/defer/reopen flows MUST validate the cap client-side and server-side; exceeding 2 MUST fail closed with actionable messaging.
-- [ ] Existing days that already have 3+ items MUST remain visible (do not hide history) and SHOULD offer a clear path to fix density by moving events (modal actions), not silent data loss.
-- [ ] Interim duplicate-slot / 72h sibling rules MAY remain until BL-021 supersedes; this story’s **2/local-day** cap is additive and MUST be documented as interim product policy.
-- [ ] Do not call LinkedIn API publish as part of density enforcement.
+- [x] Enforce a maximum of **2** publications per **operator-local** calendar day for items in scope of the supervision plan (exact inclusion set defined in the OpenSpec change; default intent: live planned LinkedIn — and blog if shown — excluding cancelled unless reopen restores them). — Demonstrated: shared `evaluate_local_day_density`; codes `linkedin_supervision_local_day_density` / `calendar_schedule_local_day_density`; wired into defer/reopen/blog schedule-update; pytest coverage.
+- [x] Week/Month MUST surface day density so a day with 2 items looks “full” and a conflict attempt is understandable before commit. — Demonstrated: Vitest full cue at 2; over-capacity at 3+ still visible.
+- [x] Reschedule/defer/reopen flows MUST validate the cap client-side and server-side; exceeding 2 MUST fail closed with actionable messaging. — Demonstrated: ScheduleEditor/reopen prevention + worker fail-closed; plain-language “This day already has 2 publications.”
+- [x] Existing days that already have 3+ items MUST remain visible (do not hide history) and SHOULD offer a clear path to fix density by moving events (modal actions), not silent data loss. — Demonstrated: over cue + EventModal move path; grandfather reduce pytest.
+- [x] Interim duplicate-slot / 72h sibling rules MAY remain until BL-021 supersedes; this story’s **2/local-day** cap is additive and MUST be documented as interim product policy. — Demonstrated: additive coexistence; documented vs BL-021.
+- [x] Do not call LinkedIn API publish as part of density enforcement. — Demonstrated: density path reads metadata/calendar only; pytest asserts no LinkedIn HTTP client.
 - [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
 - [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms max-2 density UX meets intent before Story accepted.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated at console-layer via Vitest; operator confirmation still gated.
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: density + timezone codes mapped to plain language.
+- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: prior Week/Month/EventModal/ScheduleEditor/session/local-time/reopen suites still pass; G–J Story accepted not closed; BL-015 left open.
 
 ## BL-016 — Define Flow B
 

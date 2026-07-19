@@ -759,6 +759,49 @@ td {
   border-color: rgba(122, 167, 255, 0.7);
 }
 
+/* US-040K density cues — calm, not failed/blocked alarm red */
+.week-day-column.day-density-full,
+.calendar-cell.day-density-full {
+  border-color: rgba(180, 160, 90, 0.55);
+  background: #1a1914;
+}
+
+.week-day-column.day-density-over,
+.calendar-cell.day-density-over {
+  border-color: rgba(160, 130, 70, 0.7);
+  background: #1c1912;
+}
+
+.week-day-column.is-today.day-density-full,
+.week-day-column.is-today.day-density-over,
+.calendar-cell.is-today.day-density-full,
+.calendar-cell.is-today.day-density-over {
+  border-color: rgba(180, 160, 90, 0.65);
+}
+
+.day-density-cue {
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.12rem 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+
+.day-density-cue.day-density-full {
+  color: #d4c48a;
+  background: rgba(180, 160, 90, 0.12);
+  border-color: rgba(180, 160, 90, 0.35);
+}
+
+.day-density-cue.day-density-over {
+  color: #e0c878;
+  background: rgba(160, 130, 70, 0.18);
+  border-color: rgba(160, 130, 70, 0.45);
+}
+
 .week-day-header {
   display: flex;
   flex-direction: column;

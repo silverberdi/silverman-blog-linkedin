@@ -42,6 +42,10 @@ from silverman_blog_linkedin.linkedin_publication_flow import (
     _verify_artifact,
     classify_linkedin_recovery,
 )
+from silverman_blog_linkedin.local_day_density import (
+    LINKEDIN_SUPERVISION_LOCAL_DAY_DENSITY,
+    evaluate_local_day_density,
+)
 from silverman_blog_linkedin.run_metadata import utc_now_iso
 
 LINKEDIN_SUPERVISION_VARIANT_NOT_PENDING = "linkedin_supervision_variant_not_pending"
@@ -547,7 +551,9 @@ def defer_linkedin_variant(
     idempotency_key: str | None = None,
     actor: str | None = None,
     source: str | None = None,
+    operator_timezone: str | None = None,
     now: datetime | None = None,
+    environ: dict[str, str] | None = None,
 ) -> LinkedInSupervisionResult:
     """Reschedule a pending variant with deferral audit history."""
     campaign, entry, errors = _supervision_eligibility(
@@ -630,6 +636,27 @@ def defer_linkedin_variant(
             publish_state=publish_state,
             dry_run=dry_run,
             errors=cadence_errors,
+        )
+
+    # US-040K: max-2 operator-local-day density (additive to interim cadence).
+    density = evaluate_local_day_density(
+        base_path,
+        target_utc=new_dt,
+        operator_timezone=operator_timezone,
+        exclude_campaign_id=campaign_id,
+        exclude_variant=variant,
+        density_error_code=LINKEDIN_SUPERVISION_LOCAL_DAY_DENSITY,
+        environ=environ,
+    )
+    if not density.ok:
+        return LinkedInSupervisionResult(
+            status="failed",
+            campaign_id=campaign_id,
+            variant=variant,
+            state=campaign.get("state"),
+            publish_state=publish_state,
+            dry_run=dry_run,
+            errors=list(density.errors),
         )
 
     payload = {
@@ -868,7 +895,9 @@ def reopen_linkedin_variant(
     idempotency_key: str | None = None,
     actor: str | None = None,
     source: str | None = None,
+    operator_timezone: str | None = None,
     now: datetime | None = None,
+    environ: dict[str, str] | None = None,
 ) -> LinkedInSupervisionResult:
     """Restore an eligible cancelled variant to pending with a new future schedule.
 
@@ -984,6 +1013,27 @@ def reopen_linkedin_variant(
             publish_state=PUBLISH_STATE_CANCELLED,
             dry_run=dry_run,
             errors=cadence_errors,
+        )
+
+    # US-040K: max-2 operator-local-day density (additive to interim cadence).
+    density = evaluate_local_day_density(
+        base_path,
+        target_utc=new_dt,
+        operator_timezone=operator_timezone,
+        exclude_campaign_id=campaign_id,
+        exclude_variant=variant,
+        density_error_code=LINKEDIN_SUPERVISION_LOCAL_DAY_DENSITY,
+        environ=environ,
+    )
+    if not density.ok:
+        return LinkedInSupervisionResult(
+            status="failed",
+            campaign_id=campaign_id,
+            variant=variant,
+            state=campaign.get("state"),
+            publish_state=PUBLISH_STATE_CANCELLED,
+            dry_run=dry_run,
+            errors=list(density.errors),
         )
 
     if dry_run:

@@ -64,6 +64,18 @@ def isolate_calendar_store(monkeypatch: pytest.MonkeyPatch) -> MemoryCalendarSto
     reset_calendar_store_for_tests(None)
 
 
+@pytest.fixture(autouse=True)
+def default_operator_timezone(monkeypatch: pytest.MonkeyPatch) -> None:
+    """US-040K: density-gated mutations need a valid TZ (request or env).
+
+    Baseline tests rely on env fallback; density-specific tests that assert
+    fail-closed missing TZ pass ``environ={}`` explicitly.
+    """
+    from silverman_blog_linkedin.local_day_density import ENV_OPERATOR_TIMEZONE
+
+    monkeypatch.setenv(ENV_OPERATOR_TIMEZONE, "America/Chicago")
+
+
 def seed_editorial_calendar(payload: dict[str, Any]) -> None:
     """Replace the test calendar store contents with a validated document."""
     from silverman_blog_linkedin.editorial_calendar_store import get_calendar_store

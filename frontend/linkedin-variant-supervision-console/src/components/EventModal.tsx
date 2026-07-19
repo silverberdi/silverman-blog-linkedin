@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { ApiError } from "../api/errors";
+import { explainErrorCodes } from "../api/errors";
 import type { MutationResult } from "../api/types";
 import {
   confirmRealMutation,
@@ -15,7 +16,14 @@ import {
   isStrictlyAfterNow,
   utcIsoToDatetimeLocal,
 } from "./ScheduleEditor";
-import { formatLocalDisplay, utcDayKey } from "../models/dateHelpers";
+import { formatLocalDisplay, localDayKey, utcDayKey } from "../models/dateHelpers";
+import {
+  LOCAL_DAY_FULL_MESSAGE,
+  excludeForScheduleItem,
+  isLocalDayFull,
+  operatorTimezone,
+  othersOnLocalDay,
+} from "../models/localDayDensity";
 import {
   publicationStateLabel,
   type ScheduleItem,
@@ -365,6 +373,19 @@ export function EventModal() {
       pushToast({ kind: "error", text });
       return;
     }
+
+    const targetDay = localDayKey(iso);
+    const densityItems = scheduleSnapshot?.items ?? [];
+    if (targetDay) {
+      const exclude = excludeForScheduleItem(item);
+      const others = othersOnLocalDay(densityItems, targetDay, exclude);
+      if (isLocalDayFull(others)) {
+        setModalError(LOCAL_DAY_FULL_MESSAGE);
+        pushToast({ kind: "error", text: LOCAL_DAY_FULL_MESSAGE });
+        return;
+      }
+    }
+
     if (!reopenDryRun && !confirmRealMutation("reopen")) {
       return;
     }
@@ -380,9 +401,10 @@ export function EventModal() {
         idempotency_key: reopenDryRun ? null : newIdempotencyKey(),
         actor: CONSOLE_ACTOR,
         source: CONSOLE_SOURCE,
+        operator_timezone: operatorTimezone() || null,
       });
       if (result.status !== "completed") {
-        const text = `Reopen failed: ${(result.errors || []).join("; ") || "unknown"}`;
+        const text = `Reopen failed: ${explainErrorCodes(result.errors || [])}`;
         setModalError(text);
         pushToast({ kind: "error", text });
         return;
@@ -736,9 +758,9 @@ export function EventModal() {
                 {canReopen && canMutate ? (
                   <p>
                     You can reopen and choose a new local schedule. The variant
-                    returns to editable pending (not queued). Density limits
-                    (max 2 publications per local day) are a follow-up (US-040K)
-                    and are not enforced here.
+                    returns to editable pending (not queued). Max 2 publications
+                    per local day applies — a full day is blocked with plain
+                    language before commit.
                   </p>
                 ) : canReopen && !canMutate ? (
                   <p>

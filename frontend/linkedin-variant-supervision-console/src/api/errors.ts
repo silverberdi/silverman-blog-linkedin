@@ -35,7 +35,22 @@ export const SUPERVISION_ERROR_MESSAGES: Record<string, string> = {
     "Calendar schedule idempotency conflict: same key with a different payload.",
   calendar_completion_concurrent_update:
     "Calendar changed concurrently. Reload and retry the schedule update.",
+  linkedin_supervision_local_day_density:
+    "This day already has 2 publications.",
+  calendar_schedule_local_day_density:
+    "This day already has 2 publications.",
+  operator_timezone_required:
+    "Operator timezone is required. Schedule was not changed.",
+  operator_timezone_invalid:
+    "Operator timezone is invalid. Schedule was not changed.",
 };
+
+const DENSITY_CODES = new Set([
+  "linkedin_supervision_local_day_density",
+  "calendar_schedule_local_day_density",
+]);
+
+const LOCAL_DAY_FULL_PRIMARY = "This day already has 2 publications.";
 
 export type ApiErrorKind =
   | "unauthorized"
@@ -54,9 +69,27 @@ export interface ApiError {
   codes: string[];
 }
 
+/**
+ * Operator-facing explanation of worker error codes.
+ * Density codes prefer the plain human sentence as the primary display
+ * (raw codes remain available via ApiError.codes / diagnostics).
+ */
 export function explainErrorCodes(codes: string[]): string {
   if (!codes.length) {
     return "Request failed without a structured error code.";
+  }
+  if (codes.some((code) => DENSITY_CODES.has(code))) {
+    const others = codes.filter((code) => !DENSITY_CODES.has(code));
+    if (!others.length) {
+      return LOCAL_DAY_FULL_PRIMARY;
+    }
+    const rest = others
+      .map((code) => {
+        const known = SUPERVISION_ERROR_MESSAGES[code];
+        return known ? `${code} — ${known}` : code;
+      })
+      .join("; ");
+    return `${LOCAL_DAY_FULL_PRIMARY} (${rest})`;
   }
   return codes
     .map((code) => {
@@ -64,6 +97,17 @@ export function explainErrorCodes(codes: string[]): string {
       return known ? `${code} — ${known}` : code;
     })
     .join("; ");
+}
+
+/** Plain-language primary toast text (density → full-day sentence). */
+export function explainErrorCodesPlain(codes: string[]): string {
+  if (!codes.length) {
+    return "Request failed without a structured error code.";
+  }
+  if (codes.some((code) => DENSITY_CODES.has(code))) {
+    return LOCAL_DAY_FULL_PRIMARY;
+  }
+  return explainErrorCodes(codes);
 }
 
 export function unauthorizedError(): ApiError {

@@ -14,6 +14,10 @@ import {
   weekLabel,
 } from "../models/dateHelpers";
 import {
+  densityCueLevel,
+  isDensityMember,
+} from "../models/localDayDensity";
+import {
   publicationStateLabel,
   type ScheduleItem,
 } from "../models/supervision";
@@ -86,6 +90,26 @@ export function WeekView() {
     }
     return map;
   }, [filteredScheduleItems, dayKeys]);
+
+  /** Density cues use unfiltered snapshot for honesty (US-040K). */
+  const densityByDay = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const key of dayKeys) {
+      map.set(key, 0);
+    }
+    const allItems = scheduleSnapshot?.items ?? filteredScheduleItems;
+    for (const item of allItems) {
+      if (!isDensityMember(item)) {
+        continue;
+      }
+      const key = localDayKey(item.scheduledAtUtc);
+      if (!key || !map.has(key)) {
+        continue;
+      }
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return map;
+  }, [scheduleSnapshot?.items, filteredScheduleItems, dayKeys]);
 
   const weekItemCount = useMemo(() => {
     let n = 0;
@@ -204,17 +228,22 @@ export function WeekView() {
         {dayKeys.map((dayKey) => {
           const dayItems = itemsByDay.get(dayKey) ?? [];
           const isToday = dayKey === todayKey;
+          const densityCount = densityByDay.get(dayKey) ?? 0;
+          const cue = densityCueLevel(densityCount);
           return (
             <div
               key={dayKey}
               className={[
                 "week-day-column",
                 isToday ? "is-today" : "",
+                cue === "full" ? "day-density-full" : "",
+                cue === "over" ? "day-density-over" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
               data-testid={`week-day-${dayKey}`}
               data-day={dayKey}
+              data-density={cue}
             >
               <header className="week-day-header">
                 <span className="week-day-name">
@@ -224,6 +253,22 @@ export function WeekView() {
                   {dayNumberFromKey(dayKey)}
                   {isToday ? " · today" : ""}
                 </span>
+                {cue === "full" && (
+                  <span
+                    className="day-density-cue day-density-full"
+                    data-testid="day-density-full"
+                  >
+                    Full (2)
+                  </span>
+                )}
+                {cue === "over" && (
+                  <span
+                    className="day-density-cue day-density-over"
+                    data-testid="day-density-over"
+                  >
+                    Over capacity ({densityCount})
+                  </span>
+                )}
               </header>
               <div className="week-day-chips">
                 {dayItems.length === 0 ? (

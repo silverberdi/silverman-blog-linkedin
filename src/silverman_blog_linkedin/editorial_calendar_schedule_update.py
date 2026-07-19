@@ -24,6 +24,10 @@ from silverman_blog_linkedin.editorial_calendar_plan import (
     save_calendar_atomic,
     validate_canonical_utc_timestamp,
 )
+from silverman_blog_linkedin.local_day_density import (
+    CALENDAR_SCHEDULE_LOCAL_DAY_DENSITY,
+    evaluate_local_day_density,
+)
 from silverman_blog_linkedin.run_metadata import utc_now_iso
 
 CALENDAR_SCHEDULE_TIME_INVALID = "calendar_schedule_time_invalid"
@@ -171,7 +175,9 @@ def update_editorial_calendar_item_schedule(
     actor: str | None = None,
     source: str | None = None,
     expected_calendar_fingerprint: str | None = None,
+    operator_timezone: str | None = None,
     now: datetime | None = None,
+    environ: dict[str, str] | None = None,
 ) -> EditorialCalendarScheduleUpdateResult:
     """Update ``due_at_utc`` for an editable calendar item (dry-run default)."""
     calendar_path = CALENDAR_RELATIVE_PATH
@@ -266,6 +272,26 @@ def update_editorial_calendar_item_schedule(
             previous_due_at_utc=previous_due,
             new_due_at_utc=normalized_new,
             errors=[code],
+        )
+
+    # US-040K: shared max-2 operator-local-day density (additive to interim 1/UTC-day).
+    density = evaluate_local_day_density(
+        base_path,
+        target_utc=new_dt,
+        operator_timezone=operator_timezone,
+        exclude_calendar_item_id=item_id,
+        density_error_code=CALENDAR_SCHEDULE_LOCAL_DAY_DENSITY,
+        environ=environ,
+    )
+    if not density.ok:
+        return EditorialCalendarScheduleUpdateResult(
+            status="failed",
+            dry_run=dry_run,
+            item_id=item_id,
+            calendar_path=calendar_path,
+            previous_due_at_utc=previous_due,
+            new_due_at_utc=normalized_new,
+            errors=list(density.errors),
         )
 
     payload = {

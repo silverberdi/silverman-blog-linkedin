@@ -119,6 +119,8 @@ export interface DeferVariantRequest {
   idempotency_key?: string | null;
   actor?: string | null;
   source?: string | null;
+  /** IANA timezone for US-040K local-day density (browser resolved). */
+  operator_timezone?: string | null;
 }
 
 export interface CancelVariantRequest {
@@ -138,6 +140,8 @@ export interface ReopenVariantRequest {
   idempotency_key?: string | null;
   actor?: string | null;
   source?: string | null;
+  /** IANA timezone for US-040K local-day density (browser resolved). */
+  operator_timezone?: string | null;
 }
 
 export interface UpdateCalendarItemScheduleRequest {
@@ -149,6 +153,8 @@ export interface UpdateCalendarItemScheduleRequest {
   actor?: string | null;
   source?: string | null;
   expected_calendar_fingerprint?: string | null;
+  /** IANA timezone for US-040K local-day density (browser resolved). */
+  operator_timezone?: string | null;
 }
 
 export interface MutationResult {

@@ -546,6 +546,7 @@ class DeferLinkedInVariantRequest(BaseModel):
     idempotency_key: str | None = None
     actor: str | None = None
     source: str | None = None
+    operator_timezone: str | None = None
 
     @field_validator("campaign_id")
     @classmethod
@@ -604,6 +605,14 @@ class DeferLinkedInVariantRequest(BaseModel):
         if not stripped:
             raise ValueError("idempotency_key must not be empty or whitespace-only")
         return stripped
+
+    @field_validator("operator_timezone")
+    @classmethod
+    def validate_operator_timezone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
 
 
 class ReopenLinkedInVariantRequest(BaseModel):
@@ -619,6 +628,7 @@ class ReopenLinkedInVariantRequest(BaseModel):
     idempotency_key: str | None = None
     actor: str | None = None
     source: str | None = None
+    operator_timezone: str | None = None
 
     @field_validator("campaign_id")
     @classmethod
@@ -677,6 +687,14 @@ class ReopenLinkedInVariantRequest(BaseModel):
         if not stripped:
             raise ValueError("idempotency_key must not be empty or whitespace-only")
         return stripped
+
+    @field_validator("operator_timezone")
+    @classmethod
+    def validate_operator_timezone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
 
 
 class ValidateLinkedInArticlePreviewRequest(BaseModel):
@@ -761,6 +779,7 @@ class UpdateEditorialCalendarItemScheduleRequest(BaseModel):
     actor: str | None = None
     source: str | None = None
     expected_calendar_fingerprint: str | None = None
+    operator_timezone: str | None = None
 
     @field_validator("item_id")
     @classmethod
@@ -775,7 +794,7 @@ class UpdateEditorialCalendarItemScheduleRequest(BaseModel):
     def validate_new_due_at_utc(cls, value: str) -> str:
         return validate_canonical_utc_timestamp(value)
 
-    @field_validator("reason", "actor", "source")
+    @field_validator("reason", "actor", "source", "operator_timezone")
     @classmethod
     def validate_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -2156,6 +2175,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             idempotency_key=body.idempotency_key,
             actor=body.actor,
             source=body.source,
+            operator_timezone=body.operator_timezone,
+            environ=os.environ,
         )
         logger.info(
             "defer-linkedin-variant status=%s campaign_id=%s variant=%s dry_run=%s",
@@ -2181,6 +2202,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             idempotency_key=body.idempotency_key,
             actor=body.actor,
             source=body.source,
+            operator_timezone=body.operator_timezone,
+            environ=os.environ,
         )
         logger.info(
             "reopen-linkedin-variant status=%s campaign_id=%s variant=%s dry_run=%s "
@@ -2348,6 +2371,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             actor=body.actor,
             source=body.source,
             expected_calendar_fingerprint=body.expected_calendar_fingerprint,
+            operator_timezone=body.operator_timezone,
+            environ=os.environ,
         )
         logger.info(
             "editorial-calendar/update-item-schedule status=%s item_id=%s dry_run=%s",
