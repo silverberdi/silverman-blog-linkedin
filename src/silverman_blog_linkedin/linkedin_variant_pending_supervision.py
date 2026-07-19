@@ -248,23 +248,16 @@ def _calendar_index(
     base_path: Path, issues: list[SupervisionIssue]
 ) -> dict[str, dict[str, Any]]:
     """Map campaign_id -> first calendar item (by item_id); flag ambiguity."""
-    calendar_path = base_path / CALENDAR_RELATIVE_PATH
-    if not calendar_path.exists():
-        issues.append(
-            SupervisionIssue(CALENDAR_SOURCE, "calendar.json", CALENDAR_FILE_NOT_FOUND)
-        )
-        return {}
-
     calendar, errors = load_calendar(base_path)
     if calendar is None:
         reason = errors[0] if errors else CALENDAR_SCHEMA_INVALID
-        issues.append(SupervisionIssue(CALENDAR_SOURCE, "calendar.json", reason))
+        issues.append(SupervisionIssue(CALENDAR_SOURCE, "calendar_store", reason))
         return {}
 
     items = calendar.get("items", [])
     if not isinstance(items, list):
         issues.append(
-            SupervisionIssue(CALENDAR_SOURCE, "calendar.json", CALENDAR_SCHEMA_INVALID)
+            SupervisionIssue(CALENDAR_SOURCE, "calendar_store", CALENDAR_SCHEMA_INVALID)
         )
         return {}
 

@@ -1353,33 +1353,17 @@ def _load_campaigns(
     return campaigns
 
 
-def _calendar_file_is_confined(
-    base_path: Path, issues: list[DataIssue]
-) -> bool:
-    calendar_path = base_path / CALENDAR_RELATIVE_PATH
-    if not calendar_path.exists():
-        issues.append(
-            DataIssue(CALENDAR_SOURCE, "calendar.json", CALENDAR_FILE_NOT_FOUND)
-        )
+def _calendar_store_ready(base_path: Path, issues: list[DataIssue]) -> bool:
+    """Return True when the calendar database store loads successfully."""
+    calendar, errors = load_calendar(base_path)
+    if calendar is None:
+        reason = errors[0] if errors else CALENDAR_SCHEMA_INVALID
+        issues.append(DataIssue(CALENDAR_SOURCE, "calendar_store", reason))
         return False
-    try:
-        base_resolved = base_path.resolve(strict=True)
-        directory_resolved = calendar_path.parent.resolve(strict=True)
-        directory_resolved.relative_to(base_resolved)
-        resolved = calendar_path.resolve(strict=True)
-        resolved.relative_to(directory_resolved)
-    except (FileNotFoundError, OSError, ValueError):
+    items = calendar.get("items", [])
+    if not isinstance(items, list):
         issues.append(
-            DataIssue(
-                CALENDAR_SOURCE,
-                "calendar.json",
-                CALENDAR_PATH_OUTSIDE_SOURCE,
-            )
-        )
-        return False
-    if not resolved.is_file():
-        issues.append(
-            DataIssue(CALENDAR_SOURCE, "calendar.json", CALENDAR_SCHEMA_INVALID)
+            DataIssue(CALENDAR_SOURCE, "calendar_store", CALENDAR_SCHEMA_INVALID)
         )
         return False
     return True
@@ -1391,7 +1375,7 @@ def _load_delayed_calendar_items(
     observed_at: datetime,
     issues: list[DataIssue],
 ) -> list[DelayedCalendarItemSummary]:
-    if not _calendar_file_is_confined(base_path, issues):
+    if not _calendar_store_ready(base_path, issues):
         return []
     calendar, errors = load_calendar(base_path)
     if calendar is None:

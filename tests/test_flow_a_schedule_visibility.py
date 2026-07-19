@@ -19,7 +19,7 @@ from silverman_blog_linkedin.flow_a_schedule_visibility import (
     get_flow_a_schedule_visibility,
 )
 from silverman_blog_linkedin.main import create_app
-from tests.conftest import auth_header, make_settings
+from tests.conftest import auth_header, make_settings, write_and_seed_calendar
 
 CAMPAIGN_ID = "flow-a-2026-07-18-schedule-visibility"
 SCHEDULE_API = "/flow-a/schedule-visibility"
@@ -85,8 +85,8 @@ def _write_campaign(
 
 
 def _write_calendar(base: Path, items: list[dict]) -> Path:
-    return _write_json(
-        base / "editorial-calendar/calendar.json",
+    return write_and_seed_calendar(
+        base,
         {
             "schema_version": "1",
             "updated_at_utc": "2026-07-18T09:00:00Z",
@@ -237,7 +237,7 @@ def test_happy_path_blog_and_linkedin_items(schedule_base: Path):
     assert "linkedin:flow-a-2026-07-18-schedule-visibility:outside-month" not in by_id
 
 
-def test_calendar_missing_still_returns_linkedin_with_partial(schedule_base: Path):
+def test_empty_calendar_still_returns_linkedin_items(schedule_base: Path):
     _write_campaign(
         schedule_base,
         variants=[_variant("engineering-leadership")],
@@ -248,8 +248,8 @@ def test_calendar_missing_still_returns_linkedin_with_partial(schedule_base: Pat
         month=7,
         environ={"SILVERMAN_LINKEDIN_PUBLICATION_ENABLED": "true"},
     )
-    assert result.status == "partial"
-    assert any(issue.reason == "calendar_file_not_found" for issue in result.issues)
+    assert result.status == "ok"
+    assert result.issues == []
     assert len(result.items) == 1
     assert result.items[0].channel == "linkedin"
 

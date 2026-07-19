@@ -316,23 +316,16 @@ def _load_blog_items(
     end: datetime,
     issues: list[SupervisionIssue],
 ) -> list[ScheduleVisibilityItem]:
-    calendar_path = base_path / CALENDAR_RELATIVE_PATH
-    if not calendar_path.exists():
-        issues.append(
-            SupervisionIssue(CALENDAR_SOURCE, "calendar.json", CALENDAR_FILE_NOT_FOUND)
-        )
-        return []
-
     calendar_doc, errors = load_calendar(base_path)
     if calendar_doc is None:
         reason = errors[0] if errors else CALENDAR_SCHEMA_INVALID
-        issues.append(SupervisionIssue(CALENDAR_SOURCE, "calendar.json", reason))
+        issues.append(SupervisionIssue(CALENDAR_SOURCE, "calendar_store", reason))
         return []
 
     raw_items = calendar_doc.get("items", [])
     if not isinstance(raw_items, list):
         issues.append(
-            SupervisionIssue(CALENDAR_SOURCE, "calendar.json", CALENDAR_SCHEMA_INVALID)
+            SupervisionIssue(CALENDAR_SOURCE, "calendar_store", CALENDAR_SCHEMA_INVALID)
         )
         return []
 

@@ -41,7 +41,7 @@ from silverman_blog_linkedin.flow_a_operational_alerts_config import (
 )
 from silverman_blog_linkedin.main import create_app
 from silverman_blog_linkedin.paths import EXPECTED_FOLDERS
-from tests.conftest import auth_header, make_settings
+from tests.conftest import auth_header, make_settings, write_and_seed_calendar
 
 NOW = "2026-07-17T12:00:00Z"
 CAMPAIGN_ERROR = "flow-a-2026-07-17-alerts-error"
@@ -59,10 +59,7 @@ def alerts_base(tmp_path: Path) -> Path:
     base = tmp_path / "editorial"
     for relative in EXPECTED_FOLDERS:
         (base / relative).mkdir(parents=True, exist_ok=True)
-    _write_json(
-        base / "editorial-calendar/calendar.json",
-        {"version": 1, "items": []},
-    )
+    # Empty calendar store (autouse memory fixture) is valid SoT.
     return base
 
 
@@ -83,10 +80,6 @@ def degraded_alerts_base(tmp_path: Path) -> Path:
         "linkedin-posts/published",
     ):
         (base / relative).mkdir(parents=True, exist_ok=True)
-    _write_json(
-        base / "editorial-calendar/calendar.json",
-        {"version": 1, "items": []},
-    )
     return base
 
 
@@ -150,8 +143,10 @@ def _write_campaign(
 
 
 def _write_calendar(base: Path, items: list[dict]) -> Path:
-    return _write_json(
-        base / "editorial-calendar/calendar.json",
+    from tests.conftest import write_and_seed_calendar
+
+    return write_and_seed_calendar(
+        base,
         {
             "schema_version": "1",
             "updated_at_utc": "2026-07-17T09:00:00Z",

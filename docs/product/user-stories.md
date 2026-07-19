@@ -1715,3 +1715,26 @@ As a content operator, I want to keep cursor and repository guidance aligned, so
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
+
+## BL-031 — Persist Editorial Calendar in Database
+
+**Priority:** P1
+
+**Business context:** After the 2026-07-18 deploy wipe of `calendar.json`, master calendar schedule state must not live solely on the editorial filesystem.
+
+### US-041 — Persist Editorial Calendar in `silverman_linkedin_db`
+
+**Status:** In progress (implementation). Not operator-validated. Does not restore historically wiped calendar rows.
+
+**Description**
+
+As a system operator, I want the master editorial calendar stored in PostgreSQL database `silverman_linkedin_db`, so that schedule state survives editorial mount wipe and code deploy sync.
+
+**Acceptance criteria**
+
+- [ ] Create/use PostgreSQL database named exactly `silverman_linkedin_db` (not a schema inside another app DB).
+- [ ] Calendar load/save for plan, status, schedule-update, and schedule-visibility uses the database as source of truth.
+- [ ] Calendar APIs fail closed when the database is unavailable (no silent `calendar.json` fallback as SoT).
+- [ ] Operator-gated import from legacy `calendar.json` works when the DB is empty and refuses to clobber a non-empty DB.
+- [ ] Secrets (DB URL/password) never appear in HTTP responses or logs.
+- [ ] Existing completed work is not duplicated or unintentionally changed (HTTP paths stable; blog/LinkedIn Markdown remain files).

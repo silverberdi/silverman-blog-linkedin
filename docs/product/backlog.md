@@ -513,3 +513,17 @@ This backlog describes the outstanding business and operational capabilities req
 - Keep Cursor and repository guidance aligned.
 
 **Completion outcome:** Project context remains accurate, current, and trustworthy.
+
+### BL-031 — Persist Editorial Calendar in Database
+
+**Business need:** Keep master editorial calendar / schedule state durable outside the editorial filesystem so a code deploy or mount mistake cannot wipe publication planning.
+
+**Expected outcomes:**
+
+- Create PostgreSQL database `silverman_linkedin_db` on `local-ai-stack`.
+- Persist calendar items and due times in that database as source of truth.
+- Keep worker HTTP calendar contracts stable for n8n and the supervision console.
+- Support operator-gated import from legacy `calendar.json` when present.
+- Document database backup ownership separate from BL-014 filesystem packages.
+
+**Completion outcome:** Calendar schedule state survives editorial mount wipe and code sync; operators can plan and supervise from database-backed calendar reads.

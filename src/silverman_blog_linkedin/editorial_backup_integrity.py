@@ -51,7 +51,6 @@ INCLUDED_SCOPE_CLASSES: tuple[str, ...] = (
     "linkedin-posts/published",
     "metadata/campaigns",
     "metadata/runs",
-    "editorial-calendar",
     "prompts",
 )
 

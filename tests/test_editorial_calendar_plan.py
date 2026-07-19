@@ -10,7 +10,6 @@ from fastapi.testclient import TestClient
 
 from silverman_blog_linkedin.editorial_calendar_plan import (
     CALENDAR_AMBIGUOUS_SOURCE_SELECTION,
-    CALENDAR_FILE_NOT_FOUND,
     CALENDAR_INVALID_FLOW_POLICY,
     CALENDAR_ITEM_OVERDUE_BUT_PLANNED,
     CALENDAR_SCHEMA_INVALID,
@@ -20,9 +19,19 @@ from silverman_blog_linkedin.editorial_calendar_plan import (
     plan_editorial_calendar_due,
     plan_result_to_comparable_dict,
 )
+from silverman_blog_linkedin.editorial_calendar_store import (
+    CALENDAR_STORE_NOT_CONFIGURED,
+    reset_calendar_store_for_tests,
+)
 from silverman_blog_linkedin.main import create_app
 from silverman_blog_linkedin.paths import EXPECTED_FOLDERS
-from tests.conftest import auth_header, create_full_layout, make_settings
+from tests.conftest import (
+    auth_header,
+    create_full_layout,
+    inject_unvalidated_calendar,
+    make_settings,
+    write_and_seed_calendar,
+)
 
 NOW_UTC = "2026-07-09T20:00:00Z"
 FUTURE_UTC = "2026-12-01T14:00:00Z"
@@ -30,11 +39,9 @@ PAST_UTC = "2026-07-01T14:00:00Z"
 
 
 def _write_calendar(base: Path, payload: dict) -> Path:
-    calendar_dir = base / "editorial-calendar"
-    calendar_dir.mkdir(parents=True, exist_ok=True)
-    path = calendar_dir / "calendar.json"
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    return path
+    return write_and_seed_calendar(base, payload)
+
+
 
 
 def _base_calendar(*, items: list[dict]) -> dict:
@@ -80,25 +87,45 @@ def editorial_base(tmp_path: Path) -> Path:
     return base
 
 
-def test_missing_calendar_returns_calendar_missing(editorial_base: Path):
+def test_empty_calendar_store_is_present_not_file_missing(editorial_base: Path):
     result = plan_editorial_calendar_due(editorial_base, now_utc=NOW_UTC)
 
-    assert result.status == "calendar_missing"
-    assert result.errors == [CALENDAR_FILE_NOT_FOUND]
+    assert result.status == "no_due_items"
+    assert result.errors == []
     assert result.read_only is True
     assert result.due_items == []
 
 
-def test_missing_calendar_status_endpoint_shape(editorial_base: Path):
-    result = get_editorial_calendar_status(editorial_base)
+def test_unconfigured_calendar_store_returns_calendar_missing(
+    editorial_base: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.delenv("SILVERMAN_CALENDAR_DATABASE_URL", raising=False)
+    reset_calendar_store_for_tests(None)
+
+    result = plan_editorial_calendar_due(editorial_base, now_utc=NOW_UTC)
 
     assert result.status == "calendar_missing"
-    assert result.calendar_present is False
-    assert result.errors == [CALENDAR_FILE_NOT_FOUND]
+    assert result.errors == [CALENDAR_STORE_NOT_CONFIGURED]
+    assert result.read_only is True
+    assert result.due_items == []
+
+
+def test_empty_calendar_status_endpoint_shape(editorial_base: Path):
+    result = get_editorial_calendar_status(editorial_base)
+
+    assert result.status == "ok"
+    assert result.calendar_present is True
+    assert result.errors == []
 
 
 def test_invalid_calendar_shape(editorial_base: Path):
-    _write_calendar(editorial_base, {"schema_version": "1"})
+    inject_unvalidated_calendar(
+        {
+            "schema_version": "1",
+            "updated_at_utc": "2026-07-09T20:00:00Z",
+            "items": [{"item_id": "broken"}],
+        }
+    )
 
     result = plan_editorial_calendar_due(editorial_base, now_utc=NOW_UTC)
 
@@ -353,7 +380,7 @@ def test_http_status_ok_with_calendar(editorial_base: Path):
     assert body["item_counts_by_status"]["scheduled"] == 1
 
 
-def test_http_calendar_missing_when_file_absent(editorial_base: Path):
+def test_http_empty_calendar_when_store_empty(editorial_base: Path):
     client = TestClient(create_app(make_settings(editorial_base)))
 
     plan_response = client.post(
@@ -366,10 +393,10 @@ def test_http_calendar_missing_when_file_absent(editorial_base: Path):
         headers=auth_header(),
     )
 
-    assert plan_response.json()["status"] == "calendar_missing"
-    assert plan_response.json()["errors"] == [CALENDAR_FILE_NOT_FOUND]
-    assert status_response.json()["status"] == "calendar_missing"
-    assert status_response.json()["errors"] == [CALENDAR_FILE_NOT_FOUND]
+    assert plan_response.json()["status"] == "no_due_items"
+    assert plan_response.json()["errors"] == []
+    assert status_response.json()["status"] == "ok"
+    assert status_response.json()["calendar_present"] is True
 
 
 def test_health_healthy_without_calendar_json(editorial_base: Path):

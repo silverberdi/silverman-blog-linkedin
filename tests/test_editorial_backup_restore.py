@@ -50,9 +50,6 @@ def _seed_editorial_sources(base: Path) -> None:
     (base / "metadata/runs/run-1.json").write_text(
         '{"run_id":"run-1"}\n', encoding="utf-8"
     )
-    (base / "editorial-calendar/calendar.json").write_text(
-        '{"items":[]}\n', encoding="utf-8"
-    )
     (base / "prompts/system.md").write_text("prompt\n", encoding="utf-8")
     (base / "linkedin-posts/review/variant.md").write_text(
         "linkedin body\n", encoding="utf-8"
@@ -95,7 +92,6 @@ class TestRestoreDrillPass:
         _assert_secret_safe(result.to_dict())
 
         assert (target / "metadata/campaigns/camp-1.json").is_file()
-        assert (target / "editorial-calendar/calendar.json").is_file()
         assert (target / "linkedin-posts/review/variant.md").is_file()
         assert (target / "blog-posts/ready/hero.png").is_file()
         assert (target / "blog-posts/ready/sample.md").read_text(

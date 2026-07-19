@@ -172,29 +172,29 @@ def _validated_publish_campaign(base: Path, content: str) -> dict:
 
 
 def _write_connector_calendar(base: Path, *, campaign_id: str) -> None:
-    calendar_dir = base / "editorial-calendar"
-    calendar_dir.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "schema_version": "1",
-        "updated_at_utc": NOW_UTC,
-        "items": [
-            {
-                "item_id": "due-flow-a",
-                "title": "Flow A sample",
-                "status": "scheduled",
-                "due_at_utc": PAST_UTC,
-                "source_folder": "blog-posts/ready",
-                "source_relative_path": CONNECTOR_READY,
-                "flow_type": "flow_a_ready_blog_post",
-                "content_mode": "user_provided_approved_blog",
-                "target_audience": "executive-recruiter",
-                "topic_theme": "architecture",
-                "campaign_id": campaign_id,
-            }
-        ],
-    }
-    (calendar_dir / "calendar.json").write_text(
-        json.dumps(payload, indent=2) + "\n", encoding="utf-8"
+    from tests.conftest import write_and_seed_calendar
+
+    write_and_seed_calendar(
+        base,
+        {
+            "schema_version": "1",
+            "updated_at_utc": NOW_UTC,
+            "items": [
+                {
+                    "item_id": "due-flow-a",
+                    "title": "Flow A sample",
+                    "status": "scheduled",
+                    "due_at_utc": PAST_UTC,
+                    "source_folder": "blog-posts/ready",
+                    "source_relative_path": CONNECTOR_READY,
+                    "flow_type": "flow_a_ready_blog_post",
+                    "content_mode": "user_provided_approved_blog",
+                    "target_audience": "executive-recruiter",
+                    "topic_theme": "architecture",
+                    "campaign_id": campaign_id,
+                }
+            ],
+        },
     )
 
 

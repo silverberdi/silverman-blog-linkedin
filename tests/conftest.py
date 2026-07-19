@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -20,6 +21,11 @@ from silverman_blog_linkedin.comfyui_config import (
     ENV_WORKFLOW_PATH,
 )
 from silverman_blog_linkedin.config import Settings
+from silverman_blog_linkedin.editorial_calendar_store import (
+    ENV_CALENDAR_DATABASE_URL,
+    MemoryCalendarStore,
+    reset_calendar_store_for_tests,
+)
 from silverman_blog_linkedin.paths import EXPECTED_FOLDERS
 
 COMFYUI_ENV_VARS: tuple[str, ...] = (
@@ -46,6 +52,80 @@ def clear_comfyui_env(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture(autouse=True)
 def isolate_comfyui_env(monkeypatch: pytest.MonkeyPatch) -> None:
     clear_comfyui_env(monkeypatch)
+
+
+@pytest.fixture(autouse=True)
+def isolate_calendar_store(monkeypatch: pytest.MonkeyPatch) -> MemoryCalendarStore:
+    """Use an isolated in-memory calendar store for every test."""
+    monkeypatch.setenv(ENV_CALENDAR_DATABASE_URL, "memory://")
+    store = MemoryCalendarStore()
+    reset_calendar_store_for_tests(store)
+    yield store
+    reset_calendar_store_for_tests(None)
+
+
+def seed_editorial_calendar(payload: dict[str, Any]) -> None:
+    """Replace the test calendar store contents with a validated document."""
+    from silverman_blog_linkedin.editorial_calendar_store import get_calendar_store
+
+    store = get_calendar_store()
+    force = getattr(store, "force_replace", None)
+    if not callable(force):
+        raise RuntimeError("test calendar store does not support force_replace")
+    errors = force(payload)
+    if errors:
+        raise AssertionError(f"seed_editorial_calendar failed: {errors}")
+
+
+def inject_unvalidated_calendar(payload: dict[str, Any]) -> None:
+    """Inject calendar JSON into the memory store without validation (negative tests)."""
+    from copy import deepcopy
+
+    from silverman_blog_linkedin.editorial_calendar_store import (
+        MemoryCalendarStore,
+        _MemoryState,
+        canonical_calendar_digest,
+        get_calendar_store,
+    )
+
+    store = get_calendar_store()
+    if not isinstance(store, MemoryCalendarStore):
+        raise RuntimeError("inject_unvalidated_calendar requires MemoryCalendarStore")
+    document = deepcopy(payload)
+    if "updated_at_utc" not in document:
+        document["updated_at_utc"] = "2026-07-09T20:00:00Z"
+    if "schema_version" not in document:
+        document["schema_version"] = "1"
+    # Digest best-effort for concurrency tests; invalid shapes still load for validation.
+    try:
+        digest = canonical_calendar_digest(
+            {
+                "schema_version": document.get("schema_version"),
+                "updated_at_utc": document.get("updated_at_utc"),
+                "items": document.get("items", [])
+                if isinstance(document.get("items"), list)
+                else [],
+            }
+        )
+    except Exception:
+        digest = "0" * 64
+    store._state = _MemoryState(
+        document=document,
+        row_version=1,
+        content_sha256=digest,
+    )
+
+
+def write_and_seed_calendar(base: Path, payload: dict[str, Any]) -> Path:
+    """Write optional legacy calendar.json and seed the DB/memory store (test helper)."""
+    import json
+
+    calendar_dir = base / "editorial-calendar"
+    calendar_dir.mkdir(parents=True, exist_ok=True)
+    path = calendar_dir / "calendar.json"
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    seed_editorial_calendar(payload)
+    return path
 
 
 def create_full_layout(base: Path) -> None:

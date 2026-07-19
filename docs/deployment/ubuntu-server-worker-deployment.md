@@ -15,8 +15,9 @@ For local development on Mac, use `docker-compose.example.yml` instead.
 | Compose project | Isolated — `deploy/server/silverman-worker.compose.yaml` only |
 | Deployment directory | `/home/silverman/silverman-blog-linkedin-worker` |
 | Host port | `8010` → container `8000` |
-| Editorial mount (host) | `/home/silverman/compartido_mac/silverman-blog-linkedin` |
+| Editorial mount (host) | `/home/silverman/silverman-blog-linkedin-worker/data/silverman-blog-linkedin` (must **not** be the code-sync checkout) |
 | Editorial mount (container) | `/data/silverman-blog-linkedin` |
+| Calendar SoT | PostgreSQL DB **`silverman_linkedin_db`** via `SILVERMAN_CALENDAR_DATABASE_URL` (ADR-0004); see [silverman-linkedin-db-calendar-cutover.md](../operations/silverman-linkedin-db-calendar-cutover.md) |
 | Public blog repo mount (host) | `/home/silverman/silverberdi.github.io` (override via `SILVERMAN_PUBLIC_BLOG_REPO_PATH`) |
 | Public blog repo mount (container) | `/public-blog` (`SILVERMAN_GITHUB_PAGES_REPO_PATH`) |
 | Site URL | `https://silverman.pro` (override via `SILVERMAN_SITE_URL`) |
@@ -27,7 +28,8 @@ For local development on Mac, use `docker-compose.example.yml` instead.
 - Docker and Docker Compose v2 on the Ubuntu server
 - Repository checkout or synced artifacts on the server
 - Write access to `/home/silverman/compartido_mac/silverman-blog-linkedin` (for `metadata/runs/` and `linkedin-posts/review/`)
-- Editorial folder layout under the shared mount (see README), including `editorial-calendar/` (required for `/health`; `editorial-calendar/calendar.json` optional for `/health`)
+- Editorial folder layout under the durable data mount (see README), including `editorial-calendar/` directory for `/health` (folder only; `calendar.json` is not calendar SoT)
+- Postgres database **`silverman_linkedin_db`** on `local-ai-stack` and `SILVERMAN_CALENDAR_DATABASE_URL` in worker `.env` (see cutover checklist)
 - **Flow A publish:** a local clone of the GitHub Pages repo (`silverberdi.github.io`) on the server host with `_posts/` and `assets/images/` (default `/home/silverman/silverberdi.github.io`). The deploy script does **not** clone this repo automatically.
 
 ## First-time setup

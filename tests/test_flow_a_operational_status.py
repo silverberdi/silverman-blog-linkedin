@@ -35,7 +35,7 @@ from silverman_blog_linkedin.flow_a_operational_status import (
     get_flow_a_operational_status,
 )
 from silverman_blog_linkedin.main import create_app
-from tests.conftest import auth_header, make_settings
+from tests.conftest import auth_header, make_settings, write_and_seed_calendar
 
 NOW = "2026-07-17T12:00:00Z"
 CAMPAIGN_ID = "flow-a-2026-07-17-operational-status"
@@ -149,8 +149,8 @@ def _calendar_item(
 
 
 def _write_calendar(base: Path, items: list[dict]) -> Path:
-    return _write_json(
-        base / "editorial-calendar/calendar.json",
+    return write_and_seed_calendar(
+        base,
         {
             "schema_version": "1",
             "updated_at_utc": "2026-07-17T09:00:00Z",
@@ -613,7 +613,7 @@ def test_malformed_mismatch_symlink_missing_and_partial_results(
         {"campaign_id": _campaign_id("outside"), "flow": "flow_a"},
     )
     (operational_base / "metadata/campaigns/escaping.json").symlink_to(outside)
-    (operational_base / "editorial-calendar/calendar.json").unlink()
+    # Empty calendar store is valid — no FILE_NOT_FOUND issue.
 
     result = get_flow_a_operational_status(operational_base, now_utc=NOW)
 
@@ -625,8 +625,8 @@ def test_malformed_mismatch_symlink_missing_and_partial_results(
         RUN_DOCUMENT_INVALID,
         CAMPAIGN_ID_FILENAME_MISMATCH,
         CAMPAIGN_FILE_PATH_OUTSIDE_SOURCE,
-        CALENDAR_FILE_NOT_FOUND,
     } <= reasons
+    assert CALENDAR_FILE_NOT_FOUND not in reasons
     serialized = json.dumps(result.to_dict())
     assert str(tmp_path) not in serialized
     assert "{broken" not in serialized
@@ -649,9 +649,10 @@ def test_invalid_calendar_and_malformed_campaign_preserve_valid_runs(
         "{not-json",
         encoding="utf-8",
     )
-    _write_json(
-        operational_base / "editorial-calendar/calendar.json",
-        {"schema_version": "1", "items": "not-a-list"},
+    from tests.conftest import inject_unvalidated_calendar
+
+    inject_unvalidated_calendar(
+        {"schema_version": "1", "updated_at_utc": "2026-07-17T09:00:00Z", "items": "not-a-list"}
     )
 
     result = get_flow_a_operational_status(operational_base, now_utc=NOW)

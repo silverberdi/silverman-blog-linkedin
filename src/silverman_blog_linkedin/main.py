@@ -1031,8 +1031,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/health")
     def health() -> dict:
+        from silverman_blog_linkedin.editorial_calendar_store import calendar_store_ready
+
         validation = validate_folders(settings.base_path)
         status = "healthy" if validation.folders_ready else "degraded"
+        store_info = calendar_store_ready()
         return {
             "status": status,
             "service": SERVICE_NAME,
@@ -1043,6 +1046,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 name: status.to_dict()
                 for name, status in validation.folders.items()
             },
+            **store_info,
         }
 
     @app.post("/process-ready")

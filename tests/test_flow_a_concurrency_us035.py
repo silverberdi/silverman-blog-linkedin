@@ -867,35 +867,29 @@ def test_concurrent_retrigger_immediately_after_restart_loses_to_non_stale_claim
     create_app(make_settings(editorial_base))
 
     (ready / "post.md").write_text("# Sample\n", encoding="utf-8")
-    calendar_dir = editorial_base / "editorial-calendar"
-    calendar_dir.mkdir(parents=True, exist_ok=True)
-    import json
+    from tests.conftest import write_and_seed_calendar
 
-    (calendar_dir / "calendar.json").write_text(
-        json.dumps(
-            {
-                "schema_version": "1",
-                "updated_at_utc": "2026-07-09T20:00:00Z",
-                "items": [
-                    {
-                        "item_id": "due-flow-a",
-                        "title": "Flow A sample",
-                        "status": "scheduled",
-                        "due_at_utc": "2026-07-01T14:00:00Z",
-                        "source_folder": "blog-posts/ready",
-                        "source_relative_path": connector_ready,
-                        "flow_type": "flow_a_ready_blog_post",
-                        "content_mode": "user_provided_approved_blog",
-                        "target_audience": "executive-recruiter",
-                        "topic_theme": "architecture",
-                        "campaign_id": connector_campaign,
-                    }
-                ],
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+    write_and_seed_calendar(
+        editorial_base,
+        {
+            "schema_version": "1",
+            "updated_at_utc": "2026-07-09T20:00:00Z",
+            "items": [
+                {
+                    "item_id": "due-flow-a",
+                    "title": "Flow A sample",
+                    "status": "scheduled",
+                    "due_at_utc": "2026-07-01T14:00:00Z",
+                    "source_folder": "blog-posts/ready",
+                    "source_relative_path": connector_ready,
+                    "flow_type": "flow_a_ready_blog_post",
+                    "content_mode": "user_provided_approved_blog",
+                    "target_audience": "executive-recruiter",
+                    "topic_theme": "architecture",
+                    "campaign_id": connector_campaign,
+                }
+            ],
+        },
     )
 
     barrier = threading.Barrier(2)

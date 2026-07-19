@@ -16,9 +16,14 @@ services:
       SILVERMAN_BLOG_LINKEDIN_BASE_PATH: /data/silverman-blog-linkedin
       SILVERMAN_GITHUB_PAGES_REPO_PATH: /public-blog
       SILVERMAN_SITE_URL: ${SILVERMAN_SITE_URL:-https://silverman.pro}
+      # Calendar SoT: Postgres DB silverman_linkedin_db (not editorial mount files).
+      # Set in .env — never commit credentials. Example:
+      # SILVERMAN_CALENDAR_DATABASE_URL=postgresql://silverman_linkedin:***@postgres:5432/silverman_linkedin_db
+      SILVERMAN_CALENDAR_DATABASE_URL: ${SILVERMAN_CALENDAR_DATABASE_URL:-}
       PORT: "8000"
     volumes:
-      - /home/silverman/compartido_mac/silverman-blog-linkedin:/data/silverman-blog-linkedin
+      # Editorial data MUST NOT share the code sync checkout (rsync --delete risk).
+      - /home/silverman/silverman-blog-linkedin-worker/data/silverman-blog-linkedin:/data/silverman-blog-linkedin
       - ${SILVERMAN_PUBLIC_BLOG_REPO_PATH:-/home/silverman/silverberdi.github.io}:/public-blog
       # Git publication SSH — read-only file mounts (no broad /secrets directory mount)
       - /home/silverman/silverman-blog-linkedin-worker/secrets/github-pages-deploy-key:/secrets/github-pages-deploy-key:ro

@@ -21,7 +21,7 @@ from silverman_blog_linkedin.linkedin_variant_pending_supervision import (
     load_console_static_texts,
 )
 from silverman_blog_linkedin.main import create_app
-from tests.conftest import auth_header, make_settings
+from tests.conftest import auth_header, make_settings, write_and_seed_calendar
 
 CAMPAIGN_ID = "flow-a-2026-07-18-supervision-console"
 PENDING_API = "/flow-a/linkedin-variants/pending-supervision"
@@ -133,8 +133,8 @@ def _write_campaign(
 
 
 def _write_calendar(base: Path, items: list[dict]) -> Path:
-    return _write_json(
-        base / "editorial-calendar/calendar.json",
+    return write_and_seed_calendar(
+        base,
         {
             "schema_version": "1",
             "updated_at_utc": "2026-07-18T09:00:00Z",
@@ -358,31 +358,32 @@ def test_calendar_missing_still_lists_pending_variants(supervision_base: Path):
         variants=[_variant("engineering-leadership")],
     )
     _write_draft(supervision_base, CAMPAIGN_ID, "engineering-leadership")
-    calendar_path = supervision_base / "editorial-calendar/calendar.json"
-    assert not calendar_path.exists()
-
+    # Empty calendar store is valid SoT (no calendar.json required).
     result = get_pending_linkedin_variant_supervision(supervision_base)
 
-    assert result.status == "partial"
+    assert result.status == "ok"
     assert len(result.variants) == 1
     row = result.variants[0]
     assert row.variant_id == "engineering-leadership"
     assert row.calendar_item_id is None
     assert row.draft_content is not None
-    assert any(
-        issue.reason == CALENDAR_FILE_NOT_FOUND for issue in result.issues
-    )
+    assert result.issues == []
 
 
 def test_calendar_invalid_still_lists_pending_variants(supervision_base: Path):
+    from tests.conftest import inject_unvalidated_calendar
+
     _write_campaign(
         supervision_base,
         variants=[_variant("engineering-leadership")],
     )
     _write_draft(supervision_base, CAMPAIGN_ID, "engineering-leadership")
-    (supervision_base / "editorial-calendar/calendar.json").write_text(
-        "{not-json",
-        encoding="utf-8",
+    inject_unvalidated_calendar(
+        {
+            "schema_version": "1",
+            "updated_at_utc": "2026-07-18T09:00:00Z",
+            "items": [{"item_id": "broken"}],
+        }
     )
 
     result = get_pending_linkedin_variant_supervision(supervision_base)

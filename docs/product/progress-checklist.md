@@ -813,3 +813,16 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed
+
+- [ ] **BL-031 — Persist Editorial Calendar in Database**
+  - Business outcome: Calendar schedule state survives editorial mount wipe and code sync; operators can plan and supervise from database-backed calendar reads.
+  - [ ] **US-041**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [x] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed

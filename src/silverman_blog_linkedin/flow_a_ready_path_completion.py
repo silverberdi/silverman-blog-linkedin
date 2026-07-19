@@ -229,12 +229,15 @@ def _update_calendar_from_campaign(
     *,
     source_lifecycle_status: str,
 ) -> tuple[str, list[str]]:
-    calendar_path = base_path / CALENDAR_RELATIVE_PATH
-    if not calendar_path.is_file():
-        return CALENDAR_UPDATE_SKIPPED_ABSENT, []
+    from silverman_blog_linkedin.editorial_calendar_store import (
+        CALENDAR_STORE_NOT_CONFIGURED,
+        CALENDAR_STORE_UNAVAILABLE,
+    )
 
     calendar, load_errors = load_calendar(base_path)
-    if calendar is None or load_errors:
+    if calendar is None:
+        if CALENDAR_STORE_NOT_CONFIGURED in load_errors or CALENDAR_STORE_UNAVAILABLE in load_errors:
+            return CALENDAR_UPDATE_SKIPPED_ABSENT, []
         return CALENDAR_UPDATE_FAILED, list(load_errors) or [CALENDAR_SCHEMA_INVALID]
 
     completion_facts = _build_completion_facts_from_campaign(

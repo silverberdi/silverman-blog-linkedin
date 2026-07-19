@@ -51,9 +51,13 @@ Relative path classes under `SILVERMAN_BLOG_LINKEDIN_BASE_PATH` (when present):
 | `linkedin-posts/published/` | LinkedIn distribution artifacts (published) |
 | `metadata/campaigns/` | Campaign lifecycle and publication evidence |
 | `metadata/runs/` | Run records |
-| `editorial-calendar/` (including `calendar.json`) | Master calendar planning state |
 | `prompts/` | Prompt assets for generation consistency |
 | Image/binary assets **inside** the trees above | Media co-located with posts/packages |
+
+**Master editorial calendar** (`editorial-calendar/calendar.json`) is **not** the
+durable recovery source of truth after ADR-0004. Calendar schedule state lives in
+PostgreSQL database **`silverman_linkedin_db`** and is restored via stack/Postgres
+backup procedures, not solely via `metadata/backups/` filesystem packages.
 
 Ambiguous requests to treat an excluded class as in-scope **fail closed** until
 a new approved OpenSpec change expands the contract.

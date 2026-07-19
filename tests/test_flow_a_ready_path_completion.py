@@ -26,6 +26,7 @@ from silverman_blog_linkedin.campaign_lifecycle import (
     transition_state,
     write_campaign_metadata,
 )
+from silverman_blog_linkedin.editorial_calendar_plan import load_calendar
 from silverman_blog_linkedin.flow_a_ready_path_completion import (
     CALENDAR_UPDATE_COMPLETED,
     CALENDAR_UPDATE_FAILED,
@@ -138,11 +139,8 @@ def test_complete_ready_path_moves_source_and_inserts_calendar(editorial_base: P
     assert campaign["state"] == STATE_FLOW_A_COMPLETE
     assert campaign["source_file_status"]["location"] == SOURCE_LOCATION_PROCESSED
 
-    calendar = json.loads(
-        (editorial_base / "editorial-calendar" / "calendar.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    calendar, _ = load_calendar(editorial_base)
+    assert calendar is not None
     assert len(calendar["items"]) == 1
     item = calendar["items"][0]
     assert item["campaign_id"] == CAMPAIGN_ID
@@ -171,25 +169,26 @@ def test_complete_ready_path_matches_existing_calendar_item(editorial_base: Path
 
     assert result.status == "completed"
     assert result.calendar_update_status == CALENDAR_UPDATE_COMPLETED
-    calendar = json.loads(
-        (editorial_base / "editorial-calendar" / "calendar.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    calendar, _ = load_calendar(editorial_base)
+    assert calendar is not None
     assert len(calendar["items"]) == 1
     assert calendar["items"][0]["item_id"] == "scheduled-keep-contracts"
     assert calendar["items"][0]["status"] == "completed"
 
 
-def test_complete_ready_path_calendar_absent_still_completes(editorial_base: Path):
+def test_complete_ready_path_empty_calendar_still_inserts(editorial_base: Path):
     _write_ready_source(editorial_base)
     _distribution_scheduled_campaign(editorial_base)
+    # Empty memory calendar store is valid SoT — completion inserts an item.
 
     result = complete_flow_a_ready_path(editorial_base, campaign_id=CAMPAIGN_ID)
 
     assert result.status == "completed"
-    assert result.calendar_update_status == CALENDAR_UPDATE_SKIPPED_ABSENT
+    assert result.calendar_update_status == CALENDAR_UPDATE_COMPLETED
     assert (editorial_base / PROCESSED_RELATIVE).is_file()
+    calendar, _ = load_calendar(editorial_base)
+    assert calendar is not None
+    assert len(calendar["items"]) == 1
 
 
 def test_complete_ready_path_idempotent_skip(editorial_base: Path):

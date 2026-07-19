@@ -209,8 +209,33 @@ def calendar_file_content_fingerprint(path: Path) -> str | None:
 
 
 def calendar_fingerprint(base_path: Path) -> str | None:
-    """Return SHA-256 fingerprint of the current calendar.json, or None if absent."""
-    return calendar_file_content_fingerprint(_calendar_path(base_path))
+    """Return SHA-256 fingerprint of the current calendar store document, or None if unavailable."""
+    del base_path  # kept for call-site compatibility; filesystem is not SoT
+    try:
+        from silverman_blog_linkedin.editorial_calendar_store import (
+            canonical_calendar_digest,
+            get_calendar_store,
+        )
+
+        calendar, errors = get_calendar_store().load()
+        if calendar is None or errors:
+            return None
+        return canonical_calendar_digest(calendar)
+    except Exception:
+        return None
+
+
+def calendar_store_path_label(base_path: Path) -> str:
+    """Operator-visible calendar location label (database store, not calendar.json)."""
+    del base_path
+    try:
+        from silverman_blog_linkedin.editorial_calendar_store import get_calendar_store
+
+        return get_calendar_store().store_label()
+    except Exception:
+        from silverman_blog_linkedin.editorial_calendar_store import CANONICAL_DATABASE_NAME
+
+        return f"postgres:{CANONICAL_DATABASE_NAME}"
 
 
 def _fsync_parent_directory(path: Path) -> None:
@@ -669,90 +694,57 @@ def save_calendar_atomic(
     *,
     expected_fingerprint: str | None = None,
 ) -> list[str]:
-    """Persist calendar.json with validate-then-temp-write-then-replace semantics."""
+    """Persist calendar to the configured database store with optimistic concurrency."""
+    del base_path
     validation_errors = validate_calendar_document(calendar)
     if validation_errors:
         return validation_errors
 
-    path = _calendar_path(base_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    payload = deepcopy(calendar)
-    payload["updated_at_utc"] = utc_now_iso()
-
-    if path.is_file():
-        current_fingerprint = calendar_file_content_fingerprint(path)
-        if expected_fingerprint is None:
-            expected_fingerprint = current_fingerprint
-        if (
-            expected_fingerprint is None
-            or current_fingerprint is None
-            or current_fingerprint != expected_fingerprint
-        ):
-            return [CALENDAR_COMPLETION_CONCURRENT_UPDATE]
-
-    original_mode: int | None = None
-    if path.is_file():
-        try:
-            original_mode = path.stat().st_mode
-        except OSError:
-            original_mode = None
-
-    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
-    replaced = False
     try:
-        encoded = json.dumps(payload, indent=2) + "\n"
-        with open(tmp_path, "w", encoding="utf-8") as handle:
-            handle.write(encoded)
-            handle.flush()
-            os.fsync(handle.fileno())
+        from silverman_blog_linkedin.editorial_calendar_store import (
+            CALENDAR_STORE_NOT_CONFIGURED,
+            CALENDAR_STORE_UNAVAILABLE,
+            get_calendar_store,
+        )
 
-        if path.is_file() and expected_fingerprint is not None:
-            pre_replace_fingerprint = calendar_file_content_fingerprint(path)
-            if pre_replace_fingerprint != expected_fingerprint:
-                return [CALENDAR_COMPLETION_CONCURRENT_UPDATE]
-
-        os.replace(tmp_path, path)
-        replaced = True
-
-        if original_mode is not None:
-            try:
-                os.chmod(path, original_mode)
-            except OSError:
-                pass
-        _fsync_parent_directory(path)
-    except OSError:
+        return get_calendar_store().save(
+            calendar, expected_fingerprint=expected_fingerprint
+        )
+    except RuntimeError as exc:
+        code = str(exc)
+        if code == CALENDAR_STORE_NOT_CONFIGURED:
+            return [CALENDAR_STORE_NOT_CONFIGURED]
+        return [CALENDAR_STORE_UNAVAILABLE]
+    except Exception:
         return [CALENDAR_COMPLETION_WRITE_FAILED]
-    finally:
-        if not replaced and tmp_path.is_file():
-            try:
-                tmp_path.unlink()
-            except OSError:
-                pass
-
-    return []
 
 
 def load_calendar(base_path: Path) -> tuple[dict[str, Any] | None, list[str]]:
-    """Load and validate calendar.json. Returns (calendar, errors)."""
-    path = _calendar_path(base_path)
-    if not path.is_file():
-        return None, [CALENDAR_FILE_NOT_FOUND]
-
+    """Load and validate calendar from the database store. Returns (calendar, errors)."""
+    del base_path
     try:
-        raw = path.read_text(encoding="utf-8")
-        data = json.loads(raw)
-    except (OSError, json.JSONDecodeError):
-        return None, [CALENDAR_SCHEMA_INVALID]
+        from silverman_blog_linkedin.editorial_calendar_store import (
+            CALENDAR_STORE_NOT_CONFIGURED,
+            CALENDAR_STORE_UNAVAILABLE,
+            get_calendar_store,
+        )
 
-    if not isinstance(data, dict):
-        return None, [CALENDAR_SCHEMA_INVALID]
-
-    errors = validate_calendar_document(data)
-    if errors:
-        return None, errors
-
-    return data, []
+        calendar, errors = get_calendar_store().load()
+        if errors:
+            return None, errors
+        if calendar is None:
+            return None, [CALENDAR_STORE_UNAVAILABLE]
+        validation = validate_calendar_document(calendar)
+        if validation:
+            return None, validation
+        return calendar, []
+    except RuntimeError as exc:
+        code = str(exc)
+        if code == CALENDAR_STORE_NOT_CONFIGURED:
+            return None, [CALENDAR_STORE_NOT_CONFIGURED]
+        return None, [CALENDAR_STORE_UNAVAILABLE]
+    except Exception:
+        return None, [CALENDAR_STORE_UNAVAILABLE]
 
 
 def find_due_items(
@@ -901,18 +893,30 @@ def plan_editorial_calendar_due(
     base_path: Path, *, now_utc: str | None = None
 ) -> EditorialCalendarPlanResult:
     """Read-only due-item planning entry point."""
+    from silverman_blog_linkedin.editorial_calendar_store import (
+        CALENDAR_STORE_NOT_CONFIGURED,
+        CALENDAR_STORE_UNAVAILABLE,
+    )
+
     resolved_now = _resolve_now_utc(now_utc)
-    calendar_file = _calendar_path(base_path)
-    calendar_path_str = str(calendar_file)
+    calendar_path_str = calendar_store_path_label(base_path)
 
     calendar, load_errors = load_calendar(base_path)
     if calendar is None:
-        if CALENDAR_FILE_NOT_FOUND in load_errors:
+        if CALENDAR_STORE_NOT_CONFIGURED in load_errors:
             return EditorialCalendarPlanResult(
                 status="calendar_missing",
                 calendar_path=calendar_path_str,
                 now_utc=resolved_now,
-                errors=[CALENDAR_FILE_NOT_FOUND],
+                errors=[CALENDAR_STORE_NOT_CONFIGURED],
+                read_only=True,
+            )
+        if CALENDAR_STORE_UNAVAILABLE in load_errors:
+            return EditorialCalendarPlanResult(
+                status="calendar_missing",
+                calendar_path=calendar_path_str,
+                now_utc=resolved_now,
+                errors=[CALENDAR_STORE_UNAVAILABLE],
                 read_only=True,
             )
         return EditorialCalendarPlanResult(
@@ -959,41 +963,48 @@ def plan_editorial_calendar_due(
 
 def get_editorial_calendar_status(base_path: Path) -> EditorialCalendarStatusResult:
     """Return calendar presence and item counts without due-item planning."""
-    calendar_file = _calendar_path(base_path)
-    calendar_path_str = str(calendar_file)
+    from silverman_blog_linkedin.editorial_calendar_store import (
+        CALENDAR_STORE_NOT_CONFIGURED,
+        CALENDAR_STORE_UNAVAILABLE,
+    )
 
-    if not calendar_file.is_file():
-        return EditorialCalendarStatusResult(
-            status="calendar_missing",
-            calendar_path=calendar_path_str,
-            calendar_present=False,
-            errors=[CALENDAR_FILE_NOT_FOUND],
-            read_only=True,
-        )
+    calendar_path_str = calendar_store_path_label(base_path)
 
     calendar, load_errors = load_calendar(base_path)
     if calendar is None:
+        if CALENDAR_STORE_NOT_CONFIGURED in load_errors or CALENDAR_STORE_UNAVAILABLE in load_errors:
+            return EditorialCalendarStatusResult(
+                status="calendar_missing",
+                calendar_path=calendar_path_str,
+                calendar_present=False,
+                errors=list(load_errors),
+                read_only=True,
+            )
         return EditorialCalendarStatusResult(
             status="calendar_invalid",
             calendar_path=calendar_path_str,
-            calendar_present=True,
+            calendar_present=False,
             errors=load_errors or [CALENDAR_SCHEMA_INVALID],
             read_only=True,
         )
 
+    items = calendar.get("items", [])
     counts: dict[str, int] = {status: 0 for status in sorted(ALLOWED_STATUSES)}
-    for item in calendar.get("items", []):
-        if not isinstance(item, dict):
-            continue
-        status = str(item.get("status", ""))
-        if status in counts:
-            counts[status] += 1
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            status = str(item.get("status", ""))
+            if status in counts:
+                counts[status] += 1
 
     return EditorialCalendarStatusResult(
         status="ok",
         calendar_path=calendar_path_str,
         calendar_present=True,
-        schema_version=str(calendar.get("schema_version")),
+        schema_version=str(calendar.get("schema_version"))
+        if calendar.get("schema_version") is not None
+        else None,
         item_counts_by_status=counts,
         errors=[],
         read_only=True,

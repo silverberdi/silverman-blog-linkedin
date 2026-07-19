@@ -78,11 +78,11 @@ from silverman_blog_linkedin.editorial_calendar_plan import (
     CALENDAR_COMPLETION_CONCURRENT_UPDATE,
     CALENDAR_COMPLETION_FACTS_CONFLICT,
     CALENDAR_COMPLETION_WRITE_FAILED,
-    CALENDAR_FILE_NOT_FOUND,
     CALENDAR_SOURCE_NOT_FOUND,
     EditorialCalendarPlanResult,
     FLOW_A_PLANNED_STEPS,
     build_item_plan,
+    load_calendar,
     plan_editorial_calendar_due,
 )
 from silverman_blog_linkedin.linkedin_distribution_schedule import (
@@ -91,7 +91,7 @@ from silverman_blog_linkedin.linkedin_distribution_schedule import (
 from silverman_blog_linkedin.linkedin_package_flow import LinkedInPackageResult
 from silverman_blog_linkedin.main import create_app
 from silverman_blog_linkedin.ready_post_validation import ReadyPostValidationResult
-from tests.conftest import auth_header, create_full_layout, make_settings
+from tests.conftest import auth_header, create_full_layout, make_settings, write_and_seed_calendar
 
 NOW_UTC = "2026-07-09T20:00:00Z"
 FUTURE_UTC = "2026-12-01T14:00:00Z"
@@ -108,11 +108,9 @@ def _stub_editorial_validation(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _write_calendar(base: Path, payload: dict) -> Path:
-    calendar_dir = base / "editorial-calendar"
-    calendar_dir.mkdir(parents=True, exist_ok=True)
-    path = calendar_dir / "calendar.json"
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    return path
+    return write_and_seed_calendar(base, payload)
+
+
 
 
 def _base_calendar(*, items: list[dict]) -> dict:
@@ -165,8 +163,11 @@ def _flow_a_item(
 
 
 def _calendar_hash(base: Path) -> str:
-    content = (base / "editorial-calendar" / "calendar.json").read_bytes()
-    return hashlib.sha256(content).hexdigest()
+    from silverman_blog_linkedin.editorial_calendar_plan import calendar_fingerprint
+
+    digest = calendar_fingerprint(base)
+    assert digest is not None
+    return digest
 
 
 def _completed_publish(**overrides) -> BlogPublishResult:
@@ -336,7 +337,7 @@ def test_dry_run_does_not_call_downstream_or_write(editorial_base: Path):
     assert "source_public_url" not in item_dict
 
 
-def test_missing_calendar_propagates_planner_status(editorial_base: Path):
+def test_empty_calendar_propagates_no_due_items(editorial_base: Path):
     with patch(
         "silverman_blog_linkedin.editorial_calendar_flow_a_execute.publish_blog_post"
     ) as publish_mock:
@@ -346,8 +347,8 @@ def test_missing_calendar_propagates_planner_status(editorial_base: Path):
         )
 
     publish_mock.assert_not_called()
-    assert result.status == "calendar_missing"
-    assert result.errors == [CALENDAR_FILE_NOT_FOUND]
+    assert result.status == "no_due_items"
+    assert result.errors == []
     assert result.items == []
 
 
@@ -692,9 +693,8 @@ def test_flow_a_complete_campaign_reconciles_without_side_effects(editorial_base
     item = result.items[0]
     assert item.execution_status == EXECUTION_STATUS_RECONCILED
     assert item.calendar_update_status == CALENDAR_UPDATE_RECONCILED
-    calendar = json.loads(
-        (editorial_base / "editorial-calendar" / "calendar.json").read_text(encoding="utf-8")
-    )
+    calendar, _ = load_calendar(editorial_base)
+    assert calendar is not None
     completed = calendar["items"][0]
     assert completed["status"] == "completed"
     assert completed["notes"] == "Keep this note intact."
@@ -827,9 +827,8 @@ def test_real_execution_marks_calendar_item_completed(editorial_base: Path):
 
     assert result.items[0].execution_status == EXECUTION_STATUS_EXECUTED
     assert result.items[0].calendar_update_status == CALENDAR_UPDATE_COMPLETED
-    calendar = json.loads(
-        (editorial_base / "editorial-calendar" / "calendar.json").read_text(encoding="utf-8")
-    )
+    calendar, _ = load_calendar(editorial_base)
+    assert calendar is not None
     item = calendar["items"][0]
     assert item["status"] == "completed"
     assert item["notes"] == "Operator note."
@@ -1367,16 +1366,15 @@ def test_retry_idempotency_no_duplicate_side_effect_records(editorial_base: Path
     completed_campaign["linkedin_package"] = {"status": "completed"}
     completed_campaign["linkedin_distribution"] = {"status": "completed"}
     write_campaign_metadata(editorial_base, CONFLICT_CAMPAIGN_ID, completed_campaign)
-    calendar = json.loads(
-        (editorial_base / "editorial-calendar" / "calendar.json").read_text(encoding="utf-8")
-    )
+    calendar, _ = load_calendar(editorial_base)
+    assert calendar is not None
     calendar["items"][0]["status"] = "scheduled"
     calendar["items"][0].pop("completed_at_utc", None)
     calendar["items"][0].pop("processed_source_relative_path", None)
     calendar["items"][0].pop("flow_a_completion", None)
-    (editorial_base / "editorial-calendar" / "calendar.json").write_text(
-        json.dumps(calendar, indent=2), encoding="utf-8"
-    )
+    from tests.conftest import seed_editorial_calendar
+
+    seed_editorial_calendar(calendar)
     _ensure_ready_planner_gate(editorial_base)
     second = execute_due_editorial_calendar_flow_a(
         editorial_base,
@@ -1697,9 +1695,8 @@ def test_legacy_source_path_fallback_single_match_with_missing_ready(editorial_b
         dry_run=False,
     )
     assert result.items[0].execution_status == EXECUTION_STATUS_RECONCILED
-    calendar = json.loads(
-        (editorial_base / "editorial-calendar" / "calendar.json").read_text(encoding="utf-8")
-    )
+    calendar, _ = load_calendar(editorial_base)
+    assert calendar is not None
     assert calendar["items"][0]["status"] == "completed"
 
 
@@ -1733,9 +1730,8 @@ def test_legacy_fallback_zero_matches_returns_unresolved(editorial_base: Path):
     assert CALENDAR_COMPLETION_CAMPAIGN_UNRESOLVED in result.items[0].errors
     assert CALENDAR_SOURCE_NOT_FOUND not in result.items[0].errors
     assert result.read_only is True
-    calendar = json.loads(
-        (editorial_base / "editorial-calendar" / "calendar.json").read_text(encoding="utf-8")
-    )
+    calendar, _ = load_calendar(editorial_base)
+    assert calendar is not None
     assert calendar["items"][0]["status"] == "scheduled"
 
 
@@ -1752,9 +1748,7 @@ def test_legacy_fallback_multiple_matches_returns_unresolved(editorial_base: Pat
         editorial_base,
         _base_calendar(items=[_flow_a_item(campaign_id=None)]),
     )
-    calendar_before = (
-        editorial_base / "editorial-calendar" / "calendar.json"
-    ).read_text(encoding="utf-8")
+    calendar_before, _ = load_calendar(editorial_base)
 
     result = execute_due_editorial_calendar_flow_a(
         editorial_base,
@@ -1764,9 +1758,8 @@ def test_legacy_fallback_multiple_matches_returns_unresolved(editorial_base: Pat
     assert CALENDAR_COMPLETION_CAMPAIGN_UNRESOLVED in result.items[0].errors
     assert result.items[0].execution_status == EXECUTION_STATUS_FAILED
     assert result.read_only is True
-    assert (
-        editorial_base / "editorial-calendar" / "calendar.json"
-    ).read_text(encoding="utf-8") == calendar_before
+    calendar_after, _ = load_calendar(editorial_base)
+    assert calendar_after == calendar_before
 
 
 def test_equivalent_completed_item_skips_calendar_write(editorial_base: Path):
@@ -1977,9 +1970,8 @@ def test_retry_after_concurrent_update_reconciles_without_republication(editoria
     assert second.items[0].execution_status == EXECUTION_STATUS_RECONCILED
     assert second.items[0].calendar_update_status == CALENDAR_UPDATE_RECONCILED
     mocked_publish.assert_not_called()
-    calendar = json.loads(
-        (editorial_base / "editorial-calendar" / "calendar.json").read_text(encoding="utf-8")
-    )
+    calendar, _ = load_calendar(editorial_base)
+    assert calendar is not None
     assert calendar["items"][0]["status"] == "completed"
 
 
@@ -2006,9 +1998,7 @@ def test_equivalent_completed_item_executor_skips_filesystem_write(editorial_bas
         }
     )
     calendar_path = _write_calendar(editorial_base, _base_calendar(items=[calendar_item]))
-    path = editorial_base / "editorial-calendar" / "calendar.json"
-    original_bytes = path.read_bytes()
-    original_mtime = path.stat().st_mtime_ns
+    original_hash = _calendar_hash(editorial_base)
     completed_at = calendar_item["completed_at_utc"]
     notes = calendar_item["notes"]
 
@@ -2043,9 +2033,9 @@ def test_equivalent_completed_item_executor_skips_filesystem_write(editorial_bas
         )
 
     mock_save.assert_not_called()
-    assert path.read_bytes() == original_bytes
-    assert path.stat().st_mtime_ns == original_mtime
-    reloaded = json.loads(path.read_text(encoding="utf-8"))
+    assert _calendar_hash(editorial_base) == original_hash
+    reloaded, _ = load_calendar(editorial_base)
+    assert reloaded is not None
     assert reloaded["items"][0]["completed_at_utc"] == completed_at
     assert reloaded["items"][0]["notes"] == notes
     assert result.items[0].calendar_update_status == CALENDAR_UPDATE_SKIPPED_ALREADY_COMPLETED

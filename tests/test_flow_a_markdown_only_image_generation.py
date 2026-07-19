@@ -77,7 +77,7 @@ from silverman_blog_linkedin.ready_post_validation import (
     validate_ready_post,
     validate_ready_post_pre_generation,
 )
-from tests.conftest import create_full_layout
+from tests.conftest import create_full_layout, write_and_seed_calendar
 from tests.test_linkedin_package_generation import _mock_generator_factory
 
 SOURCE_SLUG = "01-flow-a-markdown-only"

@@ -26,7 +26,7 @@ from silverman_blog_linkedin.editorial_calendar_plan import (
     save_calendar_atomic,
     validate_calendar_document,
 )
-from tests.conftest import create_full_layout
+from tests.conftest import create_full_layout, inject_unvalidated_calendar, seed_editorial_calendar
 from tests.test_editorial_calendar_flow_a_execute import (
     CAMPAIGN_ID,
     NOW_UTC,
@@ -154,7 +154,7 @@ def test_completed_item_optional_fields_load(editorial_base: Path):
 def test_invalid_completed_at_utc_rejected(editorial_base: Path):
     item = _flow_a_item(status="completed")
     item["completed_at_utc"] = "2026-07-10T12:00:00"
-    _write_calendar(editorial_base, _base_calendar(items=[item]))
+    inject_unvalidated_calendar(_base_calendar(items=[item]))
     calendar, errors = load_calendar(editorial_base)
     assert calendar is None
     assert CALENDAR_SCHEMA_INVALID in errors
@@ -205,14 +205,15 @@ def test_duplicate_item_ids_rejected(editorial_base: Path):
     assert CALENDAR_SCHEMA_INVALID in validate_calendar_document(calendar)
 
 
-def test_atomic_write_oserror_preserves_original(editorial_base: Path):
-    path = _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
-    original = path.read_text(encoding="utf-8")
-    calendar, _ = load_calendar(editorial_base)
-    assert calendar is not None
+def test_atomic_write_failure_preserves_original(editorial_base: Path):
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+    before, _ = load_calendar(editorial_base)
+    assert before is not None
+    calendar = dict(before)
+    calendar["items"] = list(before["items"])
     with patch(
-        "silverman_blog_linkedin.editorial_calendar_plan.os.replace",
-        side_effect=OSError("replace failed"),
+        "silverman_blog_linkedin.editorial_calendar_store.MemoryCalendarStore.save",
+        return_value=[CALENDAR_COMPLETION_WRITE_FAILED],
     ):
         errors = save_calendar_atomic(
             editorial_base,
@@ -220,7 +221,10 @@ def test_atomic_write_oserror_preserves_original(editorial_base: Path):
             expected_fingerprint=calendar_fingerprint(editorial_base),
         )
     assert errors == [CALENDAR_COMPLETION_WRITE_FAILED]
-    assert path.read_text(encoding="utf-8") == original
+    after, load_errors = load_calendar(editorial_base)
+    assert load_errors == []
+    assert after is not None
+    assert after["items"][0]["status"] == "scheduled"
 
 
 def test_save_calendar_atomic_succeeds_when_fingerprint_unchanged(editorial_base: Path):
@@ -238,7 +242,7 @@ def test_save_calendar_atomic_succeeds_when_fingerprint_unchanged(editorial_base
 
 
 def test_concurrent_update_detected_when_calendar_changed_before_replace(editorial_base: Path):
-    path = _write_calendar(
+    _write_calendar(
         editorial_base,
         _base_calendar(
             items=[
@@ -252,9 +256,17 @@ def test_concurrent_update_detected_when_calendar_changed_before_replace(editori
     fingerprint = calendar_fingerprint(editorial_base)
     calendar["items"][0]["status"] = "completed"
 
-    external = json.loads(path.read_text(encoding="utf-8"))
+    external = _base_calendar(
+        items=[
+            _flow_a_item(),
+            _flow_a_item(
+                item_id="other-item",
+                due_at_utc="2026-12-01T14:00:00Z",
+            ),
+        ]
+    )
     external["items"][1]["title"] = "Externally modified title"
-    path.write_text(json.dumps(external, indent=2) + "\n", encoding="utf-8")
+    seed_editorial_calendar(external)
 
     errors = save_calendar_atomic(
         editorial_base,
@@ -262,7 +274,8 @@ def test_concurrent_update_detected_when_calendar_changed_before_replace(editori
         expected_fingerprint=fingerprint,
     )
     assert errors == [CALENDAR_COMPLETION_CONCURRENT_UPDATE]
-    reloaded = json.loads(path.read_text(encoding="utf-8"))
+    reloaded, _ = load_calendar(editorial_base)
+    assert reloaded is not None
     assert reloaded["items"][1]["title"] == "Externally modified title"
     assert reloaded["items"][0]["status"] == "scheduled"
 
@@ -373,13 +386,15 @@ def test_conflicting_non_null_linkedin_summaries_return_conflict(editorial_base:
     assert result.requires_persist is False
 
 
-def test_concurrent_update_does_not_leave_shared_temp_file(editorial_base: Path):
-    path = _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
+def test_concurrent_update_rejects_stale_fingerprint(editorial_base: Path):
+    _write_calendar(editorial_base, _base_calendar(items=[_flow_a_item()]))
     calendar, _ = load_calendar(editorial_base)
     assert calendar is not None
     fingerprint = calendar_fingerprint(editorial_base)
     calendar["items"][0]["status"] = "completed"
-    path.write_text(path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    bumped = _base_calendar(items=[_flow_a_item()])
+    bumped["items"][0]["title"] = "Changed externally"
+    seed_editorial_calendar(bumped)
 
     errors = save_calendar_atomic(
         editorial_base,
@@ -387,5 +402,3 @@ def test_concurrent_update_does_not_leave_shared_temp_file(editorial_base: Path)
         expected_fingerprint=fingerprint,
     )
     assert errors == [CALENDAR_COMPLETION_CONCURRENT_UPDATE]
-    temp_files = list(path.parent.glob(f".{path.name}.*.tmp"))
-    assert temp_files == []
