@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Normative documentation contracts for simplified Flow B (US-074 / US-075): process boundary, Silverman Authority Manager naming, `pending-approval/` eligibility, weekly calendar gap policy, spill algorithm A, and DeepSeek v1 discovery posture. Runtime sensor/settings/discovery/approve are separate capabilities (US-076–US-082).
+Normative documentation contracts for simplified Flow B (US-074 / US-075): process boundary, Silverman Authority Manager naming, `pending-approval/` eligibility, weekly calendar gap policy, spill algorithm A, and DeepSeek v1 discovery posture. Runtime settings and gap detect are separate capabilities (US-076 / US-077); trigger/discovery/approve remain separate (US-078–US-082).
 
 Operator policy: `docs/operations/flow-b-simplified-policy.md`.
 
@@ -68,13 +68,14 @@ Normative docs SHALL document spill algorithm A for post-approve LinkedIn schedu
 
 ### Requirement: Cross-links without runtime implementation
 
-US-074/US-075 documentation SHALL cross-link weekly gap policy and operator-settings. Policy docs remain the normative source for process boundary, eligibility, gap semantics, spill algorithm A, and discovery posture. Runtime persistence and UI for operator settings are owned by capability `flow-b-gap-operator-settings` (US-076) and MUST NOT be re-implemented inside this documentation-only capability. This capability SHALL NOT require implementing gap detect, trigger, discovery, or approve endpoints.
+US-074/US-075 documentation SHALL cross-link weekly gap policy and operator-settings. Policy docs remain the normative source for process boundary, eligibility, gap semantics, spill algorithm A, and discovery posture. Runtime persistence and UI for operator settings are owned by capability `flow-b-gap-operator-settings` (US-076) and MUST NOT be re-implemented inside this documentation-only capability. Runtime next-week gap detection is owned by capability `flow-b-calendar-gap-detect` (US-077) and MUST NOT be re-implemented inside this documentation-only capability. This capability SHALL NOT require implementing gap trigger, discovery, or approve endpoints.
 
 #### Scenario: Docs-only scope preserved for US-074/US-075
 
 - **WHEN** this documentation capability’s requirements are evaluated
 - **THEN** normative docs and glossary/editorial alignment exist for simplified Flow B
-- **AND** gap detect, trigger, discovery, and approve runtime remain outside this capability’s scope
+- **AND** gap trigger, discovery, and approve runtime remain outside this capability’s scope
+- **AND** settings persistence and gap detect are referenced as separate runtime capabilities when present
 
 ### Requirement: Operator-settings runtime cross-link
 
@@ -85,3 +86,13 @@ Normative Flow B simplified policy and related product docs SHALL state that edi
 - **WHEN** an operator reads the gap sensor / settings section of the Flow B simplified policy after US-076 lands
 - **THEN** the docs identify Postgres + Authority Manager UI as the settings SoT path (not env-only long-term)
 - **AND** defaults including fail-closed `gap_trigger_enabled` remain documented
+
+### Requirement: Gap-detect runtime cross-link
+
+Normative Flow B simplified policy and related product docs SHALL state that next-week LinkedIn calendar gap **detection** is provided by capability `flow-b-calendar-gap-detect` (US-077): authenticated detect-only worker HTTP that returns `gaps[]` / no-gap for the next operator-local week using settings from `flow-b-gap-operator-settings`, without mutating campaigns or starting drafts. Docs MUST state that detect MAY run for inspection when `gap_trigger_enabled=false`, and that auto-trigger remains a separate fail-closed capability (US-082).
+
+#### Scenario: Policy points at detect capability
+
+- **WHEN** an operator reads the gap sensor section of the Flow B simplified policy after US-077 lands
+- **THEN** the docs identify the authenticated detect-only worker path as the runtime sensor
+- **AND** the docs distinguish detect (inspection) from trigger (US-082) and do not claim discovery/draft/approve are implemented
