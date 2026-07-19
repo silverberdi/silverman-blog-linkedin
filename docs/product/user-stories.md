@@ -744,7 +744,7 @@ As a system operator, I want to test restoration, so that editorial state can be
 
 ### US-038 — Implement Flow A LinkedIn Variant Supervision Console: Story 1
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L still open).
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted).
 
 **Description**
 
@@ -760,7 +760,7 @@ As a content operator, I want to see Flow A LinkedIn variants on a calendar or c
 
 ### US-039 — Implement Flow A LinkedIn Variant Supervision Console: Story 2
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L still open).
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted).
 
 **Description**
 
@@ -777,7 +777,7 @@ As a content operator, I want to edit variant text and adjust scheduled timing b
 
 ### US-040 — Implement Flow A LinkedIn Variant Supervision Console: Story 3
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L still open).
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted).
 
 **Description**
 
@@ -812,7 +812,7 @@ These rules apply to every US-040G–M story. Automated tests and OpenSpec task 
 
 ### US-040A — Implement Flow A LinkedIn Variant Supervision Console: Modern Frontend Stack Without Rebuild
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L still open).
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted).
 
 **Description**
 
@@ -837,7 +837,7 @@ As a system owner, I want the supervision console to use a maintainable modern f
 
 ### US-040B — Implement Flow A LinkedIn Variant Supervision Console: List and Month Schedule Visibility
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L still open).
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted).
 
 **Description**
 
@@ -865,7 +865,7 @@ As a content operator, I want to switch between a list view and a dark month cal
 
 ### US-040C — Implement Flow A LinkedIn Variant Supervision Console: Schedule Modification From Calendar
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L still open).
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted).
 
 **Description**
 
@@ -890,7 +890,7 @@ As a content operator, I want to modify future Flow A publication timing from th
 
 ### US-040D — Implement Flow A LinkedIn Variant Supervision Console: Public URL and Google Auth Readiness
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L still open).
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted).
 
 **Description**
 
@@ -916,7 +916,7 @@ As a system owner, I want the Flow A supervision console architecture to be read
 
 As a content operator, I want the Flow A supervision console to make attention, risk, and next actions obvious in both list and calendar views, so that I can operate the publishing schedule confidently from anywhere.
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L still open). Implemented in console layer (US-040E polish demonstrated via Vitest + rebuilt static assets). Public URL hosting and Google/OIDC IdP remain not activated.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted). Implemented in console layer (US-040E polish demonstrated via Vitest + rebuilt static assets). Public URL hosting and Google/OIDC IdP remain not activated.
 
 **Acceptance criteria**
 
@@ -940,7 +940,7 @@ As a content operator, I want the Flow A supervision console to make attention, 
 
 As a content operator, I want the Flow A supervision console to feel like a modern, purpose-built operational product instead of a technical status page, so that I can understand risk, review the publication plan, and take safe action from a laptop or phone with minimal cognitive load.
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L still open). Implemented in console layer (US-040F first-pass UX redesign demonstrated via Vitest + rebuilt static assets; OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040f`). Further UX iteration continues via US-040L/M. Public URL hosting and Google/OIDC IdP remain not activated.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted). Implemented in console layer (US-040F first-pass UX redesign demonstrated via Vitest + rebuilt static assets; OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040f`). Further UX iteration continues via US-040L/M. Public URL hosting and Google/OIDC IdP remain not activated.
 
 **UX direction**
 
@@ -983,7 +983,7 @@ As a content operator, I want the Flow A supervision console to feel like a mode
 
 As a content operator, I want the supervision console to open on a clear **week** calendar with **month** as a secondary view and **no list**, so that I immediately understand what publishes when without learning a second triage surface that often looks empty or unexplained.
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L still open). Implemented and deployed (US-040G calendar-first Week + Month; List removed; empty-grid follow-up redeployed; Vitest ~1280/~375 + live assets historically `index-SFvEuRPX.js` / `index-DTJ5Tm4v.css` on `192.168.0.194:8010`; superseded assets later by H–K deploys). Operator accepted 2026-07-19 (walkthrough gate closed by operator). Interim event panel superseded by US-040H EventModal. Filters dock removal remains US-040L.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted). Implemented and deployed (US-040G calendar-first Week + Month; List removed; empty-grid follow-up redeployed; Vitest ~1280/~375 + live assets historically `index-SFvEuRPX.js` / `index-DTJ5Tm4v.css` on `192.168.0.194:8010`; superseded assets later by H–K deploys). Operator accepted 2026-07-19 (walkthrough gate closed by operator). Interim event panel superseded by US-040H EventModal. Filters dock removal remains US-040L.
 
 **UX intent (normative)**
 
@@ -1022,7 +1022,7 @@ Required scenes (desktop + mobile): Week first paint; empty week (**day columns 
 
 As a content operator, I want to click a **specific event** and work inside a focused **modal**, with success/info feedback as brief **toasts**, so that I never face a confusing split of “day dump below + detail above” or large green banners that steal the calendar.
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L still open). Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040h`; Vitest + rebuilt static assets; live `index-P0TKf1cr.js` / `index-BGvbD0Jm.css`; git `3aa9394`). Operator accepted 2026-07-19.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted). Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040h`; Vitest + rebuilt static assets; live `index-P0TKf1cr.js` / `index-BGvbD0Jm.css`; git `3aa9394`). Operator accepted 2026-07-19.
 
 **UX intent (normative)**
 
@@ -1062,7 +1062,7 @@ Required scenes (desktop + mobile): event open; modal hierarchy; edit/reschedule
 
 As a content operator, I want the week/month grids, event times, and reschedule controls to work in **my local timezone**, so that I do not have to translate UTC or “another part of the world’s” calendar days while planning posts.
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L still open). Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040i` archived; Vitest with `TZ=America/Chicago` + ~1280/~375; live `index-DV0R4K8U.js` / `index-BGvbD0Jm.css`; git `a1bd3cd`). Operator accepted 2026-07-19.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted). Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040i` archived; Vitest with `TZ=America/Chicago` + ~1280/~375; live `index-DV0R4K8U.js` / `index-BGvbD0Jm.css`; git `a1bd3cd`). Operator accepted 2026-07-19.
 
 **UX intent (normative)**
 
@@ -1097,7 +1097,7 @@ Required scenes (desktop + mobile): local times on Week/Month/modal with timezon
 
 As a content operator, I want cancelled calendar events to be visually honest and actionable (or clearly non-actionable), so that when I see a cancelled item on today/this week I understand **why** and what I can do next — including reopen/reschedule when product allows — instead of a mute grey chip with no path.
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L still open). Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040j` archived; Vitest ~1280/~375 + pytest + static rebuild; live `index-BJwARkPN.js` / `index-BLiwrDxd.css`; git `ec2d000`; OpenAPI `/reopen-linkedin-variant`). Operator accepted 2026-07-19.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted). Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040j` archived; Vitest ~1280/~375 + pytest + static rebuild; live `index-BJwARkPN.js` / `index-BLiwrDxd.css`; git `ec2d000`; OpenAPI `/reopen-linkedin-variant`). Operator accepted 2026-07-19.
 
 **UX intent (normative)**
 
@@ -1130,7 +1130,7 @@ Required scenes (desktop + mobile): cancelled chip on Week/Month; cancelled moda
 
 As a content operator, I want the console and schedule rules to **cap publications at two per local calendar day**, so that I cannot accidentally look like a spammer by stacking three or more posts on the same day.
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L still open). Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040k` archived; pytest + Vitest ~1280/~375 + production static rebuild; live `index-CoeIIs9v.js` / `index-CfjReggH.css`; git `0d90b3d`; `BUILD_REVISION=0d90b3daacee…`). Operator accepted 2026-07-19. Interim product rule for BL-015; BL-021 MAY later supersede with richer cadence windows.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted). Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040k` archived; pytest + Vitest ~1280/~375 + production static rebuild; live `index-CoeIIs9v.js` / `index-CfjReggH.css`; git `0d90b3d`; `BUILD_REVISION=0d90b3daacee…`). Operator accepted 2026-07-19. Interim product rule for BL-015; BL-021 MAY later supersede with richer cadence windows.
 
 **UX intent (normative)**
 
@@ -1165,7 +1165,7 @@ Required scenes (desktop + mobile): local day at 2 publications (full cue); atte
 
 As a content operator, I want a **Search / Filters** control in the console header that opens a modal with the current filter controls, so that Week/Month stay calendar-first without a permanent FOCUS/Filters strip that duplicates the metric chips above.
 
-**Status:** Implemented and deployed to `192.168.0.194:8010` (not Story accepted; BL-015 remains open). OpenSpec change archived: `redesign-flow-a-linkedin-variant-supervision-console-us-040l` (`143a40b`); Vitest (103 tests, ~1280/~375) + production static rebuild; live `index-B4ePEkH6.js` / `index-DmEqOAc6.css`; `BUILD_REVISION=143a40bd61dc…`. Visual DoD + operator walkthrough remain open — Vitest alone insufficient for Story accepted. Addresses operator feedback after US-040K: metric cards and the always-visible filters dock felt redundant.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). OpenSpec change archived: `redesign-flow-a-linkedin-variant-supervision-console-us-040l` (implement `bd98995` / archive `143a40b`; modal-width polish `8f82089`). Deployed `192.168.0.194:8010` — live `index-DfOv3r_J.js` / `index-IGjH0V3D.css`; `BUILD_REVISION=8f820894dfad…`. Operator confirmed filters-in-modal UX after wider-modal polish. **BL-015 closed 2026-07-19** (all US-038–US-040M Story accepted).
 
 **UX intent (normative)**
 
@@ -1192,15 +1192,15 @@ Required scenes (desktop + mobile): header Filters/Search control visible; modal
 - [x] Week/Month empty states that offer Clear filters MUST continue to work. — Demonstrated: empty Clear filters resets shared state and clears badge without requiring modal.
 - [x] Preserve Week default + Month secondary, EventModal + toasts, local-time, cancelled reopen, density cues, session/`canMutate`, dry-run/confirm, worker HTTP-only (ADR-0001), `*_utc` wire fields. — Demonstrated: prior suites still pass (103 Vitest); no worker contract changes.
 - [x] Do not restore List as primary operator chrome; do not activate public URL / Google OIDC / BFF / user-management; do not call LinkedIn API publish from the console. — Demonstrated: no List chrome; filters UX uses existing worker HTTP only.
-- [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
-- [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms filters-in-modal UX meets intent before Story accepted.
-- [x] The outcome is visible and understandable to the intended user. — Demonstrated at console-layer via Vitest; operator confirmation still gated.
+- [x] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted. — Operator-accepted 2026-07-19 on deployed console (wider modal polish confirmed).
+- [x] Operator walkthrough completed on deployed or agreed preview; operator confirms filters-in-modal UX meets intent before Story accepted. — Operator-accepted 2026-07-19 (“mucho mejor” after width polish).
+- [x] The outcome is visible and understandable to the intended user. — Operator-confirmed on deployed console.
 - [x] Failures or blocked states are clearly communicated. — Demonstrated: hidden-critical banner remains inside Filters modal; header active cue when filtered.
-- [x] Existing completed work is not duplicated or unintentionally changed (US-040G–K Story accepted not closed as a side effect; BL-015 remains open). — Demonstrated: US-038–US-040K/M Story accepted left in place; BL-015 open; US-040M mapping untouched.
+- [x] Existing completed work is not duplicated or unintentionally changed (US-040G–K/M Story accepted not unset as a side effect). — Demonstrated: prior Story accepted left in place; US-040M mapping untouched; BL-015 closed after full US-038–US-040M set.
 
 ### US-040M — Show Completed Blogs as Published on Blog in Schedule Visibility
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). OpenSpec change archived: `show-completed-blog-as-published-on-console-us-040m` (`2d46649`; deployed `192.168.0.194:8010`, assets `index-DXmpFC-X.js` / `index-CfjReggH.css`). Operator confirmed on deployed console (incognito hard-refresh after stale-bundle cache). **BL-015 remains open** (US-040L still open).
+**Status:** **Story accepted** (operator-accepted 2026-07-19). OpenSpec change archived: `show-completed-blog-as-published-on-console-us-040m` (`2d46649`; deployed `192.168.0.194:8010`, assets `index-DXmpFC-X.js` / `index-CfjReggH.css`). Operator confirmed on deployed console (incognito hard-refresh after stale-bundle cache). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted).
 
 **Description**
 
@@ -1223,7 +1223,7 @@ Operator walkthrough gate closed 2026-07-19 (incognito confirmation on deployed 
 - [x] Operator walkthrough completed on deployed or agreed preview before Story accepted. — Operator-accepted 2026-07-19.
 - [x] The outcome is visible and understandable to the intended user. — Demonstrated: Week chips show Published on blog after fresh assets.
 - [x] Failures or blocked states are clearly communicated. — Preserved prior console failure/session patterns.
-- [x] Existing completed work is not duplicated or unintentionally changed (US-040G–L Story accepted not closed as a side effect; BL-015 remains open). — US-040L remains open; BL-015 not closed.
+- [x] Existing completed work is not duplicated or unintentionally changed (US-040G–L Story accepted not closed as a side effect; BL-015 remains open). — US-040L later Story accepted 2026-07-19; BL-015 closed with full US-038–US-040M set.
 
 ## BL-016 — Define Simplified Flow B
 

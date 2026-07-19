@@ -284,6 +284,8 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Completion outcome:** Operators can supervise Flow A LinkedIn variants and upcoming editorial publication timing from one modern, calendar-first dark console (Week + Month), opening events into focused modals, working in local time, with toast feedback and density limits, with completed blogs shown honestly as published-on-blog (not planned), and with advanced filters available from a header Search/Filters modal rather than a permanent dock — during the optional pre-send window — without opening multiple raw files or reading technical implementation prose. **US-040G–M Story accepted requires Visual DoD evidence plus an operator walkthrough; Vitest/checkbox completion alone is insufficient.**
 
+**Status:** Closed 2026-07-19 after US-038–US-040M Story accepted (final operator gate: US-040L filters-modal walkthrough on deployed console, including wider-modal polish).
+
 
 ## P4 — Flow B
 

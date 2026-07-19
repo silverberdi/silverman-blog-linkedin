@@ -380,9 +380,10 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated
   - [x] Backlog item closed
 
-- [ ] **BL-015 — Implement Flow A LinkedIn Variant Supervision Console**
+- [x] **BL-015 — Implement Flow A LinkedIn Variant Supervision Console**
   - Business outcome: Operators can supervise Flow A LinkedIn variants from one console during the pre-send window without opening multiple raw files.
   - Policy: [linkedin-variant-review-policy.md](../operations/linkedin-variant-review-policy.md)
+  - Status: **Closed 2026-07-19** after US-038–US-040M Story accepted (final gate: US-040L operator walkthrough).
   - [x] **US-038**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
@@ -481,13 +482,13 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Business outcome demonstrated — deployed console+worker (Vitest ~1280/~375 + pytest + live static assets `index-CoeIIs9v.js` / `index-CfjReggH.css` on `192.168.0.194:8010`)
     - [x] Acceptance criteria validated — operator-accepted 2026-07-19 (walkthrough gate waived/closed by operator)
     - [x] Story accepted — operator-accepted 2026-07-19
-  - [ ] **US-040L** — Search/Filters header modal (collapse always-visible filters dock)
+  - [x] **US-040L** — Search/Filters header modal (collapse always-visible filters dock)
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — deployed `192.168.0.194:8010` (`143a40b`; live `index-B4ePEkH6.js` / `index-DmEqOAc6.css`); Visual DoD + walkthrough still required for acceptance
-    - [ ] Acceptance criteria validated — requires Visual DoD + operator walkthrough
-    - [ ] Story accepted — operator walkthrough gate (not Vitest alone)
+    - [x] Business outcome demonstrated — deployed `192.168.0.194:8010` (`8f82089`; live `index-DfOv3r_J.js` / `index-IGjH0V3D.css`; wider modal polish)
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19 (walkthrough; wider modal confirmed)
+    - [x] Story accepted — operator-accepted 2026-07-19
   - [x] **US-040M** — Completed blogs show as Published on blog (not Planned)
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
@@ -495,9 +496,9 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Business outcome demonstrated — deployed `192.168.0.194:8010` (`2d46649`; `index-DXmpFC-X.js`); July blogs `publication_state: completed`
     - [x] Acceptance criteria validated — operator-accepted 2026-07-19 (incognito walkthrough; stale-bundle cache noted)
     - [x] Story accepted — operator-accepted 2026-07-19
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted US-038–US-040M completion outcome 2026-07-19
+  - [x] Backlog item closed — 2026-07-19
 
 ## P4 — Flow B
 

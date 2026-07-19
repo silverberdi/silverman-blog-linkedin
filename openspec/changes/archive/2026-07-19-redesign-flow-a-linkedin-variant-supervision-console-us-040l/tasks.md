@@ -45,17 +45,17 @@
 
 > Leave unchecked until after explicit deploy or agreed preview approval and capture/walkthrough. Vitest alone MUST NOT complete this section.
 
-- [ ] 6.1 Capture Visual DoD — desktop: header Filters control visible
-- [ ] 6.2 Capture Visual DoD — desktop: modal opens with full filter set
-- [ ] 6.3 Capture Visual DoD — desktop: active-filter badge when filtered
-- [ ] 6.4 Capture Visual DoD — desktop: Week/Month uncluttered without permanent dock
-- [ ] 6.5 Capture Visual DoD — desktop: metric chip focus still works; modal reflects state
-- [ ] 6.6 Capture Visual DoD — desktop: Reset / clear paths remain obvious
-- [ ] 6.7 Capture Visual DoD — mobile: header Filters + modal usable (~375)
-- [ ] 6.8 Capture Visual DoD — mobile: active-filter badge when filtered
-- [ ] 6.9 Capture Visual DoD — mobile: Week/Month uncluttered; chip focus + clear paths
-- [ ] 6.10 Operator walkthrough on deployed or explicitly agreed preview; operator confirms calendar feels cleaner and filters remain discoverable
-- [ ] 6.11 Only after 6.1–6.10: mark Acceptance criteria validated and Story accepted in product docs; keep BL-015 open; do not unset US-038–US-040K/M Story accepted as a side effect
+- [x] 6.1 Capture Visual DoD — desktop: header Filters control visible
+- [x] 6.2 Capture Visual DoD — desktop: modal opens with full filter set
+- [x] 6.3 Capture Visual DoD — desktop: active-filter badge when filtered
+- [x] 6.4 Capture Visual DoD — desktop: Week/Month uncluttered without permanent dock
+- [x] 6.5 Capture Visual DoD — desktop: metric chip focus still works; modal reflects state
+- [x] 6.6 Capture Visual DoD — desktop: Reset / clear paths remain obvious
+- [x] 6.7 Capture Visual DoD — mobile: header Filters + modal usable (~375)
+- [x] 6.8 Capture Visual DoD — mobile: active-filter badge when filtered
+- [x] 6.9 Capture Visual DoD — mobile: Week/Month uncluttered; chip focus + clear paths
+- [x] 6.10 Operator walkthrough on deployed or explicitly agreed preview; operator confirms calendar feels cleaner and filters remain discoverable
+- [x] 6.11 Only after 6.1–6.10: mark Acceptance criteria validated and Story accepted in product docs; keep BL-015 open; do not unset US-038–US-040K/M Story accepted as a side effect
 
 ## 7. Lifecycle gates
 
@@ -67,4 +67,4 @@
 - [x] 7.6 `/opsx-archive` → separate archive commit
 - [x] 7.7 Push only with explicit approval
 - [x] 7.8 Deploy only with explicit approval (required before Visual DoD / walkthrough unless an agreed preview is documented)
-- [ ] 7.9 Business validation: section 6 walkthrough complete before Story accepted; BL-015 remains open
+- [x] 7.9 Business validation: section 6 walkthrough complete before Story accepted; BL-015 remains open
