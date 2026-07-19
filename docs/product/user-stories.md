@@ -744,6 +744,8 @@ As a system operator, I want to test restoration, so that editorial state can be
 
 ### US-038 — Implement Flow A LinkedIn Variant Supervision Console: Story 1
 
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L / US-040M still open).
+
 **Description**
 
 As a content operator, I want to see Flow A LinkedIn variants on a calendar or campaign view while they are pending, so that I can supervise scheduled publication without inspecting raw files.
@@ -757,6 +759,8 @@ As a content operator, I want to see Flow A LinkedIn variants on a calendar or c
 - [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: separate read paths; no US-017 mutation UI; publication enablement guard unchanged.
 
 ### US-039 — Implement Flow A LinkedIn Variant Supervision Console: Story 2
+
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L / US-040M still open).
 
 **Description**
 
@@ -772,6 +776,8 @@ As a content operator, I want to edit variant text and adjust scheduled timing b
 - [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: no cancel UI; no new mutation endpoints; secrets audit still passes; BL-007 / publication guards untouched.
 
 ### US-040 — Implement Flow A LinkedIn Variant Supervision Console: Story 3
+
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L / US-040M still open).
 
 **Description**
 
@@ -790,21 +796,23 @@ As a content operator, I want to cancel or defer variants and see why publicatio
 
 These variants extend US-040 inside BL-015. They are not a new backlog item and MUST NOT be treated as Flow B implementation scope. They improve the same Flow A supervision console as a dark, mobile-friendly operational product ready for a future public URL protected by Google authentication.
 
-**UX direction after US-040F (operator feedback 2026-07-18):** US-040A–F delivered stack, dual List+Month views, ScheduleEditor, auth readiness, polish, and a first redesign pass. Operator review rejected list-first triage and day-agenda dumps as the mental model. Subsequent variants (US-040G onward) **supersede list-as-first-class-view** for the product UX: the console MUST become **calendar-first** (Week default, Month secondary), **event-modal** driven, **local-time** oriented, with **toast** feedback, **cancelled-item** handling, and a **max 2 publications per local day** density rule. Prior List-preserving language in US-040A–F remains historical for those stories’ demonstrated scope; it MUST NOT block US-040G+ from removing the list surface.
+**UX direction after US-040F (operator feedback 2026-07-18):** US-040A–F delivered stack, dual List+Month views, ScheduleEditor, auth readiness, polish, and a first redesign pass. Operator review rejected list-first triage and day-agenda dumps as the mental model. Subsequent variants (US-040G onward) **supersede list-as-first-class-view** for the product UX: the console MUST become **calendar-first** (Week default, Month secondary), **event-modal** driven, **local-time** oriented, with **toast** feedback, **cancelled-item** handling, and a **max 2 publications per local day** density rule. **US-040L** further collapses the always-visible filters dock into a header Search/Filters control + modal so metric chips and advanced filters are not a permanent second strip. **US-040M** shows completed blog calendar items as **Published on blog** (not Planned), without implying LinkedIn API published. Prior List-preserving language in US-040A–F remains historical for those stories’ demonstrated scope; it MUST NOT block US-040G+ from removing the list surface.
 
-**Shared UX Definition of Done (US-040G–US-040K — normative)**
+**Shared UX Definition of Done (US-040G–US-040M — normative)**
 
-These rules apply to every US-040G–K story. Automated tests and OpenSpec task checkboxes are **necessary but not sufficient**.
+These rules apply to every US-040G–M story. Automated tests and OpenSpec task checkboxes are **necessary but not sufficient**.
 
 - **Product-quality bar:** The delivered UI MUST read as a modern, responsive, operational calendar product (clear hierarchy, balanced density, calm empty/loading/error states, usable on laptop and phone). Checkbox completion alone MUST NOT imply Story accepted.
 - **Visual evidence:** Each story’s OpenSpec change MUST require desktop + mobile evidence (screenshots or equivalent browser-driven capture) for that story’s Visual DoD scenes — not only Vitest/component assertions.
-- **Operator walkthrough gate:** **Story accepted** for US-040G–K MUST NOT be marked until the content operator completes a live walkthrough on the deployed (or explicitly agreed preview) console and confirms the UX meets the story’s intent. “Business outcome demonstrated” / implementation commit is allowed before that gate; **Acceptance criteria validated** and **Story accepted** are not.
+- **Operator walkthrough gate:** **Story accepted** for US-040G–M MUST NOT be marked until the content operator completes a live walkthrough on the deployed (or explicitly agreed preview) console and confirms the UX meets the story’s intent. “Business outcome demonstrated” / implementation commit is allowed before that gate; **Acceptance criteria validated** and **Story accepted** are not.
 - **Partial UX is incomplete:** If the walkthrough finds the UI still feels like a technical status page, empty/broken, or cognitively heavy, the story stays in progress — follow-up OpenSpec work, not silent AC re-interpretation.
-- **BL-015 stays open** until the backlog completion outcome is operator-validated; shipping G–K code does not close BL-015 by itself.
+- **BL-015 stays open** until the backlog completion outcome is operator-validated; shipping G–M code does not close BL-015 by itself.
 
 **Additional prerequisites:** BL-021 remains the home for full editorial cadence policy; US-040K may ship an interim console/worker density cap (max 2/local day) that BL-021 MAY later supersede. Future Google authentication stays out of scope, but API boundaries MUST remain ready for it.
 
 ### US-040A — Implement Flow A LinkedIn Variant Supervision Console: Modern Frontend Stack Without Rebuild
+
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L / US-040M still open).
 
 **Description**
 
@@ -828,6 +836,8 @@ As a system owner, I want the supervision console to use a maintainable modern f
 - [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: Stories 1–3 mutation SoT reused; legacy monolithic HTML removed; US-040B–US-040E / Flow B not implemented.
 
 ### US-040B — Implement Flow A LinkedIn Variant Supervision Console: List and Month Schedule Visibility
+
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L / US-040M still open).
 
 **Description**
 
@@ -855,6 +865,8 @@ As a content operator, I want to switch between a list view and a dark month cal
 
 ### US-040C — Implement Flow A LinkedIn Variant Supervision Console: Schedule Modification From Calendar
 
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L / US-040M still open).
+
 **Description**
 
 As a content operator, I want to modify future Flow A publication timing from the calendar without losing the existing list workflow, so that I can adjust the editorial plan where I notice conflicts or better publishing windows.
@@ -877,6 +889,8 @@ As a content operator, I want to modify future Flow A publication timing from th
 - [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-040D — Implement Flow A LinkedIn Variant Supervision Console: Public URL and Google Auth Readiness
+
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L / US-040M still open).
 
 **Description**
 
@@ -902,7 +916,7 @@ As a system owner, I want the Flow A supervision console architecture to be read
 
 As a content operator, I want the Flow A supervision console to make attention, risk, and next actions obvious in both list and calendar views, so that I can operate the publishing schedule confidently from anywhere.
 
-**Status:** Implemented in console layer (US-040E polish demonstrated via Vitest + rebuilt static assets). **Not Story accepted; BL-015 remains open.** Public URL hosting and Google/OIDC IdP remain not activated.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L / US-040M still open). Implemented in console layer (US-040E polish demonstrated via Vitest + rebuilt static assets). Public URL hosting and Google/OIDC IdP remain not activated.
 
 **Acceptance criteria**
 
@@ -926,7 +940,7 @@ As a content operator, I want the Flow A supervision console to make attention, 
 
 As a content operator, I want the Flow A supervision console to feel like a modern, purpose-built operational product instead of a technical status page, so that I can understand risk, review the publication plan, and take safe action from a laptop or phone with minimal cognitive load.
 
-**Status:** Implemented in console layer (US-040F first-pass UX redesign demonstrated via Vitest + rebuilt static assets; OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040f`). **Not Story accepted; BL-015 remains open.** Further operator-directed UX iteration is expected. Public URL hosting and Google/OIDC IdP remain not activated.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L / US-040M still open). Implemented in console layer (US-040F first-pass UX redesign demonstrated via Vitest + rebuilt static assets; OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040f`). Further UX iteration continues via US-040L/M. Public URL hosting and Google/OIDC IdP remain not activated.
 
 **UX direction**
 
@@ -969,7 +983,7 @@ As a content operator, I want the Flow A supervision console to feel like a mode
 
 As a content operator, I want the supervision console to open on a clear **week** calendar with **month** as a secondary view and **no list**, so that I immediately understand what publishes when without learning a second triage surface that often looks empty or unexplained.
 
-**Status:** Implemented in console layer (US-040G calendar-first Week + Month; List removed from operator chrome; OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040g`; empty-grid follow-up `fix-us-040g-outlook-empty-calendar-grid` applied and **redeployed** — Week/Month keep day structure visible with calm empty cue; Vitest viewport matrix ~1280/~375 + live static assets `index-SFvEuRPX.js` / `index-DTJ5Tm4v.css` on `192.168.0.194:8010`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated (browser capture / walkthrough not completed). Interim event panel superseded by US-040H EventModal. UTC day-bucketing debt addressed by US-040I (console-layer; not yet Story accepted). US-040J reopen and US-040K density are implemented in separate changes (not yet Story accepted). Filters dock removal and Cancelled metric chip are out of scope for the empty-grid fix.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L / US-040M still open). Implemented and deployed (US-040G calendar-first Week + Month; List removed; empty-grid follow-up redeployed; Vitest ~1280/~375 + live assets historically `index-SFvEuRPX.js` / `index-DTJ5Tm4v.css` on `192.168.0.194:8010`; superseded assets later by H–K deploys). Operator accepted 2026-07-19 (walkthrough gate closed by operator). Interim event panel superseded by US-040H EventModal. Filters dock removal remains US-040L.
 
 **UX intent (normative)**
 
@@ -992,22 +1006,23 @@ Required scenes (desktop + mobile): Week first paint; empty week (**day columns 
 - [x] Week view MUST show a readable local-week grid or column layout with day headers, today emphasis, and events as scannable chips/cards (title or campaign label, channel, local time, state) — not raw ids as the primary label. — Demonstrated: day-column Week (not hour grid); local time on chips; local-day placement delivered in US-040I (console-layer).
 - [x] Month view MUST remain density-oriented: compact event indicators per day, overflow handling, today/selected styling, without turning cells into diagnostic forms. — Demonstrated: agenda dump removed as primary surface; light day focus + event chips.
 - [x] Navigation: previous/next week, previous/next month, and a one-click “Today / This week” affordance MUST be visible and thumb-friendly on mobile. — Demonstrated via Vitest + CSS touch targets.
-- [x] When a week or month has zero items after filters, show a deliberate empty state with short copy and a path to clear filters if filters hid everything — never an unexplained blank content area. — Demonstrated via Vitest: empty cue + persistent `week-columns` / `calendar-grid` (Outlook-like); filter-zero clear path; live Visual DoD still gated pending redeploy + walkthrough.
+- [x] When a week or month has zero items after filters, show a deliberate empty state with short copy and a path to clear filters if filters hid everything — never an unexplained blank content area. — Demonstrated via Vitest: empty cue + persistent `week-columns` / `calendar-grid` (Outlook-like); filter-zero clear path; operator-accepted 2026-07-19.
 - [x] Metric chips (if retained) MUST navigate/focus within Week/Month (e.g. jump to next blocked event week), not reopen a list. — Demonstrated: `navigateMetricFocus` stays on calendar; Vitest asserts no List.
 - [x] Preserve React + TypeScript + Vite, same-origin static delivery, typed API client, shared normalized model, ScheduleEditor mutation SoT, session/`canMutate`, and worker HTTP-only access. — Demonstrated: stack unchanged; ScheduleEditor + interim path; session suites pass.
 - [x] Do not activate public URL hosting, Google/OIDC, BFF/DB/user-management, LinkedIn API publish, or Flow B. — Demonstrated: out of scope; no activation.
-- [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
-- [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms Week-default calendar UX meets intent before Story accepted.
-- [ ] The outcome is visible and understandable to the intended user.
+- [x] Capture Visual DoD evidence — operator-accepted 2026-07-19 (formal screenshot pack waived/closed by operator; Vitest viewport evidence retained).
+- [x] Operator walkthrough completed — operator-accepted 2026-07-19 (gate closed by operator).
+- [x] The outcome is visible and understandable to the intended user. — Operator-accepted 2026-07-19.
 - [x] Failures or blocked states are clearly communicated without restoring a list as the primary recovery UI. — Demonstrated: calendar empty/filter states + interim detail; metrics stay on Week/Month.
 - [x] Existing completed work is not duplicated or unintentionally changed beyond the deliberate removal of list-first UX (US-017 mutation contracts reused). — Demonstrated: no new mutation SoT; H/I/J/K products not shipped.
+
 ### US-040H — Implement Flow A LinkedIn Variant Supervision Console: Event Modal and Toast Feedback
 
 **Description**
 
 As a content operator, I want to click a **specific event** and work inside a focused **modal**, with success/info feedback as brief **toasts**, so that I never face a confusing split of “day dump below + detail above” or large green banners that steal the calendar.
 
-**Status:** Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040h`; Vitest + rebuilt static assets; live `index-P0TKf1cr.js` / `index-BGvbD0Jm.css`; git `3aa9394`). **Not Story accepted; BL-015 remains open.** Visual DoD + operator walkthrough remain gated.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L / US-040M still open). Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040h`; Vitest + rebuilt static assets; live `index-P0TKf1cr.js` / `index-BGvbD0Jm.css`; git `3aa9394`). Operator accepted 2026-07-19.
 
 **UX intent (normative)**
 
@@ -1035,9 +1050,9 @@ Required scenes (desktop + mobile): event open; modal hierarchy; edit/reschedule
 - [x] Dry-run vs real commit MUST remain visually obvious inside the modal and in toast copy after actions.
 - [x] Keep destructive cancel behind explicit confirmation separate from toast success feedback.
 - [x] Preserve keyboard access: focus trap in modal, Escape closes (with draft warn), visible focus rings, no hover-only critical actions.
-- [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
-- [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms modal + toast UX meets intent before Story accepted.
-- [ ] The outcome is visible and understandable to the intended user.
+- [x] Capture Visual DoD evidence — operator-accepted 2026-07-19 (formal screenshot pack waived/closed by operator; Vitest viewport evidence retained).
+- [x] Operator walkthrough completed — operator-accepted 2026-07-19 (gate closed by operator).
+- [x] The outcome is visible and understandable to the intended user. — Operator-accepted 2026-07-19.
 - [x] Failures or blocked states are clearly communicated (error toasts or in-modal errors; not silent failure).
 - [x] Existing completed work is not duplicated or unintentionally changed (reuse ScheduleEditor / US-017 semantics inside the modal shell).
 
@@ -1047,7 +1062,7 @@ Required scenes (desktop + mobile): event open; modal hierarchy; edit/reschedule
 
 As a content operator, I want the week/month grids, event times, and reschedule controls to work in **my local timezone**, so that I do not have to translate UTC or “another part of the world’s” calendar days while planning posts.
 
-**Status:** Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040i` archived; Vitest with `TZ=America/Chicago` + ~1280/~375 viewport matrix + production static rebuild; live `index-DV0R4K8U.js` / `index-BGvbD0Jm.css`; git `a1bd3cd`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated. US-040J reopen and US-040K density are implemented in separate changes (not yet Story accepted / not yet deployed for K). US-040G/H Story accepted remain separately gated.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L / US-040M still open). Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040i` archived; Vitest with `TZ=America/Chicago` + ~1280/~375; live `index-DV0R4K8U.js` / `index-BGvbD0Jm.css`; git `a1bd3cd`). Operator accepted 2026-07-19.
 
 **UX intent (normative)**
 
@@ -1070,8 +1085,8 @@ Required scenes (desktop + mobile): local times on Week/Month/modal with timezon
 - [x] Schedule editor datetime controls are local-first; conversion to `*_utc` fields happens at the API boundary. — Demonstrated: picker round-trip Vitest (`new_scheduled_at_utc`).
 - [x] Validation copy and client-side guards match “strictly after now” in absolute time, presented as local; earlier-than-previous-schedule moves are allowed when still future. — Demonstrated via Vitest.
 - [x] Empty/error states never instruct the operator to “think in UTC” for routine edits. — Demonstrated: ScheduleEditor help + error map assertions.
-- [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
-- [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms local-time UX meets intent before Story accepted.
+- [x] Capture Visual DoD evidence — operator-accepted 2026-07-19 (formal screenshot pack waived/closed by operator; Vitest viewport evidence retained).
+- [x] Operator walkthrough completed — operator-accepted 2026-07-19 (gate closed by operator).
 - [x] The outcome is visible and understandable to the intended user. — Demonstrated at console-layer via Vitest; operator confirmation still gated.
 - [x] Failures or blocked states are clearly communicated (`*_time_invalid` mapped to plain language). — Demonstrated: error map remapped to local-language copy.
 - [x] Existing completed work is not duplicated or unintentionally changed (worker UTC contracts preserved unless a paired OpenSpec change extends them). — Demonstrated: prior Week/Month/EventModal/ScheduleEditor/session suites still pass; `*_utc` wire fields unchanged.
@@ -1082,7 +1097,7 @@ Required scenes (desktop + mobile): local times on Week/Month/modal with timezon
 
 As a content operator, I want cancelled calendar events to be visually honest and actionable (or clearly non-actionable), so that when I see a cancelled item on today/this week I understand **why** and what I can do next — including reopen/reschedule when product allows — instead of a mute grey chip with no path.
 
-**Status:** Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040j` archived; Vitest ~1280/~375 + pytest + static rebuild; live `index-BJwARkPN.js` / `index-BLiwrDxd.css`; git `ec2d000`; OpenAPI `/reopen-linkedin-variant`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated. US-040K density is implemented in a separate change (not yet Story accepted / not yet deployed). US-040G/H/I Story accepted remain separately gated.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L / US-040M still open). Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040j` archived; Vitest ~1280/~375 + pytest + static rebuild; live `index-BJwARkPN.js` / `index-BLiwrDxd.css`; git `ec2d000`; OpenAPI `/reopen-linkedin-variant`). Operator accepted 2026-07-19.
 
 **UX intent (normative)**
 
@@ -1104,8 +1119,8 @@ Required scenes (desktop + mobile): cancelled chip on Week/Month; cancelled moda
 - [x] Define and implement an approved **reopen or reschedule-from-cancelled** path via worker HTTP (new or extended contract under OpenSpec) OR, if temporarily deferred inside the same change, ship an explicit read-only cancelled modal — do not leave “mystery cancelled” UX. Prefer shipping the reopen/reschedule path as the business outcome of this story. — Demonstrated: `POST /reopen-linkedin-variant` + console reopen panel (reopen shipped; read-only escape hatch unused).
 - [x] Reopened items MUST reappear as editable supervision targets (pending/planned as applicable) and respect dry-run/confirm, local time, and density limits (US-040I/K). — Demonstrated: real reopen → `pending` + future schedule + dry-run/confirm + local ScheduleEditor fields; US-040K density enforced on reopen in a separate change (not Story accepted).
 - [x] Cancel from an active event remains destructive, confirmed, and irreversible except through the new reopen path. — Demonstrated: cancel confirmation retained; defer refused on cancelled; reopen is the restore path.
-- [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
-- [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms cancelled-event UX meets intent before Story accepted.
+- [x] Capture Visual DoD evidence — operator-accepted 2026-07-19 (formal screenshot pack waived/closed by operator; Vitest viewport evidence retained).
+- [x] Operator walkthrough completed — operator-accepted 2026-07-19 (gate closed by operator).
 - [x] The outcome is visible and understandable to the intended user. — Demonstrated at console-layer via Vitest; operator confirmation still gated.
 - [x] Failures or blocked states are clearly communicated. — Demonstrated: `linkedin_reopen_not_allowed` and time-invalid family mapped to failure toasts.
 - [x] Existing completed work is not duplicated or unintentionally changed (no silent bypass of publication guards; no n8n Execute Command). — Demonstrated: prior Week/Month/EventModal/ScheduleEditor/session suites still pass; no LinkedIn API publish from reopen; ADR-0001 preserved.
@@ -1115,7 +1130,7 @@ Required scenes (desktop + mobile): cancelled chip on Week/Month; cancelled moda
 
 As a content operator, I want the console and schedule rules to **cap publications at two per local calendar day**, so that I cannot accidentally look like a spammer by stacking three or more posts on the same day.
 
-**Status:** Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040k` archived; pytest + Vitest ~1280/~375 + production static rebuild; live `index-CoeIIs9v.js` / `index-CfjReggH.css`; git `0d90b3d`; `BUILD_REVISION=0d90b3daacee…`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated. Interim product rule for BL-015; BL-021 MAY later supersede with richer cadence windows. US-040G/H/I/J Story accepted remain separately gated.
+**Status:** **Story accepted** (operator-accepted 2026-07-19). **BL-015 remains open** (US-040L / US-040M still open). Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040k` archived; pytest + Vitest ~1280/~375 + production static rebuild; live `index-CoeIIs9v.js` / `index-CfjReggH.css`; git `0d90b3d`; `BUILD_REVISION=0d90b3daacee…`). Operator accepted 2026-07-19. Interim product rule for BL-015; BL-021 MAY later supersede with richer cadence windows.
 
 **UX intent (normative)**
 
@@ -1138,152 +1153,248 @@ Required scenes (desktop + mobile): local day at 2 publications (full cue); atte
 - [x] Existing days that already have 3+ items MUST remain visible (do not hide history) and SHOULD offer a clear path to fix density by moving events (modal actions), not silent data loss. — Demonstrated: over cue + EventModal move path; grandfather reduce pytest.
 - [x] Interim duplicate-slot / 72h sibling rules MAY remain until BL-021 supersedes; this story’s **2/local-day** cap is additive and MUST be documented as interim product policy. — Demonstrated: additive coexistence; documented vs BL-021.
 - [x] Do not call LinkedIn API publish as part of density enforcement. — Demonstrated: density path reads metadata/calendar only; pytest asserts no LinkedIn HTTP client.
-- [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
-- [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms max-2 density UX meets intent before Story accepted.
+- [x] Capture Visual DoD evidence — operator-accepted 2026-07-19 (formal screenshot pack waived/closed by operator; Vitest viewport evidence retained).
+- [x] Operator walkthrough completed — operator-accepted 2026-07-19 (gate closed by operator).
 - [x] The outcome is visible and understandable to the intended user. — Demonstrated at console-layer via Vitest; operator confirmation still gated.
 - [x] Failures or blocked states are clearly communicated. — Demonstrated: density + timezone codes mapped to plain language.
 - [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: prior Week/Month/EventModal/ScheduleEditor/session/local-time/reopen suites still pass; G–J Story accepted not closed; BL-015 left open.
 
-## BL-016 — Define Flow B
+### US-040L — Implement Flow A LinkedIn Variant Supervision Console: Search/Filters Header Modal
+
+**Description**
+
+As a content operator, I want a **Search / Filters** control in the console header that opens a modal with the current filter controls, so that Week/Month stay calendar-first without a permanent FOCUS/Filters strip that duplicates the metric chips above.
+
+**Status:** Not started. **Not Story accepted; BL-015 remains open.** Addresses operator feedback after US-040K deploy: metric cards and the always-visible filters dock feel redundant. Continues the US-040G follow-up note that filters-dock removal was out of scope for the empty-grid fix.
+
+**UX intent (normative)**
+
+- Remove the always-visible **FOCUS / Filters** dock from the primary chrome.
+- Add a clear header control (label **Search** or **Filters** — prefer **Filters** if the modal is the full filter set; **Search** only if campaign/label search is the primary affordance with filters secondary).
+- On click, open a modal containing the **current** filter controls unchanged in capability: Channel, Campaign / label, Blocked only, Due soon (48h), Publication state checkboxes, Reset.
+- When filters are active, the header control MUST show a calm active cue (badge/count or equivalent) so operators know the calendar is filtered.
+- Metric chips MAY remain one-click focus shortcuts that write the same filter state; they MUST NOT require the modal to apply a focus, but opening the modal SHOULD reflect the resulting filter state.
+- Preserve Week/Month empty-state **Clear filters** paths.
+- Preserve session/`canMutate`, dry-run/confirm, EventModal, local-time, density cues (US-040K), cancelled reopen (US-040J), ADR-0001, `*_utc` wire fields.
+- Do not restore List as primary chrome.
+
+**Visual DoD / Story acceptance gate**
+
+Required scenes (desktop + mobile): header Filters/Search control visible; modal opens with full filter set; active-filter badge when filtered; Week/Month uncluttered without permanent dock; metric chip focus still works; Reset/clear paths remain obvious.
+**MUST NOT** mark Story accepted without operator walkthrough confirming the calendar feels cleaner and filters remain discoverable (shared DoD above).
+
+**Acceptance criteria**
+
+- [ ] Remove the always-visible FOCUS/Filters dock from the primary console chrome so Week/Month are not permanently preceded by a full filter strip.
+- [ ] Provide a header **Search** or **Filters** button that opens a modal containing the existing filter controls (Channel, Campaign/label, Blocked only, Due soon, publication states, Reset) without reducing filter capability.
+- [ ] When any non-default filter is active, the header control MUST surface a calm active cue (badge/count or equivalent).
+- [ ] Metric chips remain usable one-click focus shortcuts on the same filter state; the modal MUST show the resulting filters when opened after a chip focus.
+- [ ] Week/Month empty states that offer Clear filters MUST continue to work.
+- [ ] Preserve Week default + Month secondary, EventModal + toasts, local-time, cancelled reopen, density cues, session/`canMutate`, dry-run/confirm, worker HTTP-only (ADR-0001), `*_utc` wire fields.
+- [ ] Do not restore List as primary operator chrome; do not activate public URL / Google OIDC / BFF / user-management; do not call LinkedIn API publish from the console.
+- [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
+- [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms filters-in-modal UX meets intent before Story accepted.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed (US-040G–K Story accepted not closed as a side effect; BL-015 remains open).
+
+### US-040M — Show Completed Blogs as Published on Blog in Schedule Visibility
+
+**Status:** In progress (implementation apply). Acceptance criteria agreed in product planning (2026-07-19). OpenSpec change: `show-completed-blog-as-published-on-console-us-040m`. **Not Story accepted; BL-015 remains open.**
+
+**Description**
+
+As a content operator, I want completed Flow A blog calendar items to show as **Published on blog** (not Planned), so that the calendar matches reality when posts are already live on silverman.pro without implying LinkedIn API publication.
+
+**Visual DoD / Story acceptance gate**
+
+Required scenes (desktop + mobile): Week/Month show completed blogs with “Published on blog” (or equivalent); LinkedIn published still shows API-evidence label; completed blogs filterable; completed blogs not schedule-editable; no false LinkedIn API published cue on blog channel.
+**MUST NOT** mark Story accepted without operator walkthrough (shared DoD above).
+
+**Acceptance criteria**
+
+- [ ] `GET /flow-a/schedule-visibility` maps editorial-calendar blog `status: completed` to display `publication_state: completed` (not `planned`).
+- [ ] Blog-channel items keep `linkedin_api_published: false`; console label is distinct from LinkedIn “Published (API evidence)” (e.g. “Published on blog”).
+- [ ] Remove the legacy title suffix `(blog handoff completed — not LinkedIn API published)` once the display state/label carries that meaning.
+- [ ] Publication-state filters include the completed / published-on-blog state; completed blogs remain schedule-read-only.
+- [ ] Upcoming/Pending-style metric helpers MUST NOT treat blog `completed` as unfinished upcoming work.
+- [ ] No calendar DB status mutation required for items already `completed`; no Flow B; no US-040L in this story.
+- [ ] Capture Visual DoD evidence (desktop + mobile); Vitest alone is insufficient for Story accepted.
+- [ ] Operator walkthrough completed on deployed or agreed preview before Story accepted.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed (US-040G–L Story accepted not closed as a side effect; BL-015 remains open).
+
+## BL-016 — Define Simplified Flow B
 
 **Priority:** P4
 
-**Business context:** Define the complete business process for system-generated content that requires human review.
+**Business context:** Lock the simplified Flow B process: AI topic discovery → AI blog draft → one human blog-approval gate → then Flow A. Career north star: authority for senior leadership / architecture / transformation / AI roles (≥ ~USD 7,000). Planning notes: [planning-notes-flow-b-simplification.md](planning-notes-flow-b-simplification.md).
 
-### US-041 — Define Flow B: Story 1
+**Status note:** Former placeholder stories US-041–US-048 under this priority were rewritten and renumbered to **US-074–US-081** to avoid colliding with BL-031 **US-041** (calendar DB).
+
+### US-074 — Define Simplified Flow B Process and Approval Boundary
+
+**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
 
 **Description**
 
-As a content reviewer, I want to define idea sources, so that flow b has an approved business process and clear human approval boundaries.
+As a content operator, I want Flow B defined as AI-generated blog content with a single blog-approval gate and Flow A reuse after approval, so that we do not build a second LinkedIn review system or a revision CMS.
 
 **Acceptance criteria**
 
-- [ ] Define idea sources.
-- [ ] Define draft generation.
-- [ ] Define review, revision, approval, and rejection.
+- [ ] Document Flow B as: trigger → AI topic discovery → AI blog draft → operator approve/reject blog → on approve, same path as Flow A.
+- [ ] State that the **only** mandatory human gate is **blog approval** for AI-authored posts.
+- [ ] State that after blog approval there is **no** mandatory LinkedIn review (optional Flow A supervision only).
+- [ ] List P4 non-goals: revision-history CMS, structured feedback loops, thematic duplication engines, audience-balancing schedulers, BL-020 as a prerequisite.
+- [ ] Encode the career/authority objective (senior leadership / Solutions Architect / digital transformation / AI; ≥ ~USD 7,000 positioning) as normative context for discovery and drafting.
+- [ ] Update glossary / Flow A vs Flow B policy artifacts so they match this simplified model (no “mandatory LinkedIn review for Flow B after blog OK”).
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed (Flow A supervision and publication guards remain as-is).
+
+### US-075 — Define Flow B Eligibility and Calendar-Gap Trigger Policy
+
+**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
+
+**Description**
+
+As a content operator, I want publication eligibility and the calendar gap-trigger policy written down, so that unapproved drafts never publish and empty upcoming LinkedIn days correctly request new blog drafts.
+
+**Acceptance criteria**
+
+- [ ] Define eligibility: unapproved Flow B drafts MUST NOT publish blog or LinkedIn; approved drafts MAY enter Flow A (`ready/` or equivalent).
+- [ ] Define the calendar **gap sensor** policy: look ahead on operator-local days with lead time for approval + Flow A; if LinkedIn coverage is missing toward the fill target (respecting max 2/local day), trigger Flow B; otherwise no-op.
+- [ ] Record nuances: empty day ≠ necessarily empty disk; one blog may cover multiple LinkedIn days; do not require same-day morning triggers.
+- [ ] Define soft anti-duplication preference (recent themes) without mandating a hard thematic engine.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-042 — Define Flow B: Story 2
-
-**Description**
-
-As a content reviewer, I want to define publication eligibility, so that flow b has an approved business process and clear human approval boundaries.
-
-**Acceptance criteria**
-
-- [ ] Define publication eligibility.
-- [ ] Define calendar integration.
-- [ ] Prevent automatic publication without approval.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
-
-## BL-017 — Generate Blog Drafts for Flow B
+## BL-017 — Discover Topics and Generate Flow B Blog Drafts
 
 **Priority:** P4
 
-**Business context:** Create high-quality blog drafts from approved ideas while preserving Silverio's voice and editorial standards.
+**Business context:** AI discovers current objective-aligned topics and generates approval-ready blog drafts (with image) without publishing. BL-020 is optional enrichment, not a blocker.
 
-### US-043 — Generate Blog Drafts for Flow B: Story 1
+### US-076 — Discover Current Objective-Aligned Topics With AI
+
+**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
 
 **Description**
 
-As a content reviewer, I want to generate complete blog drafts, so that the system produces review-ready flow b blog drafts.
+As a content operator, I want AI to search current topics aligned to my senior-leadership positioning, so that new posts attract the right recruiters and executives without me maintaining a mandatory topic CMS first.
 
 **Acceptance criteria**
 
-- [ ] Generate complete blog drafts.
-- [ ] Follow the editorial canon.
-- [ ] Include required metadata and structure.
+- [ ] Provide an AI topic-discovery step whose brief is constrained by the career/authority objective (leadership / architecture / transformation / AI; not generic tech-news chase).
+- [ ] Allow variable sources; do not require a hand-curated BL-020 backlog to run.
+- [ ] Prefer authority and hireable judgment over trend-only topics; apply a soft preference against repeating recent published themes.
+- [ ] Surface the chosen topic (and brief rationale/sources summary) with the draft package for operator review.
+- [ ] Fail closed with a clear operator-visible error when discovery cannot produce an objective-aligned topic.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-044 — Generate Blog Drafts for Flow B: Story 2
+### US-077 — Generate Flow B Blog Draft and Image Without Publishing
+
+**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
 
 **Description**
 
-As a content reviewer, I want to create or request an image, so that the system produces review-ready flow b blog drafts.
+As a content operator, I want a complete blog draft (and hero image) generated from the discovered topic, so that I can approve real content before any publication side effects.
 
 **Acceptance criteria**
 
-- [ ] Create or request an image.
-- [ ] Save the result for review.
-- [ ] Prevent automatic publication.
+- [ ] Generate a complete blog draft that follows the editorial canon and includes required metadata/structure.
+- [ ] Create or request a hero image as part of the draft package.
+- [ ] Persist the draft in an approval-pending location/state (not `processed`, not live publish).
+- [ ] MUST NOT auto-publish the blog, MUST NOT run Flow A publish/package/schedule, and MUST NOT call LinkedIn API publish from this story’s success path.
+- [ ] Preserve Silverio voice / anti-AI-writing rules per editorial canon at draft time (warnings or blocking per canon for Flow B drafts).
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-## BL-018 — Implement Flow B Review and Approval
+## BL-018 — Approve Flow B Blog Drafts Into Flow A
 
 **Priority:** P4
 
-**Business context:** Support human review and approval of system-generated content.
+**Business context:** Simple approve/reject gate for AI blog drafts; approved content becomes Flow A–eligible. No revision CMS in P4.
 
-### US-045 — Implement Flow B Review and Approval: Story 1
+### US-078 — Present Flow B Blog Drafts for Approve or Reject
+
+**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
 
 **Description**
 
-As a content reviewer, I want to present drafts for review, so that flow b content cannot proceed to publication without recorded approval.
+As a content operator, I want pending AI blog drafts presented clearly for approve or reject, so that I can gate quality without a mini-CMS of revisions and feedback threads.
 
 **Acceptance criteria**
 
-- [ ] Present drafts for review.
-- [ ] Capture feedback.
-- [ ] Apply revisions.
+- [ ] Present pending Flow B blog drafts (title/topic, body, image, discovery summary) in an operator-usable surface (console and/or documented operator path).
+- [ ] Support **approve** and **reject** actions.
+- [ ] Do **not** require a revision-history CMS, structured multi-round feedback capture, or mandatory edit-apply loop in this story (operator MAY edit files offline; that is out of band).
+- [ ] Communicate rejected/blocked state clearly; rejected drafts MUST remain non-publishable.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-046 — Implement Flow B Review and Approval: Story 2
+### US-079 — Promote Approved Flow B Blogs Onto the Flow A Path
+
+**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
 
 **Description**
 
-As a content reviewer, I want to approve or reject content, so that flow b content cannot proceed to publication without recorded approval.
+As a content operator, I want an approved AI blog to become Flow A–eligible with a recorded approval, so that packaging, scheduling, and LinkedIn follow the same automation as human-written ready posts.
 
 **Acceptance criteria**
 
-- [ ] Approve or reject content.
-- [ ] Keep revision history.
-- [ ] Promote approved content to publication eligibility.
+- [ ] On approve, record operator approval (who/when/campaign-or-draft id) in durable metadata.
+- [ ] Promote the approved draft to Flow A eligibility (`blog-posts/ready/` or equivalent contract accepted by Flow A).
+- [ ] After promotion, blog publish / LinkedIn package / schedule / optional supervision MUST reuse Flow A behavior — no second mandatory LinkedIn approval queue for Flow B.
+- [ ] Unapproved drafts MUST NOT be accepted by Flow A publish paths.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [ ] Existing completed work is not duplicated or unintentionally changed (Flow A guards and density rules remain authoritative after promotion).
 
-## BL-019 — Integrate Flow B with the Editorial Calendar
+## BL-019 — Trigger Flow B From Calendar Publication Gaps
 
 **Priority:** P4
 
-**Business context:** Plan Flow B content alongside approved Flow A content.
+**Business context:** Calendar is a gap sensor: missing upcoming LinkedIn coverage triggers Flow B draft generation for approval.
 
-### US-047 — Integrate Flow B with the Editorial Calendar: Story 1
+### US-080 — Detect Upcoming LinkedIn Calendar Gaps
+
+**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
 
 **Description**
 
-As a content reviewer, I want to schedule topics, so that flow b content is visible and manageable in the editorial calendar.
+As a content operator, I want the system to detect when upcoming local days lack LinkedIn publications, so that cadence can be restored before the empty day arrives.
 
 **Acceptance criteria**
 
-- [ ] Schedule topics.
-- [ ] Assign target dates.
-- [ ] Avoid thematic duplication.
+- [ ] Evaluate upcoming operator-local calendar day(s) for scheduled LinkedIn publications with configurable/documented look-ahead lead time (sufficient for blog approval + Flow A).
+- [ ] Respect the max **2 publications per local day** density cap when interpreting “full” vs “gap” (fill toward the operational target without exceeding the cap).
+- [ ] Return a clear gap / no-gap result suitable for orchestration (n8n or worker), without mutating campaigns on the detect-only path.
+- [ ] Document that empty coverage is a proxy for needing upstream content (not a filesystem inventory of `ready/`).
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-048 — Integrate Flow B with the Editorial Calendar: Story 2
+### US-081 — Trigger Flow B Draft Generation on Calendar Gaps
+
+**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
 
 **Description**
 
-As a content reviewer, I want to balance audiences, so that flow b content is visible and manageable in the editorial calendar.
+As a content operator, I want a detected LinkedIn calendar gap to start Flow B topic discovery and blog draft generation, so that I get an approvable draft instead of a silent empty schedule.
 
 **Acceptance criteria**
 
-- [ ] Balance audiences.
-- [ ] Coordinate blog and LinkedIn timing.
-- [ ] Keep approval mandatory before publication.
+- [ ] When the gap sensor reports a gap, trigger Flow B topic discovery + blog draft generation (US-076/US-077) without auto-publishing.
+- [ ] When there is no gap (coverage already present), perform a clean no-op (no duplicate draft spam).
+- [ ] Apply single-flight / idempotency so concurrent triggers do not create duplicate drafts for the same gap window.
+- [ ] Leave draft in approval-pending state for US-078/US-079; do not skip the blog gate.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
@@ -1292,18 +1403,19 @@ As a content reviewer, I want to balance audiences, so that flow b content is vi
 
 **Priority:** P5
 
-**Business context:** Maintain a prioritized business backlog of future content topics.
+**Business context:** Optional hand-curated topic backlog. **Not** a prerequisite for Flow B AI discovery (BL-017 / BL-019).
 
 ### US-049 — Create the Editorial Content Backlog: Story 1
 
 **Description**
 
-As a editorial manager, I want to capture topic, audience, objective, format, priority, status, and target date, so that the content pipeline has a clear, prioritized source of future topics.
+As a editorial manager, I want to capture topic, audience, objective, format, priority, status, and target date, so that I can optionally maintain a hand-curated topic queue without blocking Flow B.
 
 **Acceptance criteria**
 
 - [ ] Capture topic, audience, objective, format, priority, status, and target date.
 - [ ] Link blog topics to potential LinkedIn derivatives.
+- [ ] MUST NOT be required before Flow B AI discovery (BL-017) or gap trigger (BL-019) can run.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
@@ -1312,12 +1424,13 @@ As a editorial manager, I want to capture topic, audience, objective, format, pr
 
 **Description**
 
-As a editorial manager, I want to identify dependencies, so that the content pipeline has a clear, prioritized source of future topics.
+As a editorial manager, I want to identify dependencies, so that the optional content topic queue can be prioritized and reprioritized.
 
 **Acceptance criteria**
 
 - [ ] Identify dependencies.
 - [ ] Support prioritization and reprioritization.
+- [ ] MAY later seed or override AI discovery; MUST NOT block P4 Flow B.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
@@ -1326,7 +1439,7 @@ As a editorial manager, I want to identify dependencies, so that the content pip
 
 **Priority:** P5
 
-**Business context:** Establish a sustainable publishing rhythm for the blog and LinkedIn.
+**Business context:** Formal cadence policy. Interim US-040K density (max 2/local day) and BL-019 gap sensor MAY remain until this item supersedes or ratifies them.
 
 ### US-051 — Define Editorial Calendar and Publishing Cadence: Story 1
 
@@ -1337,8 +1450,9 @@ As a editorial manager, I want to define blog frequency, so that publications fo
 **Acceptance criteria**
 
 - [ ] Define blog frequency.
-- [ ] Define LinkedIn frequency.
+- [ ] Define LinkedIn frequency (default planning assumption ≈ fill toward ~2 publications per local day unless this story changes it).
 - [ ] Define spacing between variants.
+- [ ] Clarify relationship to US-040K density and BL-019 gap trigger (supersede, ratify, or leave interim).
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
@@ -1347,12 +1461,12 @@ As a editorial manager, I want to define blog frequency, so that publications fo
 
 **Description**
 
-As a editorial manager, I want to define publishing windows, so that publications follow an approved cadence that avoids saturation and redundancy.
+As a editorial manager, I want to define publishing windows and rescheduling rules, so that cadence stays sustainable without P4 Flow B owning audience-balancing logic.
 
 **Acceptance criteria**
 
 - [ ] Define publishing windows.
-- [ ] Balance audience segments.
+- [ ] Balance audience segments at strategy level (variant packaging remains Flow A).
 - [ ] Define rescheduling rules.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.

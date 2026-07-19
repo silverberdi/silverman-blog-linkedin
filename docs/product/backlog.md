@@ -276,103 +276,110 @@ This backlog describes the outstanding business and operational capabilities req
 - Use ephemeral **toast** feedback instead of large persistent success banners.
 - Support operator handling of **cancelled** items with clear UX and an approved reopen/reschedule path where product allows.
 - Enforce a **maximum of 2 publications per local calendar day** in the supervision plan (anti-spam density).
+- Collapse the always-visible filters dock into a **header Search/Filters control** that opens a modal with the current filter controls (US-040L), so Week/Month stay calendar-first without a permanent second filter strip.
+- Show **completed blog** calendar items as **published on blog** in schedule visibility (US-040M), distinct from LinkedIn API published.
 - Keep the console ready for future public URL operation with Google authentication.
 - Provide a modern dark operational UX with low cognitive load, obvious safe actions, and no technical-status-page feel.
 - Use worker HTTP capabilities without bypassing publication guards.
 
-**Completion outcome:** Operators can supervise Flow A LinkedIn variants and upcoming editorial publication timing from one modern, calendar-first dark console (Week + Month), opening events into focused modals, working in local time, with toast feedback and density limits, during the optional pre-send window — without opening multiple raw files or reading technical implementation prose. **US-040G–K Story accepted requires Visual DoD evidence plus an operator walkthrough; Vitest/checkbox completion alone is insufficient.**
+**Completion outcome:** Operators can supervise Flow A LinkedIn variants and upcoming editorial publication timing from one modern, calendar-first dark console (Week + Month), opening events into focused modals, working in local time, with toast feedback and density limits, with completed blogs shown honestly as published-on-blog (not planned), and with advanced filters available from a header Search/Filters modal rather than a permanent dock — during the optional pre-send window — without opening multiple raw files or reading technical implementation prose. **US-040G–M Story accepted requires Visual DoD evidence plus an operator walkthrough; Vitest/checkbox completion alone is insufficient.**
 
 
 ## P4 — Flow B
 
-### BL-016 — Define Flow B
+**Simplified model (normative for this priority):** Flow B discovers current, objective-aligned topics with AI, generates a blog draft, and stops for **one hard human gate — blog approval**. After approval, content enters the **same path as Flow A** (publish → package → schedule → optional LinkedIn supervision). No mandatory LinkedIn review, no revision-history CMS, and no thematic/audience planner inside P4. Planning notes: [planning-notes-flow-b-simplification.md](planning-notes-flow-b-simplification.md).
 
-**Business need:** Define the complete business process for system-generated content that requires human review.
+**Career / content north star:** Attract recruiter and executive attention for senior roles (technical leadership, Solutions Architect, digital transformation, AI) at compensation **≥ ~USD 7,000** — authority positioning, not “senior developer.”
 
-**Expected outcomes:**
+### BL-016 — Define Simplified Flow B
 
-- Define idea sources.
-- Define draft generation.
-- Define review, revision, approval, and rejection.
-- Define publication eligibility.
-- Define calendar integration.
-- Prevent automatic publication without approval.
-
-**Completion outcome:** Flow B has an approved business process and clear human approval boundaries.
-
-### BL-017 — Generate Blog Drafts for Flow B
-
-**Business need:** Create high-quality blog drafts from approved ideas while preserving Silverio's voice and editorial standards.
+**Business need:** Lock the simplified Flow B business process so generation, approval, and post-approval automation stay unambiguous.
 
 **Expected outcomes:**
 
-- Generate complete blog drafts.
-- Follow the editorial canon.
-- Include required metadata and structure.
-- Create or request an image.
-- Save the result for review.
-- Prevent automatic publication.
+- Document Flow B as: calendar/gap or explicit trigger → AI topic discovery → AI blog draft → operator blog approve/reject → on approve, Flow A path.
+- Define the single hard gate as **blog approval** (AI-authored content).
+- State explicitly that after blog approval there is **no** mandatory LinkedIn approval path (optional Flow A supervision only).
+- Define publication eligibility: unapproved Flow B drafts MUST NOT publish blog or LinkedIn; approved drafts MAY enter Flow A like `ready/` content.
+- Encode the career/authority objective as the discovery brief constraint.
+- List non-goals for P4: revision CMS, structured feedback loops, thematic duplication engines, audience-balancing schedulers, hand-maintained topic CMS as a prerequisite.
 
-**Completion outcome:** The system produces review-ready Flow B blog drafts.
+**Completion outcome:** Flow B has an approved simplified process with a clear blog-only human approval boundary and Flow A reuse after approval.
 
-### BL-018 — Implement Flow B Review and Approval
+### BL-017 — Discover Topics and Generate Flow B Blog Drafts
 
-**Business need:** Support human review and approval of system-generated content.
-
-**Expected outcomes:**
-
-- Present drafts for review.
-- Capture feedback.
-- Apply revisions.
-- Approve or reject content.
-- Keep revision history.
-- Promote approved content to publication eligibility.
-
-**Completion outcome:** Flow B content cannot proceed to publication without recorded approval.
-
-### BL-019 — Integrate Flow B with the Editorial Calendar
-
-**Business need:** Plan Flow B content alongside approved Flow A content.
+**Business need:** When the pipeline needs new upstream content, AI finds current topics aligned to the career objective and produces a reviewable blog draft (plus image) without publishing.
 
 **Expected outcomes:**
 
-- Schedule topics.
-- Assign target dates.
-- Avoid thematic duplication.
-- Balance audiences.
-- Coordinate blog and LinkedIn timing.
-- Keep approval mandatory before publication.
+- AI topic discovery from variable sources, constrained by the positioning brief (leadership / architecture / transformation / AI authority; not generic tech-news chase).
+- Prefer authority and hireable judgment over trendiness alone; soft preference to avoid repeating recent published themes (hard anti-dup engine out of scope).
+- Generate a complete blog draft that follows the editorial canon, with required metadata/structure.
+- Create or request a hero image as part of the draft package.
+- Persist the draft for approval; **never** auto-publish blog or LinkedIn from this step.
+- Do not require BL-020 (hand-curated topic backlog) before this capability works.
 
-**Completion outcome:** Flow B content is visible and manageable in the editorial calendar.
+**Completion outcome:** The system can produce objective-aligned, approval-ready Flow B blog drafts (with image) without publishing.
+
+### BL-018 — Approve Flow B Blog Drafts Into Flow A
+
+**Business need:** Let the operator approve or reject AI blog drafts with a simple gate, then hand approved content into Flow A.
+
+**Expected outcomes:**
+
+- Present pending Flow B blog drafts for operator review.
+- Support **approve** and **reject** (no mandatory revision-history CMS or structured feedback loop in P4).
+- On approve: record approval and promote the draft to Flow A eligibility (e.g. `blog-posts/ready/` or equivalent contract).
+- On reject: leave the draft non-eligible for publish; communicate blocked/rejected state clearly.
+- After approval, LinkedIn packaging/scheduling/publication follow **Flow A** (including optional supervision) — not a second mandatory review queue.
+
+**Completion outcome:** AI blog drafts cannot publish until recorded operator approval; approved drafts proceed on the Flow A path.
+
+### BL-019 — Trigger Flow B From Calendar Publication Gaps
+
+**Business need:** Keep LinkedIn cadence filled (~toward 2 publications per local day, hard-capped by density max 2) by detecting upcoming empty days and generating upstream blog content via Flow B.
+
+**Expected outcomes:**
+
+- Implement a **gap sensor** over the editorial calendar (operator-local days), looking ahead with enough lead time for blog approval + Flow A (not same-morning of the empty day).
+- If the look-ahead day(s) lack scheduled LinkedIn publications (toward the operational fill target, respecting max 2/local day), trigger Flow B topic discovery + blog draft generation.
+- If coverage already exists, do not trigger (clean no-op).
+- Treat “empty calendar day” as the proxy for needing new upstream content (may not mean “no files on disk”).
+- One approved blog MAY cover multiple LinkedIn days via Flow A packaging — the sensor MUST NOT assume it must fire every day.
+- Out of scope for this item: thematic duplication engines, audience balancing as calendar features (variant audience balance remains Flow A packaging).
+
+**Completion outcome:** Empty upcoming LinkedIn calendar days reliably trigger Flow B draft generation for operator approval; filled days do not.
 
 
 ## P5 — Editorial Strategy and Measurement
 
 ### BL-020 — Create the Editorial Content Backlog
 
-**Business need:** Maintain a prioritized business backlog of future content topics.
+**Business need:** Optionally maintain a hand-curated prioritized topic backlog as an enrichment — **not** a prerequisite for Flow B (AI discovery is the default topic source under P4).
 
 **Expected outcomes:**
 
-- Capture topic, audience, objective, format, priority, status, and target date.
+- Capture topic, audience, objective, format, priority, status, and target date when operators want a manual queue.
 - Link blog topics to potential LinkedIn derivatives.
 - Identify dependencies.
 - Support prioritization and reprioritization.
+- MAY seed or override AI discovery later; MUST NOT block BL-017/BL-019.
 
-**Completion outcome:** The content pipeline has a clear, prioritized source of future topics.
+**Completion outcome:** Operators who want a hand-curated topic queue have one; Flow B remains runnable without it.
 
 ### BL-021 — Define Editorial Calendar and Publishing Cadence
 
-**Business need:** Establish a sustainable publishing rhythm for the blog and LinkedIn.
+**Business need:** Establish a sustainable publishing rhythm for the blog and LinkedIn. Interim console/worker density (max 2 publications per local day, US-040K) and the Flow B gap sensor (BL-019) MAY remain until this item supersedes or ratifies them.
 
 **Expected outcomes:**
 
 - Define blog frequency.
-- Define LinkedIn frequency.
+- Define LinkedIn frequency (operational intent ≈ fill toward ~2/local day unless this item changes it).
 - Define spacing between variants.
 - Define publishing windows.
-- Balance audience segments.
+- Balance audience segments (strategy-level; not a P4 Flow B scheduler).
 - Define rescheduling rules.
+- Clarify relationship to US-040K density and BL-019 gap trigger.
 
 **Completion outcome:** Publications follow an approved cadence that avoids saturation and redundancy.
 

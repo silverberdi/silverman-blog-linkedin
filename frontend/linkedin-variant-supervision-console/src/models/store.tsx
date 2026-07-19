@@ -193,7 +193,12 @@ function isPreservingAuthFailure(err: ApiError): boolean {
 
 function itemMatchesMetric(item: ScheduleItem, metric: MetricFocusKey, nowMs: number): boolean {
   if (metric === "upcoming") {
-    if (!item.scheduledAtUtc || item.publicationState === "cancelled") {
+    if (
+      !item.scheduledAtUtc ||
+      item.publicationState === "cancelled" ||
+      item.publicationState === "completed" ||
+      item.publicationState === "published"
+    ) {
       return false;
     }
     return Date.parse(item.scheduledAtUtc) >= nowMs;
@@ -202,7 +207,12 @@ function itemMatchesMetric(item: ScheduleItem, metric: MetricFocusKey, nowMs: nu
     return item.blocked || item.publicationState === "blocked";
   }
   if (metric === "dueSoon") {
-    if (!item.scheduledAtUtc || item.publicationState === "cancelled") {
+    if (
+      !item.scheduledAtUtc ||
+      item.publicationState === "cancelled" ||
+      item.publicationState === "completed" ||
+      item.publicationState === "published"
+    ) {
       return false;
     }
     const t = Date.parse(item.scheduledAtUtc);

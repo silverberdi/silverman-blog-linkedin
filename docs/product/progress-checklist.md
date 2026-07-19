@@ -383,102 +383,116 @@ Use this checklist to track business progress. Mark items only when the stated b
 - [ ] **BL-015 — Implement Flow A LinkedIn Variant Supervision Console**
   - Business outcome: Operators can supervise Flow A LinkedIn variants from one console during the pre-send window without opening multiple raw files.
   - Policy: [linkedin-variant-review-policy.md](../operations/linkedin-variant-review-policy.md)
-  - [ ] **US-038**
+  - [x] **US-038**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
     - [x] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-039**
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19
+    - [x] Story accepted — operator-accepted 2026-07-19
+  - [x] **US-039**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
     - [x] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-040**
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19
+    - [x] Story accepted — operator-accepted 2026-07-19
+  - [x] **US-040**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
     - [x] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-040A**
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19
+    - [x] Story accepted — operator-accepted 2026-07-19
+  - [x] **US-040A**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
     - [x] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-040B**
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19
+    - [x] Story accepted — operator-accepted 2026-07-19
+  - [x] **US-040B**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
     - [x] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-040C**
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19
+    - [x] Story accepted — operator-accepted 2026-07-19
+  - [x] **US-040C**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
     - [x] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-040D**
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19
+    - [x] Story accepted — operator-accepted 2026-07-19
+  - [x] **US-040D**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
     - [x] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-040E**
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19
+    - [x] Story accepted — operator-accepted 2026-07-19
+  - [x] **US-040E**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
     - [x] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-040F**
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19
+    - [x] Story accepted — operator-accepted 2026-07-19
+  - [x] **US-040F**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
     - [x] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-040G** — Calendar-first Week + Month (remove List)
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19
+    - [x] Story accepted — operator-accepted 2026-07-19
+  - [x] **US-040G** — Calendar-first Week + Month (remove List)
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — console-layer only (Vitest ~1280/~375 + rebuilt static assets); Visual DoD screenshots + walkthrough still open
+    - [x] Business outcome demonstrated — console-layer only (Vitest ~1280/~375 + rebuilt static assets)
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19 (walkthrough gate waived/closed by operator)
+    - [x] Story accepted — operator-accepted 2026-07-19
+  - [x] **US-040H** — Event modal + toast feedback
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — console-layer only (Vitest ~1280/~375 + rebuilt static assets)
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19 (walkthrough gate waived/closed by operator)
+    - [x] Story accepted — operator-accepted 2026-07-19
+  - [x] **US-040I** — Operator-local time experience
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — deployed console-layer (Vitest `TZ=America/Chicago` + ~1280/~375 + live static assets `index-DV0R4K8U.js` on `192.168.0.194:8010`)
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19 (walkthrough gate waived/closed by operator)
+    - [x] Story accepted — operator-accepted 2026-07-19
+  - [x] **US-040J** — Cancelled event handling (reopen/reschedule)
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — deployed console+worker (Vitest ~1280/~375 + pytest + live static assets `index-BJwARkPN.js` / `index-BLiwrDxd.css` on `192.168.0.194:8010`)
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19 (walkthrough gate waived/closed by operator)
+    - [x] Story accepted — operator-accepted 2026-07-19
+  - [x] **US-040K** — Max 2 publications per local day (interim; BL-021 MAY supersede)
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — deployed console+worker (Vitest ~1280/~375 + pytest + live static assets `index-CoeIIs9v.js` / `index-CfjReggH.css` on `192.168.0.194:8010`)
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-19 (walkthrough gate waived/closed by operator)
+    - [x] Story accepted — operator-accepted 2026-07-19
+  - [ ] **US-040L** — Search/Filters header modal (collapse always-visible filters dock)
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated — requires Visual DoD + operator walkthrough
     - [ ] Story accepted — operator walkthrough gate (not Vitest alone)
-  - [ ] **US-040H** — Event modal + toast feedback
+  - [ ] **US-040M** — Completed blogs show as Published on blog (not Planned)
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — console-layer only (Vitest ~1280/~375 + rebuilt static assets); Visual DoD screenshots + walkthrough still open
-    - [ ] Acceptance criteria validated — requires Visual DoD + operator walkthrough
-    - [ ] Story accepted — operator walkthrough gate (not Vitest alone)
-  - [ ] **US-040I** — Operator-local time experience
-    - [x] Story reviewed
-    - [x] Acceptance criteria agreed
-    - [x] Work started
-    - [x] Business outcome demonstrated — deployed console-layer (Vitest `TZ=America/Chicago` + ~1280/~375 + live static assets `index-DV0R4K8U.js` on `192.168.0.194:8010`); Visual DoD screenshots + walkthrough still open
-    - [ ] Acceptance criteria validated — requires Visual DoD + operator walkthrough
-    - [ ] Story accepted — operator walkthrough gate (not Vitest alone)
-  - [ ] **US-040J** — Cancelled event handling (reopen/reschedule)
-    - [x] Story reviewed
-    - [x] Acceptance criteria agreed
-    - [x] Work started
-    - [x] Business outcome demonstrated — deployed console+worker (Vitest ~1280/~375 + pytest + live static assets `index-BJwARkPN.js` / `index-BLiwrDxd.css` on `192.168.0.194:8010`); Visual DoD screenshots + walkthrough still open
-    - [ ] Acceptance criteria validated — requires Visual DoD + operator walkthrough
-    - [ ] Story accepted — operator walkthrough gate (not Vitest alone)
-  - [ ] **US-040K** — Max 2 publications per local day (interim; BL-021 MAY supersede)
-    - [x] Story reviewed
-    - [x] Acceptance criteria agreed
-    - [x] Work started
-    - [x] Business outcome demonstrated — deployed console+worker (Vitest ~1280/~375 + pytest + live static assets `index-CoeIIs9v.js` / `index-CfjReggH.css` on `192.168.0.194:8010`); Visual DoD screenshots + walkthrough still open
+    - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated — requires Visual DoD + operator walkthrough
     - [ ] Story accepted — operator walkthrough gate (not Vitest alone)
   - [ ] All user stories completed
@@ -487,38 +501,18 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 ## P4 — Flow B
 
-- [ ] **BL-016 — Define Flow B**
-  - Business outcome: Flow B has an approved business process and clear human approval boundaries.
-  - [ ] **US-041**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
+- [ ] **BL-016 — Define Simplified Flow B**
+  - Business outcome: Flow B has an approved simplified process with a clear blog-only human approval boundary and Flow A reuse after approval.
+  - [ ] **US-074** — Define simplified Flow B process and approval boundary
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
     - [ ] Work started
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
-  - [ ] **US-042**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
-
-- [ ] **BL-017 — Generate Blog Drafts for Flow B**
-  - Business outcome: The system produces review-ready Flow B blog drafts.
-  - [ ] **US-043**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-044**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
+  - [ ] **US-075** — Define Flow B eligibility and calendar-gap trigger policy
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
     - [ ] Work started
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
@@ -527,18 +521,18 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed
 
-- [ ] **BL-018 — Implement Flow B Review and Approval**
-  - Business outcome: Flow B content cannot proceed to publication without recorded approval.
-  - [ ] **US-045**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
+- [ ] **BL-017 — Discover Topics and Generate Flow B Blog Drafts**
+  - Business outcome: The system can produce objective-aligned, approval-ready Flow B blog drafts (with image) without publishing.
+  - [ ] **US-076** — Discover current objective-aligned topics with AI
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
     - [ ] Work started
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
-  - [ ] **US-046**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
+  - [ ] **US-077** — Generate Flow B blog draft and image without publishing
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
     - [ ] Work started
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
@@ -547,18 +541,38 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed
 
-- [ ] **BL-019 — Integrate Flow B with the Editorial Calendar**
-  - Business outcome: Flow B content is visible and manageable in the editorial calendar.
-  - [ ] **US-047**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
+- [ ] **BL-018 — Approve Flow B Blog Drafts Into Flow A**
+  - Business outcome: AI blog drafts cannot publish until recorded operator approval; approved drafts proceed on the Flow A path.
+  - [ ] **US-078** — Present Flow B blog drafts for approve or reject
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
     - [ ] Work started
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
-  - [ ] **US-048**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
+  - [ ] **US-079** — Promote approved Flow B blogs onto the Flow A path
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-019 — Trigger Flow B From Calendar Publication Gaps**
+  - Business outcome: Empty upcoming LinkedIn calendar days reliably trigger Flow B draft generation for operator approval; filled days do not.
+  - [ ] **US-080** — Detect upcoming LinkedIn calendar gaps
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-081** — Trigger Flow B draft generation on calendar gaps
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
     - [ ] Work started
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
@@ -570,7 +584,7 @@ Use this checklist to track business progress. Mark items only when the stated b
 ## P5 — Editorial Strategy and Measurement
 
 - [ ] **BL-020 — Create the Editorial Content Backlog**
-  - Business outcome: The content pipeline has a clear, prioritized source of future topics.
+  - Business outcome: Optional hand-curated topic queue exists; Flow B remains runnable without it.
   - [ ] **US-049**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed
@@ -590,7 +604,7 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] Backlog item closed
 
 - [ ] **BL-021 — Define Editorial Calendar and Publishing Cadence**
-  - Business outcome: Publications follow an approved cadence that avoids saturation and redundancy.
+  - Business outcome: Publications follow an approved cadence; relationship to US-040K / BL-019 clarified.
   - [ ] **US-051**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed

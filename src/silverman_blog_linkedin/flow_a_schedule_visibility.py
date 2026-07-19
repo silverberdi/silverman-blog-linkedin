@@ -70,6 +70,7 @@ DISPLAY_PLANNED = "planned"
 DISPLAY_PENDING = "pending"
 DISPLAY_QUEUED = "queued"
 DISPLAY_PUBLISHED = "published"
+DISPLAY_COMPLETED = "completed"  # Blog channel: calendar completed / published on blog (not LinkedIn API).
 DISPLAY_DEFERRED = "deferred"
 DISPLAY_CANCELLED = "cancelled"
 DISPLAY_BLOCKED = "blocked"
@@ -81,6 +82,7 @@ DISPLAY_STATES = frozenset(
         DISPLAY_PENDING,
         DISPLAY_QUEUED,
         DISPLAY_PUBLISHED,
+        DISPLAY_COMPLETED,
         DISPLAY_DEFERRED,
         DISPLAY_CANCELLED,
         DISPLAY_BLOCKED,
@@ -282,8 +284,9 @@ def _map_blog_display_state(status: str | None) -> tuple[str, bool, bool]:
     if status == BLOG_STATUS_FAILED:
         return DISPLAY_FAILED, False, True
     if status == BLOG_STATUS_COMPLETED:
-        # Handoff/completed is not LinkedIn API published; keep planned vocabulary.
-        return DISPLAY_PLANNED, False, False
+        # Distinct from LinkedIn DISPLAY_PUBLISHED (API evidence); blog channel stays
+        # linkedin_api_published=false at item construction.
+        return DISPLAY_COMPLETED, False, False
     if status in BLOG_STATUS_PLANNED_LIKE or status is None:
         return DISPLAY_PLANNED, False, False
     return DISPLAY_PLANNED, False, False
@@ -349,9 +352,6 @@ def _load_blog_items(
         status = _optional_str(entry.get("status"))
         publication_state, blocked, critical = _map_blog_display_state(status)
         title = _optional_str(entry.get("title"))
-        if status == BLOG_STATUS_COMPLETED and title:
-            # Qualify completed handoff so operators do not read it as LinkedIn published.
-            title = f"{title} (blog handoff completed — not LinkedIn API published)"
         schedule_editable, block_reason = _blog_schedule_editability(status)
         items.append(
             ScheduleVisibilityItem(

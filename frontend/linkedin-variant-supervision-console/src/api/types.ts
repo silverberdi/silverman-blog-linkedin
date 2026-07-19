@@ -59,6 +59,7 @@ export type PublicationDisplayState =
   | "pending"
   | "queued"
   | "published"
+  | "completed"
   | "deferred"
   | "cancelled"
   | "blocked"

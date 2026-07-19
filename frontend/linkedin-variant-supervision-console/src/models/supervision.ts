@@ -38,6 +38,7 @@ export const PUBLICATION_STATES: PublicationDisplayState[] = [
   "pending",
   "queued",
   "published",
+  "completed",
   "deferred",
   "cancelled",
   "blocked",
@@ -50,6 +51,8 @@ export const STATUS_COLOR: Record<PublicationDisplayState, string> = {
   pending: "#c9a227",
   queued: "#3d8bfd",
   published: "#3d9a6a",
+  /** Distinct from LinkedIn published green — calm teal for site/blog completion. */
+  completed: "#2a9d8f",
   deferred: "#b07d4a",
   cancelled: "#8a8a8a",
   blocked: "#d97706",
@@ -147,13 +150,14 @@ export const DUE_SOON_HOURS = 48;
 /** Recently-published window: last 7 days UTC from reference time. */
 export const RECENTLY_PUBLISHED_DAYS = 7;
 
-/** Concise operator-facing labels for publication display states (US-040E). */
+/** Concise operator-facing labels for publication display states (US-040E / US-040M). */
 export const PUBLICATION_STATE_LABEL: Record<PublicationDisplayState, string> =
   {
     planned: "Planned",
     pending: "Pending review",
     queued: "Queued",
     published: "Published (API evidence)",
+    completed: "Published on blog",
     deferred: "Deferred",
     cancelled: "Cancelled",
     blocked: "Blocked",
@@ -216,6 +220,7 @@ function asDisplayState(value: string | null | undefined): PublicationDisplaySta
     value === "pending" ||
     value === "queued" ||
     value === "published" ||
+    value === "completed" ||
     value === "deferred" ||
     value === "cancelled" ||
     value === "blocked" ||
@@ -495,7 +500,12 @@ export function isRecentlyPublished(
 }
 
 function isUpcoming(item: ScheduleItem, nowMs: number): boolean {
-  if (item.publicationState === "cancelled") {
+  // Completed blogs and LinkedIn API-published items are finished work, not upcoming.
+  if (
+    item.publicationState === "cancelled" ||
+    item.publicationState === "completed" ||
+    item.publicationState === "published"
+  ) {
     return false;
   }
   if (!item.scheduledAtUtc) {
@@ -548,7 +558,13 @@ export function deriveOperationalCounts(
     if (item.publicationState === "pending") {
       counts.pending += 1;
     }
-    if (isDueSoon(item.scheduledAtUtc, nowMs)) {
+    // Due-soon is unfinished work only — exclude completed / published terminal display.
+    if (
+      item.publicationState !== "completed" &&
+      item.publicationState !== "published" &&
+      item.publicationState !== "cancelled" &&
+      isDueSoon(item.scheduledAtUtc, nowMs)
+    ) {
       counts.dueSoon += 1;
     }
     if (item.publicationState === "deferred") {

@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from silverman_blog_linkedin.flow_a_schedule_visibility import (
     DISPLAY_BLOCKED,
+    DISPLAY_COMPLETED,
     DISPLAY_DEFERRED,
     DISPLAY_FAILED,
     DISPLAY_PENDING,
@@ -209,10 +210,12 @@ def test_happy_path_blog_and_linkedin_items(schedule_base: Path):
     assert blog.scheduled_at_utc == "2026-07-19T11:00:00Z"
 
     completed = by_id["blog:blog-completed"]
-    assert completed.publication_state == DISPLAY_PLANNED
+    assert completed.publication_state == DISPLAY_COMPLETED
     assert completed.source_state == "completed"
     assert completed.linkedin_api_published is False
-    assert "not LinkedIn API published" in (completed.title or "")
+    assert completed.title == "Completed handoff post"
+    assert "not LinkedIn API published" not in (completed.title or "")
+    assert "blog handoff completed" not in (completed.title or "")
 
     pending = by_id["linkedin:flow-a-2026-07-18-schedule-visibility:engineering-leadership"]
     assert pending.publication_state == DISPLAY_PENDING
@@ -313,7 +316,15 @@ def test_http_happy_path_and_pending_supervision_unchanged(
     monkeypatch.setenv("SILVERMAN_LINKEDIN_PUBLICATION_ENABLED", "true")
     _write_calendar(
         schedule_base,
-        [_calendar_item("blog-july-19")],
+        [
+            _calendar_item("blog-july-19"),
+            _calendar_item(
+                "blog-completed",
+                due_at_utc="2026-07-22T09:00:00Z",
+                status="completed",
+                title="Completed handoff post",
+            ),
+        ],
     )
     _write_campaign(
         schedule_base,
@@ -341,6 +352,7 @@ def test_http_happy_path_and_pending_supervision_unchanged(
     assert channels == {"blog", "linkedin"}
     states = {item["publication_state"] for item in body["items"]}
     assert DISPLAY_PLANNED in states
+    assert DISPLAY_COMPLETED in states
     assert DISPLAY_PENDING in states
     assert DISPLAY_QUEUED in states
 
