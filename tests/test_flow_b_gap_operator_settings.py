@@ -183,13 +183,15 @@ def test_put_does_not_enable_linkedin_publish(
 
 
 def test_gap_trigger_disabled_has_no_side_effect_routes(tmp_path: Path) -> None:
-    """US-076 must not add detect/trigger/discovery/approve routes."""
+    """US-076 must not add trigger/draft/approve/promote routes.
+
+    Detect (US-077) and discovery (US-078) are separate capabilities and MAY exist.
+    Settings save still must not start discovery as a side effect.
+    """
     app = create_app(make_settings(tmp_path))
     paths = {getattr(route, "path", None) for route in app.routes}
     forbidden = {
-        "/flow-b/gap-detect",
         "/flow-b/gap-trigger",
-        "/flow-b/discover-topics",
         "/flow-b/draft",
         "/flow-b/approve",
         "/flow-b/promote",

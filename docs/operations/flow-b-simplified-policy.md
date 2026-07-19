@@ -1,13 +1,13 @@
 # Flow B simplified policy (US-074 / US-075)
 
-**Status:** Policy defined 2026-07-19 (documentation). **US-076** gap operator settings persistence is **implemented and deployed**. **US-077** next-week gap **detect** is **implemented and deployed** (authenticated `GET /flow-b/calendar-gaps`; not Story accepted). **US-078–US-082** runtime (discovery, draft, approve, trigger) remains **not** implemented.
+**Status:** Policy defined 2026-07-19 (documentation). **US-076** gap operator settings persistence is **implemented and deployed**. **US-077** next-week gap **detect** is **implemented and deployed** (authenticated `GET /flow-b/calendar-gaps`; not Story accepted). **US-078** AI topic **discovery** is **implemented** (authenticated `POST /flow-b/discover-topics`; not Story accepted; not deployed until separately approved). **US-079–US-082** runtime (draft, approve, trigger) remains **not** implemented.
 **Story IDs:** renumbered 2026-07-19 to match apply order (settings=076 … trigger=082).
 **Product surface:** **Silverman Authority Manager**
 **Planning authority:** [planning-notes-flow-b-simplification.md](../product/planning-notes-flow-b-simplification.md)
-**Stories:** BL-016 — [US-074](../product/user-stories.md), [US-075](../product/user-stories.md); settings SoT — [US-076](../product/user-stories.md); gap detect — [US-077](../product/user-stories.md)
-**OpenSpec:** `openspec/changes/define-simplified-flow-b-us-074-075` (capability `flow-b-simplified-process`); settings capability `flow-b-gap-operator-settings` (US-076); detect capability `flow-b-calendar-gap-detect` (US-077)
+**Stories:** BL-016 — [US-074](../product/user-stories.md), [US-075](../product/user-stories.md); settings SoT — [US-076](../product/user-stories.md); gap detect — [US-077](../product/user-stories.md); topic discovery — [US-078](../product/user-stories.md)
+**OpenSpec:** `openspec/changes/define-simplified-flow-b-us-074-075` (capability `flow-b-simplified-process`); settings capability `flow-b-gap-operator-settings` (US-076); detect capability `flow-b-calendar-gap-detect` (US-077); discovery capability `flow-b-topic-discovery` (US-078)
 
-This document is the operator-facing normative policy for simplified Flow B. Editable gap operator settings are persisted via **Postgres `silverman_linkedin_db` + Silverman Authority Manager UI** (US-076 / `GET`+`PUT /flow-b/gap-operator-settings`), with documented defaults including `gap_trigger_enabled=false`. **Runtime next-week LinkedIn gap detection** is provided by capability `flow-b-calendar-gap-detect` (US-077): authenticated detect-only `GET /flow-b/calendar-gaps` returns `gaps[]` / no-gap for the next operator-local week using settings from US-076, without mutating campaigns or starting drafts. Detect **MAY** run for inspection when `gap_trigger_enabled=false`; auto-trigger remains a separate fail-closed capability (US-082). This document does **not** implement trigger, discovery, draft, or approve endpoints.
+This document is the operator-facing normative policy for simplified Flow B. Editable gap operator settings are persisted via **Postgres `silverman_linkedin_db` + Silverman Authority Manager UI** (US-076 / `GET`+`PUT /flow-b/gap-operator-settings`), with documented defaults including `gap_trigger_enabled=false`. **Runtime next-week LinkedIn gap detection** is provided by capability `flow-b-calendar-gap-detect` (US-077): authenticated detect-only `GET /flow-b/calendar-gaps` returns `gaps[]` / no-gap for the next operator-local week using settings from US-076, without mutating campaigns or starting drafts. Detect **MAY** run for inspection when `gap_trigger_enabled=false`; auto-trigger remains a separate fail-closed capability (US-082). **Runtime AI topic discovery** is provided by capability `flow-b-topic-discovery` (US-078): authenticated `POST /flow-b/discover-topics` returns authority-aligned topic choices (DeepSeek v1; provider-pluggable seam) without writing draft packages. This document does **not** implement trigger, draft generation, or approve endpoints.
 
 ---
 
@@ -99,14 +99,18 @@ Runtime scheduling behavior is owned by **US-081**; this section locks the algor
 
 ---
 
-## 5. Discovery posture (US-078 — policy recorded here)
+## 5. Discovery posture (US-078 — policy + runtime)
 
 | Item | Normative |
 |------|-----------|
-| v1 model | **DeepSeek only** for discovery + draft |
+| v1 model | **DeepSeek only** for discovery (+ draft in US-079) |
 | Later models | Provider-**pluggable** seam (do not hard-wire US-only vendors) |
 | Inputs v1 | Authority brief + editorial canon topic spaces + soft anti-dup vs recent blogs; optional durable primary material for **thesis** formation |
 | Out of v1 | RSS/news APIs as primary driver; “top stories”; comparative product hot-takes |
+| Batch ceiling | ≤ `max_drafts_per_weekly_run` from `load_gap_operator_settings()` (default **2**) |
+| BL-020 | Optional enrichment only — **MUST NOT** be required to run discovery |
+
+**Runtime discovery (US-078):** authenticated `POST /flow-b/discover-topics` is the worker topic-discovery step (capability `flow-b-topic-discovery`). It returns structured topic choices (`thesis`, `referent_positioning`, `rationale`, `topic_id`) suitable for later attachment to draft packages (US-079). Optional gap context (`target_week`, `empty_days[]`) is informational only — not a filesystem inventory of `ready/` or `pending-approval/`. Discovery **MUST NOT** write under `blog-posts/ready/` or `blog-posts/pending-approval/`. Fail closed with an operator-visible error when no objective-aligned topic can be produced. **Discovery does not implement** draft generation (US-079), approve/promote (US-080/US-081), or gap trigger (US-082).
 
 ---
 

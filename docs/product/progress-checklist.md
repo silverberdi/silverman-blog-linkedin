@@ -530,9 +530,9 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] **US-078** — Discover current objective-aligned topics with AI
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+    - [x] Work started
+    - [x] Business outcome demonstrated *(automated: `POST /flow-b/discover-topics` + `tests/test_flow_b_topic_discovery.py`; discovery-only — no draft writes)*
+    - [x] Acceptance criteria validated *(automated ACs; operator walkthrough pending)*
     - [ ] Story accepted
   - [ ] **US-079** — Generate Flow B blog draft and image without publishing
     - [x] Story reviewed

@@ -44,6 +44,18 @@ from silverman_blog_linkedin.editorial_calendar_schedule_update import (
 from silverman_blog_linkedin.flow_b_calendar_gap_detect import (
     detect_next_week_calendar_gaps,
 )
+from silverman_blog_linkedin.flow_b_topic_discovery import (
+    ERROR_CANON_MISSING,
+    ERROR_CANON_SECTION_MISSING,
+    ERROR_CONFIG_INVALID,
+    ERROR_DISCOVERY_FAILED,
+    ERROR_NOT_OBJECTIVE_ALIGNED,
+    ERROR_SETTINGS_UNAVAILABLE,
+    STATUS_DISCOVERY_FAILED,
+    STATUS_TOPICS_DISCOVERED,
+    discover_flow_b_topics,
+    validate_discovery_request_fields,
+)
 from silverman_blog_linkedin.flow_b_gap_operator_settings import (
     ALLOWED_GAP_SCAN_MODES,
     ALLOWED_WEEKDAYS,
@@ -840,6 +852,17 @@ class UpdateEditorialCalendarItemScheduleRequest(BaseModel):
                 "expected_calendar_fingerprint must be a SHA-256 hex digest"
             )
         return stripped
+
+
+class FlowBDiscoverTopicsRequest(BaseModel):
+    """POST body for Flow B AI topic discovery (US-078). Discovery-only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    count: int | None = None
+    target_week: str | None = None
+    empty_days: list[str] | None = None
+    dry_run: bool = False
 
 
 class GapOperatorSettingsPutRequest(BaseModel):
@@ -2910,6 +2933,70 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             snapshot.settings.get("gap_trigger_enabled"),
         )
         return snapshot.to_response_dict()
+
+    @app.post("/flow-b/discover-topics")
+    def post_flow_b_discover_topics(
+        body: FlowBDiscoverTopicsRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        """Authenticated Flow B AI topic discovery (US-078).
+
+        Discovery-only: returns attachable topic payloads; does not write under
+        blog-posts/ready/ or blog-posts/pending-approval/, and does not start
+        draft/approve/trigger or enable LinkedIn API publication.
+        """
+        field_errors = validate_discovery_request_fields(
+            count=body.count,
+            target_week=body.target_week,
+            empty_days=body.empty_days,
+        )
+        if field_errors:
+            raise HTTPException(status_code=422, detail={"errors": field_errors})
+
+        result = discover_flow_b_topics(
+            settings.base_path,
+            count=body.count,
+            target_week=body.target_week,
+            empty_days=body.empty_days,
+            dry_run=body.dry_run,
+            environ=os.environ,
+        )
+        payload = result.to_dict()
+        logger.info(
+            "flow-b/discover-topics status=%s provider=%s topics=%s "
+            "max_drafts=%s settings_source=%s dry_run=%s error_code=%s",
+            result.status,
+            result.provider,
+            len(result.topics),
+            result.max_drafts_per_weekly_run,
+            result.settings_source,
+            result.dry_run,
+            result.error_code,
+        )
+        if result.status == STATUS_TOPICS_DISCOVERED:
+            return payload
+        if result.status == "discovery_dry_run":
+            return payload
+
+        # Fail closed — never invent filler topics.
+        assert result.status == STATUS_DISCOVERY_FAILED
+        code = result.error_code or ERROR_DISCOVERY_FAILED
+        if code == ERROR_SETTINGS_UNAVAILABLE:
+            status_code = 503
+        elif code in {
+            ERROR_CONFIG_INVALID,
+            "deepseek_api_key_missing",
+            ERROR_CANON_MISSING,
+            ERROR_CANON_SECTION_MISSING,
+            ERROR_NOT_OBJECTIVE_ALIGNED,
+            "discovery_provider_unsupported",
+        }:
+            status_code = 422
+        elif code.startswith("deepseek_"):
+            status_code = 502
+        else:
+            status_code = 502
+        raise HTTPException(status_code=status_code, detail=payload)
 
     return app
 

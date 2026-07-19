@@ -1284,7 +1284,7 @@ As a content operator, I want publication eligibility and the calendar gap-trigg
 
 ### US-078 — Discover Current Objective-Aligned Topics With AI
 
-**Status:** Not started. AC locked 2026-07-19; **ID renumbered 2026-07-19** (was US-076). Ready for OpenSpec after US-076/077 (and typically after settings + detect for gap context).
+**Status:** Implemented (OpenSpec change `discover-flow-b-topics-with-ai-us-078`; not deployed until separately approved). Automated AC coverage via `tests/test_flow_b_topic_discovery.py`; authenticated `POST /flow-b/discover-topics`. **Not Story accepted** (operator walkthrough pending). **BL-017 remains open.** US-079–US-082 not implemented.
 
 **Description**
 
@@ -1292,17 +1292,17 @@ As a content operator, I want AI to propose authority-aligned topics for senior-
 
 **Acceptance criteria**
 
-- [ ] Provide an AI topic-discovery step whose brief is constrained by the career/authority objective (leadership / architecture / transformation / AI); MUST NOT optimize for “X vs Y”, “what’s new”, or headline rebroadcast.
-- [ ] **v1 uses DeepSeek only** for discovery calls; implement (or leave a clear seam for) a **provider-pluggable** client so additional models can be enabled later without rewriting Flow B.
-- [ ] Discovery inputs v1: authority brief + editorial canon topic spaces + soft anti-dup vs recent published blogs; optional durable primary material for thesis formation — **not** RSS/news APIs as primary driver.
-- [ ] Do not require a hand-curated BL-020 backlog to run.
-- [ ] When invoked from a gap batch (US-082), accept optional context: target ISO week and `empty_days[]` (informational; MUST NOT invent filesystem inventory requirements).
-- [ ] Support producing up to N distinct topic choices in one batch (N ≤ `max_drafts_per_weekly_run`, default 2).
-- [ ] Surface the chosen topic (thesis + why it positions as referent + brief rationale) with each draft package for operator review.
-- [ ] Fail closed with a clear operator-visible error when discovery cannot produce an objective-aligned topic.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Provide an AI topic-discovery step whose brief is constrained by the career/authority objective (leadership / architecture / transformation / AI); MUST NOT optimize for “X vs Y”, “what’s new”, or headline rebroadcast.
+- [x] **v1 uses DeepSeek only** for discovery calls; implement (or leave a clear seam for) a **provider-pluggable** client so additional models can be enabled later without rewriting Flow B.
+- [x] Discovery inputs v1: authority brief + editorial canon topic spaces + soft anti-dup vs recent published blogs; optional durable primary material for thesis formation — **not** RSS/news APIs as primary driver.
+- [x] Do not require a hand-curated BL-020 backlog to run.
+- [x] When invoked from a gap batch (US-082), accept optional context: target ISO week and `empty_days[]` (informational; MUST NOT invent filesystem inventory requirements).
+- [x] Support producing up to N distinct topic choices in one batch (N ≤ `max_drafts_per_weekly_run`, default 2).
+- [x] Surface the chosen topic (thesis + why it positions as referent + brief rationale) with each draft package for operator review. *(attachable `topics[]` payload returned now; draft-package filesystem write remains US-079)*
+- [x] Fail closed with a clear operator-visible error when discovery cannot produce an objective-aligned topic.
+- [ ] The outcome is visible and understandable to the intended user. *(operator walkthrough pending)*
+- [x] Failures or blocked states are clearly communicated. *(auth 401 / validation 422 / provider 502 structured `error_code`; operator UX confirmation pending)*
+- [x] Existing completed work is not duplicated or unintentionally changed. *(gap-detect and settings GET/PUT contracts unchanged aside from consuming `max_drafts_per_weekly_run`)*
 
 ### US-079 — Generate Flow B Blog Draft and Image Without Publishing
 
@@ -1394,7 +1394,7 @@ As a content operator, I want Flow B gap and cadence knobs stored in the editori
 
 ### US-077 — Detect Upcoming LinkedIn Calendar Gaps
 
-**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=52fa1c7…`; OpenSpec archive `2026-07-19-detect-flow-b-calendar-gaps-us-077`). Automated AC coverage via `tests/test_flow_b_calendar_gap_detect.py`; deploy verify OVERALL PASS; OpenAPI exposes `GET /flow-b/calendar-gaps`. **Not Story accepted** (operator walkthrough pending). BL-019 remains open. US-078–US-082 not implemented.
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=52fa1c7…`; OpenSpec archive `2026-07-19-detect-flow-b-calendar-gaps-us-077`). Automated AC coverage via `tests/test_flow_b_calendar_gap_detect.py`; deploy verify OVERALL PASS; OpenAPI exposes `GET /flow-b/calendar-gaps`. **Not Story accepted** (operator walkthrough pending). BL-019 remains open. US-078 topic discovery is implemented separately (not Story accepted); US-079–US-082 not implemented.
 
 **Description**
 
