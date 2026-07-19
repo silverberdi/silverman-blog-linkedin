@@ -41,6 +41,9 @@ from silverman_blog_linkedin.editorial_calendar_plan import (
 from silverman_blog_linkedin.editorial_calendar_schedule_update import (
     update_editorial_calendar_item_schedule,
 )
+from silverman_blog_linkedin.flow_b_calendar_gap_detect import (
+    detect_next_week_calendar_gaps,
+)
 from silverman_blog_linkedin.flow_b_gap_operator_settings import (
     ALLOWED_GAP_SCAN_MODES,
     ALLOWED_WEEKDAYS,
@@ -2743,6 +2746,76 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             result.dry_run,
             len(result.items),
             result.counts,
+        )
+        return result.to_dict()
+
+    @app.get("/flow-b/calendar-gaps")
+    def get_flow_b_calendar_gaps(
+        now_utc: str | None = Query(default=None),
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        """Authenticated detect-only next-week LinkedIn calendar gaps (US-077).
+
+        Read-only: does not mutate campaigns, calendar, or drafts, and does not
+        start discovery/draft/trigger. Detect may run when gap_trigger_enabled
+        is false (flag echoed; auto-trigger remains US-082).
+        """
+        try:
+            validated_now = (
+                validate_canonical_utc_timestamp(now_utc)
+                if now_utc is not None
+                else None
+            )
+        except ValueError:
+            raise HTTPException(
+                status_code=422,
+                detail="now_utc must be a canonical UTC timestamp",
+            ) from None
+        try:
+            result = detect_next_week_calendar_gaps(
+                settings.base_path,
+                now_utc=validated_now,
+                environ=os.environ,
+            )
+        except RuntimeError as exc:
+            code = str(exc)
+            if code in {
+                ERROR_SETTINGS_STORE_NOT_CONFIGURED,
+                "gap_operator_settings_store_not_configured",
+            }:
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "errors": [
+                            {
+                                "field": "_store",
+                                "code": ERROR_SETTINGS_STORE_NOT_CONFIGURED,
+                                "message": "settings store is not configured",
+                            }
+                        ]
+                    },
+                ) from exc
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "errors": [
+                        {
+                            "field": "_store",
+                            "code": ERROR_SETTINGS_STORE_UNAVAILABLE,
+                            "message": "settings store is unavailable",
+                        }
+                    ]
+                },
+            ) from exc
+        logger.info(
+            "flow-b/calendar-gaps status=%s iso_week=%s gaps=%s "
+            "settings_source=%s gap_trigger_enabled=%s read_only=%s",
+            result.status,
+            (result.target_week or {}).get("iso_week"),
+            len(result.gaps),
+            result.settings_source,
+            result.gap_trigger_enabled,
+            result.read_only,
         )
         return result.to_dict()
 

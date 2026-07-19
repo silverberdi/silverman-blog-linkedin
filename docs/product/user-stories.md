@@ -1394,7 +1394,7 @@ As a content operator, I want Flow B gap and cadence knobs stored in the editori
 
 ### US-077 — Detect Upcoming LinkedIn Calendar Gaps
 
-**Status:** Not started. AC locked 2026-07-19; **ID renumbered 2026-07-19** (was US-080). Ready for OpenSpec after US-076 (defaults allowed for early spike).
+**Status:** Implemented locally 2026-07-19 (OpenSpec change `detect-flow-b-calendar-gaps-us-077`). Automated AC coverage via `tests/test_flow_b_calendar_gap_detect.py`. **Not Story accepted** (operator walkthrough pending). **Not deployed.** BL-019 remains open. US-078–US-082 not implemented.
 
 **Description**
 
@@ -1402,15 +1402,15 @@ As a content operator, I want the system to detect when the next local week has 
 
 **Acceptance criteria**
 
-- [ ] Scan the **next** operator-local week (Mon–Sun) and list days with **0** LinkedIn posts as gaps; apply configurable `min_lead_days` (default 5).
-- [ ] Treat days with ≥1 LinkedIn post as non-gaps for trigger; still respect US-040K max **2** as the scheduling capacity ceiling elsewhere.
-- [ ] Return a clear result (`gaps[]` / no-gap, target ISO week, operator timezone used) suitable for orchestration, without mutating campaigns on the detect-only path.
-- [ ] Read sensor knobs from DB-backed operator settings (US-076) when present (with documented defaults).
-- [ ] Document that empty coverage is a proxy for needing upstream content (not a filesystem inventory of `ready/` or `pending-approval/`).
-- [ ] Expose an authenticated worker endpoint (and/or dry-run diagnostic) so operators can inspect the next-week gap result without triggering drafts.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Scan the **next** operator-local week (Mon–Sun) and list days with **0** LinkedIn posts as gaps; apply configurable `min_lead_days` (default 5).
+- [x] Treat days with ≥1 LinkedIn post as non-gaps for trigger; still respect US-040K max **2** as the scheduling capacity ceiling elsewhere.
+- [x] Return a clear result (`gaps[]` / no-gap, target ISO week, operator timezone used) suitable for orchestration, without mutating campaigns on the detect-only path.
+- [x] Read sensor knobs from DB-backed operator settings (US-076) when present (with documented defaults).
+- [x] Document that empty coverage is a proxy for needing upstream content (not a filesystem inventory of `ready/` or `pending-approval/`).
+- [x] Expose an authenticated worker endpoint (and/or dry-run diagnostic) so operators can inspect the next-week gap result without triggering drafts.
+- [ ] The outcome is visible and understandable to the intended user. *(operator walkthrough pending)*
+- [x] Failures or blocked states are clearly communicated. *(auth 401 / invalid `now_utc` 422 / blocked settings status; operator UX confirmation pending)*
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-082 — Trigger Flow B Draft Generation on Calendar Gaps
 

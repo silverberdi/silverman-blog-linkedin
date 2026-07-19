@@ -577,9 +577,9 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] **US-077** — Detect upcoming LinkedIn calendar gaps
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+    - [x] Work started
+    - [x] Business outcome demonstrated *(local automated evidence; operator walkthrough pending)*
+    - [ ] Acceptance criteria validated *(operator walkthrough)*
     - [ ] Story accepted
   - [ ] **US-082** — Trigger Flow B draft generation on calendar gaps
     - [x] Story reviewed
