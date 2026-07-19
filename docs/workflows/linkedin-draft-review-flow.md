@@ -1,6 +1,10 @@
 # LinkedIn Draft Review Flow
 
-Human review path for LinkedIn drafts (Flow B–adjacent). Flow A automatic distribution is separate: [flow-a-target-flow.md](flow-a-target-flow.md).
+**Superseded product framing (2026-07-19):** Canonical Flow B is no longer “mandatory LinkedIn draft review.” Flow B is **AI blog discovery/draft → operator blog approval → Flow A**. Normative policy: [flow-b-simplified-policy.md](../operations/flow-b-simplified-policy.md). Planning: [planning-notes-flow-b-simplification.md](../product/planning-notes-flow-b-simplification.md). Backlog BL-016–BL-019 (US-074–US-082). Editorial: `#flow-a-vs-flow-b`.
+
+This document remains useful as the **historical / adjacent** folder path for LinkedIn draft files (`review/` → `approved/` → `published/`) and draft-generation orchestration. It MUST NOT be read as requiring a second mandatory LinkedIn gate after an approved Flow B blog enters Flow A.
+
+Flow A automatic distribution: [flow-a-target-flow.md](flow-a-target-flow.md).
 
 Terminology: [GLOSSARY.md](../GLOSSARY.md). Editorial policy: `content-strategy/silverman-editorial-system.md`.
 

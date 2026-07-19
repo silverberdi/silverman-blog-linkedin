@@ -48,12 +48,12 @@ Recording edits, delays, and cancellations in metadata is defined in [linkedin-v
 
 | Step | Flow A | Flow B |
 |------|--------|--------|
-| Blog source | User-provided, pre-reviewed `ready` content | System-generated; never pre-approved |
-| Blog publish / package / schedule | Automatic after validation — **no mandatory human review** | **Mandatory** human review before any publish |
-| Campaign lifecycle (`distribution_scheduled`, `flow_a_complete`) | Automatic after validation — not LinkedIn API published | N/A (deferred) |
-| LinkedIn API queue/publish | **Not mandatory** human review; optional supervision while `pending` | **Mandatory** human review before any publish (implementation **deferred**) |
+| Blog source | User-provided, pre-reviewed `ready` content | AI-generated draft; **never** pre-approved |
+| Blog publish / package / schedule | Automatic after validation — **no mandatory human review** | **Mandatory** human **blog** approval first; then same as Flow A |
+| Campaign lifecycle (`distribution_scheduled`, `flow_a_complete`) | Automatic after validation — not LinkedIn API published | Same as Flow A **after** blog approval |
+| LinkedIn API queue/publish | **Not mandatory** human review; optional supervision while `pending` | **Same as Flow A** after blog approval — optional supervision only (no second mandatory LinkedIn gate) |
 
-**Flow B guardrail:** Flow B content MUST NOT enter Flow A automatic publish paths. See `#flow-a-vs-flow-b` in [silverman-editorial-system.md](../../content-strategy/silverman-editorial-system.md).
+**Flow B guardrail:** Unapproved drafts in `blog-posts/pending-approval/` MUST NOT enter Flow A publish paths. After recorded blog approval and promote to `ready/`, content MAY enter Flow A like other ready posts. See [flow-b-simplified-policy.md](flow-b-simplified-policy.md) and `#flow-a-vs-flow-b` in [silverman-editorial-system.md](../../content-strategy/silverman-editorial-system.md). Product backlog: BL-016–BL-019 (US-074–US-082).
 
 ## `publish_state`, enablement, and supervision
 
@@ -66,7 +66,7 @@ These concepts are **distinct**:
 | **`distribution_scheduled` / `flow_a_complete`** | Campaign lifecycle metadata after package/schedule/lifecycle — **≠** LinkedIn API published (US-011). |
 | **`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`** | Technical fail-closed guard for real API publish. Separate from Flow A strategy expectations and from Flow B mandatory review. |
 | **Supervision window** | Operator MAY intervene while `pending` before send; optional, not an approval gate. |
-| **Mandatory review (Flow B)** | Human approval required before any publish — not applicable to Flow A API send. |
+| **Mandatory review (Flow B)** | Human approval of the **AI blog** before Flow A eligibility — not a mandatory LinkedIn gate after approval. |
 
 ## Blocked and deferred states
 

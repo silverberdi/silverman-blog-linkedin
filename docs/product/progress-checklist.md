@@ -502,25 +502,27 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 ## P4 — Flow B
 
-- [ ] **BL-016 — Define Simplified Flow B**
+**Apply order (when on LAN):** US-074 → US-075 → US-082 → US-080 → US-076 → US-077 → US-078 → US-079 → US-081.
+
+- [x] **BL-016 — Define Simplified Flow B**
   - Business outcome: Flow B has an approved simplified process with a clear blog-only human approval boundary and Flow A reuse after approval.
-  - [ ] **US-074** — Define simplified Flow B process and approval boundary
+  - [x] **US-074** — Define simplified Flow B process and approval boundary
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-075** — Define Flow B eligibility and calendar-gap trigger policy
+    - [x] Work started — OpenSpec `define-simplified-flow-b-us-074-075` docs applied 2026-07-19; [flow-b-simplified-policy.md](../operations/flow-b-simplified-policy.md)
+    - [x] Business outcome demonstrated — normative process docs published
+    - [x] Acceptance criteria validated — verify + US AC contrast 2026-07-19
+    - [x] Story accepted — 2026-07-19
+  - [x] **US-075** — Define Flow B eligibility and calendar-gap trigger policy
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+    - [x] Work started — same OpenSpec docs apply 2026-07-19
+    - [x] Business outcome demonstrated — normative gap/eligibility policy published
+    - [x] Acceptance criteria validated — verify + US AC contrast 2026-07-19
+    - [x] Story accepted — 2026-07-19
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated
+  - [x] Backlog item closed — 2026-07-19
 
 - [ ] **BL-017 — Discover Topics and Generate Flow B Blog Drafts**
   - Business outcome: The system can produce objective-aligned, approval-ready Flow B blog drafts (with image) without publishing.
@@ -543,7 +545,7 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] Backlog item closed
 
 - [ ] **BL-018 — Approve Flow B Blog Drafts Into Flow A**
-  - Business outcome: AI blog drafts cannot publish until recorded operator approval; approved drafts proceed on the Flow A path.
+  - Business outcome: AI blog drafts cannot publish until recorded operator approval; approved drafts proceed on the Flow A path (surplus LinkedIn slots spill forward).
   - [ ] **US-078** — Present Flow B blog drafts for approve or reject
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
@@ -563,7 +565,14 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] Backlog item closed
 
 - [ ] **BL-019 — Trigger Flow B From Calendar Publication Gaps**
-  - Business outcome: Empty upcoming LinkedIn calendar days reliably trigger Flow B draft generation for operator approval; filled days do not.
+  - Business outcome: Zero-post days in the next local week trigger up to 2 Flow B blog drafts (ISO-week idempotent); surplus LinkedIn slots spill to next available days; weeks without gaps are no-op.
+  - [ ] **US-082** — Persist and edit Flow B gap operator settings (Postgres + UI)
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
   - [ ] **US-080** — Detect upcoming LinkedIn calendar gaps
     - [x] Story reviewed
     - [x] Acceptance criteria agreed

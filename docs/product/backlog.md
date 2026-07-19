@@ -289,22 +289,36 @@ This backlog describes the outstanding business and operational capabilities req
 
 ## P4 — Flow B
 
-**Simplified model (normative for this priority):** Flow B discovers current, objective-aligned topics with AI, generates a blog draft, and stops for **one hard human gate — blog approval**. After approval, content enters the **same path as Flow A** (publish → package → schedule → optional LinkedIn supervision). No mandatory LinkedIn review, no revision-history CMS, and no thematic/audience planner inside P4. Planning notes: [planning-notes-flow-b-simplification.md](planning-notes-flow-b-simplification.md).
+**Simplified model (normative for this priority):** Flow B discovers current, objective-aligned topics with AI, generates a blog draft, and stops for **one hard human gate — blog approval**. After approval, content enters the **same path as Flow A** (publish → package → schedule → optional LinkedIn supervision). No mandatory LinkedIn review, no revision-history CMS, and no thematic/audience planner inside P4. Executable stories: **US-074–US-082**. Planning notes: [planning-notes-flow-b-simplification.md](planning-notes-flow-b-simplification.md).
+
+Apply order (OpenSpec):
+
+```text
+US-074 → US-075 → US-082 → US-080 → US-076 → US-077 → US-078 → US-079 → US-081
+```
+
+**First change applied (docs):** `openspec/changes/define-simplified-flow-b-us-074-075/` — US-074 + US-075 policy; [flow-b-simplified-policy.md](../operations/flow-b-simplified-policy.md). Story accepted pending operator review.
+Runtime stories follow in separate approved changes.
 
 **Career / content north star:** Attract recruiter and executive attention for senior roles (technical leadership, Solutions Architect, digital transformation, AI) at compensation **≥ ~USD 7,000** — authority positioning, not “senior developer.”
 
 ### BL-016 — Define Simplified Flow B
 
+**Status:** Closed 2026-07-19 after US-074/US-075 Story accepted (docs OpenSpec `define-simplified-flow-b-us-074-075`; policy [flow-b-simplified-policy.md](../operations/flow-b-simplified-policy.md)).
+
 **Business need:** Lock the simplified Flow B business process so generation, approval, and post-approval automation stay unambiguous.
 
 **Expected outcomes:**
 
-- Document Flow B as: calendar/gap or explicit trigger → AI topic discovery → AI blog draft → operator blog approve/reject → on approve, Flow A path.
+- Document Flow B as: weekly calendar gap or explicit trigger → AI topic discovery → AI blog draft → operator blog approve/reject → on approve, Flow A path.
 - Define the single hard gate as **blog approval** (AI-authored content).
 - State explicitly that after blog approval there is **no** mandatory LinkedIn approval path (optional Flow A supervision only).
 - Define publication eligibility: unapproved Flow B drafts MUST NOT publish blog or LinkedIn; approved drafts MAY enter Flow A like `ready/` content.
 - Encode the career/authority objective as the discovery brief constraint.
+- Lock weekly gap policy (next week, gap = 0 posts, Friday default, max 2 drafts, spillover) as documentation (US-075); runtime settings are US-082.
 - List non-goals for P4: revision CMS, structured feedback loops, thematic duplication engines, audience-balancing schedulers, hand-maintained topic CMS as a prerequisite.
+
+**Stories:** US-074, US-075.
 
 **Completion outcome:** Flow B has an approved simplified process with a clear blog-only human approval boundary and Flow A reuse after approval.
 
@@ -316,10 +330,13 @@ This backlog describes the outstanding business and operational capabilities req
 
 - AI topic discovery from variable sources, constrained by the positioning brief (leadership / architecture / transformation / AI authority; not generic tech-news chase).
 - Prefer authority and hireable judgment over trendiness alone; soft preference to avoid repeating recent published themes (hard anti-dup engine out of scope).
+- Accept optional weekly-gap context (ISO week, `empty_days[]`) and produce up to `max_drafts_per_weekly_run` (default 2) topic/draft packages per batch.
 - Generate a complete blog draft that follows the editorial canon, with required metadata/structure.
 - Create or request a hero image as part of the draft package.
 - Persist the draft for approval; **never** auto-publish blog or LinkedIn from this step.
 - Do not require BL-020 (hand-curated topic backlog) before this capability works.
+
+**Stories:** US-076, US-077.
 
 **Completion outcome:** The system can produce objective-aligned, approval-ready Flow B blog drafts (with image) without publishing.
 
@@ -329,28 +346,35 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Expected outcomes:**
 
-- Present pending Flow B blog drafts for operator review.
+- Present pending Flow B blog drafts for operator review (including gap-week context when present).
 - Support **approve** and **reject** (no mandatory revision-history CMS or structured feedback loop in P4).
 - On approve: record approval and promote the draft to Flow A eligibility (e.g. `blog-posts/ready/` or equivalent contract).
 - On reject: leave the draft non-eligible for publish; communicate blocked/rejected state clearly.
 - After approval, LinkedIn packaging/scheduling/publication follow **Flow A** (including optional supervision) — not a second mandatory review queue.
+- Surplus LinkedIn publications after filling gap days schedule onto the **next available** local day(s) under US-040K max 2.
+
+**Stories:** US-078, US-079.
 
 **Completion outcome:** AI blog drafts cannot publish until recorded operator approval; approved drafts proceed on the Flow A path.
 
 ### BL-019 — Trigger Flow B From Calendar Publication Gaps
 
-**Business need:** Keep LinkedIn cadence filled (~toward 2 publications per local day, hard-capped by density max 2) by detecting upcoming empty days and generating upstream blog content via Flow B.
+**Business need:** Keep LinkedIn cadence filled by detecting **zero-post days in the next operator-local week** and generating upstream blog content via Flow B (typically Friday afternoon for the following week).
 
 **Expected outcomes:**
 
-- Implement a **gap sensor** over the editorial calendar (operator-local days), looking ahead with enough lead time for blog approval + Flow A (not same-morning of the empty day).
-- If the look-ahead day(s) lack scheduled LinkedIn publications (toward the operational fill target, respecting max 2/local day), trigger Flow B topic discovery + blog draft generation.
-- If coverage already exists, do not trigger (clean no-op).
+- Persist editable operator settings in Postgres + console UI (US-082): timezone, enablement, Friday run clock, `min_lead_days`, `max_drafts_per_weekly_run`, etc.
+- Implement a **next-week gap sensor** (US-080): gap = day with **0** LinkedIn posts; defaults per planning notes.
+- If the target week has gaps and trigger is enabled, start Flow B up to **2** blog drafts (US-081); otherwise clean no-op; ISO-week idempotent.
+- After Flow A packaging/scheduling (US-079), surplus LinkedIn publications go to the **next available** local day(s) under US-040K max 2.
 - Treat “empty calendar day” as the proxy for needing new upstream content (may not mean “no files on disk”).
-- One approved blog MAY cover multiple LinkedIn days via Flow A packaging — the sensor MUST NOT assume it must fire every day.
 - Out of scope for this item: thematic duplication engines, audience balancing as calendar features (variant audience balance remains Flow A packaging).
 
-**Completion outcome:** Empty upcoming LinkedIn calendar days reliably trigger Flow B draft generation for operator approval; filled days do not.
+**Stories:** US-082, US-080, US-081 (apply order: settings → detect → trigger).
+
+**Completion outcome:** Empty days in the next LinkedIn week reliably trigger up to two Flow B blog drafts for operator approval; weeks without zero-post days do not; surplus LinkedIn slots spill forward.
+
+**Policy detail:** [planning-notes-flow-b-simplification.md](planning-notes-flow-b-simplification.md).
 
 
 ## P5 — Editorial Strategy and Measurement

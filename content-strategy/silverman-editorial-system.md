@@ -4,7 +4,7 @@ Operational editorial canon for the `silverman-blog-linkedin` content automation
 
 **Umbrella reference (archived):** `openspec/changes/archive/2026-07-07-flow-a-automatic-blog-linkedin-publishing-roadmap/` — historical evidence only, not active requirements. **Current status:** [docs/CURRENT-STATE.md](../docs/CURRENT-STATE.md). **Authority:** [docs/CONTEXT-AUTHORITY.md](../docs/CONTEXT-AUTHORITY.md).
 
-**Flow A vs Flow B approval:** Flow A automates publish/package/schedule after validation; LinkedIn variants follow distribution strategy with an optional pre-send supervision window (not mandatory per-variant approval). Flow B requires mandatory human review before any publish (deferred). See [GLOSSARY.md](../docs/GLOSSARY.md) and [linkedin-variant-review-policy.md](../docs/operations/linkedin-variant-review-policy.md).
+**Flow A vs Flow B approval:** Flow A automates publish/package/schedule after validation; LinkedIn variants follow distribution strategy with an optional pre-send supervision window (not mandatory per-variant approval). Flow B requires mandatory human approval of the **AI-generated blog** before Flow A eligibility; after that approval, LinkedIn follows Flow A (optional supervision only). See [GLOSSARY.md](../docs/GLOSSARY.md), [linkedin-variant-review-policy.md](../docs/operations/linkedin-variant-review-policy.md), and product backlog BL-016–BL-019.
 
 ---
 
@@ -609,22 +609,24 @@ MUST NOT produce:
 
 ## 14 Flow A vs Flow B {#flow-a-vs-flow-b}
 
-Publication policy consistent with umbrella `flow-a-automatic-blog-linkedin-publishing-roadmap`.
+Publication policy consistent with product backlog P4 (simplified Flow B) and Flow A roadmap. Normative ops policy: [flow-b-simplified-policy.md](../docs/operations/flow-b-simplified-policy.md).
 
 | Dimension | Flow A | Flow B |
 |-----------|--------|--------|
-| **Content source** | User-provided blog in `blog-posts/ready/` | System-generated ideas/drafts (future) |
-| **Pre-approval** | After automated validation passes | Never pre-approved |
-| **Human review (core)** | **Not required** after validation for blog publish, package, or schedule | **Required** before any publish |
-| **Human review (LinkedIn API)** | **Not mandatory** — optional supervision while `pending` before API send (edit, delay, cancel; mechanics US-017) | **Mandatory** before any publish |
-| **Blog publish** | MAY proceed automatically | MUST NOT auto-publish |
-| **LinkedIn package** | MAY generate automatically | MUST NOT enter Flow A paths |
-| **LinkedIn publish** | Expected per `#linkedin-distribution-strategy` when integration and enablement allow; all scheduled variants unless operator overrides | Manual approval only — no automatic API publish |
-| **Implementation status** | Active roadmap (umbrella + children); policy: [linkedin-variant-review-policy.md](../docs/operations/linkedin-variant-review-policy.md) | **Deferred** — mandatory review policy encoded now |
+| **Content source** | User-provided blog in `blog-posts/ready/` | AI topic discovery (DeepSeek v1) + AI blog draft in `blog-posts/pending-approval/` |
+| **Career / authority objective** | Same brand positioning | Discovery brief MUST favor senior leadership / architecture / transformation / AI authority (≥ ~USD 7,000); **referent**, not news spreader |
+| **Pre-approval** | After automated validation passes | Blog draft never pre-approved |
+| **Human review (core)** | **Not required** after validation for blog publish, package, or schedule | **Required** for the **blog draft** only (in **Silverman Authority Manager**) |
+| **Human review (LinkedIn API)** | **Not mandatory** — optional supervision while `pending` before API send (edit, delay, cancel; mechanics US-017) | **Same as Flow A** after blog approval — optional supervision only |
+| **Blog publish** | MAY proceed automatically | MUST NOT until recorded blog approval + promote to `ready/`; then MAY via Flow A |
+| **LinkedIn package / schedule** | MAY generate automatically | MUST NOT until blog approval; then MAY via Flow A (spill algorithm A for surplus slots) |
+| **LinkedIn publish** | Expected per `#linkedin-distribution-strategy` when integration and enablement allow; optional supervision | Same as Flow A after blog approval |
+| **Calendar role** | Consumes scheduled variants | **Weekly gap sensor** (next local week; gap = 0 LinkedIn posts; typically Friday → following week; up to 2 drafts) may trigger Flow B (BL-019) |
+| **Implementation status** | Active (console / publish path per CURRENT-STATE) | Backlog BL-016–BL-019 (US-074–US-082); not yet implemented |
 
 ### Flow A automatic path (operational)
 
-1. User places `<source_slug>.md` + `.png` in `blog-posts/ready/`.
+1. User places `<source_slug>.md` + `.png` in `blog-posts/ready/` (including Flow B drafts promoted from `pending-approval/` after approval).
 2. `POST /validate-ready-post` (future) passes structural + editorial checks.
 3. Blog publishes to GitHub Pages; `source_public_url` confirmed.
 4. Derivative package generated (≥3 variants).
@@ -635,9 +637,18 @@ Publication policy consistent with umbrella `flow-a-automatic-blog-linkedin-publ
 
 While variants remain `pending` before API queue/send, the operator MAY edit, delay, or cancel. Non-intervention means publication proceeds per schedule. This is not a mandatory approval gate. Detail: [linkedin-variant-review-policy.md](../docs/operations/linkedin-variant-review-policy.md).
 
+### Flow B path (simplified)
+
+1. Trigger (weekly calendar gap sensor via n8n→HTTP and/or explicit operator/orchestration trigger).
+2. AI (DeepSeek v1) discovers an authority-aligned thesis (not news); sources: brief + canon + soft anti-dup; hand-curated BL-020 backlog is optional, not required.
+3. AI generates blog draft + image into **`blog-posts/pending-approval/`**; **no** auto-publish.
+4. Operator **approves** or **rejects** the blog in **Silverman Authority Manager** (single hard gate; no revision CMS required in P4).
+5. On approve: recorded approval + promote/move from `pending-approval/` to `blog-posts/ready/`.
+6. From then on: identical to Flow A (including optional LinkedIn supervision and spill algorithm A for surplus LinkedIn slots).
+
 ### Flow B guardrail
 
-Flow B content MUST NOT enter Flow A automatic publish paths. Any content marked `flow: B` in metadata or detected as system-generated without user ready-file origin MUST route to human review queue.
+Unapproved drafts in `blog-posts/pending-approval/` MUST NOT enter Flow A automatic publish paths. After recorded operator blog approval and promote to `ready/`, content MAY enter Flow A like other ready posts.
 
 ---
 

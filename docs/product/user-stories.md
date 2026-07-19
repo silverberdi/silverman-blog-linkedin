@@ -1229,13 +1229,13 @@ Operator walkthrough gate closed 2026-07-19 (incognito confirmation on deployed 
 
 **Priority:** P4
 
-**Business context:** Lock the simplified Flow B process: AI topic discovery → AI blog draft → one human blog-approval gate → then Flow A. Career north star: authority for senior leadership / architecture / transformation / AI roles (≥ ~USD 7,000). Planning notes: [planning-notes-flow-b-simplification.md](planning-notes-flow-b-simplification.md).
+**Business context:** Lock the simplified Flow B process: AI topic discovery → AI blog draft → one human blog-approval gate → then Flow A. Career north star: authority for senior leadership / architecture / transformation / AI roles (≥ ~USD 7,000). Operator surface: **Silverman Authority Manager**. Planning notes: [planning-notes-flow-b-simplification.md](planning-notes-flow-b-simplification.md).
 
-**Status note:** Former placeholder stories US-041–US-048 under this priority were rewritten and renumbered to **US-074–US-081** to avoid colliding with BL-031 **US-041** (calendar DB).
+**Status note:** P4 stories **US-074–US-082**. All planning decisions locked 2026-07-19. Apply order: US-074 → US-075 → US-082 → US-080 → US-076 → US-077 → US-078 → US-079 → US-081. First OpenSpec change: US-074 + US-075 (docs/policy).
 
 ### US-074 — Define Simplified Flow B Process and Approval Boundary
 
-**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
+**Status:** **Story accepted** 2026-07-19 (docs OpenSpec `define-simplified-flow-b-us-074-075`; operator verify + US AC contrast). Policy: [flow-b-simplified-policy.md](../operations/flow-b-simplified-policy.md).
 
 **Description**
 
@@ -1243,19 +1243,21 @@ As a content operator, I want Flow B defined as AI-generated blog content with a
 
 **Acceptance criteria**
 
-- [ ] Document Flow B as: trigger → AI topic discovery → AI blog draft → operator approve/reject blog → on approve, same path as Flow A.
-- [ ] State that the **only** mandatory human gate is **blog approval** for AI-authored posts.
-- [ ] State that after blog approval there is **no** mandatory LinkedIn review (optional Flow A supervision only).
-- [ ] List P4 non-goals: revision-history CMS, structured feedback loops, thematic duplication engines, audience-balancing schedulers, BL-020 as a prerequisite.
-- [ ] Encode the career/authority objective (senior leadership / Solutions Architect / digital transformation / AI; ≥ ~USD 7,000 positioning) as normative context for discovery and drafting.
-- [ ] Update glossary / Flow A vs Flow B policy artifacts so they match this simplified model (no “mandatory LinkedIn review for Flow B after blog OK”).
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed (Flow A supervision and publication guards remain as-is).
+- [x] Document Flow B as: weekly gap / explicit trigger → AI topic discovery (DeepSeek v1) → AI blog draft in `blog-posts/pending-approval/` → operator approve/reject in **Silverman Authority Manager** → on approve, promote to `blog-posts/ready/` → same path as Flow A.
+- [x] State that the **only** mandatory human gate is **blog approval** for AI-authored posts.
+- [x] State that after blog approval there is **no** mandatory LinkedIn review (optional Flow A supervision only).
+- [x] List P4 non-goals: revision-history CMS, structured feedback loops, thematic duplication engines, audience-balancing schedulers, BL-020 as a prerequisite, news-spreader discovery.
+- [x] Encode the career/authority objective (senior leadership / Solutions Architect / digital transformation / AI; ≥ ~USD 7,000 positioning) as normative context for discovery and drafting — **authority/referent**, not news rebroadcast.
+- [x] Name the operator product surface **Silverman Authority Manager** (extends existing console; approve UI is an extension, not a separate app).
+- [x] Update glossary / Flow A vs Flow B policy artifacts (`GLOSSARY.md`, editorial `#flow-a-vs-flow-b`, operations policy) so they match this simplified model.
+- [x] Cross-link weekly gap policy and operator-settings intent (US-075 / US-082) without implementing runtime sensor/settings in this story.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed (Flow A supervision and publication guards remain as-is).
 
 ### US-075 — Define Flow B Eligibility and Calendar-Gap Trigger Policy
 
-**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
+**Status:** **Story accepted** 2026-07-19 (docs OpenSpec `define-simplified-flow-b-us-074-075`; operator verify + US AC contrast). Policy: [flow-b-simplified-policy.md](../operations/flow-b-simplified-policy.md).
 
 **Description**
 
@@ -1263,34 +1265,40 @@ As a content operator, I want publication eligibility and the calendar gap-trigg
 
 **Acceptance criteria**
 
-- [ ] Define eligibility: unapproved Flow B drafts MUST NOT publish blog or LinkedIn; approved drafts MAY enter Flow A (`ready/` or equivalent).
-- [ ] Define the calendar **gap sensor** policy: look ahead on operator-local days with lead time for approval + Flow A; if LinkedIn coverage is missing toward the fill target (respecting max 2/local day), trigger Flow B; otherwise no-op.
-- [ ] Record nuances: empty day ≠ necessarily empty disk; one blog may cover multiple LinkedIn days; do not require same-day morning triggers.
-- [ ] Define soft anti-duplication preference (recent themes) without mandating a hard thematic engine.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Define eligibility: unapproved drafts in `blog-posts/pending-approval/` MUST NOT publish blog or LinkedIn; Flow A MUST NOT consume that folder; on approve, promote to `blog-posts/ready/` then Flow A MAY run.
+- [x] Define the calendar **gap sensor** as a **next-week** scan (operator-local Mon–Sun): gap day = **0** LinkedIn posts (`pending`/`queued`/`published`); days with ≥1 are not gaps for trigger.
+- [x] Document default run intent: **Friday afternoon** (local) builds for the following week; `min_lead_days` default **5**; knobs are **DB + UI** (US-082); orchestration is **n8n Schedule → worker HTTP** (ADR-0001), worker no-ops outside configured window / when `gap_trigger_enabled=false`.
+- [x] Document `max_drafts_per_weekly_run` default **2** and ISO-week idempotency key `flow_b_gap_week:{operator_tz}:{YYYY}-W{ww}`.
+- [x] Document **spill algorithm A** (US-079): (1) target-week gap days chronological → (2) other days in target week with capacity under max 2 → (3) forward day-by-day after the week.
+- [x] Document discovery posture: authority thesis (not news); DeepSeek-only v1 with provider-pluggable path for later models.
+- [x] Publish the normative policy into repo docs (operations + glossary) referenced by US-080/US-081 — **documentation story**, not runtime sensor.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ## BL-017 — Discover Topics and Generate Flow B Blog Drafts
 
 **Priority:** P4
 
-**Business context:** AI discovers current objective-aligned topics and generates approval-ready blog drafts (with image) without publishing. BL-020 is optional enrichment, not a blocker.
+**Business context:** AI discovers objective-aligned **authority** topics (not news) and generates approval-ready blog drafts (with image) without publishing. v1 model: **DeepSeek**; provider interface MUST allow other models soon. BL-020 optional. Weekly gap runs MAY request up to two drafts (US-081).
 
 ### US-076 — Discover Current Objective-Aligned Topics With AI
 
-**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
+**Status:** Not started. AC locked 2026-07-19. Ready for OpenSpec after US-074/075 (and typically after US-082/080 for gap context).
 
 **Description**
 
-As a content operator, I want AI to search current topics aligned to my senior-leadership positioning, so that new posts attract the right recruiters and executives without me maintaining a mandatory topic CMS first.
+As a content operator, I want AI to propose authority-aligned topics for senior-leadership positioning, so that new posts establish me as a referent — not as a news spreader — without a mandatory topic CMS first.
 
 **Acceptance criteria**
 
-- [ ] Provide an AI topic-discovery step whose brief is constrained by the career/authority objective (leadership / architecture / transformation / AI; not generic tech-news chase).
-- [ ] Allow variable sources; do not require a hand-curated BL-020 backlog to run.
-- [ ] Prefer authority and hireable judgment over trend-only topics; apply a soft preference against repeating recent published themes.
-- [ ] Surface the chosen topic (and brief rationale/sources summary) with the draft package for operator review.
+- [ ] Provide an AI topic-discovery step whose brief is constrained by the career/authority objective (leadership / architecture / transformation / AI); MUST NOT optimize for “X vs Y”, “what’s new”, or headline rebroadcast.
+- [ ] **v1 uses DeepSeek only** for discovery calls; implement (or leave a clear seam for) a **provider-pluggable** client so additional models can be enabled later without rewriting Flow B.
+- [ ] Discovery inputs v1: authority brief + editorial canon topic spaces + soft anti-dup vs recent published blogs; optional durable primary material for thesis formation — **not** RSS/news APIs as primary driver.
+- [ ] Do not require a hand-curated BL-020 backlog to run.
+- [ ] When invoked from a gap batch (US-081), accept optional context: target ISO week and `empty_days[]` (informational; MUST NOT invent filesystem inventory requirements).
+- [ ] Support producing up to N distinct topic choices in one batch (N ≤ `max_drafts_per_weekly_run`, default 2).
+- [ ] Surface the chosen topic (thesis + why it positions as referent + brief rationale) with each draft package for operator review.
 - [ ] Fail closed with a clear operator-visible error when discovery cannot produce an objective-aligned topic.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
@@ -1298,19 +1306,20 @@ As a content operator, I want AI to search current topics aligned to my senior-l
 
 ### US-077 — Generate Flow B Blog Draft and Image Without Publishing
 
-**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
+**Status:** Not started. AC locked 2026-07-19. Ready for OpenSpec after US-076.
 
 **Description**
 
-As a content operator, I want a complete blog draft (and hero image) generated from the discovered topic, so that I can approve real content before any publication side effects.
+As a content operator, I want a complete blog draft (and hero image) generated from the discovered topic into `pending-approval/`, so that I can approve real content before any publication side effects.
 
 **Acceptance criteria**
 
-- [ ] Generate a complete blog draft that follows the editorial canon and includes required metadata/structure.
+- [ ] Generate a complete blog draft that follows the editorial canon and includes required metadata/structure; **v1 generation uses DeepSeek**; keep provider-pluggable seam consistent with US-076.
 - [ ] Create or request a hero image as part of the draft package.
-- [ ] Persist the draft in an approval-pending location/state (not `processed`, not live publish).
-- [ ] MUST NOT auto-publish the blog, MUST NOT run Flow A publish/package/schedule, and MUST NOT call LinkedIn API publish from this story’s success path.
+- [ ] Persist the draft as a Markdown + image pair under **`blog-posts/pending-approval/`** (same pair rules as `ready/`), including durable link to gap batch / ISO week when created from US-081.
+- [ ] MUST NOT write to `blog-posts/ready/` on this path; MUST NOT auto-publish; MUST NOT run Flow A publish/package/schedule; MUST NOT call LinkedIn API publish.
 - [ ] Preserve Silverio voice / anti-AI-writing rules per editorial canon at draft time (warnings or blocking per canon for Flow B drafts).
+- [ ] A single weekly gap batch MAY create up to **`max_drafts_per_weekly_run` (default 2)** drafts in `pending-approval/` without skipping the blog gate.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
@@ -1319,40 +1328,41 @@ As a content operator, I want a complete blog draft (and hero image) generated f
 
 **Priority:** P4
 
-**Business context:** Simple approve/reject gate for AI blog drafts; approved content becomes Flow A–eligible. No revision CMS in P4.
+**Business context:** Simple approve/reject in **Silverman Authority Manager**; promote `pending-approval/` → `ready/`; spill LinkedIn slots with algorithm A.
 
 ### US-078 — Present Flow B Blog Drafts for Approve or Reject
 
-**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
+**Status:** Not started. AC locked 2026-07-19. Ready for OpenSpec after US-077.
 
 **Description**
 
-As a content operator, I want pending AI blog drafts presented clearly for approve or reject, so that I can gate quality without a mini-CMS of revisions and feedback threads.
+As a content operator, I want pending AI blog drafts presented in Silverman Authority Manager for approve or reject, so that I can gate quality without a mini-CMS of revisions and feedback threads.
 
 **Acceptance criteria**
 
-- [ ] Present pending Flow B blog drafts (title/topic, body, image, discovery summary) in an operator-usable surface (console and/or documented operator path).
+- [ ] Present pending drafts from `blog-posts/pending-approval/` (title/topic, body, image, discovery summary; gap week / empty-days when present) by **extending Silverman Authority Manager** — not a separate Flow B-only application.
 - [ ] Support **approve** and **reject** actions.
-- [ ] Do **not** require a revision-history CMS, structured multi-round feedback capture, or mandatory edit-apply loop in this story (operator MAY edit files offline; that is out of band).
-- [ ] Communicate rejected/blocked state clearly; rejected drafts MUST remain non-publishable.
+- [ ] Do **not** require a revision-history CMS, structured multi-round feedback capture, or mandatory edit-apply loop (operator MAY edit files offline; out of band).
+- [ ] Communicate rejected/blocked state clearly; rejected drafts MUST remain non-publishable (MUST NOT promote to `ready/`).
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-079 — Promote Approved Flow B Blogs Onto the Flow A Path
 
-**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
+**Status:** Not started. AC locked 2026-07-19. Ready for OpenSpec after US-078.
 
 **Description**
 
-As a content operator, I want an approved AI blog to become Flow A–eligible with a recorded approval, so that packaging, scheduling, and LinkedIn follow the same automation as human-written ready posts.
+As a content operator, I want an approved AI blog promoted from `pending-approval/` to `ready/` with recorded approval, so that Flow A packaging/scheduling applies — with LinkedIn spill algorithm A.
 
 **Acceptance criteria**
 
-- [ ] On approve, record operator approval (who/when/campaign-or-draft id) in durable metadata.
-- [ ] Promote the approved draft to Flow A eligibility (`blog-posts/ready/` or equivalent contract accepted by Flow A).
+- [ ] On approve, record operator approval (who/when/draft id) in durable metadata.
+- [ ] Promote/move the approved pair from **`blog-posts/pending-approval/`** to **`blog-posts/ready/`** (Flow A eligibility contract).
 - [ ] After promotion, blog publish / LinkedIn package / schedule / optional supervision MUST reuse Flow A behavior — no second mandatory LinkedIn approval queue for Flow B.
-- [ ] Unapproved drafts MUST NOT be accepted by Flow A publish paths.
+- [ ] When scheduling LinkedIn variants from an approved Flow B blog, apply **spill algorithm A**: (1) target-week gap days chronological (max 2) → (2) other days in target week with remaining capacity → (3) forward day-by-day after the week under US-040K max 2.
+- [ ] Unapproved drafts in `pending-approval/` MUST NOT be accepted by Flow A publish paths.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed (Flow A guards and density rules remain authoritative after promotion).
@@ -1361,40 +1371,62 @@ As a content operator, I want an approved AI blog to become Flow A–eligible wi
 
 **Priority:** P4
 
-**Business context:** Calendar is a gap sensor: missing upcoming LinkedIn coverage triggers Flow B draft generation for approval.
+**Business context:** Weekly gap sensor + settings + n8n→HTTP trigger. Policy: [planning-notes-flow-b-simplification.md](planning-notes-flow-b-simplification.md).
 
-### US-080 — Detect Upcoming LinkedIn Calendar Gaps
+### US-082 — Persist and Edit Flow B Gap Operator Settings
 
-**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
+**Status:** Not started. AC locked 2026-07-19. Ready for OpenSpec after US-074/075.
 
 **Description**
 
-As a content operator, I want the system to detect when upcoming local days lack LinkedIn publications, so that cadence can be restored before the empty day arrives.
+As a content operator, I want Flow B gap and cadence knobs stored in the editorial database and editable from Silverman Authority Manager, so that Friday runs and look-ahead behavior are not buried in env-only config.
 
 **Acceptance criteria**
 
-- [ ] Evaluate upcoming operator-local calendar day(s) for scheduled LinkedIn publications with configurable/documented look-ahead lead time (sufficient for blog approval + Flow A).
-- [ ] Respect the max **2 publications per local day** density cap when interpreting “full” vs “gap” (fill toward the operational target without exceeding the cap).
-- [ ] Return a clear gap / no-gap result suitable for orchestration (n8n or worker), without mutating campaigns on the detect-only path.
-- [ ] Document that empty coverage is a proxy for needing upstream content (not a filesystem inventory of `ready/`).
+- [ ] Persist operator settings in Postgres (`silverman_linkedin_db` or documented sibling store on the same deployment), not as the long-term SoT in env files.
+- [ ] Support at least: `operator_timezone`, `gap_trigger_enabled` (default false), `gap_scan_mode` (`next_week`), `weekly_run_local_day` / `weekly_run_local_time` (defaults friday / 15:00), `min_lead_days` (default 5), `gap_posts_threshold` (0), `max_drafts_per_weekly_run` (default 2), `density_max_per_local_day` (default 2).
+- [ ] Provide authenticated UI in **Silverman Authority Manager** to view and update these settings with validation (IANA timezone, time-of-day, non-negative integers, enums).
+- [ ] Worker/sensor paths MUST read DB settings when present; documented defaults apply when a row is missing.
+- [ ] MUST NOT expose secrets; MUST NOT enable LinkedIn API publish merely by saving settings; `gap_trigger_enabled=false` keeps auto-trigger fail-closed.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed (calendar SoT / US-041 contracts remain authoritative for schedule rows).
+
+### US-080 — Detect Upcoming LinkedIn Calendar Gaps
+
+**Status:** Not started. AC locked 2026-07-19. Ready for OpenSpec after US-082 (defaults allowed for early spike).
+
+**Description**
+
+As a content operator, I want the system to detect when the next local week has days with zero LinkedIn publications, so that cadence can be restored before that week starts.
+
+**Acceptance criteria**
+
+- [ ] Scan the **next** operator-local week (Mon–Sun) and list days with **0** LinkedIn posts as gaps; apply configurable `min_lead_days` (default 5).
+- [ ] Treat days with ≥1 LinkedIn post as non-gaps for trigger; still respect US-040K max **2** as the scheduling capacity ceiling elsewhere.
+- [ ] Return a clear result (`gaps[]` / no-gap, target ISO week, operator timezone used) suitable for orchestration, without mutating campaigns on the detect-only path.
+- [ ] Read sensor knobs from DB-backed operator settings (US-082) when present (with documented defaults).
+- [ ] Document that empty coverage is a proxy for needing upstream content (not a filesystem inventory of `ready/` or `pending-approval/`).
+- [ ] Expose an authenticated worker endpoint (and/or dry-run diagnostic) so operators can inspect the next-week gap result without triggering drafts.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-081 — Trigger Flow B Draft Generation on Calendar Gaps
 
-**Status:** Not started. Acceptance criteria agreed in product planning (2026-07-19).
+**Status:** Not started. AC locked 2026-07-19. Ready for OpenSpec after US-082, US-080, US-076, US-077.
 
 **Description**
 
-As a content operator, I want a detected LinkedIn calendar gap to start Flow B topic discovery and blog draft generation, so that I get an approvable draft instead of a silent empty schedule.
+As a content operator, I want a detected next-week LinkedIn gap batch to start Flow B topic discovery and blog draft generation (up to two blogs), so that I get approvable drafts instead of a silent empty week.
 
 **Acceptance criteria**
 
-- [ ] When the gap sensor reports a gap, trigger Flow B topic discovery + blog draft generation (US-076/US-077) without auto-publishing.
-- [ ] When there is no gap (coverage already present), perform a clean no-op (no duplicate draft spam).
-- [ ] Apply single-flight / idempotency so concurrent triggers do not create duplicate drafts for the same gap window.
-- [ ] Leave draft in approval-pending state for US-078/US-079; do not skip the blog gate.
+- [ ] When `gap_trigger_enabled` is true and the sensor reports one or more gaps for the target week, trigger Flow B discovery + draft generation up to **`max_drafts_per_weekly_run` (default 2)** into `pending-approval/` without auto-publishing.
+- [ ] When there is no gap, trigger is disabled, or an idempotent batch already exists for that ISO week (`flow_b_gap_week:{operator_tz}:{YYYY}-W{ww}`), perform a clean no-op (no duplicate draft spam).
+- [ ] Orchestration MUST use **n8n Schedule → worker HTTP** (no Execute Command); worker enforces local day/time / enablement from US-082 (no-op outside window); repo export stays `active: false` until operator activation.
+- [ ] Pass gap context (ISO week, `empty_days[]`) into US-076/US-077; leave drafts for US-078/US-079; do not skip the blog gate.
+- [ ] Surplus LinkedIn scheduling after approve is owned by US-079 (spill algorithm A); this story MUST NOT mark LinkedIn API published.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
