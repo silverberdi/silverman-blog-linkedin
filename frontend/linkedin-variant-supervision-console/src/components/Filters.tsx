@@ -7,7 +7,8 @@ import {
 import { useSupervisionStore } from "../models/store";
 
 /**
- * Shared filters applied to both List and Month calendar views (US-040B).
+ * Shared filters applied to Week and Month via store state (US-040B / US-040L).
+ * Hosted inside FiltersModal after US-040L — capability unchanged.
  */
 export function Filters() {
   const {
@@ -33,12 +34,8 @@ export function Filters() {
   }
 
   return (
-    <div className="panel filters-panel" data-testid="filters">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Focus</p>
-          <h2>Filters</h2>
-        </div>
+    <div className="filters-panel filters-panel-embedded" data-testid="filters">
+      <div className="section-heading filters-panel-actions">
         <button
           type="button"
           className="secondary"

@@ -206,6 +206,30 @@ export function defaultFilters(): FilterState {
   };
 }
 
+/**
+ * Count of FilterState fields that diverge from defaultFilters() (US-040L D3).
+ * Used for the calm active cue on the header Filters control.
+ */
+export function countActiveFilters(filters: FilterState): number {
+  let count = 0;
+  if (filters.channel !== "all") {
+    count += 1;
+  }
+  if (filters.campaignQuery.trim() !== "") {
+    count += 1;
+  }
+  if (filters.blockedOnly) {
+    count += 1;
+  }
+  if (filters.dueSoonOnly) {
+    count += 1;
+  }
+  if (filters.publicationStates.length > 0) {
+    count += 1;
+  }
+  return count;
+}
+
 export function itemKey(campaignId: string, variantId: string): string {
   return `${campaignId}::${variantId}`;
 }

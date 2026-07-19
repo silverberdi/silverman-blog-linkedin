@@ -200,7 +200,9 @@ describe("US-040G calendar-first Week + Month", () => {
         ).toBeGreaterThan(0);
       });
 
+      await user.click(screen.getByTestId("header-filters-btn"));
       await user.type(screen.getByTestId("filter-campaign"), "no-such-campaign");
+      await user.click(screen.getByTestId("filters-modal-close"));
       await waitFor(() => {
         expect(screen.getByTestId("week-empty-state")).toBeInTheDocument();
       });
@@ -253,7 +255,11 @@ describe("US-040G calendar-first Week + Month", () => {
 
       await user.click(screen.getByTestId("event-modal-close"));
       await user.click(screen.getByTestId("count-blocked"));
+      expect(screen.queryByTestId("filters-modal")).toBeNull();
+      expect(screen.getByTestId("filters-active-badge")).toBeInTheDocument();
+      await user.click(screen.getByTestId("header-filters-btn"));
       expect(screen.getByTestId("filter-blocked")).toBeChecked();
+      await user.click(screen.getByTestId("filters-modal-close"));
       expect(screen.getByTestId("week-view")).toBeInTheDocument();
       expect(screen.getByTestId("week-columns")).toBeInTheDocument();
       expect(screen.queryByTestId("list-view")).toBeNull();
@@ -285,7 +291,11 @@ describe("US-040G calendar-first Week + Month", () => {
       });
 
       await user.click(screen.getByTestId("count-blocked"));
+      expect(screen.queryByTestId("filters-modal")).toBeNull();
+      expect(screen.getByTestId("filters-active-badge")).toBeInTheDocument();
+      await user.click(screen.getByTestId("header-filters-btn"));
       expect(screen.getByTestId("filter-blocked")).toBeChecked();
+      await user.click(screen.getByTestId("filters-modal-close"));
       await waitFor(() => {
         expect(screen.getByTestId("week-empty-state")).toBeInTheDocument();
       });

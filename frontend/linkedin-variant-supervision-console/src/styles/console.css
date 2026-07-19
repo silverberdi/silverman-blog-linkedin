@@ -366,8 +366,91 @@ code {
   margin: 0;
 }
 
-.filter-dock {
-  margin-bottom: 1rem;
+/* US-040L — header Filters control + active cue (calm, not alarm) */
+.filters-header-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.filters-header-btn.is-active {
+  border-color: rgba(102, 217, 199, 0.45);
+  color: var(--accent);
+}
+
+.filters-active-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+/* US-040L — filters modal (EventModal-aligned a11y chrome) */
+.filters-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.filters-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  min-height: 0;
+  padding: 0;
+  background: rgba(4, 8, 14, 0.72);
+  cursor: pointer;
+}
+
+.filters-modal {
+  position: relative;
+  z-index: 1;
+  width: min(40rem, calc(100vw - 2rem));
+  max-height: min(90vh, 44rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow);
+}
+
+.filters-modal-header {
+  padding: 1rem 1.1rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0;
+}
+
+.filters-modal-body {
+  padding: 0.75rem 1.1rem 1.15rem;
+  overflow: auto;
+  flex: 1;
+}
+
+.filters-panel-embedded {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.filters-panel-actions {
+  justify-content: flex-end;
+  margin-bottom: 0.75rem;
 }
 
 .panel,
@@ -1282,6 +1365,22 @@ footer {
     max-height: 100%;
     height: 100%;
     border-radius: 0;
+  }
+
+  .filters-modal-root {
+    padding: 0;
+    place-items: stretch;
+  }
+
+  .filters-modal {
+    width: 100%;
+    max-height: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .filters-grid {
+    grid-template-columns: 1fr;
   }
 
   .toast-host {

@@ -253,14 +253,20 @@ describe("MonthCalendarView dual-view UX", () => {
 
     await user.click(screen.getByTestId("load-btn"));
     await waitFor(() => {
-      expect(screen.getByTestId("filters")).toBeInTheDocument();
+      expect(screen.getByTestId("header-filters-btn")).toBeInTheDocument();
     });
 
+    await user.click(screen.getByTestId("header-filters-btn"));
     await user.selectOptions(screen.getByTestId("filter-channel"), "linkedin");
+    await user.click(screen.getByTestId("filters-modal-close"));
+
     await user.click(screen.getByTestId("view-month"));
+    await user.click(screen.getByTestId("header-filters-btn"));
     expect(screen.getByTestId("filter-channel")).toHaveValue("linkedin");
+    await user.click(screen.getByTestId("filters-modal-close"));
 
     await user.click(screen.getByTestId("view-week"));
+    await user.click(screen.getByTestId("header-filters-btn"));
     expect(screen.getByTestId("filter-channel")).toHaveValue("linkedin");
   });
 
@@ -271,7 +277,7 @@ describe("MonthCalendarView dual-view UX", () => {
 
     await user.click(screen.getByTestId("load-btn"));
     await waitFor(() => {
-      expect(screen.getByTestId("filters")).toBeInTheDocument();
+      expect(screen.getByTestId("header-filters-btn")).toBeInTheDocument();
     });
 
     await user.click(screen.getByTestId("view-month"));
@@ -280,6 +286,7 @@ describe("MonthCalendarView dual-view UX", () => {
     });
 
     // Filter to planned only — hides the failed critical item.
+    await user.click(screen.getByTestId("header-filters-btn"));
     const plannedCheckbox = screen.getByLabelText("Planned");
     await user.click(plannedCheckbox);
 

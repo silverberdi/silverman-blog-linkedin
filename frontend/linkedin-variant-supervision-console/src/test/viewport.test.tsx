@@ -119,6 +119,8 @@ describe("viewport validation", () => {
     expect(getByTestId("week-view")).toBeInTheDocument();
     expect(getByTestId("view-week")).toBeInTheDocument();
     expect(getByTestId("view-month")).toBeInTheDocument();
+    expect(getByTestId("header-filters-btn")).toBeInTheDocument();
+    expect(document.querySelector(".filter-dock")).toBeNull();
     expect(screen.queryByTestId("view-list")).toBeNull();
     expect(screen.queryByTestId("list-view")).toBeNull();
 
@@ -139,6 +141,8 @@ describe("viewport validation", () => {
     expect(getByTestId("load-btn")).toBeInTheDocument();
     expect(getByTestId("session-banner")).toBeInTheDocument();
     expect(getByTestId("week-today")).toBeInTheDocument();
+    expect(getByTestId("header-filters-btn")).toBeInTheDocument();
+    expect(document.querySelector(".filter-dock")).toBeNull();
 
     await user.click(getByTestId("load-btn"));
     await waitFor(() => {

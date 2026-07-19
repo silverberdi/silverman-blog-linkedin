@@ -1,14 +1,16 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import { Banner } from "./Banner";
-import { Filters } from "./Filters";
+import { FiltersModal } from "./FiltersModal";
 import { StatusSummary } from "./StatusSummary";
 import { ToastHost } from "./ToastHost";
 import { ViewSwitcher } from "./ViewSwitcher";
+import { countActiveFilters } from "../models/supervision";
 import { useSupervisionStore } from "../models/store";
 
 /**
  * App shell: quiet session + enablement chip (US-040H), dry-run default,
- * Week | Month views, operational count strip. Happy-path success uses toasts.
+ * Week | Month views, operational count strip. Filters live in a header
+ * modal (US-040L) — no permanent FOCUS/Filters dock.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const {
@@ -26,7 +28,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     dryRunDefault,
     setDryRunDefault,
     canMutate,
+    filters,
   } = useSupervisionStore();
+
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const closeFilters = useCallback(() => setFiltersOpen(false), []);
+
+  const activeFilterCount = countActiveFilters(filters);
+  const filtersActive = activeFilterCount > 0;
 
   const enablementSource = snapshot ?? scheduleSnapshot;
   const publishGuardOn = Boolean(enablementSource?.linkedinPublicationEnabled);
@@ -61,6 +70,30 @@ export function AppShell({ children }: { children: ReactNode }) {
           aria-label="View and refresh"
         >
           <ViewSwitcher activeView={activeView} onChange={requestViewChange} />
+          <button
+            type="button"
+            className={`icon-button filters-header-btn${filtersActive ? " is-active" : ""}`}
+            aria-label={
+              filtersActive
+                ? `Filters, ${activeFilterCount} active`
+                : "Filters"
+            }
+            aria-haspopup="dialog"
+            aria-expanded={filtersOpen}
+            data-testid="header-filters-btn"
+            onClick={() => setFiltersOpen(true)}
+          >
+            Filters
+            {filtersActive && (
+              <span
+                className="filters-active-badge"
+                data-testid="filters-active-badge"
+                aria-hidden="true"
+              >
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
           <button
             type="button"
             className="icon-button"
@@ -154,14 +187,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       <StatusSummary />
 
       <section
-        className="filter-dock"
-        data-testid="affordance-filters"
-        aria-label="Filters"
-      >
-        <Filters />
-      </section>
-
-      <section
         className="affordance-group affordance-content"
         data-testid="affordance-content"
         aria-label={
@@ -175,6 +200,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         Public URL hosting and Google/OIDC activation remain deferred. Technical
         diagnostics stay available in the event modal.
       </footer>
+
+      <FiltersModal open={filtersOpen} onClose={closeFilters} />
     </main>
   );
 }

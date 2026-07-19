@@ -1165,7 +1165,7 @@ Required scenes (desktop + mobile): local day at 2 publications (full cue); atte
 
 As a content operator, I want a **Search / Filters** control in the console header that opens a modal with the current filter controls, so that Week/Month stay calendar-first without a permanent FOCUS/Filters strip that duplicates the metric chips above.
 
-**Status:** Not started. **Not Story accepted; BL-015 remains open.** Addresses operator feedback after US-040K deploy: metric cards and the always-visible filters dock feel redundant. Continues the US-040G follow-up note that filters-dock removal was out of scope for the empty-grid fix.
+**Status:** Implemented in console layer (not Story accepted; BL-015 remains open). OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040l`; Vitest (103 tests, ~1280/~375) + production static rebuild `index-B4ePEkH6.js` / `index-DmEqOAc6.css`. Visual DoD + operator walkthrough remain open — Vitest alone insufficient for Story accepted. Not deployed in this apply. Addresses operator feedback after US-040K: metric cards and the always-visible filters dock felt redundant.
 
 **UX intent (normative)**
 
@@ -1185,18 +1185,18 @@ Required scenes (desktop + mobile): header Filters/Search control visible; modal
 
 **Acceptance criteria**
 
-- [ ] Remove the always-visible FOCUS/Filters dock from the primary console chrome so Week/Month are not permanently preceded by a full filter strip.
-- [ ] Provide a header **Search** or **Filters** button that opens a modal containing the existing filter controls (Channel, Campaign/label, Blocked only, Due soon, publication states, Reset) without reducing filter capability.
-- [ ] When any non-default filter is active, the header control MUST surface a calm active cue (badge/count or equivalent).
-- [ ] Metric chips remain usable one-click focus shortcuts on the same filter state; the modal MUST show the resulting filters when opened after a chip focus.
-- [ ] Week/Month empty states that offer Clear filters MUST continue to work.
-- [ ] Preserve Week default + Month secondary, EventModal + toasts, local-time, cancelled reopen, density cues, session/`canMutate`, dry-run/confirm, worker HTTP-only (ADR-0001), `*_utc` wire fields.
-- [ ] Do not restore List as primary operator chrome; do not activate public URL / Google OIDC / BFF / user-management; do not call LinkedIn API publish from the console.
+- [x] Remove the always-visible FOCUS/Filters dock from the primary console chrome so Week/Month are not permanently preceded by a full filter strip. — Demonstrated: Vitest asserts `.filter-dock` / `affordance-filters` absent; Week default without permanent strip (~1280/~375).
+- [x] Provide a header **Search** or **Filters** button that opens a modal containing the existing filter controls (Channel, Campaign/label, Blocked only, Due soon, publication states, Reset) without reducing filter capability. — Demonstrated: `header-filters-btn` → `filters-modal` with full control set including `filter-state-completed`.
+- [x] When any non-default filter is active, the header control MUST surface a calm active cue (badge/count or equivalent). — Demonstrated: `filters-active-badge` + `countActiveFilters`; clears on Reset / Clear filters.
+- [x] Metric chips remain usable one-click focus shortcuts on the same filter state; the modal MUST show the resulting filters when opened after a chip focus. — Demonstrated: chip applies without modal; modal reflects `filter-blocked` when opened.
+- [x] Week/Month empty states that offer Clear filters MUST continue to work. — Demonstrated: empty Clear filters resets shared state and clears badge without requiring modal.
+- [x] Preserve Week default + Month secondary, EventModal + toasts, local-time, cancelled reopen, density cues, session/`canMutate`, dry-run/confirm, worker HTTP-only (ADR-0001), `*_utc` wire fields. — Demonstrated: prior suites still pass (103 Vitest); no worker contract changes.
+- [x] Do not restore List as primary operator chrome; do not activate public URL / Google OIDC / BFF / user-management; do not call LinkedIn API publish from the console. — Demonstrated: no List chrome; filters UX uses existing worker HTTP only.
 - [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
 - [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms filters-in-modal UX meets intent before Story accepted.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed (US-040G–K Story accepted not closed as a side effect; BL-015 remains open).
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated at console-layer via Vitest; operator confirmation still gated.
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: hidden-critical banner remains inside Filters modal; header active cue when filtered.
+- [x] Existing completed work is not duplicated or unintentionally changed (US-040G–K Story accepted not closed as a side effect; BL-015 remains open). — Demonstrated: US-038–US-040K/M Story accepted left in place; BL-015 open; US-040M mapping untouched.
 
 ### US-040M — Show Completed Blogs as Published on Blog in Schedule Visibility
 

@@ -108,7 +108,8 @@ describe("US-040F modern operational UX redesign", () => {
     expect(screen.getByTestId("app-shell")).toHaveClass("console-shell");
     expect(document.querySelector(".app-bar")).not.toBeNull();
     expect(document.querySelector(".session-strip")).not.toBeNull();
-    expect(document.querySelector(".filter-dock")).not.toBeNull();
+    expect(document.querySelector(".filter-dock")).toBeNull();
+    expect(screen.getByTestId("header-filters-btn")).toBeInTheDocument();
     expect(screen.queryByText(/POST \//)).toBeNull();
     expect(screen.getByTestId("week-view")).toBeInTheDocument();
     expect(screen.queryByTestId("list-view")).toBeNull();
@@ -136,9 +137,13 @@ describe("US-040F modern operational UX redesign", () => {
     await user.click(screen.getByTestId("load-btn"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("filter-blocked")).not.toBeChecked();
+      expect(screen.getByTestId("count-blocked")).toHaveAttribute("data-count", "1");
     });
+    expect(screen.queryByTestId("filters-modal")).toBeNull();
     await user.click(screen.getByTestId("count-blocked"));
+    expect(screen.queryByTestId("filters-modal")).toBeNull();
+    expect(screen.getByTestId("filters-active-badge")).toBeInTheDocument();
+    await user.click(screen.getByTestId("header-filters-btn"));
     expect(screen.getByTestId("filter-blocked")).toBeChecked();
   });
 
@@ -151,13 +156,18 @@ describe("US-040F modern operational UX redesign", () => {
       expect(screen.getByTestId("count-pending")).toBeInTheDocument();
     });
     await user.click(screen.getByTestId("count-blocked"));
+    await user.click(screen.getByTestId("header-filters-btn"));
     expect(screen.getByTestId("filter-blocked")).toBeChecked();
+    await user.click(screen.getByTestId("filters-modal-close"));
 
     await user.click(screen.getByTestId("count-pending"));
+    await user.click(screen.getByTestId("header-filters-btn"));
     expect(screen.getByTestId("filter-blocked")).not.toBeChecked();
     expect(screen.getByTestId("filter-state-pending")).toBeChecked();
+    await user.click(screen.getByTestId("filters-modal-close"));
 
     await user.click(screen.getByTestId("count-upcoming"));
+    await user.click(screen.getByTestId("header-filters-btn"));
     expect(screen.getByTestId("filter-state-pending")).not.toBeChecked();
   });
 

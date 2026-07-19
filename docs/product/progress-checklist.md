@@ -484,8 +484,8 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] **US-040L** — Search/Filters header modal (collapse always-visible filters dock)
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+    - [x] Work started
+    - [ ] Business outcome demonstrated — Vitest + static rebuild only (`index-B4ePEkH6.js` / `index-DmEqOAc6.css`); deploy + Visual DoD + walkthrough still required
     - [ ] Acceptance criteria validated — requires Visual DoD + operator walkthrough
     - [ ] Story accepted — operator walkthrough gate (not Vitest alone)
   - [x] **US-040M** — Completed blogs show as Published on blog (not Planned)
