@@ -61,7 +61,7 @@
 - [x] 7.1 Explicit approval of this proposal before `/opsx-apply`
 - [x] 7.2 `/opsx-apply` implementation of tasks 1–5 (and 4 evidence)
 - [x] 7.3 `/opsx-verify` after implementation (re-run if post-verify edits)
-- [ ] 7.4 Explicit user approval → implementation commit (change + worker + frontend + static + honest docs)
+- [x] 7.4 Explicit user approval → implementation commit (change + worker + frontend + static + honest docs)
 - [ ] 7.5 `/opsx-sync` → separate sync commit
 - [ ] 7.6 `/opsx-archive` → separate archive commit
 - [ ] 7.7 Push only with explicit approval
