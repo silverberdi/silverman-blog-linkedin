@@ -1165,7 +1165,7 @@ Required scenes (desktop + mobile): local day at 2 publications (full cue); atte
 
 As a content operator, I want a **Search / Filters** control in the console header that opens a modal with the current filter controls, so that Week/Month stay calendar-first without a permanent FOCUS/Filters strip that duplicates the metric chips above.
 
-**Status:** Implemented in console layer (not Story accepted; BL-015 remains open). OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040l`; Vitest (103 tests, ~1280/~375) + production static rebuild `index-B4ePEkH6.js` / `index-DmEqOAc6.css`. Visual DoD + operator walkthrough remain open — Vitest alone insufficient for Story accepted. Not deployed in this apply. Addresses operator feedback after US-040K: metric cards and the always-visible filters dock felt redundant.
+**Status:** Implemented and deployed to `192.168.0.194:8010` (not Story accepted; BL-015 remains open). OpenSpec change archived: `redesign-flow-a-linkedin-variant-supervision-console-us-040l` (`143a40b`); Vitest (103 tests, ~1280/~375) + production static rebuild; live `index-B4ePEkH6.js` / `index-DmEqOAc6.css`; `BUILD_REVISION=143a40bd61dc…`. Visual DoD + operator walkthrough remain open — Vitest alone insufficient for Story accepted. Addresses operator feedback after US-040K: metric cards and the always-visible filters dock felt redundant.
 
 **UX intent (normative)**
 

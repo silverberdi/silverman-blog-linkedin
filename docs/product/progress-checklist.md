@@ -485,7 +485,7 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [ ] Business outcome demonstrated — Vitest + static rebuild only (`index-B4ePEkH6.js` / `index-DmEqOAc6.css`); deploy + Visual DoD + walkthrough still required
+    - [x] Business outcome demonstrated — deployed `192.168.0.194:8010` (`143a40b`; live `index-B4ePEkH6.js` / `index-DmEqOAc6.css`); Visual DoD + walkthrough still required for acceptance
     - [ ] Acceptance criteria validated — requires Visual DoD + operator walkthrough
     - [ ] Story accepted — operator walkthrough gate (not Vitest alone)
   - [x] **US-040M** — Completed blogs show as Published on blog (not Planned)
