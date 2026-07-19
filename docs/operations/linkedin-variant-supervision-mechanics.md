@@ -10,7 +10,7 @@ This document answers: **“How does the operator persist correction, rejection,
 
 **In scope (US-017):**
 
-- Worker HTTP routes for edit (`POST /correct-linkedin-variant`), defer (`POST /defer-linkedin-variant`), and extended cancel (`POST /cancel-linkedin-publication` accepts `pending` and `queued`).
+- Worker HTTP routes for edit (`POST /correct-linkedin-variant`), defer (`POST /defer-linkedin-variant`), extended cancel (`POST /cancel-linkedin-publication` accepts `pending` and `queued`), and US-040J reopen (`POST /reopen-linkedin-variant` for eligible `cancelled` → `pending`).
 - `operator_supervision` metadata contract on campaign `variants[]`.
 - Blocked/invalid action table and stable error codes.
 - BL-007 auto-queue eligibility exclusions consumed by the implemented US-018 worker path.
@@ -35,6 +35,7 @@ US-017 provides **persistence mechanics** for operator overrides during that win
 | Edit draft | `POST /correct-linkedin-variant` | `pending` (unchanged) |
 | Defer/reschedule | `POST /defer-linkedin-variant` | `pending` (unchanged) |
 | Reject/cancel | `POST /cancel-linkedin-publication` | `cancelled` |
+| Reopen (US-040J) | `POST /reopen-linkedin-variant` | `pending` (from eligible `cancelled`) |
 
 Absent `operator_supervision` on a `pending` variant means strategy-driven default (eligible per BL-007 rules when due).
 
@@ -70,7 +71,7 @@ When the operator acts on criteria failure, they **SHOULD** use US-017 routes an
 
 Cancel sets `operator_supervision.auto_queue_eligible` to `false`.
 
-Cancel does **not** call LinkedIn API. Cancel from `published` fails with `linkedin_publish_cancel_not_allowed`.
+Cancel does **not** call LinkedIn API. Cancel from `published` fails with `linkedin_publish_cancel_not_allowed`. Cancel is irreversible **except** via approved `POST /reopen-linkedin-variant` for reopen-eligible cancellations (US-040J).
 
 ## Defer/delay mechanics
 
@@ -96,7 +97,7 @@ Each `variants[]` entry MAY include:
 
 ```json
 "operator_supervision": {
-  "last_action": "edit|defer|cancel",
+  "last_action": "edit|defer|cancel|reopen",
   "last_action_at_utc": "ISO8601",
   "phase": "pre_queue|post_queue",
   "actor": "operator",
@@ -165,7 +166,9 @@ A variant is **eligible** when `publish_state` is `pending`, not cancelled, `aut
 
 **After edit:** `auto_queue_eligible` is set `true` — correction does not block strategy-driven queueing when due.
 
-**After cancel:** `auto_queue_eligible` is `false` permanently for that variant.
+**After cancel:** `auto_queue_eligible` is `false` until an approved US-040J reopen restores strategy-driven eligibility.
+
+**After reopen (US-040J):** authenticated `POST /reopen-linkedin-variant` may restore an eligible `cancelled` variant to editable `pending` with a new future `new_scheduled_at_utc`. Eligibility: cancellation phase `pre_queue` or `post_queue` only (failed→cancelled / `recovery` path is **not** reopen-eligible — fail closed with `linkedin_reopen_not_allowed`). Real reopen sets `auto_queue_eligible` true, archives prior `cancellation` into `cancellation_history`, appends `reopen_history`, does **not** auto-queue, and does **not** call LinkedIn API. Dry-run defaults on. Cancel remains irreversible **except** through this reopen path; defer/correct MUST NOT restore `cancelled` → `pending`. Schedule-visibility exposes additive `cancelled_at_utc` / `cancellation_phase` / `cancellation_reason` / `reopen_eligible` for cancelled console honesty. US-040K max-2-per-local-day density is a follow-up (interim defer duplicate-slot/72h saturation MAY apply to reopen’s new schedule).
 
 Implementation does not imply deploy, workflow activation, or operational validation.
 

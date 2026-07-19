@@ -41,6 +41,10 @@ function scheduleItem(
     calendarItemId: partial.calendarItemId ?? null,
     scheduleEditable: partial.scheduleEditable ?? true,
     scheduleEditBlockReason: partial.scheduleEditBlockReason ?? null,
+    cancelledAtUtc: partial.cancelledAtUtc ?? null,
+    cancellationPhase: partial.cancellationPhase ?? null,
+    cancellationReason: partial.cancellationReason ?? null,
+    reopenEligible: partial.reopenEligible ?? false,
     actions: partial.actions ?? [],
     statusColor: partial.statusColor ?? STATUS_COLOR[partial.publicationState],
   };

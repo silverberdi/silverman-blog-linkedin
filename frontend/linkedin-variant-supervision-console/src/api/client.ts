@@ -17,6 +17,7 @@ import {
   CORRECT_PATH,
   DEFER_PATH,
   PENDING_SUPERVISION_PATH,
+  REOPEN_PATH,
   SCHEDULE_VISIBILITY_PATH,
   UPDATE_CALENDAR_SCHEDULE_PATH,
   type CancelVariantRequest,
@@ -25,6 +26,7 @@ import {
   type DeferVariantRequest,
   type MutationResult,
   type PendingSupervisionResponse,
+  type ReopenVariantRequest,
   type ScheduleVisibilityResponse,
   type UpdateCalendarItemScheduleRequest,
 } from "./types";
@@ -110,6 +112,10 @@ export class SupervisionApiClient {
     return this.postMutation(CANCEL_PATH, body);
   }
 
+  async reopenVariant(body: ReopenVariantRequest): Promise<MutationResult> {
+    return this.postMutation(REOPEN_PATH, body);
+  }
+
   async updateCalendarItemSchedule(
     body: UpdateCalendarItemScheduleRequest,
   ): Promise<CalendarScheduleUpdateResult> {
@@ -162,7 +168,11 @@ export class SupervisionApiClient {
 
   private async postMutation(
     path: string,
-    body: CorrectVariantRequest | DeferVariantRequest | CancelVariantRequest,
+    body:
+      | CorrectVariantRequest
+      | DeferVariantRequest
+      | CancelVariantRequest
+      | ReopenVariantRequest,
   ): Promise<MutationResult> {
     const headers = await this.prepareHeaders("mutate");
     const result = await this.requestJson<MutationResult>(path, {

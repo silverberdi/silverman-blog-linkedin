@@ -1047,7 +1047,7 @@ Required scenes (desktop + mobile): event open; modal hierarchy; edit/reschedule
 
 As a content operator, I want the week/month grids, event times, and reschedule controls to work in **my local timezone**, so that I do not have to translate UTC or “another part of the world’s” calendar days while planning posts.
 
-**Status:** Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040i` archived; Vitest with `TZ=America/Chicago` + ~1280/~375 viewport matrix + production static rebuild; live `index-DV0R4K8U.js` / `index-BGvbD0Jm.css`; git `a1bd3cd`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated. US-040J reopen and US-040K density not delivered. US-040G/H Story accepted remain separately gated.
+**Status:** Implemented and deployed to `192.168.0.194:8010` (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040i` archived; Vitest with `TZ=America/Chicago` + ~1280/~375 viewport matrix + production static rebuild; live `index-DV0R4K8U.js` / `index-BGvbD0Jm.css`; git `a1bd3cd`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated. US-040J reopen is implemented in a separate change (not yet Story accepted / not yet deployed). US-040K density not delivered. US-040G/H Story accepted remain separately gated.
 
 **UX intent (normative)**
 
@@ -1082,7 +1082,7 @@ Required scenes (desktop + mobile): local times on Week/Month/modal with timezon
 
 As a content operator, I want cancelled calendar events to be visually honest and actionable (or clearly non-actionable), so that when I see a cancelled item on today/this week I understand **why** and what I can do next — including reopen/reschedule when product allows — instead of a mute grey chip with no path.
 
-**Status:** Not started. **Not Story accepted; BL-015 remains open.** Requires OpenSpec for any worker reopen path; cancel remains irreversible until this story ships an approved reopen contract.
+**Status:** Implemented in console + worker (OpenSpec change `redesign-flow-a-linkedin-variant-supervision-console-us-040j`; Vitest ~1280/~375 + pytest + static rebuild `index-BJwARkPN.js` / `index-BLiwrDxd.css`). **Not Story accepted; BL-015 remains open.** Visual DoD screenshots + operator walkthrough remain gated (not deployed; browser capture unavailable in apply environment). US-040K density not delivered. US-040G/H/I Story accepted remain separately gated.
 
 **UX intent (normative)**
 
@@ -1099,17 +1099,16 @@ Required scenes (desktop + mobile): cancelled chip on Week/Month; cancelled moda
 
 **Acceptance criteria**
 
-- [ ] Cancelled events are visible on Week/Month with clear cancelled styling and label.
-- [ ] Event modal for cancelled items explains cancellation (reason/source/timestamp when available) in operator language; raw codes only in diagnostics.
-- [ ] Define and implement an approved **reopen or reschedule-from-cancelled** path via worker HTTP (new or extended contract under OpenSpec) OR, if temporarily deferred inside the same change, ship an explicit read-only cancelled modal — do not leave “mystery cancelled” UX. Prefer shipping the reopen/reschedule path as the business outcome of this story.
-- [ ] Reopened items MUST reappear as editable supervision targets (pending/planned as applicable) and respect dry-run/confirm, local time, and density limits (US-040I/K).
-- [ ] Cancel from an active event remains destructive, confirmed, and irreversible except through the new reopen path.
+- [x] Cancelled events are visible on Week/Month with clear cancelled styling and label. — Demonstrated: calm cancelled chip classes on Week/Month; Vitest ~1280/~375.
+- [x] Event modal for cancelled items explains cancellation (reason/source/timestamp when available) in operator language; raw codes only in diagnostics. — Demonstrated: cancelled EventModal what/why/what-next; diagnostics hold machine fields.
+- [x] Define and implement an approved **reopen or reschedule-from-cancelled** path via worker HTTP (new or extended contract under OpenSpec) OR, if temporarily deferred inside the same change, ship an explicit read-only cancelled modal — do not leave “mystery cancelled” UX. Prefer shipping the reopen/reschedule path as the business outcome of this story. — Demonstrated: `POST /reopen-linkedin-variant` + console reopen panel (reopen shipped; read-only escape hatch unused).
+- [x] Reopened items MUST reappear as editable supervision targets (pending/planned as applicable) and respect dry-run/confirm, local time, and density limits (US-040I/K). — Demonstrated: real reopen → `pending` + future schedule + dry-run/confirm + local ScheduleEditor fields; US-040K density noted as follow-up (interim saturation/duplicate-slot only).
+- [x] Cancel from an active event remains destructive, confirmed, and irreversible except through the new reopen path. — Demonstrated: cancel confirmation retained; defer refused on cancelled; reopen is the restore path.
 - [ ] Capture Visual DoD evidence (desktop + mobile) for the scenes listed above; Vitest alone is insufficient for Story accepted.
 - [ ] Operator walkthrough completed on deployed or agreed preview; operator confirms cancelled-event UX meets intent before Story accepted.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed (no silent bypass of publication guards; no n8n Execute Command).
-
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated at console-layer via Vitest; operator confirmation still gated.
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: `linkedin_reopen_not_allowed` and time-invalid family mapped to failure toasts.
+- [x] Existing completed work is not duplicated or unintentionally changed (no silent bypass of publication guards; no n8n Execute Command). — Demonstrated: prior Week/Month/EventModal/ScheduleEditor/session suites still pass; no LinkedIn API publish from reopen; ADR-0001 preserved.
 ### US-040K — Implement Flow A LinkedIn Variant Supervision Console: Max Two Publications Per Local Day
 
 **Description**

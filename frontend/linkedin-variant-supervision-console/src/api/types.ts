@@ -6,6 +6,7 @@ export const SCHEDULE_VISIBILITY_PATH = "/flow-a/schedule-visibility";
 export const CORRECT_PATH = "/correct-linkedin-variant";
 export const DEFER_PATH = "/defer-linkedin-variant";
 export const CANCEL_PATH = "/cancel-linkedin-publication";
+export const REOPEN_PATH = "/reopen-linkedin-variant";
 export const UPDATE_CALENDAR_SCHEDULE_PATH =
   "/editorial-calendar/update-item-schedule";
 
@@ -79,6 +80,11 @@ export interface ScheduleVisibilityItemDto {
   calendar_item_id?: string | null;
   schedule_editable?: boolean;
   schedule_edit_block_reason?: string | null;
+  /** US-040J additive cancellation context (cancelled LinkedIn items). */
+  cancelled_at_utc?: string | null;
+  cancellation_phase?: string | null;
+  cancellation_reason?: string | null;
+  reopen_eligible?: boolean | null;
 }
 
 export interface ScheduleVisibilityResponse {
@@ -121,6 +127,17 @@ export interface CancelVariantRequest {
   dry_run?: boolean;
   reason?: string | null;
   idempotency_key?: string | null;
+}
+
+export interface ReopenVariantRequest {
+  campaign_id: string;
+  variant: string;
+  new_scheduled_at_utc: string;
+  dry_run?: boolean;
+  reason?: string | null;
+  idempotency_key?: string | null;
+  actor?: string | null;
+  source?: string | null;
 }
 
 export interface UpdateCalendarItemScheduleRequest {

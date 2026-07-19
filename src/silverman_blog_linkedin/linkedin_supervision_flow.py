@@ -25,10 +25,12 @@ from silverman_blog_linkedin.linkedin_publication_flow import (
     LINKEDIN_PUBLISH_METADATA_WRITE_FAILED,
     LINKEDIN_PUBLISH_RECOVERY_EVIDENCE_INVALID,
     LINKEDIN_PUBLISH_VARIANT_NOT_FOUND,
+    PUBLISH_STATE_CANCELLED,
     PUBLISH_STATE_FAILED,
     PUBLISH_STATE_PENDING,
     PUBLISH_STATE_QUEUED,
     RECOVERY_ACTION_CONTENT_CORRECTED,
+    RECOVERY_ACTION_RECOVERY_CANCELLED,
     RECOVERY_CLASS_CONTENT_INVALID,
     _append_recovery_event,
     _find_variant_entry,
@@ -49,6 +51,7 @@ LINKEDIN_SUPERVISION_DEFER_DUPLICATE_SLOT = "linkedin_supervision_defer_duplicat
 LINKEDIN_SUPERVISION_DEFER_SATURATION = "linkedin_supervision_defer_saturation"
 LINKEDIN_SUPERVISION_EDIT_UNCHANGED = "linkedin_supervision_edit_unchanged"
 LINKEDIN_SUPERVISION_IDEMPOTENCY_CONFLICT = "linkedin_supervision_idempotency_conflict"
+LINKEDIN_REOPEN_NOT_ALLOWED = "linkedin_reopen_not_allowed"
 
 # Interim US-040C schedule-intent checks (until BL-021 supersedes).
 _DEFER_SIBLING_STATES = frozenset({PUBLISH_STATE_PENDING, PUBLISH_STATE_QUEUED})
@@ -57,11 +60,16 @@ _DEFER_SATURATION_INTERVAL = CADENCE_MINIMUM_INTERVAL  # 72h
 SUPERVISION_ACTION_EDIT = "edit"
 SUPERVISION_ACTION_DEFER = "defer"
 SUPERVISION_ACTION_CANCEL = "cancel"
+SUPERVISION_ACTION_REOPEN = "reopen"
 SUPERVISION_PHASE_PRE_QUEUE = "pre_queue"
 SUPERVISION_PHASE_POST_QUEUE = "post_queue"
 # US-022 failed-state recovery actions (correction/cancel on `failed`).
 SUPERVISION_PHASE_RECOVERY = "recovery"
 SUPERVISION_ACTOR_OPERATOR = "operator"
+
+_REOPEN_ELIGIBLE_PHASES = frozenset(
+    {SUPERVISION_PHASE_PRE_QUEUE, SUPERVISION_PHASE_POST_QUEUE}
+)
 
 
 @dataclass
@@ -797,3 +805,296 @@ def apply_supervision_cancellation(
     )
     updated_entry["operator_supervision"] = supervision
     return updated_entry, None
+
+
+def cancellation_phase_for_entry(entry: dict[str, Any]) -> str | None:
+    """Return operator_supervision.cancellation.phase when present and valid."""
+    supervision = entry.get("operator_supervision")
+    if not isinstance(supervision, dict):
+        return None
+    cancellation = supervision.get("cancellation")
+    if not isinstance(cancellation, dict):
+        return None
+    phase = cancellation.get("phase")
+    if isinstance(phase, str) and phase.strip():
+        return phase.strip()
+    return None
+
+
+def _has_recovery_cancelled_evidence(entry: dict[str, Any]) -> bool:
+    """True when US-022 recovery_cancelled evidence is present on the variant."""
+    phase = cancellation_phase_for_entry(entry)
+    if phase == SUPERVISION_PHASE_RECOVERY:
+        return True
+    history = entry.get("linkedin_recovery_history")
+    if not isinstance(history, list):
+        return False
+    for event in history:
+        if not isinstance(event, dict):
+            continue
+        if event.get("action") == RECOVERY_ACTION_RECOVERY_CANCELLED:
+            return True
+    return False
+
+
+def is_reopen_eligible_variant(entry: dict[str, Any]) -> bool:
+    """Server-side reopen eligibility (design D3) — shared with schedule-visibility."""
+    if entry.get("publish_state") != PUBLISH_STATE_CANCELLED:
+        return False
+    if _has_recovery_cancelled_evidence(entry):
+        return False
+    phase = cancellation_phase_for_entry(entry)
+    return phase in _REOPEN_ELIGIBLE_PHASES
+
+
+def reopen_eligibility_errors(entry: dict[str, Any]) -> list[str]:
+    """Stable refusal codes when reopen is not allowed for this variant entry."""
+    publish_state = entry.get("publish_state")
+    if publish_state != PUBLISH_STATE_CANCELLED:
+        return [LINKEDIN_REOPEN_NOT_ALLOWED]
+    if not is_reopen_eligible_variant(entry):
+        return [LINKEDIN_REOPEN_NOT_ALLOWED]
+    return []
+
+
+def reopen_linkedin_variant(
+    base_path: Path,
+    *,
+    campaign_id: str,
+    variant: str,
+    new_scheduled_at_utc: str,
+    dry_run: bool = True,
+    reason: str | None = None,
+    idempotency_key: str | None = None,
+    actor: str | None = None,
+    source: str | None = None,
+    now: datetime | None = None,
+) -> LinkedInSupervisionResult:
+    """Restore an eligible cancelled variant to pending with a new future schedule.
+
+    Makes no LinkedIn API call and does not auto-queue. Cancel remains irreversible
+    except through this path (defer/correct MUST NOT restore cancelled → pending).
+    """
+    campaign, entry, errors = _supervision_eligibility(
+        base_path, campaign_id=campaign_id, variant=variant
+    )
+    if errors:
+        return LinkedInSupervisionResult(
+            status="failed",
+            campaign_id=campaign_id,
+            variant=variant,
+            state=campaign.get("state") if campaign else None,
+            dry_run=dry_run,
+            errors=errors,
+        )
+    assert campaign is not None and entry is not None
+
+    publish_state = entry.get("publish_state")
+    try:
+        normalized_new = normalize_scheduled_at_utc(new_scheduled_at_utc)
+        new_dt = _parse_utc(normalized_new)
+    except ValueError:
+        return LinkedInSupervisionResult(
+            status="failed",
+            campaign_id=campaign_id,
+            variant=variant,
+            state=campaign.get("state"),
+            publish_state=publish_state if isinstance(publish_state, str) else None,
+            dry_run=dry_run,
+            errors=[LINKEDIN_SUPERVISION_DEFER_TIME_INVALID],
+        )
+
+    current = now or datetime.now(timezone.utc)
+    if new_dt <= current:
+        return LinkedInSupervisionResult(
+            status="failed",
+            campaign_id=campaign_id,
+            variant=variant,
+            state=campaign.get("state"),
+            publish_state=publish_state if isinstance(publish_state, str) else None,
+            dry_run=dry_run,
+            errors=[LINKEDIN_SUPERVISION_DEFER_TIME_INVALID],
+        )
+
+    payload = {
+        "new_scheduled_at_utc": normalized_new,
+        "reason": reason,
+    }
+    supervision = _get_or_init_operator_supervision(entry)
+    # Idempotency before eligibility: after a real reopen, state is pending —
+    # replay must still succeed without double-appending history.
+    replay_status, idempotency_errors = _check_idempotency(
+        supervision,
+        action=SUPERVISION_ACTION_REOPEN,
+        idempotency_key=idempotency_key,
+        payload=payload,
+    )
+    if idempotency_errors:
+        return LinkedInSupervisionResult(
+            status="failed",
+            campaign_id=campaign_id,
+            variant=variant,
+            state=campaign.get("state"),
+            publish_state=publish_state if isinstance(publish_state, str) else None,
+            dry_run=dry_run,
+            errors=idempotency_errors,
+        )
+    if replay_status == "replay":
+        return LinkedInSupervisionResult(
+            status="completed",
+            campaign_id=campaign_id,
+            variant=variant,
+            state=campaign.get("state"),
+            publish_state=(
+                publish_state
+                if isinstance(publish_state, str)
+                else PUBLISH_STATE_PENDING
+            ),
+            dry_run=False,
+            phase=SUPERVISION_PHASE_PRE_QUEUE,
+            scheduled_at_utc=normalized_new,
+            operator_supervision=supervision,
+            metadata_written=False,
+        )
+
+    eligibility_errors = reopen_eligibility_errors(entry)
+    if eligibility_errors:
+        return LinkedInSupervisionResult(
+            status="failed",
+            campaign_id=campaign_id,
+            variant=variant,
+            state=campaign.get("state"),
+            publish_state=publish_state if isinstance(publish_state, str) else None,
+            dry_run=dry_run,
+            errors=eligibility_errors,
+        )
+
+    cadence_errors = _defer_cadence_errors(
+        campaign,
+        variant=variant,
+        normalized_new=normalized_new,
+        new_dt=new_dt,
+    )
+    if cadence_errors:
+        return LinkedInSupervisionResult(
+            status="failed",
+            campaign_id=campaign_id,
+            variant=variant,
+            state=campaign.get("state"),
+            publish_state=PUBLISH_STATE_CANCELLED,
+            dry_run=dry_run,
+            errors=cadence_errors,
+        )
+
+    if dry_run:
+        return LinkedInSupervisionResult(
+            status="completed",
+            campaign_id=campaign_id,
+            variant=variant,
+            state=campaign.get("state"),
+            publish_state=PUBLISH_STATE_CANCELLED,
+            dry_run=True,
+            phase=SUPERVISION_PHASE_PRE_QUEUE,
+            scheduled_at_utc=normalized_new,
+            metadata_written=False,
+        )
+
+    resolved_actor = (
+        actor.strip()
+        if isinstance(actor, str) and actor.strip()
+        else SUPERVISION_ACTOR_OPERATOR
+    )
+    reopened_at = utc_now_iso()
+    previous_scheduled = entry.get("scheduled_at_utc")
+    previous_scheduled_normalized: str | None = None
+    if isinstance(previous_scheduled, str) and previous_scheduled.strip():
+        try:
+            previous_scheduled_normalized = normalize_scheduled_at_utc(previous_scheduled)
+        except ValueError:
+            previous_scheduled_normalized = previous_scheduled.strip()
+
+    prior_cancellation = supervision.get("cancellation")
+    if isinstance(prior_cancellation, dict):
+        cancellation_history = supervision.get("cancellation_history")
+        if not isinstance(cancellation_history, list):
+            cancellation_history = []
+        archived = deepcopy(prior_cancellation)
+        archived["archived_at_utc"] = reopened_at
+        archived["archived_by_action"] = SUPERVISION_ACTION_REOPEN
+        cancellation_history.append(archived)
+        supervision["cancellation_history"] = cancellation_history
+        del supervision["cancellation"]
+
+    reopen_record: dict[str, Any] = {
+        "reopened_at_utc": reopened_at,
+        "previous_publish_state": PUBLISH_STATE_CANCELLED,
+        "previous_scheduled_at_utc": previous_scheduled_normalized,
+        "new_scheduled_at_utc": normalized_new,
+        "actor": resolved_actor,
+        "previous_cancellation_phase": (
+            prior_cancellation.get("phase")
+            if isinstance(prior_cancellation, dict)
+            else None
+        ),
+    }
+    if reason:
+        reopen_record["reason"] = reason
+    if isinstance(source, str) and source.strip():
+        reopen_record["source"] = source.strip()
+
+    reopen_history = supervision.get("reopen_history")
+    if not isinstance(reopen_history, list):
+        reopen_history = []
+    reopen_history.append(reopen_record)
+    supervision["reopen_history"] = reopen_history
+    supervision["last_action"] = SUPERVISION_ACTION_REOPEN
+    supervision["last_action_at_utc"] = reopened_at
+    supervision["phase"] = SUPERVISION_PHASE_PRE_QUEUE
+    supervision["actor"] = resolved_actor
+    if isinstance(source, str) and source.strip():
+        supervision["source"] = source.strip()
+    if reason:
+        supervision["reason"] = reason
+    supervision["auto_queue_eligible"] = True
+    _record_idempotency_proof(
+        supervision,
+        action=SUPERVISION_ACTION_REOPEN,
+        idempotency_key=idempotency_key,
+        payload=payload,
+        completed_at=reopened_at,
+    )
+
+    working = deepcopy(campaign)
+    metadata_map = _get_variant_metadata_map(working)
+    updated_entry = dict(metadata_map[variant])
+    updated_entry["publish_state"] = PUBLISH_STATE_PENDING
+    updated_entry["scheduled_at_utc"] = normalized_new
+    updated_entry["operator_supervision"] = supervision
+    metadata_map[variant] = updated_entry
+    working["variants"] = list(metadata_map.values())
+
+    write_result = write_campaign_metadata(base_path, campaign_id, working)
+    if not write_result.written:
+        return LinkedInSupervisionResult(
+            status="failed",
+            campaign_id=campaign_id,
+            variant=variant,
+            state=working.get("state"),
+            publish_state=PUBLISH_STATE_CANCELLED,
+            dry_run=False,
+            errors=[LINKEDIN_PUBLISH_METADATA_WRITE_FAILED],
+            metadata_written=False,
+        )
+
+    return LinkedInSupervisionResult(
+        status="completed",
+        campaign_id=campaign_id,
+        variant=variant,
+        state=working.get("state"),
+        publish_state=PUBLISH_STATE_PENDING,
+        dry_run=False,
+        phase=SUPERVISION_PHASE_PRE_QUEUE,
+        scheduled_at_utc=normalized_new,
+        operator_supervision=supervision,
+        metadata_written=True,
+    )

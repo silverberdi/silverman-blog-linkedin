@@ -467,14 +467,14 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Business outcome demonstrated — deployed console-layer (Vitest `TZ=America/Chicago` + ~1280/~375 + live static assets `index-DV0R4K8U.js` on `192.168.0.194:8010`); Visual DoD screenshots + walkthrough still open
     - [ ] Acceptance criteria validated — requires Visual DoD + operator walkthrough
     - [ ] Story accepted — operator walkthrough gate (not Vitest alone)
-  - [ ] **US-040J** — Cancelled event handling (reopen/reschedule) — follow-up; not delivered by US-040I
+  - [ ] **US-040J** — Cancelled event handling (reopen/reschedule)
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+    - [x] Work started
+    - [x] Business outcome demonstrated — console+worker layer (Vitest ~1280/~375 + pytest + static `index-BJwARkPN.js` / `index-BLiwrDxd.css`); Visual DoD screenshots + walkthrough still open; not deployed
     - [ ] Acceptance criteria validated — requires Visual DoD + operator walkthrough
     - [ ] Story accepted — operator walkthrough gate (not Vitest alone)
-  - [ ] **US-040K** — Max 2 publications per local day — follow-up; not delivered by US-040I
+  - [ ] **US-040K** — Max 2 publications per local day — follow-up; not delivered by US-040J
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [ ] Work started

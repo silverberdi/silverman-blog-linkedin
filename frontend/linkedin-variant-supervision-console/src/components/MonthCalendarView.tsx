@@ -24,6 +24,9 @@ function compactBadgeClass(item: ScheduleItem): string {
   if (item.blocked || item.publicationState === "blocked") {
     return "cal-badge cal-badge-blocked";
   }
+  if (item.publicationState === "cancelled") {
+    return "cal-badge cal-badge-cancelled";
+  }
   return "cal-badge";
 }
 
@@ -279,8 +282,11 @@ export function MonthCalendarView() {
                           : item.blocked ||
                               item.publicationState === "blocked"
                             ? "blocked"
-                            : "routine"
+                            : item.publicationState === "cancelled"
+                              ? "cancelled"
+                              : "routine"
                       }
+                      data-publication-state={item.publicationState}
                     >
                       <button
                         type="button"

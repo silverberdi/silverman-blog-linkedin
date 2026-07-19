@@ -6,7 +6,15 @@ import {
   newIdempotencyKey,
 } from "./ConfirmationFlow";
 import { ItemDetail } from "./ItemDetail";
-import { ScheduleEditorPanel } from "./ScheduleEditor";
+import {
+  CONSOLE_ACTOR,
+  CONSOLE_SOURCE,
+  ScheduleEditorFields,
+  ScheduleEditorPanel,
+  datetimeLocalToUtcIso,
+  isStrictlyAfterNow,
+  utcIsoToDatetimeLocal,
+} from "./ScheduleEditor";
 import { formatLocalDisplay, utcDayKey } from "../models/dateHelpers";
 import {
   publicationStateLabel,
@@ -15,13 +23,26 @@ import {
 } from "../models/supervision";
 import { useSupervisionStore } from "../models/store";
 
-type PanelMode = "view" | "edit" | "cancel";
+type PanelMode = "view" | "edit" | "cancel" | "reopen";
 
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+function cancellationPhaseLabel(phase: string | null): string {
+  if (phase === "pre_queue") {
+    return "Cancelled before queue (never queued for LinkedIn)";
+  }
+  if (phase === "post_queue") {
+    return "Cancelled after queue (LinkedIn API was not called)";
+  }
+  if (phase === "recovery") {
+    return "Cancelled from a failed publish recovery path";
+  }
+  return "Cancelled by operator";
+}
+
 /**
- * Focused event modal (US-040H) — primary surface for view/edit/reschedule/cancel.
+ * Focused event modal (US-040H / US-040J) — view/edit/reschedule/cancel/reopen.
  */
 export function EventModal() {
   const {
@@ -54,6 +75,9 @@ export function EventModal() {
   const [editDryRun, setEditDryRun] = useState(dryRunDefault);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelDryRun, setCancelDryRun] = useState(dryRunDefault);
+  const [reopenSchedule, setReopenSchedule] = useState("");
+  const [reopenReason, setReopenReason] = useState("");
+  const [reopenDryRun, setReopenDryRun] = useState(dryRunDefault);
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState("");
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
@@ -163,6 +187,12 @@ export function EventModal() {
   }
 
   const item = scheduleItem;
+  const isCancelled = item.publicationState === "cancelled";
+  const canReopen =
+    isCancelled &&
+    item.channel === "linkedin" &&
+    item.reopenEligible &&
+    Boolean(item.campaignId && item.variantId);
 
   function requireMutate(action: string): boolean {
     if (canMutate) {
@@ -216,6 +246,26 @@ export function EventModal() {
     setModalError("");
     closeScheduleEditor();
     setPanel("cancel");
+  }
+
+  function openReopen() {
+    if (!canReopen || !requireMutate("reopen")) {
+      return;
+    }
+    const confirmed = window.confirm(
+      "Reopen this cancelled LinkedIn variant and choose a new schedule? It returns to editable pending (not queued, not LinkedIn API published). Cancel remains irreversible except through this reopen path.",
+    );
+    if (!confirmed) {
+      return;
+    }
+    setReopenSchedule(utcIsoToDatetimeLocal(item.scheduledAtUtc));
+    setReopenReason("");
+    setReopenDryRun(dryRunDefault);
+    setUnsavedEditDraft(false);
+    setUnsavedScheduleDraft(false);
+    setModalError("");
+    closeScheduleEditor();
+    setPanel("reopen");
   }
 
   function handleMutationResult(action: string, result: MutationResult): void {
@@ -284,6 +334,60 @@ export function EventModal() {
         idempotency_key: cancelDryRun ? null : newIdempotencyKey(),
       });
       handleMutationResult("Cancel", result);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      const text = apiErr?.message || String(err);
+      setModalError(text);
+      pushToast({ kind: "error", text });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitReopen() {
+    if (!canReopen || !requireMutate("reopen")) {
+      return;
+    }
+    if (!item.campaignId || !item.variantId) {
+      return;
+    }
+    const iso = datetimeLocalToUtcIso(reopenSchedule);
+    if (!iso) {
+      const text = "Provide a valid new scheduled time in your local timezone.";
+      setModalError(text);
+      pushToast({ kind: "error", text });
+      return;
+    }
+    if (!isStrictlyAfterNow(iso)) {
+      const text =
+        "New schedule must be after now in your local time before reopen can proceed.";
+      setModalError(text);
+      pushToast({ kind: "error", text });
+      return;
+    }
+    if (!reopenDryRun && !confirmRealMutation("reopen")) {
+      return;
+    }
+    setSubmitting(true);
+    setModalError("");
+    try {
+      const result = await client.reopenVariant({
+        campaign_id: item.campaignId,
+        variant: item.variantId,
+        new_scheduled_at_utc: iso,
+        dry_run: reopenDryRun,
+        reason: reopenReason.trim() || null,
+        idempotency_key: reopenDryRun ? null : newIdempotencyKey(),
+        actor: CONSOLE_ACTOR,
+        source: CONSOLE_SOURCE,
+      });
+      if (result.status !== "completed") {
+        const text = `Reopen failed: ${(result.errors || []).join("; ") || "unknown"}`;
+        setModalError(text);
+        pushToast({ kind: "error", text });
+        return;
+      }
+      handleMutationResult("Reopen", result);
     } catch (err) {
       const apiErr = err as ApiError;
       const text = apiErr?.message || String(err);
@@ -430,7 +534,8 @@ export function EventModal() {
                 Cancel sets worker{" "}
                 <span className="mono">publish_state=cancelled</span> and
                 excludes the variant from strategy-driven auto-queue. It does not
-                call LinkedIn and is not LinkedIn API published. Real cancel
+                call LinkedIn and is not LinkedIn API published. Restoration
+                requires the approved reopen &amp; reschedule path. Real cancel
                 requires confirmation.
               </p>
               <label htmlFor="cancel-reason">Reason (optional)</label>
@@ -472,6 +577,263 @@ export function EventModal() {
                     : "Commit cancel"}
                 </button>
               </div>
+            </div>
+          ) : panel === "reopen" ? (
+            <div
+              data-testid="reopen-panel"
+              role="group"
+              aria-labelledby="reopen-panel-title"
+            >
+              <h3 id="reopen-panel-title">Reopen &amp; reschedule</h3>
+              <p className="meta">
+                Campaign {item.campaignId} · variant {item.variantId}
+              </p>
+              <p className="sup-meta">
+                Reopen restores editable{" "}
+                <span className="mono">pending</span> with a new future schedule.
+                It does not auto-queue and does not call the LinkedIn API. Dry-run
+                validates without mutating.
+              </p>
+              <ScheduleEditorFields
+                value={reopenSchedule}
+                onChange={(value) => {
+                  setReopenSchedule(value);
+                  setUnsavedScheduleDraft(true);
+                }}
+                idPrefix="reopen"
+              />
+              <label htmlFor="reopen-reason">Reason (optional)</label>
+              <input
+                id="reopen-reason"
+                type="text"
+                value={reopenReason}
+                onChange={(e) => {
+                  setReopenReason(e.target.value);
+                  setUnsavedScheduleDraft(true);
+                }}
+                placeholder="e.g. operator_choice"
+              />
+              <div className="check-row">
+                <input
+                  type="checkbox"
+                  id="reopen-dry-run"
+                  data-testid="reopen-dry-run"
+                  checked={reopenDryRun}
+                  onChange={(e) => setReopenDryRun(e.target.checked)}
+                />
+                <label htmlFor="reopen-dry-run">
+                  Dry-run (default on — validates without mutating)
+                </label>
+              </div>
+              <div className="panel-actions event-modal-actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => {
+                    if (unsavedScheduleDraft) {
+                      const ok = window.confirm(
+                        "You have an unsaved schedule draft. Discard and return?",
+                      );
+                      if (!ok) {
+                        return;
+                      }
+                    }
+                    setUnsavedScheduleDraft(false);
+                    setPanel("view");
+                  }}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  data-testid="reopen-submit"
+                  disabled={submitting || !canMutate}
+                  onClick={() => void submitReopen()}
+                >
+                  {reopenDryRun
+                    ? "Validate reopen (dry-run)"
+                    : "Commit reopen"}
+                </button>
+              </div>
+            </div>
+          ) : isCancelled ? (
+            <div data-testid="cancelled-event-view">
+              <p className="item-detail-status" data-testid="event-modal-status">
+                <span
+                  className="status-pill"
+                  style={{ backgroundColor: item.statusColor }}
+                >
+                  {label}
+                </span>{" "}
+                <span className="mono">{item.channel}</span>
+                {item.audience ? (
+                  <>
+                    {" · "}
+                    <span className="mono">{item.audience}</span>
+                  </>
+                ) : null}
+                {" · "}
+                <span
+                  className="mono"
+                  data-testid="event-modal-schedule-local"
+                >
+                  {formatLocalDisplay(item.scheduledAtUtc)}
+                </span>
+              </p>
+
+              <section
+                className="cancelled-what"
+                data-testid="cancelled-what"
+              >
+                <h3>What is this?</h3>
+                <p>
+                  A cancelled planned LinkedIn publication
+                  {item.campaignId ? (
+                    <>
+                      {" "}
+                      for campaign <span className="mono">{item.campaignId}</span>
+                    </>
+                  ) : null}
+                  {item.variantId ? (
+                    <>
+                      {" "}
+                      / variant <span className="mono">{item.variantId}</span>
+                    </>
+                  ) : null}
+                  {item.audience ? (
+                    <>
+                      {" "}
+                      ({item.audience})
+                    </>
+                  ) : null}
+                  . Cancelled is not LinkedIn API published.
+                </p>
+              </section>
+
+              <section
+                className="cancelled-why"
+                data-testid="cancelled-why"
+              >
+                <h3>Why is it cancelled?</h3>
+                <p>
+                  {item.cancellationReason
+                    ? item.cancellationReason
+                    : "Cancelled by operator"}
+                </p>
+                <p className="meta">
+                  {cancellationPhaseLabel(item.cancellationPhase)}
+                  {item.cancelledAtUtc
+                    ? ` · ${formatLocalDisplay(item.cancelledAtUtc)}`
+                    : ""}
+                </p>
+              </section>
+
+              <section
+                className="cancelled-what-next"
+                data-testid="cancelled-what-next"
+              >
+                <h3>What can I do now?</h3>
+                {canReopen && canMutate ? (
+                  <p>
+                    You can reopen and choose a new local schedule. The variant
+                    returns to editable pending (not queued). Density limits
+                    (max 2 publications per local day) are a follow-up (US-040K)
+                    and are not enforced here.
+                  </p>
+                ) : canReopen && !canMutate ? (
+                  <p>
+                    Reopen is available for this cancellation, but this session
+                    cannot mutate. Sign in with mutation permission to reopen.
+                  </p>
+                ) : (
+                  <p>
+                    This cancellation is not reopen-eligible (for example a
+                    failed-publish recovery cancel). It stays cancelled; use the
+                    recovery path when applicable. No fake Edit controls are
+                    offered.
+                  </p>
+                )}
+              </section>
+
+              <div
+                className="panel-actions event-modal-actions"
+                data-testid="event-modal-actions"
+              >
+                {canReopen && (
+                  <button
+                    type="button"
+                    className="row-action"
+                    data-testid="row-reopen"
+                    disabled={!canMutate}
+                    onClick={openReopen}
+                  >
+                    Reopen &amp; reschedule
+                  </button>
+                )}
+              </div>
+
+              <details
+                className="diagnostics-details"
+                data-testid="event-modal-diagnostics"
+                open={diagnosticsOpen}
+                onToggle={(e) =>
+                  setDiagnosticsOpen((e.target as HTMLDetailsElement).open)
+                }
+              >
+                <summary>Diagnostics / technical details</summary>
+                <dl className="diagnostics-dl">
+                  <div>
+                    <dt>item_id</dt>
+                    <dd className="mono">{item.itemId}</dd>
+                  </div>
+                  {item.campaignId && (
+                    <div>
+                      <dt>campaign_id</dt>
+                      <dd className="mono">{item.campaignId}</dd>
+                    </div>
+                  )}
+                  {item.variantId && (
+                    <div>
+                      <dt>variant_id</dt>
+                      <dd className="mono">{item.variantId}</dd>
+                    </div>
+                  )}
+                  {item.scheduledAtUtc && (
+                    <div>
+                      <dt>scheduled_at_utc</dt>
+                      <dd className="mono" data-testid="event-modal-scheduled-at-utc">
+                        {item.scheduledAtUtc}
+                      </dd>
+                    </div>
+                  )}
+                  {item.cancelledAtUtc && (
+                    <div>
+                      <dt>cancelled_at_utc</dt>
+                      <dd className="mono">{item.cancelledAtUtc}</dd>
+                    </div>
+                  )}
+                  {item.cancellationPhase && (
+                    <div>
+                      <dt>cancellation_phase</dt>
+                      <dd className="mono">{item.cancellationPhase}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt>reopen_eligible</dt>
+                    <dd className="mono">{String(item.reopenEligible)}</dd>
+                  </div>
+                  <div>
+                    <dt>publication_state</dt>
+                    <dd className="mono">{item.publicationState}</dd>
+                  </div>
+                  <div>
+                    <dt>linkedinApiPublished</dt>
+                    <dd className="mono">
+                      {String(item.linkedinApiPublished)}
+                    </dd>
+                  </div>
+                </dl>
+              </details>
             </div>
           ) : (
             <>

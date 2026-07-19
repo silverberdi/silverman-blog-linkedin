@@ -72,6 +72,11 @@ export interface ScheduleItem {
   calendarItemId: string | null;
   scheduleEditable: boolean;
   scheduleEditBlockReason: string | null;
+  /** US-040J cancellation context from schedule-visibility (cancelled LinkedIn). */
+  cancelledAtUtc: string | null;
+  cancellationPhase: string | null;
+  cancellationReason: string | null;
+  reopenEligible: boolean;
   /** Actions only for pending LinkedIn supervision rows. */
   actions: ReadonlyArray<"edit" | "defer" | "cancel">;
   statusColor: string;
@@ -321,6 +326,10 @@ export function normalizeScheduleItem(
     calendarItemId: row.calendar_item_id ?? null,
     scheduleEditable,
     scheduleEditBlockReason: row.schedule_edit_block_reason ?? null,
+    cancelledAtUtc: row.cancelled_at_utc ?? null,
+    cancellationPhase: row.cancellation_phase ?? null,
+    cancellationReason: row.cancellation_reason ?? null,
+    reopenEligible: row.reopen_eligible === true,
     actions: pendingLinkedIn ? ["edit", "defer", "cancel"] : [],
     statusColor: STATUS_COLOR[publicationState],
   };
@@ -418,6 +427,10 @@ export function supervisionToFilterable(item: SupervisionItem): ScheduleItem {
       item.publishState === "pending"
         ? null
         : "linkedin_supervision_variant_not_pending",
+    cancelledAtUtc: null,
+    cancellationPhase: null,
+    cancellationReason: null,
+    reopenEligible: false,
     actions: item.actions,
     statusColor: item.statusColor,
   };

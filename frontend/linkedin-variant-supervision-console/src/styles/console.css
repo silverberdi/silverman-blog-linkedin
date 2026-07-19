@@ -814,6 +814,11 @@ td {
   background: #261015;
 }
 
+.week-event-chip-cancelled {
+  background: #16181c;
+  opacity: 0.88;
+}
+
 .week-chip-title {
   font-weight: 800;
   font-size: 0.82rem;
@@ -1008,6 +1013,11 @@ td {
 .cal-badge-failed {
   border-left-width: 4px !important;
   background: rgba(255, 107, 122, 0.1);
+}
+
+.cal-badge-cancelled {
+  opacity: 0.85;
+  background: rgba(138, 138, 138, 0.08);
 }
 
 .calendar-more {

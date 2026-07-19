@@ -408,3 +408,73 @@ def test_schedule_editable_hints_and_fingerprint(schedule_base: Path):
     assert pending.channel == "linkedin"
     assert pending.linkedin_api_published is False
     assert published.linkedin_api_published is True
+
+
+def test_schedule_visibility_exposes_cancellation_context_and_reopen_eligible(
+    schedule_base: Path,
+):
+    """US-040J: cancelled LinkedIn items include cancellation fields + reopen_eligible."""
+    _write_calendar(schedule_base, [])
+    _write_campaign(
+        schedule_base,
+        variants=[
+            _variant(
+                "cancelled-pre-queue",
+                publish_state="cancelled",
+                scheduled_at_utc="2026-07-22T14:00:00Z",
+                operator_supervision={
+                    "last_action": "cancel",
+                    "auto_queue_eligible": False,
+                    "cancellation": {
+                        "cancelled_at_utc": "2026-07-18T12:00:00Z",
+                        "phase": "pre_queue",
+                        "reason": "operator_choice",
+                    },
+                },
+            ),
+            _variant(
+                "cancelled-recovery",
+                publish_state="cancelled",
+                scheduled_at_utc="2026-07-23T14:00:00Z",
+                operator_supervision={
+                    "last_action": "cancel",
+                    "auto_queue_eligible": False,
+                    "cancellation": {
+                        "cancelled_at_utc": "2026-07-18T13:00:00Z",
+                        "phase": "recovery",
+                        "reason": "retry_budget_exhausted",
+                    },
+                },
+                linkedin_recovery_history=[
+                    {"action": "recovery_cancelled", "attempt_number": 3},
+                ],
+            ),
+            _variant(
+                "still-pending",
+                publish_state="pending",
+                scheduled_at_utc="2026-07-24T14:00:00Z",
+            ),
+        ],
+    )
+
+    result = get_flow_a_schedule_visibility(schedule_base, year=2026, month=7)
+    by_id = {item.item_id: item for item in result.items}
+
+    pre = by_id[f"linkedin:{CAMPAIGN_ID}:cancelled-pre-queue"]
+    assert pre.publication_state == "cancelled"
+    assert pre.cancelled_at_utc == "2026-07-18T12:00:00Z"
+    assert pre.cancellation_phase == "pre_queue"
+    assert pre.cancellation_reason == "operator_choice"
+    assert pre.reopen_eligible is True
+    assert pre.linkedin_api_published is False
+
+    recovery = by_id[f"linkedin:{CAMPAIGN_ID}:cancelled-recovery"]
+    assert recovery.publication_state == "cancelled"
+    assert recovery.cancellation_phase == "recovery"
+    assert recovery.reopen_eligible is False
+
+    pending = by_id[f"linkedin:{CAMPAIGN_ID}:still-pending"]
+    assert pending.reopen_eligible is None
+    assert pending.cancelled_at_utc is None
+    assert pending.cancellation_phase is None
+    assert pending.cancellation_reason is None

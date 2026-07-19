@@ -30,6 +30,7 @@ from silverman_blog_linkedin.linkedin_publication_flow import (
     queue_linkedin_publication,
 )
 from silverman_blog_linkedin.linkedin_supervision_flow import (
+    LINKEDIN_REOPEN_NOT_ALLOWED,
     LINKEDIN_SUPERVISION_DEFER_DUPLICATE_SLOT,
     LINKEDIN_SUPERVISION_DEFER_SATURATION,
     LINKEDIN_SUPERVISION_DEFER_TIME_INVALID,
@@ -39,6 +40,7 @@ from silverman_blog_linkedin.linkedin_supervision_flow import (
     SUPERVISION_PHASE_RECOVERY,
     correct_linkedin_variant,
     defer_linkedin_variant,
+    reopen_linkedin_variant,
 )
 from silverman_blog_linkedin.main import create_app
 from tests.conftest import auth_header, make_settings
@@ -953,3 +955,282 @@ def test_us022_cancel_failed_invalid_evidence_fails_closed(scheduled_base: Path)
     assert result.status == "failed"
     assert LINKEDIN_PUBLISH_RECOVERY_EVIDENCE_INVALID in result.errors
     assert json.dumps(_variant_entry(scheduled_base), sort_keys=True) == before
+
+
+# --- US-040J reopen/reschedule-from-cancelled ---
+
+REOPEN_SCHEDULE = "2026-08-15T16:00:00Z"
+REOPEN_NOW = datetime(2026, 7, 19, 12, 0, 0, tzinfo=timezone.utc)
+
+
+def test_reopen_pre_queue_cancelled_restores_pending(scheduled_base: Path):
+    cancel_linkedin_publication(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        reason="operator_choice",
+    )
+    before_hash = _variant_entry(scheduled_base)["derivative_content_sha256"]
+
+    result = reopen_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc=REOPEN_SCHEDULE,
+        dry_run=False,
+        reason="restore_after_review",
+        source="linkedin_variant_supervision_console",
+        now=REOPEN_NOW,
+    )
+
+    assert result.status == "completed"
+    assert result.publish_state == PUBLISH_STATE_PENDING
+    assert result.scheduled_at_utc == REOPEN_SCHEDULE
+    assert result.dry_run is False
+    assert result.metadata_written is True
+
+    entry = _variant_entry(scheduled_base)
+    assert entry["publish_state"] == PUBLISH_STATE_PENDING
+    assert entry["scheduled_at_utc"] == REOPEN_SCHEDULE
+    assert entry["derivative_content_sha256"] == before_hash
+    supervision = entry["operator_supervision"]
+    assert supervision["last_action"] == "reopen"
+    assert supervision["phase"] == "pre_queue"
+    assert supervision["auto_queue_eligible"] is True
+    assert "cancellation" not in supervision
+    assert len(supervision["cancellation_history"]) == 1
+    assert supervision["cancellation_history"][0]["phase"] == "pre_queue"
+    assert len(supervision["reopen_history"]) == 1
+    assert supervision["reopen_history"][0]["new_scheduled_at_utc"] == REOPEN_SCHEDULE
+
+
+def test_reopen_dry_run_does_not_mutate(scheduled_base: Path):
+    cancel_linkedin_publication(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+    )
+    before = json.dumps(_variant_entry(scheduled_base), sort_keys=True)
+
+    result = reopen_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc=REOPEN_SCHEDULE,
+        dry_run=True,
+        now=REOPEN_NOW,
+    )
+
+    assert result.status == "completed"
+    assert result.dry_run is True
+    assert result.publish_state == PUBLISH_STATE_CANCELLED
+    assert result.metadata_written is False
+    assert json.dumps(_variant_entry(scheduled_base), sort_keys=True) == before
+
+
+def test_reopen_defaults_to_dry_run_via_endpoint(client: TestClient, scheduled_base: Path):
+    cancel_linkedin_publication(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+    )
+    before = json.dumps(_variant_entry(scheduled_base), sort_keys=True)
+
+    response = client.post(
+        "/reopen-linkedin-variant",
+        headers=auth_header(),
+        json={
+            "campaign_id": CANONICAL_CAMPAIGN_ID,
+            "variant": TARGET_VARIANT,
+            "new_scheduled_at_utc": REOPEN_SCHEDULE,
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "completed"
+    assert body["dry_run"] is True
+    assert json.dumps(_variant_entry(scheduled_base), sort_keys=True) == before
+
+
+def test_idempotent_reopen_replay(scheduled_base: Path):
+    cancel_linkedin_publication(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+    )
+    first = reopen_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc=REOPEN_SCHEDULE,
+        dry_run=False,
+        idempotency_key="reopen-key-1",
+        now=REOPEN_NOW,
+    )
+    assert first.status == "completed"
+    history_len = len(
+        _variant_entry(scheduled_base)["operator_supervision"]["reopen_history"]
+    )
+
+    second = reopen_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc=REOPEN_SCHEDULE,
+        dry_run=False,
+        idempotency_key="reopen-key-1",
+        now=REOPEN_NOW,
+    )
+    assert second.status == "completed"
+    assert (
+        len(_variant_entry(scheduled_base)["operator_supervision"]["reopen_history"])
+        == history_len
+    )
+
+
+def test_reopen_post_queue_cancelled_returns_pending_not_queued(scheduled_base: Path):
+    _queue_variant(scheduled_base)
+    cancel_linkedin_publication(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+    )
+    assert _variant_entry(scheduled_base)["operator_supervision"]["cancellation"][
+        "phase"
+    ] == "post_queue"
+
+    result = reopen_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc=REOPEN_SCHEDULE,
+        dry_run=False,
+        now=REOPEN_NOW,
+    )
+    assert result.status == "completed"
+    assert result.publish_state == PUBLISH_STATE_PENDING
+    entry = _variant_entry(scheduled_base)
+    assert entry["publish_state"] == PUBLISH_STATE_PENDING
+    assert entry["publish_state"] != PUBLISH_STATE_QUEUED
+
+
+def test_reopen_failed_cancellation_refused(scheduled_base: Path):
+    _make_failed_variant(scheduled_base, attempt_count=3)
+    cancel_linkedin_publication(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        reason="retry_budget_exhausted",
+    )
+    before = json.dumps(_variant_entry(scheduled_base), sort_keys=True)
+
+    result = reopen_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc=REOPEN_SCHEDULE,
+        dry_run=False,
+        now=REOPEN_NOW,
+    )
+    assert result.status == "failed"
+    assert LINKEDIN_REOPEN_NOT_ALLOWED in result.errors
+    assert json.dumps(_variant_entry(scheduled_base), sort_keys=True) == before
+
+
+def test_reopen_past_schedule_refused(scheduled_base: Path):
+    cancel_linkedin_publication(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+    )
+    before = json.dumps(_variant_entry(scheduled_base), sort_keys=True)
+
+    result = reopen_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc="2026-07-01T10:00:00Z",
+        dry_run=False,
+        now=REOPEN_NOW,
+    )
+    assert result.status == "failed"
+    assert LINKEDIN_SUPERVISION_DEFER_TIME_INVALID in result.errors
+    assert json.dumps(_variant_entry(scheduled_base), sort_keys=True) == before
+
+
+def test_reopen_pending_refused(scheduled_base: Path):
+    result = reopen_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc=REOPEN_SCHEDULE,
+        dry_run=False,
+        now=REOPEN_NOW,
+    )
+    assert result.status == "failed"
+    assert LINKEDIN_REOPEN_NOT_ALLOWED in result.errors
+
+
+def test_defer_does_not_reopen_cancelled(scheduled_base: Path):
+    cancel_linkedin_publication(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+    )
+    before = json.dumps(_variant_entry(scheduled_base), sort_keys=True)
+
+    result = defer_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc=REOPEN_SCHEDULE,
+        dry_run=False,
+        now=REOPEN_NOW,
+    )
+    assert result.status == "failed"
+    assert LINKEDIN_SUPERVISION_VARIANT_NOT_PENDING in result.errors
+    assert json.dumps(_variant_entry(scheduled_base), sort_keys=True) == before
+    assert _variant_entry(scheduled_base)["publish_state"] == PUBLISH_STATE_CANCELLED
+
+
+def test_reopen_endpoint_rejects_unauthenticated(client: TestClient):
+    response = client.post(
+        "/reopen-linkedin-variant",
+        json={
+            "campaign_id": CANONICAL_CAMPAIGN_ID,
+            "variant": TARGET_VARIANT,
+            "new_scheduled_at_utc": REOPEN_SCHEDULE,
+            "dry_run": True,
+        },
+    )
+    assert response.status_code == 401
+
+
+def test_reopen_makes_no_linkedin_http_call(scheduled_base: Path):
+    """Reopen has no http_client parameter and does not publish to LinkedIn."""
+    cancel_linkedin_publication(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+    )
+    result = reopen_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc=REOPEN_SCHEDULE,
+        dry_run=False,
+        now=REOPEN_NOW,
+    )
+    assert result.status == "completed"
+    assert result.publish_state == PUBLISH_STATE_PENDING
+    # Signature contract: reopen never accepts an http_client (unlike publish).
+    assert "http_client" not in reopen_linkedin_variant.__code__.co_varnames

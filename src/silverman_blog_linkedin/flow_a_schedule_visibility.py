@@ -33,6 +33,10 @@ from silverman_blog_linkedin.editorial_calendar_schedule_update import (
     TERMINAL_SCHEDULE_STATUSES,
 )
 from silverman_blog_linkedin.linkedin_config import load_linkedin_publication_settings
+from silverman_blog_linkedin.linkedin_supervision_flow import (
+    cancellation_phase_for_entry,
+    is_reopen_eligible_variant,
+)
 from silverman_blog_linkedin.linkedin_variant_pending_supervision import (
     CAMPAIGN_FILE_INVALID,
     CAMPAIGN_FILE_PATH_OUTSIDE_SOURCE,
@@ -111,6 +115,11 @@ class ScheduleVisibilityItem:
     calendar_item_id: str | None = None
     schedule_editable: bool = False
     schedule_edit_block_reason: str | None = None
+    # US-040J additive cancellation context (LinkedIn cancelled items; nullable).
+    cancelled_at_utc: str | None = None
+    cancellation_phase: str | None = None
+    cancellation_reason: str | None = None
+    reopen_eligible: bool | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -445,6 +454,19 @@ def _linkedin_rows_from_campaign(
 
         title = _optional_str(entry.get("audience")) or variant_id
         schedule_editable, block_reason = _linkedin_schedule_editability(publish_state)
+        cancelled_at_utc: str | None = None
+        cancellation_phase: str | None = None
+        cancellation_reason: str | None = None
+        reopen_eligible: bool | None = None
+        if publish_state == "cancelled":
+            cancellation_phase = cancellation_phase_for_entry(entry)
+            supervision = entry.get("operator_supervision")
+            if isinstance(supervision, dict):
+                cancellation = supervision.get("cancellation")
+                if isinstance(cancellation, dict):
+                    cancelled_at_utc = _optional_str(cancellation.get("cancelled_at_utc"))
+                    cancellation_reason = _optional_str(cancellation.get("reason"))
+            reopen_eligible = is_reopen_eligible_variant(entry)
         rows.append(
             ScheduleVisibilityItem(
                 item_id=f"linkedin:{campaign_id}:{variant_id}",
@@ -462,6 +484,10 @@ def _linkedin_rows_from_campaign(
                 calendar_item_id=None,
                 schedule_editable=schedule_editable,
                 schedule_edit_block_reason=block_reason,
+                cancelled_at_utc=cancelled_at_utc,
+                cancellation_phase=cancellation_phase,
+                cancellation_reason=cancellation_reason,
+                reopen_eligible=reopen_eligible,
             )
         )
     return rows

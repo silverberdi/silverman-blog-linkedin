@@ -25,6 +25,8 @@ function chipClass(item: ScheduleItem): string {
     parts.push("week-event-chip-failed");
   } else if (item.blocked || item.publicationState === "blocked") {
     parts.push("week-event-chip-blocked");
+  } else if (item.publicationState === "cancelled") {
+    parts.push("week-event-chip-cancelled");
   }
   return parts.join(" ");
 }
@@ -240,6 +242,7 @@ export function WeekView() {
                         data-testid="week-event-chip"
                         data-item-id={item.itemId}
                         data-channel={item.channel}
+                        data-publication-state={item.publicationState}
                         style={{ borderLeftColor: item.statusColor }}
                         onClick={() => openEventModal(item.itemId, "week")}
                       >

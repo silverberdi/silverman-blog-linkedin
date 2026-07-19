@@ -20,6 +20,8 @@ export const SUPERVISION_ERROR_MESSAGES: Record<string, string> = {
     "Action is not allowed for the current variant state.",
   linkedin_publish_cancel_not_allowed:
     "Cancel is not allowed for this variant state (for example already published).",
+  linkedin_reopen_not_allowed:
+    "This cancelled variant cannot be reopened (recovery cancel or ineligible state). Use the recovery path when applicable — cancel remains irreversible except via reopen for eligible cancellations.",
   calendar_item_not_found: "Calendar item was not found.",
   calendar_schedule_time_invalid:
     "New calendar due time must be after now in your local time.",
@@ -88,7 +90,7 @@ export function mutationDeniedError(): ApiError {
   return {
     kind: "mutation_denied",
     message:
-      "Read-only session: edit, defer, cancel, and calendar schedule-update are not allowed.",
+      "Read-only session: edit, defer, cancel, reopen, and calendar schedule-update are not allowed.",
     codes: [],
   };
 }
@@ -143,7 +145,7 @@ export function authMissingError(context: "load" | "mutate"): ApiError {
     message:
       context === "load"
         ? "Authentication required. Sign in to load pending supervision or schedule visibility."
-        : "Authentication required before submitting an edit, defer, cancel, or calendar schedule-update.",
+        : "Authentication required before submitting an edit, defer, cancel, reopen, or calendar schedule-update.",
     codes: [],
   };
 }
