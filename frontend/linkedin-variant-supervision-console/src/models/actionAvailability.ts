@@ -1,9 +1,9 @@
 import type { ScheduleItem } from "./supervision";
 
 /**
- * EventModal “What you can do now” matrix (US-083).
+ * EventModal “What you can do now” matrix (US-083 / US-084 / US-085).
  * Available rows reflect real eligibility; unavailable expected controls stay visible
- * with plain-language reasons (including not-yet for US-085 / US-086).
+ * with plain-language reasons (including not-yet for US-086).
  */
 
 export type ActionAvailabilityId =
@@ -64,10 +64,12 @@ export function buildLinkedInActionMatrix(
     hasSupervisionJoin && item.actions.includes("edit") && isPendingLike;
   const canCancelPending =
     hasSupervisionJoin && item.actions.includes("cancel") && isPendingLike;
+  const hasCancelIdentity = Boolean(item.campaignId && item.variantId);
+  const canCancelQueued = isQueued && hasCancelIdentity;
   const canReopen =
     isCancelled &&
     item.reopenEligible &&
-    Boolean(item.campaignId && item.variantId);
+    hasCancelIdentity;
 
   const rows: ActionAvailabilityRow[] = [];
 
@@ -128,14 +130,15 @@ export function buildLinkedInActionMatrix(
     }
   }
 
-  // Cancel pending (existing US-017) — show for pre-send; omit when cancelled/live.
+  // Cancel while scheduled (US-017 / US-085) — show for pre-send; omit when cancelled/live.
   if (isPendingLike) {
     if (canCancelPending && canMutate) {
       rows.push({
         id: "cancel_pending",
         label: "Cancel (while scheduled)",
         available: true,
-        reason: "Available — cancels before queue; not a LinkedIn API unpublish.",
+        reason:
+          "Available — open Cancel, then Preview (no change) or Make real change with confirmation. Withdraws the variant (will not send); not postpone and not a LinkedIn API unpublish.",
       });
     } else if (canCancelPending && !canMutate) {
       rows.push({
@@ -143,7 +146,7 @@ export function buildLinkedInActionMatrix(
         label: "Cancel (while scheduled)",
         available: false,
         reason:
-          "Blocked — this session cannot mutate. Sign in with mutation permission.",
+          "Blocked — this session cannot mutate. Sign in with mutation permission, then cancel.",
       });
     } else {
       rows.push({
@@ -155,15 +158,33 @@ export function buildLinkedInActionMatrix(
     }
   }
 
-  // Cancel while waiting to send — expected when queued; always not shipped (US-085).
+  // Cancel while waiting to send — working control via schedule identity (US-085).
   if (isQueued) {
-    rows.push({
-      id: "cancel_queued",
-      label: "Cancel (while waiting to send)",
-      available: false,
-      reason:
-        "Not available yet (US-085) — Waiting to send is not live on LinkedIn, but cancel-from-console for queued is not shipped yet.",
-    });
+    if (canCancelQueued && canMutate) {
+      rows.push({
+        id: "cancel_queued",
+        label: "Cancel (while waiting to send)",
+        available: true,
+        reason:
+          "Available — open Cancel, then Preview (no change) or Make real change with confirmation. Withdraws via cancel endpoint (will not send); not postpone and not a LinkedIn API unpublish.",
+      });
+    } else if (canCancelQueued && !canMutate) {
+      rows.push({
+        id: "cancel_queued",
+        label: "Cancel (while waiting to send)",
+        available: false,
+        reason:
+          "Blocked — this session cannot mutate. Sign in with mutation permission, then cancel.",
+      });
+    } else {
+      rows.push({
+        id: "cancel_queued",
+        label: "Cancel (while waiting to send)",
+        available: false,
+        reason:
+          "Unavailable — campaign and variant identity are required to cancel Waiting to send. Reload schedule visibility.",
+      });
+    }
   }
 
   // Reopen — only when cancelled (omit otherwise).

@@ -19,10 +19,24 @@ export function mutationOutcomeToast(
   dryRun: boolean,
   identity: string,
 ): string {
+  const isCancel =
+    action === "Cancel" || action.toLowerCase().startsWith("cancel");
   if (dryRun) {
+    if (isCancel) {
+      return (
+        `Preview only (dry-run): ${action} validated for ${identity}. ` +
+        `No lasting change was made. Not Cancelled for real. Not live on LinkedIn.`
+      );
+    }
     return (
       `Preview only (dry-run): ${action} validated for ${identity}. ` +
       `No lasting change was made. Not live on LinkedIn.`
+    );
+  }
+  if (isCancel) {
+    return (
+      `Saved: Cancel committed for ${identity}. ` +
+      `Variant is Cancelled and will not send — reopen to restore when eligible. Not live on LinkedIn.`
     );
   }
   return (

@@ -251,7 +251,19 @@ export function EventModal() {
   }
 
   function openCancel() {
-    if (!supervisionItem || !requireMutate("cancel")) {
+    const campaignId = item.campaignId;
+    const variantId = item.variantId;
+    if (!campaignId || !variantId || !requireMutate("cancel")) {
+      return;
+    }
+    const isLive =
+      item.publicationState === "published" ||
+      item.linkedinApiPublished === true;
+    if (isLive) {
+      const text =
+        "Cancel is not available — this variant is already Live on LinkedIn. Reload if status looks stale.";
+      setModalError(text);
+      pushToast({ kind: "error", text });
       return;
     }
     setCancelReason("");
@@ -330,18 +342,20 @@ export function EventModal() {
   }
 
   async function submitCancel() {
-    if (!supervisionItem || !requireMutate("cancel")) {
+    const campaignId = item.campaignId;
+    const variantId = item.variantId;
+    if (!campaignId || !variantId || !requireMutate("cancel")) {
       return;
     }
-    if (!cancelDryRun && !confirmRealMutation("cancel")) {
+    if (!cancelDryRun && !confirmRealMutation("cancel (withdraw — will not send)")) {
       return;
     }
     setSubmitting(true);
     setModalError("");
     try {
       const result = await client.cancelVariant({
-        campaign_id: supervisionItem.campaignId,
-        variant: supervisionItem.variantId,
+        campaign_id: campaignId,
+        variant: variantId,
         dry_run: cancelDryRun,
         reason: cancelReason.trim() || null,
         idempotency_key: cancelDryRun ? null : newIdempotencyKey(),
@@ -349,7 +363,10 @@ export function EventModal() {
       handleMutationResult("Cancel", result);
     } catch (err) {
       const apiErr = err as ApiError;
-      const text = apiErr?.message || String(err);
+      const text =
+        apiErr?.codes?.length
+          ? explainErrorCodes(apiErr.codes)
+          : apiErr?.message || String(err);
       setModalError(text);
       pushToast({ kind: "error", text });
     } finally {
@@ -433,12 +450,34 @@ export function EventModal() {
     linkedinApiPublished: item.linkedinApiPublished,
     channel: item.channel,
   });
+  const isLiveOnLinkedIn =
+    item.publicationState === "published" ||
+    item.linkedinApiPublished === true;
+  const isQueuedWaiting = item.publicationState === "queued";
+  const isPendingLike =
+    item.publicationState === "pending" ||
+    item.publicationState === "deferred" ||
+    item.publicationState === "blocked";
+  const hasCancelIdentity = Boolean(item.campaignId && item.variantId);
   const canEdit = Boolean(
     supervisionItem && item.actions.includes("edit"),
   );
-  const canCancel = Boolean(
-    supervisionItem && item.actions.includes("cancel"),
+  /** Pending cancel via supervision join; queued cancel via schedule identity (US-085). */
+  const canCancelPending = Boolean(
+    supervisionItem &&
+      item.actions.includes("cancel") &&
+      isPendingLike &&
+      !isLiveOnLinkedIn,
   );
+  const canCancelQueued = Boolean(
+    isQueuedWaiting && hasCancelIdentity && !isLiveOnLinkedIn,
+  );
+  const canCancel = canCancelPending || canCancelQueued;
+  const cancelPanelTitle = isQueuedWaiting
+    ? "Cancel waiting-to-send variant"
+    : "Cancel scheduled variant";
+  const cancelCampaignId = item.campaignId;
+  const cancelVariantId = item.variantId;
   const actionMatrix =
     item.channel === "linkedin"
       ? buildLinkedInActionMatrix({
@@ -634,24 +673,27 @@ export function EventModal() {
                 </button>
               </div>
             </div>
-          ) : panel === "cancel" && supervisionItem ? (
+          ) : panel === "cancel" && cancelCampaignId && cancelVariantId ? (
             <div
               data-testid="cancel-panel"
               role="group"
               aria-labelledby="cancel-panel-title"
             >
-              <h3 id="cancel-panel-title">Cancel pending variant</h3>
+              <h3 id="cancel-panel-title">{cancelPanelTitle}</h3>
               <p className="meta">
-                Campaign {supervisionItem.campaignId} · variant{" "}
-                {supervisionItem.variantId}
+                Campaign {cancelCampaignId} · variant {cancelVariantId}
               </p>
-              <p className="sup-meta">
-                Cancel sets worker{" "}
-                <span className="mono">publish_state=cancelled</span> and
-                excludes the variant from strategy-driven auto-queue. It does not
-                call LinkedIn and is not LinkedIn API published. Restoration
-                requires the approved reopen &amp; reschedule path. Real cancel
-                requires confirmation.
+              <p
+                className="sup-meta"
+                data-testid="cancel-control-framing"
+              >
+                {isQueuedWaiting
+                  ? "Withdraw this Waiting-to-send variant so it will not send. Cancel is not postpone (postpone keeps Waiting to send with a new time). It does not call LinkedIn and is not an unpublish of a live post."
+                  : "Withdraw this Scheduled variant so it will not send. Cancel is not postpone (postpone keeps Scheduled with a new time). It does not call LinkedIn and is not an unpublish of a live post."}{" "}
+                Sets worker <span className="mono">publish_state=cancelled</span>{" "}
+                and excludes strategy-driven auto-queue. Restoration requires
+                the approved reopen &amp; reschedule path. Real cancel requires
+                confirmation.
               </p>
               <label htmlFor="cancel-reason">Reason (optional)</label>
               <input

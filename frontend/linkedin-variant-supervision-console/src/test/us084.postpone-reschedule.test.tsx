@@ -109,7 +109,7 @@ describe("US-084 action matrix and refusal copy", () => {
     );
   });
 
-  it("keeps cancel-queued and publish-now unavailable (US-085 / US-086)", () => {
+  it("keeps cancel-queued available and publish-now unavailable (US-085 / US-086)", () => {
     const rows = buildLinkedInActionMatrix({
       item: scheduleItem({
         itemId: "li-queued",
@@ -120,7 +120,7 @@ describe("US-084 action matrix and refusal copy", () => {
       hasSupervisionJoin: false,
       canMutate: true,
     });
-    expect(rows.find((r) => r.id === "cancel_queued")?.available).toBe(false);
+    expect(rows.find((r) => r.id === "cancel_queued")?.available).toBe(true);
     expect(rows.find((r) => r.id === "publish_now")?.available).toBe(false);
   });
 });

@@ -102,7 +102,7 @@ describe("US-083 action availability matrix", () => {
     expect(byId.cancel_queued).toBeUndefined();
   });
 
-  it("queued shows postpone available when schedule-editable; cancel-queued and publish now not yet", () => {
+  it("queued shows postpone and cancel-queued available when identity + canMutate; publish now not yet", () => {
     const rows = buildLinkedInActionMatrix({
       item: scheduleItem({
         itemId: "li-queued",
@@ -116,9 +116,9 @@ describe("US-083 action availability matrix", () => {
     const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
     expect(byId.reschedule?.available).toBe(true);
     expect(byId.reschedule?.label).toMatch(/Postpone/i);
-    expect(byId.cancel_queued?.available).toBe(false);
-    expect(byId.cancel_queued?.reason).toMatch(/US-085/);
-    expect(byId.cancel_queued?.reason).toMatch(/not live on LinkedIn/i);
+    expect(byId.cancel_queued?.available).toBe(true);
+    expect(byId.cancel_queued?.reason).toMatch(/will not send|Withdraw/i);
+    expect(byId.cancel_queued?.reason).not.toMatch(/not available yet/i);
     expect(byId.publish_now?.available).toBe(false);
     expect(byId.publish_now?.reason).toMatch(/US-086/);
     expect(byId.edit?.available).toBe(false);
@@ -172,8 +172,16 @@ describe("US-083 preview vs real outcome copy", () => {
     const text = mutationOutcomeToast("Cancel", false, "c1 / v1");
     expect(text).toMatch(/^Saved:/);
     expect(text).toMatch(/committed/);
+    expect(text).toMatch(/Cancelled|will not send/i);
     expect(text).toMatch(/Not live on LinkedIn/i);
     expect(text).not.toMatch(/Preview only/i);
+  });
+
+  it("cancel preview toast cannot be read as Cancelled for real", () => {
+    const text = mutationOutcomeToast("Cancel", true, "c1 / v1");
+    expect(text).toMatch(/Preview only/i);
+    expect(text).toMatch(/Not Cancelled for real/i);
+    expect(text).not.toMatch(/^Saved:/);
   });
 
   it("schedule preview vs saved copy stays honest", () => {
@@ -359,11 +367,11 @@ describe("US-083 EventModal matrix UI", () => {
     );
     expect(screen.getByTestId("action-matrix-cancel_queued")).toHaveAttribute(
       "data-available",
-      "false",
+      "true",
     );
     expect(screen.getByTestId("action-matrix-cancel_queued")).toHaveTextContent(
-      /US-085/,
+      /will not send|Withdraw/i,
     );
-    expect(screen.queryByTestId("row-cancel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("row-cancel")).toBeInTheDocument();
   });
 });

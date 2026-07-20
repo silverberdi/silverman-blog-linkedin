@@ -17,9 +17,9 @@ export const SUPERVISION_ERROR_MESSAGES: Record<string, string> = {
   linkedin_supervision_idempotency_conflict:
     "Idempotency conflict: same key with a different payload.",
   linkedin_supervision_action_not_allowed:
-    "Action is not allowed for the current variant state.",
+    "Action is not allowed for the current variant state. Reload the item, or use reopen if it is already Cancelled.",
   linkedin_publish_cancel_not_allowed:
-    "Cancel is not allowed for this variant state (for example already published).",
+    "Cancel is not allowed for this state (for example already Live on LinkedIn). Reload the item — Live posts cannot be cancelled from this console.",
   linkedin_reopen_not_allowed:
     "This cancelled variant cannot be reopened (recovery cancel or ineligible state). Use the recovery path when applicable — cancel remains irreversible except via reopen for eligible cancellations.",
   calendar_item_not_found: "Calendar item was not found.",
