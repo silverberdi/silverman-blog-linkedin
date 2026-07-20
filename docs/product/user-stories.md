@@ -1272,7 +1272,7 @@ As a content operator, I want to postpone or reschedule a LinkedIn variant from 
 
 ### US-085 — Cancel LinkedIn Variants That Are Not Yet Live
 
-**Status:** Open. Not started. Depends on US-083 for action visibility where practical.
+**Status:** Implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-cancel-linkedin-variants-not-yet-live-from-console-us-085`; live with rebuild git `7b4561b`; assets `index-DjTtqvO6.js` / `index-BEnefPLS.css`; deploy verify OVERALL PASS). Vitest `us085.cancel-not-yet-live.test.tsx`. **Not Story accepted** (operator walkthrough pending).
 
 **Description**
 
@@ -1290,7 +1290,7 @@ As a content operator, I want to cancel a LinkedIn variant from the console whil
 
 ### US-086 — Publish a LinkedIn Variant Immediately From the Console
 
-**Status:** Open. Not started. Depends on US-083 for status honesty; SHOULD follow US-084/US-085 so schedule/cancel controls exist beside publish-now.
+**Status:** Implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-publish-linkedin-variant-immediately-from-console-us-086`; git `7b4561b`; live assets `index-DjTtqvO6.js` / `index-BEnefPLS.css`; deploy verify OVERALL PASS). Vitest `us086.publish-now.test.tsx`. **Not Story accepted** (operator walkthrough pending). AC checkboxes remain open until walkthrough demonstrates them.
 
 **Description**
 
