@@ -1284,7 +1284,7 @@ As a content operator, I want publication eligibility and the calendar gap-trigg
 
 ### US-078 — Discover Current Objective-Aligned Topics With AI
 
-**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=fdaee82…`; OpenSpec archive `2026-07-19-discover-flow-b-topics-with-ai-us-078`). Automated AC coverage via `tests/test_flow_b_topic_discovery.py`; OpenAPI exposes `POST /flow-b/discover-topics`. **Not Story accepted** (operator walkthrough pending). **BL-017 remains open.** US-079–US-082 not implemented.
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=18b6bec…`; OpenSpec archive `2026-07-19-discover-flow-b-topics-with-ai-us-078`). Automated AC coverage via `tests/test_flow_b_topic_discovery.py`; OpenAPI exposes `POST /flow-b/discover-topics`. **Not Story accepted** (operator walkthrough pending). **BL-017 remains open.** US-079–US-082 not implemented.
 
 **Description**
 
