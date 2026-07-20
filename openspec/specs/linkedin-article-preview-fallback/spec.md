@@ -58,21 +58,21 @@ The policy MUST forbid initiating fallback actions from operator impressions, sc
 For a fallback-triggering outcome on a campaign whose affected variants are not `published`, the documented policy SHALL define exactly four supported actions, each with its mechanism and safety consequences:
 
 1. **Accept and proceed** — no endpoint call; the decision and rationale are recorded. The policy MUST state that the v1 text post carries the blog URL in commentary regardless of card rendering.
-2. **Delay publication** — `POST /defer-linkedin-variant` for `pending` variants with a future UTC time, followed by repeating the US-024 confirmation before publication. The policy MUST state that deferring an earlier-sequence variant blocks its followers at publish time under the US-020 sequence rule, that LinkedIn's cache duration is not officially documented and no specific TTL is normative, and that `queued` variants cannot be deferred and cannot return to `pending` — delay for a `queued` variant means withholding the explicit real publish-due request or cancelling.
+2. **Delay publication** — `POST /defer-linkedin-variant` for **`pending` or `queued`** variants (US-084) with a future UTC time, followed by repeating the US-024 confirmation before publication. The policy MUST state that deferring an earlier-sequence variant blocks its followers at publish time under the US-020 sequence rule, that LinkedIn's cache duration is not officially documented and no specific TTL is normative, and that deferring a `queued` variant **keeps** `publish_state` `queued` (does not return to `pending`) while updating `scheduled_at_utc` so due evaluation waits for the new time. Cancellation remains the withdraw path (US-085 / existing cancel endpoint); postpone is not cancel.
 3. **Correct inputs and repeat US-023/US-024** — applicable only when inputs are wrong; blog-post and public-checkout corrections follow ADR-0002 (blog post is canonical) and any Git commit/push to the live site follows the existing guarded or manual publication paths with operator approval.
-4. **Withdraw the variant** — `POST /cancel-linkedin-publication`. The policy MUST state that cancellation releases the US-020 sequence for followers, sets `operator_supervision.auto_queue_eligible` to `false`, preserves evidence, and is irreversible through existing endpoints.
+4. **Withdraw the variant** — `POST /cancel-linkedin-publication`. The policy MUST state that cancellation releases the US-020 sequence for followers, sets `operator_supervision.auto_queue_eligible` to `false`, preserves evidence, and is irreversible through existing endpoints except the approved reopen path where product already allows it.
 
 The policy MUST direct that endpoint-backed actions are executed dry-run first and then real, per the existing endpoint defaults, and MUST direct preview fallback decisions into the `pending` supervision window before queueing wherever possible.
 
-#### Scenario: Delay uses the existing defer mechanics
+#### Scenario: Delay uses the existing defer mechanics for pending
 
 - **WHEN** the operator chooses to delay a `pending` variant as preview fallback
 - **THEN** the policy directs `POST /defer-linkedin-variant` with a future UTC time (dry-run first), notes the follower-blocking consequence under US-020, and requires a repeated US-024 confirmation before publication proceeds
 
-#### Scenario: Queued variant cannot be deferred
+#### Scenario: Delay uses defer for queued without un-queue
 
-- **WHEN** the fallback-affected variant is already `queued`
-- **THEN** the policy states that defer is unavailable, that delay means withholding the explicit real publish-due request, and that cancellation is the irreversible alternative — no un-queue path is invented
+- **WHEN** the fallback-affected variant is already `queued` and the operator chooses delay
+- **THEN** the policy directs `POST /defer-linkedin-variant` with a future UTC time (dry-run first), states that `publish_state` remains `queued`, and does not invent an un-queue-to-pending path; cancellation remains the withdraw alternative
 
 #### Scenario: Accept records a decision without side effects
 
@@ -103,7 +103,7 @@ The only non-default post-publish action SHALL be the approval-gated manual post
 
 The documented policy SHALL classify every fallback action into exactly one of three classes and present the classification as a single reference table:
 
-**Supported (operator decision, no additional approval):** accept and proceed / accept and record; delay via `POST /defer-linkedin-variant` for `pending` variants; correct inputs and repeat US-023/US-024 (the input-remediation loop itself; any live-site Git push within it keeps its existing approval requirement); withdraw via `POST /cancel-linkedin-publication`; US-023 re-verification runs; repeated US-024 confirmations.
+**Supported (operator decision, no additional approval):** accept and proceed / accept and record; delay via `POST /defer-linkedin-variant` for **`pending` or `queued`** variants (US-084); correct inputs and repeat US-023/US-024 (the input-remediation loop itself; any live-site Git push within it keeps its existing approval requirement); withdraw via `POST /cancel-linkedin-publication`; US-023 re-verification runs; repeated US-024 confirmations.
 
 **Approval-gated (explicit prior operator/owner approval recorded in the evidence record):** manual removal of the operator's own published LinkedIn post via the LinkedIn UI, when leaving the defective post visible is judged worse than removing it. The approval record MUST precede the removal; the variant MUST remain `published` with all evidence intact; the removal MUST be captured in the fallback evidence record including the fact that the stored URN now references a removed post; the US-020 cadence anchored to the stored `published_at` remains in force.
 
@@ -130,6 +130,11 @@ The policy MUST record the safety rationale for the delete/re-post prohibition (
 
 - **WHEN** any fallback step would alter the shared URL relative to the recorded `public_url` or publish an additional LinkedIn post to force a preview refresh
 - **THEN** the policy forbids the step
+
+#### Scenario: Supported delay includes queued defer
+
+- **WHEN** an operator chooses delay for a `queued` fallback-affected variant
+- **THEN** the supported-actions classification includes delay via `POST /defer-linkedin-variant` without requiring return to `pending`
 
 ### Requirement: Duplicate prevention and safeguard preservation
 
