@@ -1306,7 +1306,7 @@ As a content operator, I want AI to propose authority-aligned topics for senior-
 
 ### US-079 — Generate Flow B Blog Draft and Image Without Publishing
 
-**Status:** Implemented 2026-07-19 (OpenSpec change `generate-flow-b-blog-draft-and-image-us-079`). Automated AC coverage via `tests/test_flow_b_blog_draft_generation.py`; OpenAPI exposes `POST /flow-b/generate-blog-drafts`. **Not Story accepted** (operator walkthrough pending). **Not deployed** until separately approved. **BL-017 remains open.** US-080–US-082 not implemented.
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=c69b603…`; OpenSpec archive `2026-07-19-generate-flow-b-blog-draft-and-image-us-079`). Automated AC coverage via `tests/test_flow_b_blog_draft_generation.py`; OpenAPI exposes `POST /flow-b/generate-blog-drafts`. **Not Story accepted** (operator walkthrough pending). **BL-017 remains open.** US-080–US-082 not implemented.
 
 **Description**
 
