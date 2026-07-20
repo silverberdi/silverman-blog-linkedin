@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Authenticated Flow B blog draft + hero image generation (US-079): DeepSeek v1 with a provider-pluggable seam; ComfyUI blog image path; writes Markdown + PNG pairs under `blog-posts/pending-approval/` with durable sidecar metadata; editorial canon + blocking anti-AI rules; batch ≤ `max_drafts_per_weekly_run`; no `ready/` writes or Flow A / LinkedIn publish side effects. Approve/promote (US-080/US-081) and gap trigger (US-082) remain separate capabilities.
+Authenticated Flow B blog draft + hero image generation (US-079): DeepSeek v1 with a provider-pluggable seam; ComfyUI blog image path; writes Markdown + PNG pairs under `blog-posts/pending-approval/` with durable sidecar metadata; editorial canon + blocking anti-AI rules; batch ≤ `max_drafts_per_weekly_run`; no `ready/` writes or Flow A / LinkedIn publish side effects. Approve/reject presentation (`flow-b-blog-draft-approval` / US-080), promote (US-081), and gap trigger (US-082) remain separate capabilities.
 
 ## Requirements
 
@@ -108,7 +108,7 @@ Draft generation MUST accept multiple topics in one request and MUST generate at
 
 ### Requirement: No publication or Flow A side effects
 
-This capability MUST NOT auto-publish blog posts, invoke Flow A publish/package/schedule endpoints, create Flow A campaign lifecycle side effects, hand off to GitHub Pages git publication, or call LinkedIn API publish. Generated drafts MUST remain in `blog-posts/pending-approval/` until a separate approve/promote capability (US-080/US-081) runs. This capability MUST NOT enable LinkedIn API publication or modify `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`.
+This capability MUST NOT auto-publish blog posts, invoke Flow A publish/package/schedule endpoints, create Flow A campaign lifecycle side effects, hand off to GitHub Pages git publication, or call LinkedIn API publish. Generated drafts MUST remain in `blog-posts/pending-approval/` until a separate approve/reject presentation capability (`flow-b-blog-draft-approval` / US-080) and, on approve, a separate promote capability (US-081) run. This capability MUST NOT enable LinkedIn API publication or modify `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`.
 
 #### Scenario: No ready folder writes
 
@@ -137,7 +137,7 @@ When draft generation cannot produce at least one valid approval-ready package f
 
 ### Requirement: US-079 scope excludes approve, promote, trigger, and discovery contract changes
 
-This capability MUST NOT implement blog approve/reject UI (US-080), promote-to-`ready/` (US-081), or gap trigger orchestration (US-082). It MUST NOT change the HTTP contracts of `flow-b-topic-discovery` (`POST /flow-b/discover-topics`), `flow-b-calendar-gap-detect` (`GET /flow-b/calendar-gaps`), or `flow-b-gap-operator-settings` (`GET`/`PUT /flow-b/gap-operator-settings`) except by consuming shared settings via `load_gap_operator_settings()`.
+This capability MUST NOT implement blog approve/reject UI (US-080), promote-to-`ready/` (US-081), or gap trigger orchestration (US-082). Approve/reject presentation is owned by capability `flow-b-blog-draft-approval` (US-080) and MUST NOT be re-implemented inside this generation capability. It MUST NOT change the HTTP contracts of `flow-b-topic-discovery` (`POST /flow-b/discover-topics`), `flow-b-calendar-gap-detect` (`GET /flow-b/calendar-gaps`), or `flow-b-gap-operator-settings` (`GET`/`PUT /flow-b/gap-operator-settings`) except by consuming shared settings via `load_gap_operator_settings()`. Generated `pending-approval/` packages (Markdown + PNG + `.flow-b.json` sidecar fields including `topic_id`, discovery summary, optional gap context, and `status`) remain the read/update surface for US-080 list/approve/reject.
 
 #### Scenario: Discover-topics contract unchanged
 
@@ -148,3 +148,9 @@ This capability MUST NOT implement blog approve/reject UI (US-080), promote-to-`
 
 - **WHEN** this capability's requirements are evaluated
 - **THEN** approve/promote and gap trigger endpoints are not required for US-079 completion
+
+#### Scenario: Pending-approval packages are the US-080 surface
+
+- **WHEN** draft generation writes a successful pending-approval package
+- **THEN** the sibling `.flow-b.json` sidecar includes `status` and discovery fields suitable for later US-080 presentation
+- **AND** generation itself does not perform approve or reject actions
