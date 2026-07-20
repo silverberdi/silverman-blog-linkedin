@@ -59,6 +59,8 @@ Worker handoff ≠ blog Git publication ≠ live-site confirmation. Git push alo
 | **`queued`** | Variant queued with `publish_after_utc` |
 | **`publishing`** | In-flight API publish |
 | **`published`** | Confirmed API publication (or manual move to `linkedin-posts/published/`) |
+| **Cadence conflict** | At a variant’s `scheduled_at_utc` (or proposed slot), a real publish-due / auto-queue path would refuse or skip **for cadence** — same gate as `linkedin_publish_blocked_cadence` / related auto-queue cadence skip (US-020: minimum 72h between successful same-campaign `published` evidence). MUST NOT mean density-full alone, OAuth missing, enablement off, or sequence block alone. Sequence remains distinct. Policy: [linkedin-cadence-spacing-policy.md](operations/linkedin-cadence-spacing-policy.md). Consumed by BL-021 stories US-087–US-089 (not implemented by the US-051 docs change alone) |
+| **Local-day density (US-040K)** | Interim max **2** publications per operator-local calendar day for plan/console/schedule placement. **Density ≠ cadence 72h** — coexists with US-020 publish-time spacing until a later change supersedes. See [linkedin-cadence-spacing-policy.md](operations/linkedin-cadence-spacing-policy.md) |
 
 `distribution_scheduled` and `flow_a_complete` record campaign lifecycle after package/schedule — they MUST NOT be read as LinkedIn API published.
 

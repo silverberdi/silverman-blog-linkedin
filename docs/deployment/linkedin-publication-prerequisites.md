@@ -161,6 +161,8 @@ Metadata and HTTP responses never include tokens, variant body text, or raw API 
 
 ## Publish-time sequence and cadence guard (US-020)
 
+**Shared cadence meaning (BL-021 / US-051):** Operator-facing ratification of this 72h same-campaign spacing rule, frequency assumptions, density/gap coexistence, and the “cadence conflict” definition for later console/scheduler stories lives in [linkedin-cadence-spacing-policy.md](../operations/linkedin-cadence-spacing-policy.md). That policy does **not** rewrite or weaken this guard; this section remains the publish-time enforcement contract.
+
 Every publish-due evaluation of a `queued` variant — plain publish-due, the combined `auto_queue_pending` flow, targeted requests, and the cross-campaign scan — enforces a per-campaign guard with two rules:
 
 1. **Sequence rule.** A variant is never published while an earlier variant in the canonical audience sequence (`executive-recruiter` → `engineering-leadership` → `technical-architect` → `short-provocative`) is still awaiting publication (`pending` — including operator-deferred — or `queued` and unpublished).

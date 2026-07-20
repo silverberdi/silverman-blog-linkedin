@@ -426,19 +426,21 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 ### BL-021 — Define Editorial Calendar and Publishing Cadence
 
-**Business need:** Establish a sustainable publishing rhythm for the blog and LinkedIn. Interim console/worker density (max 2 publications per local day, US-040K) and the Flow B gap sensor (BL-019) MAY remain until this item supersedes or ratifies them.
+**Business need:** Establish a sustainable publishing rhythm for the blog and LinkedIn so the calendar does not promise send times that US-020 cadence will refuse. Interim console/worker density (max 2 publications per local day, US-040K) and the Flow B gap sensor (BL-019) MAY remain until this item supersedes or ratifies them.
+
+**Operator decisions (2026-07-20):** Cadence conflict = same condition that yields `linkedin_publish_blocked_cadence` / auto-queue cadence skip (US-020: minimum **72 hours** between successful LinkedIn publications **within the same campaign**). Console MUST warn visually (red / warning). New scheduling MUST **shift forward** to the next valid slot (also respecting density max 2/local day). If a slot is still conflicted, show the console warning. Existing Scheduled items that conflict MUST be **replanned**. Stories: US-051 → US-087 → US-088 → US-089.
 
 **Expected outcomes:**
 
-- Define blog frequency.
-- Define LinkedIn frequency (operational intent ≈ fill toward ~2/local day unless this item changes it).
-- Define spacing between variants.
-- Define publishing windows.
+- Ratify LinkedIn variant spacing as US-020 72h same-campaign (and clarify density / gap relationship).
+- Define blog frequency and LinkedIn frequency (operational intent ≈ fill toward ~2/local day unless superseded).
+- Define publishing windows and shift-forward rescheduling when cadence (or density) blocks a candidate slot.
+- Surface cadence conflicts in Silverman Authority Manager (Week/Month + EventModal) with a clear warning affordance.
+- Prevent new `scheduled_at_utc` placements that are known cadence-infeasible at schedule time.
+- Replan already-Scheduled variants that are cadence-infeasible at their current slot.
 - Balance audience segments (strategy-level; not a P4 Flow B scheduler).
-- Define rescheduling rules.
-- Clarify relationship to US-040K density and BL-019 gap trigger.
 
-**Completion outcome:** Publications follow an approved cadence that avoids saturation and redundancy.
+**Completion outcome:** Publications follow an approved cadence; the calendar and scheduler do not leave operators with Scheduled times that cannot send because of cadence.
 
 ### BL-022 — Define Business and Content Metrics
 

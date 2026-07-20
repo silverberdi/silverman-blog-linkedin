@@ -1553,35 +1553,101 @@ As a editorial manager, I want to identify dependencies, so that the optional co
 
 **Priority:** P5
 
-**Business context:** Formal cadence policy. Interim US-040K density (max 2/local day) and BL-019 gap sensor MAY remain until this item supersedes or ratifies them.
+**Business context:** Formal cadence policy plus operator-facing enforcement so Scheduled calendar times are not lies relative to US-020 publish-time cadence. Interim US-040K density (max 2/local day) and BL-019 gap sensor MAY remain until this item supersedes or ratifies them.
+
+**Operator decisions (2026-07-20):** Scope = console visual warning **and** schedule-time prevention (shift forward) **and** replan of already-Scheduled conflicts. Cadence conflict = the same gate that blocks send today (`linkedin_publish_blocked_cadence` / related auto-queue cadence skip): **≥72h between successful LinkedIn publications in the same campaign** (US-020). Sequence blocks remain distinct (may be messaged separately; this backlog item’s conflict UX targets cadence unless a story explicitly expands).
+
+**Apply order:** US-051 → US-087 → US-088 → US-089.
 
 ### US-051 — Define Editorial Calendar and Publishing Cadence: Story 1
 
 **Description**
 
-As a editorial manager, I want to define blog frequency, so that publications follow an approved cadence that avoids saturation and redundancy.
+As an editorial manager, I want LinkedIn spacing and frequency rules written down and aligned with what the worker already enforces, so that the calendar, scheduler, and console share one cadence meaning.
 
 **Acceptance criteria**
 
-- [ ] Define blog frequency.
-- [ ] Define LinkedIn frequency (default planning assumption ≈ fill toward ~2 publications per local day unless this story changes it).
-- [ ] Define spacing between variants.
-- [ ] Clarify relationship to US-040K density and BL-019 gap trigger (supersede, ratify, or leave interim).
-- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Ratify US-020 as the normative LinkedIn **campaign** spacing rule: minimum **72 hours** between successful publications (`published` with evidence) within the **same** campaign; cross-campaign independence unchanged.
+- [ ] Define or reaffirm LinkedIn frequency planning assumption (default ≈ fill toward ~2 publications per operator-local day via US-040K density unless this story explicitly changes the number).
+- [ ] Define or reaffirm blog frequency expectations at strategy level (need not automate blog cadence in this story).
+- [ ] Clarify relationship to US-040K density and BL-019 gap trigger: **ratify as interim coexisting controls** unless this story documents a supersession (density ≠ cadence 72h; gap trigger does not bypass cadence).
+- [ ] Document that “cadence conflict” for console/scheduler stories means: at the variant’s `scheduled_at_utc` (or proposed slot), a real publish-due / auto-queue path would refuse or skip for **cadence** the same way operators saw in live simulation (`linkedin_publish_blocked_cadence` / cadence skip) — not density-full alone, not OAuth, not enablement-off.
+- [ ] The outcome is visible and understandable to the intended user (policy doc or CURRENT-STATE / ops contract pointer operators can open).
 - [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [ ] Existing completed work is not duplicated or unintentionally changed (US-020 / BL-007 stay closed; no weaken of publish-time cadence guard).
 
 ### US-052 — Define Editorial Calendar and Publishing Cadence: Story 2
 
 **Description**
 
-As a editorial manager, I want to define publishing windows and rescheduling rules, so that cadence stays sustainable without P4 Flow B owning audience-balancing logic.
+As an editorial manager, I want publishing windows and rescheduling rules (including shift-forward when cadence blocks a slot), so that cadence stays sustainable without Flow B owning audience-balancing logic.
 
 **Acceptance criteria**
 
-- [ ] Define publishing windows.
+- [ ] Define preferred publishing windows (local-day / clock guidance) for LinkedIn variant placement at strategy level.
 - [ ] Balance audience segments at strategy level (variant packaging remains Flow A).
-- [ ] Define rescheduling rules.
+- [ ] Define rescheduling rules: when a candidate `scheduled_at_utc` is cadence-infeasible, the system MUST **shift forward** to the next feasible slot (also respecting US-040K max 2/local day and existing distribution strategy constraints); MUST NOT silently keep an infeasible time as if it will send.
+- [ ] State that if a Scheduled item remains cadence-conflicted after placement (edge case), the console MUST still show the US-087 warning.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+**Note:** Executable shift-forward in `schedule-linkedin-distribution` / spill paths is **US-088**. US-052 is the policy story; it MAY ship as docs-only if US-088 implements the mechanics in the same change set, but Story accepted for US-052 still requires the written rules.
+
+### US-087 — Show Cadence Conflicts Visually in the LinkedIn Console
+
+**Description**
+
+As a content operator, I want Scheduled (and other not-yet-Live) LinkedIn items that would fail US-020 cadence at their current slot to show a clear visual warning, so that I do not assume “Scheduled” means “will send at that time.”
+
+**Prerequisites:** US-051 (cadence conflict definition ratified).
+
+**Acceptance criteria**
+
+- [ ] Silverman Authority Manager Week and Month views show a **red or equivalent warning indicator** on LinkedIn items whose current slot is cadence-infeasible under the US-051/US-020 rule (same meaning as live `linkedin_publish_blocked_cadence` / cadence skip at that `scheduled_at_utc`).
+- [ ] EventModal (or equivalent detail) explains the conflict in plain language, including a usable next step (e.g. earliest feasible time or “postpone / wait for replan”).
+- [ ] Warning MUST NOT imply Live on LinkedIn, MUST NOT imply density-full alone, and MUST remain distinct from Failed / Cancelled / Waiting to send labels.
+- [ ] If schedule-visibility needs additive fields for the indicator, expose them via authenticated worker HTTP (no browser filesystem SoT; ADR-0001).
+- [ ] Items that are cadence-feasible at their slot MUST NOT show the cadence-conflict warning.
+- [ ] The outcome is visible and understandable to the intended user (desktop + mobile readable).
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed (BL-032 control-center labels remain; no second publish pipeline; enablement guard untouched).
+
+### US-088 — Schedule LinkedIn Variants With Cadence-Aware Shift Forward
+
+**Description**
+
+As a content operator, I want distribution scheduling to place variants only on slots that respect US-020 cadence (shifting forward when needed), so that new schedules do not land on times the automatic publisher will refuse for cadence.
+
+**Prerequisites:** US-051; US-052 policy for shift-forward. Prefer after or with US-087 so residual edge conflicts stay visible.
+
+**Acceptance criteria**
+
+- [ ] `schedule-linkedin-distribution` (and Flow B spill-A / related placement paths that set LinkedIn `scheduled_at_utc`) MUST evaluate same-campaign 72h cadence when choosing slots.
+- [ ] When a preferred slot is cadence-infeasible, the scheduler MUST **shift forward** to the next feasible slot that also respects US-040K density max 2/local day and existing strategy constraints (stagger / empty-day spill rules as applicable).
+- [ ] Scheduling MUST fail closed with a structured error if no feasible slot can be found within documented bounds (no infinite scan; no silent infeasible placement).
+- [ ] Scheduling MUST NOT call LinkedIn API publish and MUST NOT bypass `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`.
+- [ ] If an item is still cadence-conflicted after placement (should be rare), US-087 warning MUST still apply.
+- [ ] The outcome is visible and understandable to the intended user (schedule results / calendar times reflect shifted slots).
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed (US-020 publish-time guard remains authoritative at send time).
+
+### US-089 — Replan Already-Scheduled LinkedIn Variants That Conflict With Cadence
+
+**Description**
+
+As a content operator, I want existing Scheduled LinkedIn variants that are cadence-infeasible at their current `scheduled_at_utc` moved forward to feasible slots, so that this week’s calendar matches what the automatic publisher can actually send.
+
+**Prerequisites:** US-088 shift-forward mechanics (reuse the same placement rules). US-087 SHOULD show conflicts before/during replan and clear them after success.
+
+**Acceptance criteria**
+
+- [ ] Provide an operator-safe, authenticated way to **replan** already-Scheduled (`pending`, and Waiting to send / `queued` if still cadence-tied to `scheduled_at_utc` / publish timing) variants that are cadence-infeasible at their current slot — preferably a worker HTTP endpoint or documented one-shot ops path that updates campaign schedule metadata and calendar SoT consistently.
+- [ ] Replan MUST use the same shift-forward + density rules as US-088; MUST NOT invent a second cadence engine.
+- [ ] After successful replan, affected items’ calendar slots move; cadence-conflict warnings clear when the new slot is feasible.
+- [ ] Dry-run / preview MUST be available (or default) so operators can see proposed moves before commit; real replan requires explicit confirmation semantics consistent with the console (preview ≠ Live).
+- [ ] Replan MUST NOT publish to LinkedIn API and MUST NOT bypass enablement.
+- [ ] Demonstrate on the live conflict set (or equivalent fixture): items that simulation marked delayed/blocked for cadence are shifted; non-conflicting Scheduled items are not needlessly moved.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.

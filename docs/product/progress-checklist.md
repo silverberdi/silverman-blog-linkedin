@@ -652,15 +652,37 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] Backlog item closed
 
 - [ ] **BL-021 — Define Editorial Calendar and Publishing Cadence**
-  - Business outcome: Publications follow an approved cadence; relationship to US-040K / BL-019 clarified.
-  - [ ] **US-051**
+  - Business outcome: Publications follow an approved cadence; calendar/scheduler do not leave Scheduled times that US-020 cadence will refuse; console warns on residual conflicts.
+  - Apply order: US-051 → US-087 → US-088 → US-089 (US-052 policy may ship with US-088).
+  - [ ] **US-051** — Ratify 72h same-campaign spacing + density/gap relationship
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — policy artifacts: [linkedin-cadence-spacing-policy.md](../operations/linkedin-cadence-spacing-policy.md); CURRENT-STATE pointer (OpenSpec `ratify-linkedin-cadence-spacing-policy-us-051`)
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-052** — Publishing windows + shift-forward reschedule policy
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed
     - [ ] Work started
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
-  - [ ] **US-052**
+  - [ ] **US-087** — Console visual cadence-conflict warning (red / warning)
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-088** — Schedule-time cadence-aware shift forward
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-089** — Replan already-Scheduled cadence conflicts
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed
     - [ ] Work started
