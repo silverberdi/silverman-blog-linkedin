@@ -191,7 +191,8 @@ def test_cancel_queued_variant_preserves_post_queue_semantics(scheduled_base: Pa
     assert supervision["cancellation"]["phase"] == "post_queue"
 
 
-def test_reject_edit_and_defer_on_queued(scheduled_base: Path):
+def test_reject_edit_on_queued_but_allow_defer(scheduled_base: Path):
+    """US-084: edit stays pending-only; defer accepts queued and keeps queued."""
     _queue_variant(scheduled_base)
 
     edit_result = correct_linkedin_variant(
@@ -204,6 +205,10 @@ def test_reject_edit_and_defer_on_queued(scheduled_base: Path):
     assert edit_result.status == "failed"
     assert LINKEDIN_SUPERVISION_VARIANT_NOT_PENDING in edit_result.errors
 
+    before = _variant_entry(scheduled_base)
+    previous_schedule = before["scheduled_at_utc"]
+    previous_publish_after = before.get("publish_after_utc")
+
     defer_result = defer_linkedin_variant(
         scheduled_base,
         campaign_id=CANONICAL_CAMPAIGN_ID,
@@ -212,13 +217,105 @@ def test_reject_edit_and_defer_on_queued(scheduled_base: Path):
         dry_run=False,
         now=DEFER_NOW,
     )
-    assert defer_result.status == "failed"
-    assert LINKEDIN_SUPERVISION_VARIANT_NOT_PENDING in defer_result.errors
+    assert defer_result.status == "completed"
+    assert defer_result.publish_state == PUBLISH_STATE_QUEUED
+    assert defer_result.phase == "post_queue"
+    assert defer_result.scheduled_at_utc == FUTURE_SCHEDULE
+
+    entry = _variant_entry(scheduled_base)
+    assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+    assert entry["scheduled_at_utc"] == FUTURE_SCHEDULE
+    assert entry["publish_after_utc"] == FUTURE_SCHEDULE
+    assert entry["publish_after_utc"] != previous_publish_after
+    supervision = entry["operator_supervision"]
+    assert supervision["last_action"] == "defer"
+    assert supervision["phase"] == "post_queue"
+    assert len(supervision["deferral_history"]) == 1
+    assert (
+        supervision["deferral_history"][0]["previous_scheduled_at_utc"]
+        == previous_schedule
+    )
+    assert supervision["deferral_history"][0]["new_scheduled_at_utc"] == FUTURE_SCHEDULE
+
+
+def test_defer_queued_variant_makes_publish_due_wait(scheduled_base: Path):
+    """After queued defer, publish-due skips as not due until the new time."""
+    past = datetime(2026, 7, 7, 10, 0, 0, tzinfo=timezone.utc)
+    _queue_variant(
+        scheduled_base,
+        publish_after_utc="2026-07-07T09:00:00Z",
+        now=past,
+    )
+    entry_before = _variant_entry(scheduled_base)
+    assert entry_before["publish_state"] == PUBLISH_STATE_QUEUED
+
+    defer_result = defer_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc=FUTURE_SCHEDULE,
+        dry_run=False,
+        now=DEFER_NOW,
+    )
+    assert defer_result.status == "completed"
+
+    mock_client = MagicMock()
+    publish_result = publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+    assert publish_result.status == "completed"
+    assert mock_client.post.call_count == 0
+    entry = _variant_entry(scheduled_base)
+    assert entry["publish_state"] == PUBLISH_STATE_QUEUED
+    assert entry["scheduled_at_utc"] == FUTURE_SCHEDULE
+    assert entry["publish_after_utc"] == FUTURE_SCHEDULE
+    assert any(
+        v.skip_reason == "linkedin_publish_variant_not_due"
+        for v in publish_result.results
+    )
+
+
+def test_reject_defer_on_published(scheduled_base: Path):
+    past = datetime(2026, 7, 7, 10, 0, 0, tzinfo=timezone.utc)
+    _queue_variant(scheduled_base, publish_after_utc="2026-07-07T09:00:00Z", now=past)
+
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 201
+    mock_response.headers = {"x-restli-id": "urn:li:share:published"}
+    mock_client.post.return_value = mock_response
+
+    publish_linkedin_due_variants(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        dry_run=False,
+        environ=_real_publish_env(),
+        http_client=mock_client,
+        now=datetime(2026, 7, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+
+    result = defer_linkedin_variant(
+        scheduled_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        variant=TARGET_VARIANT,
+        new_scheduled_at_utc=FUTURE_SCHEDULE,
+        dry_run=False,
+        now=DEFER_NOW,
+    )
+    assert result.status == "failed"
+    assert LINKEDIN_SUPERVISION_VARIANT_NOT_PENDING in result.errors
+    entry = _variant_entry(scheduled_base)
+    assert entry["publish_state"] == "published"
 
 
 def test_reject_cancel_on_published(scheduled_base: Path):
-    from unittest.mock import MagicMock
-
     past = datetime(2026, 7, 7, 10, 0, 0, tzinfo=timezone.utc)
     _queue_variant(scheduled_base, publish_after_utc="2026-07-07T09:00:00Z", now=past)
 

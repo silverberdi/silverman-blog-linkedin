@@ -497,9 +497,10 @@ export function supervisionToFilterable(item: SupervisionItem): ScheduleItem {
     critical: item.critical,
     linkedinApiPublished: item.linkedinApiPublished,
     calendarItemId: item.calendarItemId,
-    scheduleEditable: item.publishState === "pending",
+    scheduleEditable:
+      item.publishState === "pending" || item.publishState === "queued",
     scheduleEditBlockReason:
-      item.publishState === "pending"
+      item.publishState === "pending" || item.publishState === "queued"
         ? null
         : "linkedin_supervision_variant_not_pending",
     cancelledAtUtc: null,

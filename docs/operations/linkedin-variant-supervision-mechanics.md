@@ -140,7 +140,7 @@ Absent `operator_supervision` ⇒ strategy-driven default for `pending` variants
 
 | Condition | Error code | `publish_state` unchanged |
 |-----------|------------|---------------------------|
-| Variant not `pending` for edit/defer | `linkedin_supervision_variant_not_pending` | Yes |
+| Variant not `pending` for edit; not `pending`/`queued` for defer (US-084) | `linkedin_supervision_variant_not_pending` | Yes |
 | Variant `published` for cancel | `linkedin_publish_cancel_not_allowed` | Yes |
 | Variant `failed` / `cancelled` / other for supervision | `linkedin_supervision_action_not_allowed` | Yes |
 | `new_scheduled_at_utc` not strictly in future (defer) | `linkedin_supervision_defer_time_invalid` | Yes |
@@ -162,7 +162,9 @@ US-018 auto-queue treats a variant as **not eligible** when any of:
 
 A variant is **eligible** when `publish_state` is `pending`, not cancelled, `auto_queue_eligible` is not `false`, and `scheduled_at_utc <= now_utc`.
 
-**After defer:** `auto_queue_eligible` remains persisted as `false`. US-018 evaluates `last_action == "defer"` at runtime: once the deferred `scheduled_at_utc <= now`, the variant may be auto-queued without a persisted flip back to `true`. `publish_now` never bypasses a future deferred time. Operators who want a permanent stop must cancel.
+**After defer (pending):** `auto_queue_eligible` remains persisted as `false`. US-018 evaluates `last_action == "defer"` at runtime: once the deferred `scheduled_at_utc <= now`, the variant may be auto-queued without a persisted flip back to `true`. `publish_now` never bypasses a future deferred time. Operators who want a permanent stop must cancel.
+
+**After defer (queued, US-084):** `publish_state` stays `queued` (not returned to `pending`). `scheduled_at_utc` and `publish_after_utc` move to the new future instant so publish-due waits; deferral history is appended. Postpone is not cancel (US-085).
 
 **After edit:** `auto_queue_eligible` is set `true` — correction does not block strategy-driven queueing when due.
 

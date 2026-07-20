@@ -5,13 +5,13 @@
 
 export const SUPERVISION_ERROR_MESSAGES: Record<string, string> = {
   linkedin_supervision_variant_not_pending:
-    "Variant is no longer in the pending supervision window. Reload the list.",
+    "Cannot postpone this state. Only Scheduled (pending) or Waiting to send (queued) can be rescheduled — reload, or use reopen for cancelled.",
   linkedin_supervision_defer_time_invalid:
-    "New schedule must be after now in your local time.",
+    "New schedule must be strictly after now in your local time. Pick a future time and try again.",
   linkedin_supervision_defer_duplicate_slot:
-    "Another variant in this campaign already uses that exact schedule instant.",
+    "Another variant in this campaign already uses that exact schedule instant. Pick a different time.",
   linkedin_supervision_defer_saturation:
-    "Interim cadence: another campaign variant is already scheduled that local day within 72h.",
+    "Interim cadence: another campaign variant is already scheduled that local day within 72h. Choose a different day or time outside that window.",
   linkedin_supervision_edit_unchanged:
     "Draft content is unchanged or empty after normalize. Edit was not applied.",
   linkedin_supervision_idempotency_conflict:
@@ -24,11 +24,11 @@ export const SUPERVISION_ERROR_MESSAGES: Record<string, string> = {
     "This cancelled variant cannot be reopened (recovery cancel or ineligible state). Use the recovery path when applicable — cancel remains irreversible except via reopen for eligible cancellations.",
   calendar_item_not_found: "Calendar item was not found.",
   calendar_schedule_time_invalid:
-    "New calendar due time must be after now in your local time.",
+    "New calendar due time must be after now in your local time. Pick a future time and try again.",
   calendar_schedule_duplicate_slot:
-    "Another blog calendar item already occupies that local day (interim 1/day).",
+    "Another blog calendar item already occupies that local day (interim 1/day). Choose another day.",
   calendar_schedule_saturation:
-    "Target local day is saturated under interim blog density rules.",
+    "Target local day is saturated under interim blog density rules. Choose another day.",
   calendar_schedule_unsupported_state:
     "Calendar item status does not allow schedule mutation (published/historical).",
   calendar_schedule_idempotency_conflict:
@@ -36,9 +36,9 @@ export const SUPERVISION_ERROR_MESSAGES: Record<string, string> = {
   calendar_completion_concurrent_update:
     "Calendar changed concurrently. Reload and retry the schedule update.",
   linkedin_supervision_local_day_density:
-    "This day already has 2 publications.",
+    "This day already has 2 publications. Choose another local day with capacity.",
   calendar_schedule_local_day_density:
-    "This day already has 2 publications.",
+    "This day already has 2 publications. Choose another local day with capacity.",
   operator_timezone_required:
     "Operator timezone is required. Schedule was not changed.",
   operator_timezone_invalid:
@@ -50,7 +50,8 @@ const DENSITY_CODES = new Set([
   "calendar_schedule_local_day_density",
 ]);
 
-const LOCAL_DAY_FULL_PRIMARY = "This day already has 2 publications.";
+const LOCAL_DAY_FULL_PRIMARY =
+  "This day already has 2 publications. Choose another local day with capacity.";
 
 export type ApiErrorKind =
   | "unauthorized"

@@ -274,7 +274,8 @@ def _blog_schedule_editability(
 
 
 def _linkedin_schedule_editability(publish_state: str) -> tuple[bool, str | None]:
-    if publish_state == PUBLISH_STATE_PENDING:
+    # US-084: Scheduled (pending) and Waiting to send (queued) are schedule-editable.
+    if publish_state in (PUBLISH_STATE_PENDING, DISPLAY_QUEUED):
         return True, None
     return False, SCHEDULE_EDIT_BLOCK_NOT_PENDING
 

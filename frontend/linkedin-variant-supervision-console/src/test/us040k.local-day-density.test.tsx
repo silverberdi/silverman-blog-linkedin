@@ -242,13 +242,13 @@ describe("US-040K local-day density helpers", () => {
 
   it("maps density and timezone codes to plain language", () => {
     expect(explainErrorCodes(["linkedin_supervision_local_day_density"])).toBe(
-      "This day already has 2 publications.",
+      "This day already has 2 publications. Choose another local day with capacity.",
     );
     expect(explainErrorCodes(["calendar_schedule_local_day_density"])).toBe(
-      "This day already has 2 publications.",
+      "This day already has 2 publications. Choose another local day with capacity.",
     );
     expect(explainErrorCodesPlain(["linkedin_supervision_local_day_density"])).toBe(
-      "This day already has 2 publications.",
+      "This day already has 2 publications. Choose another local day with capacity.",
     );
     expect(explainErrorCodes(["operator_timezone_required"])).toContain(
       SUPERVISION_ERROR_MESSAGES.operator_timezone_required,

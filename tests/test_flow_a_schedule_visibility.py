@@ -413,7 +413,8 @@ def test_schedule_editable_hints_and_fingerprint(schedule_base: Path):
     pending = by_id[f"linkedin:{CAMPAIGN_ID}:engineering-leadership"]
     assert pending.schedule_editable is True
     queued = by_id[f"linkedin:{CAMPAIGN_ID}:queued-variant"]
-    assert queued.schedule_editable is False
+    assert queued.schedule_editable is True
+    assert queued.schedule_edit_block_reason is None
     published = by_id[f"linkedin:{CAMPAIGN_ID}:published-variant"]
     assert published.schedule_editable is False
     # US-040B baseline fields remain present.

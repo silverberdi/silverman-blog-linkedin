@@ -253,6 +253,14 @@ export function ScheduleEditorPanel({
   const active = target;
   const readOnly = !active.scheduleEditable;
   const mutationBlocked = !canMutate;
+  const isLinkedInPostpone =
+    active.channel === "linkedin" && active.scheduleEditable;
+  const editorTitle = isLinkedInPostpone
+    ? "Postpone / reschedule"
+    : readOnly
+      ? "Schedule (read-only)"
+      : "Schedule editor";
+  const editorEyebrow = isLinkedInPostpone ? "Control action" : "Schedule";
 
   function onScheduleChange(value: string) {
     setSchedule(value);
@@ -287,9 +295,13 @@ export function ScheduleEditorPanel({
       return;
     }
     if (readOnly) {
+      const block = active.scheduleEditBlockReason;
       feedbackError(
-        active.scheduleEditBlockReason ||
-          "This item is read-only for schedule changes (published/historical).",
+        block === "linkedin_supervision_variant_not_pending"
+          ? "Cannot postpone — only Scheduled or Waiting to send can be rescheduled. Live, failed, or cancelled need another path."
+          : block
+            ? `Schedule is read-only: ${block}.`
+            : "This item is read-only for schedule changes (published/historical).",
       );
       return;
     }
@@ -453,8 +465,8 @@ export function ScheduleEditorPanel({
     >
       <div className="drawer-header">
         <div>
-          <p className="eyebrow">Schedule</p>
-          <h2>Schedule editor</h2>
+          <p className="eyebrow">{editorEyebrow}</p>
+          <h2>{editorTitle}</h2>
         </div>
         <button
           type="button"
@@ -466,6 +478,20 @@ export function ScheduleEditorPanel({
         </button>
       </div>
       <p className="meta">{active.title || active.itemId} · {active.channel}</p>
+      {isLinkedInPostpone && (
+        <p className="meta" data-testid="postpone-control-framing">
+          Deliberate postpone: changes when this LinkedIn variant is eligible to
+          go out. Waiting to send stays Waiting to send (not cancel). Preview
+          does not move the calendar; a real change does.
+        </p>
+      )}
+      {active.scheduledAtUtc && (
+        <p className="meta" data-testid="schedule-current-local">
+          Current schedule:{" "}
+          <span className="mono">{utcIsoToDatetimeLocal(active.scheduledAtUtc)}</span>{" "}
+          (local) · wire {active.scheduledAtUtc}
+        </p>
+      )}
       {mutationBlocked && (
         <div className="banner warn" data-testid="schedule-editor-auth-blocked">
           {sessionState === "expired"
@@ -526,8 +552,10 @@ export function ScheduleEditorPanel({
             onClick={() => void submit()}
           >
             {dryRun
-              ? "Preview schedule (no change)"
-              : "Save schedule change"}
+              ? "Preview (no change)"
+              : isLinkedInPostpone
+                ? "Make real change"
+                : "Save schedule change"}
           </button>
         )}
       </div>

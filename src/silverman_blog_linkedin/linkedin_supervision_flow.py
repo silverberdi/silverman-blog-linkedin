@@ -196,6 +196,16 @@ def _validate_pending_supervision(
     return []
 
 
+def _validate_defer_supervision(
+    entry: dict[str, Any],
+) -> list[str]:
+    """US-084: defer accepts not-yet-live pending or queued; reject live/terminal."""
+    publish_state = entry.get("publish_state")
+    if publish_state in (PUBLISH_STATE_PENDING, PUBLISH_STATE_QUEUED):
+        return []
+    return [LINKEDIN_SUPERVISION_VARIANT_NOT_PENDING]
+
+
 def _supervision_eligibility(
     base_path: Path,
     *,
@@ -555,7 +565,7 @@ def defer_linkedin_variant(
     now: datetime | None = None,
     environ: dict[str, str] | None = None,
 ) -> LinkedInSupervisionResult:
-    """Reschedule a pending variant with deferral audit history."""
+    """Reschedule a pending or queued (not-yet-live) variant with deferral audit history."""
     campaign, entry, errors = _supervision_eligibility(
         base_path, campaign_id=campaign_id, variant=variant
     )
@@ -571,8 +581,8 @@ def defer_linkedin_variant(
     assert campaign is not None and entry is not None
 
     publish_state = entry.get("publish_state")
-    pending_errors = _validate_pending_supervision(entry)
-    if pending_errors:
+    defer_errors = _validate_defer_supervision(entry)
+    if defer_errors:
         return LinkedInSupervisionResult(
             status="failed",
             campaign_id=campaign_id,
@@ -580,8 +590,12 @@ def defer_linkedin_variant(
             state=campaign.get("state"),
             publish_state=publish_state,
             dry_run=dry_run,
-            errors=pending_errors,
+            errors=defer_errors,
         )
+    is_queued = publish_state == PUBLISH_STATE_QUEUED
+    result_phase = (
+        SUPERVISION_PHASE_POST_QUEUE if is_queued else SUPERVISION_PHASE_PRE_QUEUE
+    )
 
     try:
         normalized_new = normalize_scheduled_at_utc(new_scheduled_at_utc)
@@ -688,7 +702,7 @@ def defer_linkedin_variant(
             state=campaign.get("state"),
             publish_state=publish_state,
             dry_run=False,
-            phase=SUPERVISION_PHASE_PRE_QUEUE,
+            phase=result_phase,
             scheduled_at_utc=normalized_new,
             operator_supervision=supervision,
             metadata_written=False,
@@ -702,7 +716,7 @@ def defer_linkedin_variant(
             state=campaign.get("state"),
             publish_state=publish_state,
             dry_run=True,
-            phase=SUPERVISION_PHASE_PRE_QUEUE,
+            phase=result_phase,
             scheduled_at_utc=normalized_new,
             metadata_written=False,
         )
@@ -729,13 +743,17 @@ def defer_linkedin_variant(
     supervision["deferral_history"] = history
     supervision["last_action"] = SUPERVISION_ACTION_DEFER
     supervision["last_action_at_utc"] = deferred_at
-    supervision["phase"] = SUPERVISION_PHASE_PRE_QUEUE
+    # Pending: pre-queue + block auto-queue. Queued: keep authorized post-queue truth.
+    if is_queued:
+        supervision["phase"] = SUPERVISION_PHASE_POST_QUEUE
+    else:
+        supervision["phase"] = SUPERVISION_PHASE_PRE_QUEUE
+        supervision["auto_queue_eligible"] = False
     supervision["actor"] = resolved_actor
     if isinstance(source, str) and source.strip():
         supervision["source"] = source.strip()
     if reason:
         supervision["reason"] = reason
-    supervision["auto_queue_eligible"] = False
     _record_idempotency_proof(
         supervision,
         action=SUPERVISION_ACTION_DEFER,
@@ -748,6 +766,11 @@ def defer_linkedin_variant(
     metadata_map = _get_variant_metadata_map(working)
     updated_entry = dict(metadata_map[variant])
     updated_entry["scheduled_at_utc"] = normalized_new
+    # Queued publish-due gates on publish_after_utc — keep it aligned with the new schedule
+    # so due evaluation waits for the postponed time (design D2 / US-084).
+    if is_queued:
+        updated_entry["publish_after_utc"] = normalized_new
+        updated_entry["publish_state"] = PUBLISH_STATE_QUEUED
     updated_entry["operator_supervision"] = supervision
     metadata_map[variant] = updated_entry
     working["variants"] = list(metadata_map.values())
@@ -772,7 +795,7 @@ def defer_linkedin_variant(
         state=working.get("state"),
         publish_state=publish_state,
         dry_run=False,
-        phase=SUPERVISION_PHASE_PRE_QUEUE,
+        phase=result_phase,
         scheduled_at_utc=normalized_new,
         operator_supervision=supervision,
         metadata_written=True,

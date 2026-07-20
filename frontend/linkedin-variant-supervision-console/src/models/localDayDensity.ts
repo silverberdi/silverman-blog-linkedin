@@ -9,7 +9,8 @@
 import { localDayKey } from "./dateHelpers";
 import type { ScheduleItem } from "./supervision";
 
-export const LOCAL_DAY_FULL_MESSAGE = "This day already has 2 publications";
+export const LOCAL_DAY_FULL_MESSAGE =
+  "This day already has 2 publications. Choose another local day with capacity.";
 
 export const MAX_DENSITY_MEMBERS_PER_LOCAL_DAY = 2;
 

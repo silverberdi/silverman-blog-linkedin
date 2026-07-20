@@ -30,15 +30,15 @@ export interface ActionAvailabilityInput {
 
 function blockReasonPlain(code: string | null): string {
   if (!code) {
-    return "Schedule cannot be changed for this item.";
+    return "Schedule cannot be changed for this item. Choose a Scheduled or Waiting-to-send item, or use reopen for cancelled.";
   }
   if (code === "linkedin_supervision_variant_not_pending") {
-    return "Not in the pre-send supervision window (only Scheduled / pending can reschedule).";
+    return "Cannot postpone — only Scheduled (pending) or Waiting to send (queued) can be rescheduled. Live, failed, cancelled, or in-flight items need another path (reopen for cancelled).";
   }
   if (code.startsWith("calendar_schedule")) {
-    return `Schedule blocked: ${code.replace(/_/g, " ")}.`;
+    return `Schedule blocked: ${code.replace(/_/g, " ")}. Choose another editable item or fix the calendar status.`;
   }
-  return `Schedule blocked: ${code}.`;
+  return `Schedule blocked: ${code}. Reload the item or choose another local day/time.`;
 }
 
 /**
@@ -100,28 +100,28 @@ export function buildLinkedInActionMatrix(
     }
   }
 
-  // Reschedule / defer — always relevant for LinkedIn until live (view still useful when blocked).
+  // Postpone / reschedule — deliberate control for Scheduled + Waiting to send (US-084).
   if (!isLive) {
     if (item.scheduleEditable && canMutate) {
       rows.push({
         id: "reschedule",
-        label: "Reschedule / defer",
+        label: "Postpone / reschedule",
         available: true,
         reason:
-          "Available — choose a new local time (preview vs real is explicit in the editor).",
+          "Available — open the postpone control, pick a future local time, then Preview (no change) or Make real change. Does not cancel Waiting to send.",
       });
     } else if (item.scheduleEditable && !canMutate) {
       rows.push({
         id: "reschedule",
-        label: "Reschedule / defer",
+        label: "Postpone / reschedule",
         available: false,
         reason:
-          "Blocked — schedule is editable, but this session cannot mutate. Sign in with mutation permission.",
+          "Blocked — schedule is editable, but this session cannot mutate. Sign in with mutation permission, then postpone.",
       });
     } else {
       rows.push({
         id: "reschedule",
-        label: "Reschedule / defer",
+        label: "Postpone / reschedule",
         available: false,
         reason: blockReasonPlain(item.scheduleEditBlockReason),
       });

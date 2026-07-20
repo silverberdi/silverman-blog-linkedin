@@ -102,25 +102,42 @@ describe("US-083 action availability matrix", () => {
     expect(byId.cancel_queued).toBeUndefined();
   });
 
-  it("queued shows cancel-queued and publish now as not available yet; not live", () => {
+  it("queued shows postpone available when schedule-editable; cancel-queued and publish now not yet", () => {
     const rows = buildLinkedInActionMatrix({
       item: scheduleItem({
         itemId: "li-queued",
         publicationState: "queued",
         actions: [],
-        scheduleEditable: false,
-        scheduleEditBlockReason: "linkedin_supervision_variant_not_pending",
+        scheduleEditable: true,
       }),
       hasSupervisionJoin: false,
       canMutate: true,
     });
     const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+    expect(byId.reschedule?.available).toBe(true);
+    expect(byId.reschedule?.label).toMatch(/Postpone/i);
     expect(byId.cancel_queued?.available).toBe(false);
     expect(byId.cancel_queued?.reason).toMatch(/US-085/);
     expect(byId.cancel_queued?.reason).toMatch(/not live on LinkedIn/i);
     expect(byId.publish_now?.available).toBe(false);
     expect(byId.publish_now?.reason).toMatch(/US-086/);
     expect(byId.edit?.available).toBe(false);
+  });
+
+  it("live on LinkedIn cannot postpone", () => {
+    const rows = buildLinkedInActionMatrix({
+      item: scheduleItem({
+        itemId: "li-live",
+        publicationState: "published",
+        linkedinApiPublished: true,
+        scheduleEditable: false,
+        scheduleEditBlockReason: "linkedin_supervision_variant_not_pending",
+      }),
+      hasSupervisionJoin: false,
+      canMutate: true,
+    });
+    expect(rows.find((r) => r.id === "reschedule")).toBeUndefined();
+    expect(rows.find((r) => r.id === "publish_now")).toBeUndefined();
   });
 
   it("blocked session explains cannot mutate", () => {
@@ -316,8 +333,8 @@ describe("US-083 EventModal matrix UI", () => {
         blocked: false,
         critical: false,
         linkedin_api_published: false,
-        schedule_editable: false,
-        schedule_edit_block_reason: "linkedin_supervision_variant_not_pending",
+        schedule_editable: true,
+        schedule_edit_block_reason: null,
       },
     ]);
     render(<App client={client} />);
@@ -332,6 +349,13 @@ describe("US-083 EventModal matrix UI", () => {
     });
     expect(screen.getByTestId("event-modal-status-helper").textContent).toMatch(
       /not LinkedIn API published/i,
+    );
+    expect(screen.getByTestId("action-matrix-reschedule")).toHaveAttribute(
+      "data-available",
+      "true",
+    );
+    expect(screen.getByTestId("row-defer")).toHaveTextContent(
+      /Postpone \/ reschedule/i,
     );
     expect(screen.getByTestId("action-matrix-cancel_queued")).toHaveAttribute(
       "data-available",

@@ -957,7 +957,7 @@ export function EventModal() {
                   onClick={openSchedule}
                 >
                   {item.scheduleEditable
-                    ? "Reschedule / defer"
+                    ? "Postpone / reschedule"
                     : "View schedule"}
                 </button>
                 {canCancel && (
