@@ -550,9 +550,9 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] **US-080** — Present Flow B blog drafts for approve or reject
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+    - [x] Work started
+    - [x] Business outcome demonstrated *(automated: `GET`/`POST /flow-b/pending-approval-drafts…` + Authority Manager Flow B drafts panel; approve decision only — no `ready/` promote; reject non-publishable)*
+    - [x] Acceptance criteria validated *(automated ACs; operator walkthrough pending)*
     - [ ] Story accepted
   - [ ] **US-081** — Promote approved Flow B blogs onto the Flow A path
     - [x] Story reviewed

@@ -17,6 +17,7 @@ import {
   CORRECT_PATH,
   DEFER_PATH,
   GAP_OPERATOR_SETTINGS_PATH,
+  PENDING_APPROVAL_DRAFTS_PATH,
   PENDING_SUPERVISION_PATH,
   REOPEN_PATH,
   SCHEDULE_VISIBILITY_PATH,
@@ -25,6 +26,11 @@ import {
   type CalendarScheduleUpdateResult,
   type CorrectVariantRequest,
   type DeferVariantRequest,
+  type FlowBApproveDraftRequest,
+  type FlowBDraftDecisionResponse,
+  type FlowBPendingDraftDetail,
+  type FlowBPendingDraftListResponse,
+  type FlowBRejectDraftRequest,
   type GapOperatorSettingsPutRequest,
   type GapOperatorSettingsResponse,
   type MutationResult,
@@ -165,6 +171,115 @@ export class SupervisionApiClient {
       GAP_OPERATOR_SETTINGS_PATH,
       {
         method: "PUT",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+  }
+
+  async listPendingApprovalDrafts(params?: {
+    status?: string;
+  }): Promise<FlowBPendingDraftListResponse> {
+    const headers = await this.prepareHeaders("load");
+    const query = new URLSearchParams();
+    if (params?.status) {
+      query.set("status", params.status);
+    }
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return this.requestJson<FlowBPendingDraftListResponse>(
+      `${PENDING_APPROVAL_DRAFTS_PATH}${suffix}`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          ...headers,
+        },
+      },
+    );
+  }
+
+  async getPendingApprovalDraft(
+    draftId: string,
+  ): Promise<FlowBPendingDraftDetail> {
+    const headers = await this.prepareHeaders("load");
+    return this.requestJson<FlowBPendingDraftDetail>(
+      `${PENDING_APPROVAL_DRAFTS_PATH}/${encodeURIComponent(draftId)}`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          ...headers,
+        },
+      },
+    );
+  }
+
+  async fetchPendingApprovalDraftImage(
+    draftId: string,
+  ): Promise<Blob> {
+    const headers = await this.prepareHeaders("load");
+    const credentials = this.auth.getCredentialsMode();
+    let response: Response;
+    try {
+      response = await this.fetchImpl(
+        `${PENDING_APPROVAL_DRAFTS_PATH}/${encodeURIComponent(draftId)}/image`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "image/png,image/*",
+            ...headers,
+          },
+          credentials,
+        },
+      );
+    } catch (err) {
+      throw networkError(err instanceof Error ? err.message : String(err));
+    }
+    if (response.status === 401) {
+      this.auth.clear();
+      throw unauthorizedError();
+    }
+    if (response.status === 403) {
+      throw forbiddenError();
+    }
+    if (!response.ok) {
+      throw httpError(response.status);
+    }
+    return response.blob();
+  }
+
+  async approvePendingApprovalDraft(
+    draftId: string,
+    body: FlowBApproveDraftRequest = {},
+  ): Promise<FlowBDraftDecisionResponse> {
+    const headers = await this.prepareHeaders("mutate");
+    return this.requestJson<FlowBDraftDecisionResponse>(
+      `${PENDING_APPROVAL_DRAFTS_PATH}/${encodeURIComponent(draftId)}/approve`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+  }
+
+  async rejectPendingApprovalDraft(
+    draftId: string,
+    body: FlowBRejectDraftRequest = {},
+  ): Promise<FlowBDraftDecisionResponse> {
+    const headers = await this.prepareHeaders("mutate");
+    return this.requestJson<FlowBDraftDecisionResponse>(
+      `${PENDING_APPROVAL_DRAFTS_PATH}/${encodeURIComponent(draftId)}/reject`,
+      {
+        method: "POST",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",

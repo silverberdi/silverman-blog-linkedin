@@ -1306,7 +1306,7 @@ As a content operator, I want AI to propose authority-aligned topics for senior-
 
 ### US-079 — Generate Flow B Blog Draft and Image Without Publishing
 
-**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=c69b603…`; OpenSpec archive `2026-07-19-generate-flow-b-blog-draft-and-image-us-079`). Automated AC coverage via `tests/test_flow_b_blog_draft_generation.py`; OpenAPI exposes `POST /flow-b/generate-blog-drafts`. **Not Story accepted** (operator walkthrough pending). **BL-017 remains open.** US-080–US-082 not implemented.
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=c69b603…`; OpenSpec archive `2026-07-19-generate-flow-b-blog-draft-and-image-us-079`). Automated AC coverage via `tests/test_flow_b_blog_draft_generation.py`; OpenAPI exposes `POST /flow-b/generate-blog-drafts`. **Not Story accepted** (operator walkthrough pending). **BL-017 remains open.** US-080 approve/reject presentation is implemented separately (not Story accepted); US-081–US-082 not implemented.
 
 **Description**
 
@@ -1332,7 +1332,7 @@ As a content operator, I want a complete blog draft (and hero image) generated f
 
 ### US-080 — Present Flow B Blog Drafts for Approve or Reject
 
-**Status:** Not started. AC locked 2026-07-19; **ID renumbered 2026-07-19** (was US-078). Ready for OpenSpec after US-079.
+**Status:** Implemented 2026-07-19 (OpenSpec change `present-flow-b-blog-drafts-for-approve-or-reject-us-080`; not deployed unless separately approved). Automated AC coverage via `tests/test_flow_b_blog_draft_approval.py` + Vitest `us080.pending-drafts.test.tsx`; OpenAPI exposes `GET`/`POST /flow-b/pending-approval-drafts…`. **Not Story accepted** (operator walkthrough pending). **BL-018 remains open.** US-081–US-082 not implemented.
 
 **Description**
 
@@ -1340,13 +1340,13 @@ As a content operator, I want pending AI blog drafts presented in Silverman Auth
 
 **Acceptance criteria**
 
-- [ ] Present pending drafts from `blog-posts/pending-approval/` (title/topic, body, image, discovery summary; gap week / empty-days when present) by **extending Silverman Authority Manager** — not a separate Flow B-only application.
-- [ ] Support **approve** and **reject** actions.
-- [ ] Do **not** require a revision-history CMS, structured multi-round feedback capture, or mandatory edit-apply loop (operator MAY edit files offline; out of band).
-- [ ] Communicate rejected/blocked state clearly; rejected drafts MUST remain non-publishable (MUST NOT promote to `ready/`).
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Present pending drafts from `blog-posts/pending-approval/` (title/topic, body, image, discovery summary; gap week / empty-days when present) by **extending Silverman Authority Manager** — not a separate Flow B-only application. *(automated: list/detail API + Authority Manager Flow B drafts panel)*
+- [x] Support **approve** and **reject** actions. *(automated: `POST …/approve` / `…/reject` + console affordances; approve does not promote to `ready/`)*
+- [x] Do **not** require a revision-history CMS, structured multi-round feedback capture, or mandatory edit-apply loop (operator MAY edit files offline; out of band). *(automated: UI/API omit revision CMS / multi-round feedback / edit-apply)*
+- [x] Communicate rejected/blocked state clearly; rejected drafts MUST remain non-publishable (MUST NOT promote to `ready/`). *(automated: reject sidecar status + no `ready/` writes; UI rejected/blocked copy)*
+- [ ] The outcome is visible and understandable to the intended user. *(operator walkthrough / Story accepted gate)*
+- [x] Failures or blocked states are clearly communicated. *(automated: auth/validation/missing-draft errors + UI failure messaging)*
+- [x] Existing completed work is not duplicated or unintentionally changed. *(generate-blog-drafts / discover-topics / calendar-gaps / settings contracts unchanged aside from consuming pending-approval packages)*
 
 ### US-081 — Promote Approved Flow B Blogs Onto the Flow A Path
 

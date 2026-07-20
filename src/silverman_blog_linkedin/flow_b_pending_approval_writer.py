@@ -215,7 +215,11 @@ def write_pending_approval_sidecar(
     metadata_relative_path: str,
     payload: dict[str, Any],
 ) -> str | None:
-    """Write durable ``.flow-b.json`` sidecar; return error_code or None on success."""
+    """Exclusively create durable ``.flow-b.json`` sidecar; return error_code or None.
+
+    For status updates on an existing package, use
+    ``overwrite_pending_approval_sidecar`` (US-080).
+    """
     if not _verify_pending_confinement(base_path, metadata_relative_path):
         return ERROR_READY_WRITE_FORBIDDEN
     if not metadata_relative_path.endswith(".flow-b.json"):
@@ -232,6 +236,45 @@ def write_pending_approval_sidecar(
     except FileExistsError:
         return ERROR_PATH_COLLISION
     except OSError:
+        return ERROR_WRITE_FAILED
+    return None
+
+
+def overwrite_pending_approval_sidecar(
+    base_path: Path,
+    metadata_relative_path: str,
+    payload: dict[str, Any],
+) -> str | None:
+    """Atomically overwrite an existing ``.flow-b.json`` under pending-approval.
+
+    Uses write-temp + replace. Never writes under ``blog-posts/ready/``.
+    Returns error_code or None on success.
+    """
+    if not _verify_pending_confinement(base_path, metadata_relative_path):
+        return ERROR_READY_WRITE_FORBIDDEN
+    if not metadata_relative_path.endswith(".flow-b.json"):
+        return ERROR_WRITE_FAILED
+    parts = PurePosixPath(metadata_relative_path.replace("\\", "/")).parts
+    if ".." in parts:
+        return ERROR_READY_WRITE_FORBIDDEN
+    path = base_path / metadata_relative_path
+    if not path.is_file():
+        return ERROR_WRITE_FAILED
+    try:
+        raw = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+        temp_path = path.with_suffix(path.suffix + ".tmp")
+        with open(temp_path, "wb") as handle:
+            handle.write(raw)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_path, path)
+    except OSError:
+        try:
+            temp_path = path.with_suffix(path.suffix + ".tmp")
+            if temp_path.is_file():
+                temp_path.unlink()
+        except OSError:
+            pass
         return ERROR_WRITE_FAILED
     return None
 

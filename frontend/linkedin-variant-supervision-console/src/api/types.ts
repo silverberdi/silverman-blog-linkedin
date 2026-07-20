@@ -10,6 +10,7 @@ export const REOPEN_PATH = "/reopen-linkedin-variant";
 export const UPDATE_CALENDAR_SCHEDULE_PATH =
   "/editorial-calendar/update-item-schedule";
 export const GAP_OPERATOR_SETTINGS_PATH = "/flow-b/gap-operator-settings";
+export const PENDING_APPROVAL_DRAFTS_PATH = "/flow-b/pending-approval-drafts";
 
 export type PendingSupervisionStatus = "ok" | "partial";
 
@@ -224,4 +225,77 @@ export interface GapOperatorSettingsResponse extends GapOperatorSettingsDocument
 
 export interface GapOperatorSettingsPutRequest extends GapOperatorSettingsDocument {
   expected_row_version?: number | null;
+}
+
+/** US-080 Flow B pending-approval draft presentation. */
+export type FlowBDraftStatus =
+  | "pending_approval"
+  | "pending_approval_image_failed"
+  | "approved"
+  | "rejected"
+  | string;
+
+export interface FlowBPendingDraftSummary {
+  draft_id: string;
+  slug: string;
+  title: string;
+  topic_id: string | null;
+  thesis: string | null;
+  referent_positioning: string | null;
+  rationale: string | null;
+  status: FlowBDraftStatus;
+  blog_relative_path: string | null;
+  image_relative_path: string | null;
+  metadata_relative_path: string | null;
+  image_url: string | null;
+  generated_at_utc: string | null;
+  target_week?: string | null;
+  empty_days?: string[] | null;
+  image_status?: string | null;
+  image_warning?: string | null;
+}
+
+export interface FlowBPendingDraftDetail extends FlowBPendingDraftSummary {
+  body_markdown: string;
+  approved_at_utc?: string | null;
+  approved_by?: string | null;
+  rejected_at_utc?: string | null;
+  rejection_reason?: string | null;
+}
+
+export interface FlowBPendingDraftListResponse {
+  status: "ok" | string;
+  drafts: FlowBPendingDraftSummary[];
+  observed_at_utc: string;
+  filter_status: string | null;
+  count: number;
+}
+
+export interface FlowBApproveDraftRequest {
+  approved_by?: string | null;
+  dry_run?: boolean;
+}
+
+export interface FlowBRejectDraftRequest {
+  rejection_reason?: string | null;
+  dry_run?: boolean;
+}
+
+export interface FlowBDraftDecisionResponse {
+  status: FlowBDraftStatus | "failed" | string;
+  draft_id: string;
+  promoted: boolean;
+  promotion_pending: boolean;
+  dry_run: boolean;
+  blog_relative_path?: string | null;
+  image_relative_path?: string | null;
+  metadata_relative_path?: string | null;
+  approved_at_utc?: string | null;
+  approved_by?: string | null;
+  rejected_at_utc?: string | null;
+  rejection_reason?: string | null;
+  image_warning?: string | null;
+  operator_note?: string | null;
+  error_code?: string | null;
+  error?: string | null;
 }

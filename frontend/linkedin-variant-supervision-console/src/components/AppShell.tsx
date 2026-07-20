@@ -1,6 +1,7 @@
 import { type ReactNode, useCallback, useState } from "react";
 import { Banner } from "./Banner";
 import { FiltersModal } from "./FiltersModal";
+import { FlowBPendingDraftsModal } from "./FlowBPendingDraftsModal";
 import { GapSettingsModal } from "./GapSettingsModal";
 import { StatusSummary } from "./StatusSummary";
 import { ToastHost } from "./ToastHost";
@@ -36,6 +37,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const closeFilters = useCallback(() => setFiltersOpen(false), []);
   const [gapSettingsOpen, setGapSettingsOpen] = useState(false);
   const closeGapSettings = useCallback(() => setGapSettingsOpen(false), []);
+  const [flowBDraftsOpen, setFlowBDraftsOpen] = useState(false);
+  const closeFlowBDrafts = useCallback(() => setFlowBDraftsOpen(false), []);
 
   const activeFilterCount = countActiveFilters(filters);
   const filtersActive = activeFilterCount > 0;
@@ -107,6 +110,17 @@ export function AppShell({ children }: { children: ReactNode }) {
             onClick={() => setGapSettingsOpen(true)}
           >
             Gap settings
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Flow B pending blog drafts"
+            aria-haspopup="dialog"
+            aria-expanded={flowBDraftsOpen}
+            data-testid="header-flow-b-drafts-btn"
+            onClick={() => setFlowBDraftsOpen(true)}
+          >
+            Flow B drafts
           </button>
           <button
             type="button"
@@ -217,6 +231,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <FiltersModal open={filtersOpen} onClose={closeFilters} />
       <GapSettingsModal open={gapSettingsOpen} onClose={closeGapSettings} />
+      <FlowBPendingDraftsModal open={flowBDraftsOpen} onClose={closeFlowBDrafts} />
     </main>
   );
 }
