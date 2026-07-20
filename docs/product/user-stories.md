@@ -1306,7 +1306,7 @@ As a content operator, I want AI to propose authority-aligned topics for senior-
 
 ### US-079 — Generate Flow B Blog Draft and Image Without Publishing
 
-**Status:** Not started. AC locked 2026-07-19; **ID renumbered 2026-07-19** (was US-077). Ready for OpenSpec after US-078.
+**Status:** Implemented 2026-07-19 (OpenSpec change `generate-flow-b-blog-draft-and-image-us-079`). Automated AC coverage via `tests/test_flow_b_blog_draft_generation.py`; OpenAPI exposes `POST /flow-b/generate-blog-drafts`. **Not Story accepted** (operator walkthrough pending). **Not deployed** until separately approved. **BL-017 remains open.** US-080–US-082 not implemented.
 
 **Description**
 
@@ -1314,15 +1314,15 @@ As a content operator, I want a complete blog draft (and hero image) generated f
 
 **Acceptance criteria**
 
-- [ ] Generate a complete blog draft that follows the editorial canon and includes required metadata/structure; **v1 generation uses DeepSeek**; keep provider-pluggable seam consistent with US-078.
-- [ ] Create or request a hero image as part of the draft package.
-- [ ] Persist the draft as a Markdown + image pair under **`blog-posts/pending-approval/`** (same pair rules as `ready/`), including durable link to gap batch / ISO week when created from US-082.
-- [ ] MUST NOT write to `blog-posts/ready/` on this path; MUST NOT auto-publish; MUST NOT run Flow A publish/package/schedule; MUST NOT call LinkedIn API publish.
-- [ ] Preserve Silverio voice / anti-AI-writing rules per editorial canon at draft time (warnings or blocking per canon for Flow B drafts).
-- [ ] A single weekly gap batch MAY create up to **`max_drafts_per_weekly_run` (default 2)** drafts in `pending-approval/` without skipping the blog gate.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Generate a complete blog draft that follows the editorial canon and includes required metadata/structure; **v1 generation uses DeepSeek**; keep provider-pluggable seam consistent with US-078. *(automated: `BlogDraftGenerationProvider` + DeepSeek adapter; prompt assembly from editorial canon)*
+- [x] Create or request a hero image as part of the draft package. *(automated: ComfyUI via `ensure_editorial_blog_image`; mocked in unit tests)*
+- [x] Persist the draft as a Markdown + image pair under **`blog-posts/pending-approval/`** (same pair rules as `ready/`), including durable link to gap batch / ISO week when created from US-082. *(automated: `.md` + `.png` + `.flow-b.json` sidecar with optional `target_week` / `empty_days`)*
+- [x] MUST NOT write to `blog-posts/ready/` on this path; MUST NOT auto-publish; MUST NOT run Flow A publish/package/schedule; MUST NOT call LinkedIn API publish. *(automated write-guard + import/source guards)*
+- [x] Preserve Silverio voice / anti-AI-writing rules per editorial canon at draft time (warnings or blocking per canon for Flow B drafts). *(automated: blocking heuristics; blocked drafts not successful packages)*
+- [x] A single weekly gap batch MAY create up to **`max_drafts_per_weekly_run` (default 2)** drafts in `pending-approval/` without skipping the blog gate. *(automated: clamp via `load_gap_operator_settings()`)*
+- [ ] The outcome is visible and understandable to the intended user. *(operator walkthrough / Story accepted gate)*
+- [x] Failures or blocked states are clearly communicated. *(automated: structured `error_code` / per-draft `image_status` / `anti_ai_status`)*
+- [x] Existing completed work is not duplicated or unintentionally changed. *(discover-topics / calendar-gaps / settings GET/PUT unchanged aside from consuming `max_drafts_per_weekly_run`)*
 
 ## BL-018 — Approve Flow B Blog Drafts Into Flow A
 

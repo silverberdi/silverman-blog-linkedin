@@ -36,8 +36,15 @@ from silverman_blog_linkedin.github_pages_publish import (
 
 READY_RELATIVE_PREFIX = "blog-posts/ready/"
 QUEUED_RELATIVE_PREFIX = "blog-posts/queued/"
+PENDING_APPROVAL_RELATIVE_PREFIX = "blog-posts/pending-approval/"
 PROCESSED_RELATIVE_PREFIX = "blog-posts/processed/"
 ALLOWED_VALIDATION_PREFIXES = (READY_RELATIVE_PREFIX, QUEUED_RELATIVE_PREFIX)
+# Image remediation accepts pending-approval pairs (US-079) without opening Flow A validation.
+ALLOWED_IMAGE_SOURCE_PREFIXES = (
+    READY_RELATIVE_PREFIX,
+    QUEUED_RELATIVE_PREFIX,
+    PENDING_APPROVAL_RELATIVE_PREFIX,
+)
 ALLOWED_PUBLISH_SOURCE_PREFIXES = (
     READY_RELATIVE_PREFIX,
     QUEUED_RELATIVE_PREFIX,
@@ -229,11 +236,16 @@ class ReadyPostValidationResult:
 
 
 def derive_active_source_prefix(source_relative_path: str) -> tuple[str, str] | None:
-    """Return (allowed prefix, folder name) for ready/queued sources."""
+    """Return (allowed prefix, folder name) for ready/queued/pending-approval image sources."""
     normalized = _normalize_relative_path(source_relative_path)
-    for prefix in ALLOWED_VALIDATION_PREFIXES:
+    for prefix in ALLOWED_IMAGE_SOURCE_PREFIXES:
         if normalized.startswith(prefix):
-            folder_name = "ready" if prefix == READY_RELATIVE_PREFIX else "queued"
+            if prefix == READY_RELATIVE_PREFIX:
+                folder_name = "ready"
+            elif prefix == QUEUED_RELATIVE_PREFIX:
+                folder_name = "queued"
+            else:
+                folder_name = "pending-approval"
             return prefix, folder_name
     return None
 

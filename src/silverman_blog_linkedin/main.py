@@ -44,6 +44,20 @@ from silverman_blog_linkedin.editorial_calendar_schedule_update import (
 from silverman_blog_linkedin.flow_b_calendar_gap_detect import (
     detect_next_week_calendar_gaps,
 )
+from silverman_blog_linkedin.flow_b_blog_draft_generation import (
+    ERROR_ANTI_AI_BLOCKED as DRAFT_ERROR_ANTI_AI_BLOCKED,
+    ERROR_CANON_MISSING as DRAFT_ERROR_CANON_MISSING,
+    ERROR_CANON_SECTION_MISSING as DRAFT_ERROR_CANON_SECTION_MISSING,
+    ERROR_CONFIG_INVALID as DRAFT_ERROR_CONFIG_INVALID,
+    ERROR_SETTINGS_UNAVAILABLE as DRAFT_ERROR_SETTINGS_UNAVAILABLE,
+    ERROR_TOPIC_INVALID as DRAFT_ERROR_TOPIC_INVALID,
+    ERROR_TOPICS_DUPLICATE as DRAFT_ERROR_TOPICS_DUPLICATE,
+    ERROR_TOPICS_EMPTY as DRAFT_ERROR_TOPICS_EMPTY,
+    STATUS_DRAFTS_GENERATED,
+    STATUS_DRAFTS_PARTIAL,
+    generate_flow_b_blog_drafts,
+    validate_draft_request_fields,
+)
 from silverman_blog_linkedin.flow_b_topic_discovery import (
     ERROR_CANON_MISSING,
     ERROR_CANON_SECTION_MISSING,
@@ -860,6 +874,17 @@ class FlowBDiscoverTopicsRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     count: int | None = None
+    target_week: str | None = None
+    empty_days: list[str] | None = None
+    dry_run: bool = False
+
+
+class FlowBGenerateBlogDraftsRequest(BaseModel):
+    """POST body for Flow B blog draft + image generation (US-079)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    topics: list[dict]
     target_week: str | None = None
     empty_days: list[str] | None = None
     dry_run: bool = False
@@ -2990,6 +3015,79 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ERROR_CANON_SECTION_MISSING,
             ERROR_NOT_OBJECTIVE_ALIGNED,
             "discovery_provider_unsupported",
+        }:
+            status_code = 422
+        elif code.startswith("deepseek_"):
+            status_code = 502
+        else:
+            status_code = 502
+        raise HTTPException(status_code=status_code, detail=payload)
+
+    @app.post("/flow-b/generate-blog-drafts")
+    def post_flow_b_generate_blog_drafts(
+        body: FlowBGenerateBlogDraftsRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        """Authenticated Flow B blog draft + hero image generation (US-079).
+
+        Writes Markdown + PNG pairs under blog-posts/pending-approval/ only.
+        Does not write blog-posts/ready/, invoke Flow A publish/package/schedule,
+        or enable LinkedIn API publication. Approve/promote (US-080/081) and gap
+        trigger (US-082) are out of scope.
+        """
+        field_errors = validate_draft_request_fields(
+            topics=body.topics,
+            target_week=body.target_week,
+            empty_days=body.empty_days,
+        )
+        if field_errors:
+            raise HTTPException(status_code=422, detail={"errors": field_errors})
+
+        result = generate_flow_b_blog_drafts(
+            settings.base_path,
+            topics=body.topics,
+            target_week=body.target_week,
+            empty_days=body.empty_days,
+            dry_run=body.dry_run,
+            environ=os.environ,
+        )
+        payload = result.to_dict()
+        logger.info(
+            "flow-b/generate-blog-drafts status=%s provider=%s drafts=%s "
+            "max_drafts=%s settings_source=%s dry_run=%s error_code=%s",
+            result.status,
+            result.provider,
+            len(result.drafts),
+            result.max_drafts_per_weekly_run,
+            result.settings_source,
+            result.dry_run,
+            result.error_code,
+        )
+        if result.status in {
+            STATUS_DRAFTS_GENERATED,
+            STATUS_DRAFTS_PARTIAL,
+            "draft_generation_dry_run",
+        }:
+            return payload
+
+        assert result.status == "draft_generation_failed"
+        code = result.error_code or "draft_generation_failed"
+        if code == DRAFT_ERROR_SETTINGS_UNAVAILABLE:
+            status_code = 503
+        elif code in {
+            DRAFT_ERROR_CONFIG_INVALID,
+            "deepseek_api_key_missing",
+            DRAFT_ERROR_CANON_MISSING,
+            DRAFT_ERROR_CANON_SECTION_MISSING,
+            DRAFT_ERROR_TOPICS_EMPTY,
+            DRAFT_ERROR_TOPICS_DUPLICATE,
+            DRAFT_ERROR_TOPIC_INVALID,
+            DRAFT_ERROR_ANTI_AI_BLOCKED,
+            "draft_provider_unsupported",
+            "draft_target_week_invalid",
+            "draft_empty_days_invalid",
+            "pending_approval_dir_not_ready",
+            "pending_approval_dir_not_writable",
         }:
             status_code = 422
         elif code.startswith("deepseek_"):

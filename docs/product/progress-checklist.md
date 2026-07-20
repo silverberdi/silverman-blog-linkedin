@@ -537,9 +537,9 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] **US-079** — Generate Flow B blog draft and image without publishing
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+    - [x] Work started
+    - [x] Business outcome demonstrated *(automated: `POST /flow-b/generate-blog-drafts` + `tests/test_flow_b_blog_draft_generation.py`; `pending-approval/` only — no `ready/` / Flow A / LinkedIn publish)*
+    - [x] Acceptance criteria validated *(automated ACs; operator walkthrough pending)*
     - [ ] Story accepted
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated
