@@ -267,10 +267,10 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
   - [ ] **US-084** — Postpone and reschedule LinkedIn variants from the console
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — deployed 2026-07-20; live assets serve postpone for pending+queued via defer (`index-DzxHvZB-.js` / `index-BEnefPLS.css`); operator walkthrough still required before Story accepted
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
   - [ ] **US-085** — Cancel LinkedIn variants that are not yet live

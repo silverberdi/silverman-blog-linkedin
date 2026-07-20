@@ -40,5 +40,7 @@
 ## 7. Business validation
 
 - [ ] 7.1 After explicit deploy approval (separate from apply): operator walkthrough that US-084 AC1 works for Scheduled **and** Waiting to send, calendar agrees after real change, refusals understandable
-- [ ] 7.2 Update `docs/product/progress-checklist.md` and US-084 status only for demonstrated criteria; leave US-085/US-086 and BL-015 closed/untouched
+  - Note (2026-07-20): **Deployed** (`8184d2d`, assets `index-DzxHvZB-.js` / `index-BEnefPLS.css`; verify OVERALL PASS). Operator walkthrough / Story accepted still open.
+- [x] 7.2 Update `docs/product/progress-checklist.md` and US-084 status only for demonstrated criteria; leave US-085/US-086 and BL-015 closed/untouched
+  - Note (2026-07-20): Status set to implemented+deployed; AC checkboxes / Story accepted remain open pending walkthrough.
 - [x] 7.3 Confirm non-goals held: no cancel-queued mutation, no publish-now / LinkedIn API path, no ADR-0001 / enablement bypass, no BL-015 reopen

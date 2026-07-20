@@ -1254,7 +1254,7 @@ As a content operator, I want each LinkedIn variant on the console to show plain
 
 ### US-084 — Postpone and Reschedule LinkedIn Variants From the Console
 
-**Status:** Open. Not started. Depends on US-083 language/action honesty where practical.
+**Status:** Implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-postpone-and-reschedule-linkedin-variants-from-console-us-084`; git `8184d2d`; live assets `index-DzxHvZB-.js` / `index-BEnefPLS.css`; deploy verify OVERALL PASS). Vitest `us084.postpone-reschedule.test.tsx`. **Not Story accepted** (operator walkthrough pending).
 
 **Description**
 
