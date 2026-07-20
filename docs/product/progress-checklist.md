@@ -557,9 +557,9 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] **US-081** — Promote approved Flow B blogs onto the Flow A path
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+    - [x] Work started
+    - [x] Business outcome demonstrated *(automated: `POST …/promote` → `ready/`; spill A; pending-approval publish rejected; Authority Manager Promote; not Story accepted)*
+    - [x] Acceptance criteria validated *(automated ACs; operator walkthrough pending)*
     - [ ] Story accepted
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated

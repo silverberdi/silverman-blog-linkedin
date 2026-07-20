@@ -232,6 +232,7 @@ export type FlowBDraftStatus =
   | "pending_approval"
   | "pending_approval_image_failed"
   | "approved"
+  | "promoted"
   | "rejected"
   | string;
 
@@ -281,6 +282,11 @@ export interface FlowBRejectDraftRequest {
   dry_run?: boolean;
 }
 
+export interface FlowBPromoteDraftRequest {
+  promoted_by?: string | null;
+  dry_run?: boolean;
+}
+
 export interface FlowBDraftDecisionResponse {
   status: FlowBDraftStatus | "failed" | string;
   draft_id: string;
@@ -295,6 +301,29 @@ export interface FlowBDraftDecisionResponse {
   rejected_at_utc?: string | null;
   rejection_reason?: string | null;
   image_warning?: string | null;
+  operator_note?: string | null;
+  error_code?: string | null;
+  error?: string | null;
+}
+
+export interface FlowBPromoteDraftResponse {
+  status: "promoted" | "failed" | string;
+  draft_id: string;
+  promoted: boolean;
+  promotion_pending: boolean;
+  already_promoted: boolean;
+  dry_run: boolean;
+  blog_relative_path?: string | null;
+  image_relative_path?: string | null;
+  metadata_relative_path?: string | null;
+  approved_at_utc?: string | null;
+  approved_by?: string | null;
+  promoted_at_utc?: string | null;
+  promoted_by?: string | null;
+  origin?: string | null;
+  target_week?: string | null;
+  empty_days?: string[] | null;
+  flow_a_eligible: boolean;
   operator_note?: string | null;
   error_code?: string | null;
   error?: string | null;

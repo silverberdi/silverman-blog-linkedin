@@ -79,6 +79,7 @@ from silverman_blog_linkedin.ready_post_validation import (
     CAMPAIGN_METADATA_WRITE_FAILED,
     CONTENT_CONTAINS_TODO,
     ALLOWED_PUBLISH_SOURCE_PREFIXES,
+    PENDING_APPROVAL_RELATIVE_PREFIX,
     validate_ready_post,
     validate_ready_post_pre_generation,
 )
@@ -93,6 +94,7 @@ BLOG_PUBLISH_METADATA_WRITE_FAILED = "blog_publish_metadata_write_failed"
 BLOG_PUBLISH_PUBLIC_REPO_NOT_CONFIGURED = "blog_publish_public_repo_not_configured"
 BLOG_PUBLISH_SOURCE_NOT_READY = "blog_publish_source_not_ready"
 BLOG_PUBLISH_FLOW_B_NOT_ALLOWED = "blog_publish_flow_b_not_allowed"
+BLOG_PUBLISH_PENDING_APPROVAL_NOT_ALLOWED = "blog_publish_pending_approval_not_allowed"
 
 BLOG_PUBLISH_HASH_RECONCILIATION_FAILED = "blog_publish_hash_reconciliation_failed"
 
@@ -107,6 +109,7 @@ BLOG_PUBLISH_ERROR_CODES = frozenset(
         BLOG_PUBLISH_PUBLIC_REPO_NOT_CONFIGURED,
         BLOG_PUBLISH_SOURCE_NOT_READY,
         BLOG_PUBLISH_FLOW_B_NOT_ALLOWED,
+        BLOG_PUBLISH_PENDING_APPROVAL_NOT_ALLOWED,
         BLOG_PUBLISH_HASH_RECONCILIATION_FAILED,
     }
 )
@@ -362,6 +365,24 @@ def _preflight_inspect(
 ) -> PreflightContext:
     normalized = _normalize_relative_path(source_relative_path)
     errors: list[str] = []
+
+    # US-081: pending-approval/ is never a Flow A publish source (dedicated error).
+    if normalized.startswith(PENDING_APPROVAL_RELATIVE_PREFIX) or (
+        "/pending-approval/" in normalized
+        and normalized.startswith("blog-posts/")
+    ):
+        errors.append(BLOG_PUBLISH_PENDING_APPROVAL_NOT_ALLOWED)
+        return PreflightContext(
+            source_relative_path=normalized,
+            source_slug=None,
+            public_slug=None,
+            publication_date=None,
+            source_content_sha256=None,
+            campaign_id=None,
+            expected_idempotency_key=None,
+            image_relative_path=None,
+            errors=tuple(errors),
+        )
 
     allowed_prefixes = ALLOWED_PUBLISH_SOURCE_PREFIXES
     matched_prefix = None

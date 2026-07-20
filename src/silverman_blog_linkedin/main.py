@@ -64,6 +64,18 @@ from silverman_blog_linkedin.flow_b_blog_draft_approval import (
     reject_pending_approval_draft,
     resolve_pending_approval_image_path,
 )
+from silverman_blog_linkedin.flow_b_blog_draft_promotion import (
+    ERROR_APPROVAL_METADATA_MISSING,
+    ERROR_DRAFT_NOT_APPROVED,
+    ERROR_DRAFT_PAIR_INCOMPLETE,
+    ERROR_DRAFT_REJECTED,
+    ERROR_PROMOTE_MOVE_FAILED,
+    ERROR_READY_COLLISION,
+    ERROR_SIDECAR_WRITE_FAILED as ERROR_PROMOTE_SIDECAR_WRITE_FAILED,
+    STATUS_PROMOTED,
+    DraftPromoteResult,
+    promote_pending_approval_draft,
+)
 from silverman_blog_linkedin.flow_b_blog_draft_generation import (
     ERROR_ANTI_AI_BLOCKED as DRAFT_ERROR_ANTI_AI_BLOCKED,
     ERROR_CANON_MISSING as DRAFT_ERROR_CANON_MISSING,
@@ -925,6 +937,15 @@ class FlowBRejectDraftRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     rejection_reason: str | None = None
+    dry_run: bool = False
+
+
+class FlowBPromoteDraftRequest(BaseModel):
+    """POST body for Flow B pending-approval promote to ready/ (US-081)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    promoted_by: str | None = None
     dry_run: bool = False
 
 
@@ -3155,13 +3176,39 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             status_code = 502
         raise HTTPException(status_code=status_code, detail=payload)
 
+    def _flow_b_draft_promote_http_error(result: DraftPromoteResult) -> None:
+        """Raise HTTPException for failed promote attempts."""
+        payload = result.to_dict()
+        code = result.error_code or "draft_promote_failed"
+        if code in {
+            ERROR_DRAFT_ID_INVALID,
+            ERROR_PATH_TRAVERSAL,
+            ERROR_SIDECAR_INVALID,
+            ERROR_DRAFT_NOT_APPROVED,
+            ERROR_DRAFT_REJECTED,
+            ERROR_DRAFT_PAIR_INCOMPLETE,
+            ERROR_READY_COLLISION,
+            ERROR_APPROVAL_METADATA_MISSING,
+        }:
+            status_code = 422
+        elif code == ERROR_DRAFT_NOT_FOUND:
+            status_code = 404
+        elif code in {
+            ERROR_PROMOTE_MOVE_FAILED,
+            ERROR_PROMOTE_SIDECAR_WRITE_FAILED,
+        }:
+            status_code = 502
+        else:
+            status_code = 502
+        raise HTTPException(status_code=status_code, detail=payload)
+
     @app.get("/flow-b/pending-approval-drafts")
     def get_flow_b_pending_approval_drafts(
         status: str | None = Query(
             default=None,
             description=(
                 "Optional status filter. Default lists actionable pending "
-                "(pending_approval, pending_approval_image_failed)."
+                "and approved-not-promoted drafts."
             ),
         ),
         _auth: None = Depends(require_api_key),
@@ -3266,6 +3313,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if result.status == STATUS_REJECTED:
             return result.to_dict()
         _flow_b_draft_decision_http_error(result)
+        return result.to_dict()  # pragma: no cover
+
+    @app.post("/flow-b/pending-approval-drafts/{draft_id}/promote")
+    def post_flow_b_pending_approval_draft_promote(
+        draft_id: str,
+        body: FlowBPromoteDraftRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        """Promote approved draft to blog-posts/ready/ (US-081). Does not publish."""
+        result = promote_pending_approval_draft(
+            settings.base_path,
+            draft_id,
+            promoted_by=body.promoted_by,
+            dry_run=body.dry_run,
+        )
+        logger.info(
+            "flow-b/pending-approval-drafts promote draft_id=%s status=%s "
+            "dry_run=%s promoted=%s already_promoted=%s error_code=%s",
+            result.draft_id,
+            result.status,
+            result.dry_run,
+            result.promoted,
+            result.already_promoted,
+            result.error_code,
+        )
+        if result.status == STATUS_PROMOTED:
+            return result.to_dict()
+        _flow_b_draft_promote_http_error(result)
         return result.to_dict()  # pragma: no cover
 
     return app

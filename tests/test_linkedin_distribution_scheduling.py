@@ -31,6 +31,7 @@ from silverman_blog_linkedin.campaign_lifecycle import (
 )
 from silverman_blog_linkedin.linkedin_distribution_schedule import (
     DEFAULT_STAGGER_STRATEGY,
+    FLOW_B_SPILL_A_STRATEGY,
     LINKEDIN_SCHEDULE_ARTIFACT_HASH_CHANGED,
     LINKEDIN_SCHEDULE_ARTIFACT_MISSING,
     LINKEDIN_SCHEDULE_CAMPAIGN_NOT_FOUND,
@@ -40,6 +41,7 @@ from silverman_blog_linkedin.linkedin_distribution_schedule import (
     LINKEDIN_SCHEDULE_INVALID_STRATEGY,
     LINKEDIN_SCHEDULE_METADATA_MISMATCH,
     LINKEDIN_SCHEDULE_PACKAGE_MISSING,
+    LINKEDIN_SCHEDULE_SPILL_DENSITY_EXHAUSTED,
     LINKEDIN_SCHEDULE_VARIANT_METADATA_MISSING,
     VARIANT_DAY_OFFSETS,
     build_schedule_idempotency_key,
@@ -668,3 +670,180 @@ def test_default_anchor_uses_preferred_weekday(editorial_base: Path):
 
     assert result.status == "completed"
     assert result.anchor_utc == "2026-07-07T14:00:00Z"
+
+
+def _write_flow_b_sidecar(
+    base: Path,
+    *,
+    target_week: str = "2026-W28",
+    empty_days: list[str] | None = None,
+) -> None:
+    """Sibling .flow-b.json beside ready source for spill A provenance."""
+    meta = base / "blog-posts" / "ready" / f"{SOURCE_SLUG}.flow-b.json"
+    meta.write_text(
+        json.dumps(
+            {
+                "status": "promoted",
+                "origin": "flow_b",
+                "flow": "flow_b",
+                "slug": SOURCE_SLUG,
+                "target_week": target_week,
+                "empty_days": empty_days
+                if empty_days is not None
+                else ["2026-07-07", "2026-07-09"],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def test_spill_a_places_gap_days_first_under_max_2(
+    editorial_base: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("SILVERMAN_OPERATOR_TIMEZONE", "UTC")
+    _derivatives_generated_campaign(editorial_base)
+    _write_flow_b_sidecar(
+        editorial_base,
+        target_week="2026-W28",
+        empty_days=["2026-07-07", "2026-07-09"],
+    )
+    # Mock density always empty so placement is pure algorithm order
+    with patch(
+        "silverman_blog_linkedin.flow_b_spill_schedule.evaluate_local_day_density"
+    ) as mock_density:
+        mock_density.return_value = type(
+            "R",
+            (),
+            {"ok": True, "others_on_day": 0, "errors": []},
+        )()
+        result = schedule_linkedin_distribution(
+            editorial_base,
+            campaign_id=CANONICAL_CAMPAIGN_ID,
+            strategy=FLOW_B_SPILL_A_STRATEGY,
+            start_at_utc=ANCHOR_UTC,
+        )
+    assert result.status == "completed"
+    assert result.strategy == FLOW_B_SPILL_A_STRATEGY
+    by_variant = {item["variant"]: item["scheduled_at_utc"] for item in result.variant_schedules}
+    # First two variants on first gap day (max 2), next on second gap day
+    assert by_variant["executive-recruiter"].startswith("2026-07-07")
+    assert by_variant["engineering-leadership"].startswith("2026-07-07")
+    assert by_variant["technical-architect"].startswith("2026-07-09")
+    assert by_variant["short-provocative"].startswith("2026-07-09")
+
+
+def test_spill_a_continues_within_week_then_forward(
+    editorial_base: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("SILVERMAN_OPERATOR_TIMEZONE", "UTC")
+    _derivatives_generated_campaign(editorial_base)
+    # Only one gap day → remaining spill to other week days then forward
+    _write_flow_b_sidecar(
+        editorial_base,
+        target_week="2026-W28",
+        empty_days=["2026-07-07"],
+    )
+    with patch(
+        "silverman_blog_linkedin.flow_b_spill_schedule.evaluate_local_day_density"
+    ) as mock_density:
+        mock_density.return_value = type(
+            "R",
+            (),
+            {"ok": True, "others_on_day": 0, "errors": []},
+        )()
+        result = schedule_linkedin_distribution(
+            editorial_base,
+            campaign_id=CANONICAL_CAMPAIGN_ID,
+            strategy=FLOW_B_SPILL_A_STRATEGY,
+            start_at_utc=ANCHOR_UTC,
+        )
+    assert result.status == "completed"
+    days = sorted(
+        {
+            item["scheduled_at_utc"][:10]
+            for item in result.variant_schedules
+        }
+    )
+    # Gap day + next week days (Mon 6 Jul is W28 day 1; empty is Tue 7)
+    assert "2026-07-07" in days
+    assert any(d != "2026-07-07" for d in days)
+
+
+def test_spill_a_fails_closed_on_density_exhaustion(
+    editorial_base: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("SILVERMAN_OPERATOR_TIMEZONE", "UTC")
+    _derivatives_generated_campaign(editorial_base)
+    _write_flow_b_sidecar(editorial_base)
+    with patch(
+        "silverman_blog_linkedin.flow_b_spill_schedule.evaluate_local_day_density"
+    ) as mock_density:
+        mock_density.return_value = type(
+            "R",
+            (),
+            {"ok": True, "others_on_day": 2, "errors": []},
+        )()
+        result = schedule_linkedin_distribution(
+            editorial_base,
+            campaign_id=CANONICAL_CAMPAIGN_ID,
+            strategy=FLOW_B_SPILL_A_STRATEGY,
+            start_at_utc=ANCHOR_UTC,
+        )
+    assert result.status == "failed"
+    assert LINKEDIN_SCHEDULE_SPILL_DENSITY_EXHAUSTED in result.errors
+
+
+def test_auto_select_spill_a_with_flow_b_provenance(
+    editorial_base: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("SILVERMAN_OPERATOR_TIMEZONE", "UTC")
+    _derivatives_generated_campaign(editorial_base)
+    _write_flow_b_sidecar(editorial_base)
+    with patch(
+        "silverman_blog_linkedin.flow_b_spill_schedule.evaluate_local_day_density"
+    ) as mock_density:
+        mock_density.return_value = type(
+            "R",
+            (),
+            {"ok": True, "others_on_day": 0, "errors": []},
+        )()
+        result = schedule_linkedin_distribution(
+            editorial_base,
+            campaign_id=CANONICAL_CAMPAIGN_ID,
+            strategy=None,
+            start_at_utc=ANCHOR_UTC,
+        )
+    assert result.status == "completed"
+    assert result.strategy == FLOW_B_SPILL_A_STRATEGY
+
+
+def test_non_flow_b_keeps_default_stagger(editorial_base: Path):
+    _derivatives_generated_campaign(editorial_base)
+    result = schedule_linkedin_distribution(
+        editorial_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        strategy=None,
+        start_at_utc=ANCHOR_UTC,
+    )
+    assert result.status == "completed"
+    assert result.strategy == DEFAULT_STAGGER_STRATEGY
+
+
+def test_explicit_stagger_override_for_flow_b_origin(editorial_base: Path):
+    _derivatives_generated_campaign(editorial_base)
+    _write_flow_b_sidecar(editorial_base)
+    result = schedule_linkedin_distribution(
+        editorial_base,
+        campaign_id=CANONICAL_CAMPAIGN_ID,
+        strategy=DEFAULT_STAGGER_STRATEGY,
+        start_at_utc=ANCHOR_UTC,
+    )
+    assert result.status == "completed"
+    assert result.strategy == DEFAULT_STAGGER_STRATEGY
+    anchor = datetime.strptime(ANCHOR_UTC, "%Y-%m-%dT%H:%M:%SZ")
+    for item in result.variant_schedules:
+        offset_days = VARIANT_DAY_OFFSETS[item["variant"]]
+        expected = (anchor + timedelta(days=offset_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        assert item["scheduled_at_utc"] == expected

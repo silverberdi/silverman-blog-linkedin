@@ -221,6 +221,7 @@ def test_http_auth_required(tmp_path: Path) -> None:
     assert client.get(f"{LIST_PATH}/x/image").status_code == 401
     assert client.post(f"{LIST_PATH}/x/approve", json={}).status_code == 401
     assert client.post(f"{LIST_PATH}/x/reject", json={}).status_code == 401
+    assert client.post(f"{LIST_PATH}/x/promote", json={}).status_code == 401
 
 
 def test_http_list_detail_image_approve_reject(tmp_path: Path) -> None:
@@ -301,11 +302,12 @@ def test_openapi_exposes_routes_and_leaves_prior_contracts(tmp_path: Path) -> No
     assert f"{LIST_PATH}/{{draft_id}}/image" in paths
     assert f"{LIST_PATH}/{{draft_id}}/approve" in paths
     assert f"{LIST_PATH}/{{draft_id}}/reject" in paths
+    assert f"{LIST_PATH}/{{draft_id}}/promote" in paths
     assert GENERATE_PATH in paths
     assert DISCOVER_PATH in paths
     assert GAPS_PATH in paths
     assert SETTINGS_PATH in paths
-    # US-081 / US-082 still out of scope
+    # US-082 still out of scope; promote uses pending-approval-drafts path (US-081)
     assert "/flow-b/promote-blog-draft" not in paths
     assert "/flow-b/gap-trigger" not in paths
 

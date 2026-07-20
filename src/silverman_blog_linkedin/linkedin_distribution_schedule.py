@@ -29,6 +29,10 @@ from silverman_blog_linkedin.campaign_lifecycle import (
 )
 
 DEFAULT_STAGGER_STRATEGY = "flow_a_staggered"
+FLOW_B_SPILL_A_STRATEGY = "flow_b_spill_a"
+ALLOWED_SCHEDULE_STRATEGIES = frozenset(
+    {DEFAULT_STAGGER_STRATEGY, FLOW_B_SPILL_A_STRATEGY}
+)
 DEFAULT_PUBLISH_HOUR_UTC = 14
 PREFERRED_WEEKDAYS = frozenset({1, 2, 3})  # Tuesday, Wednesday, Thursday
 
@@ -58,6 +62,8 @@ LINKEDIN_SCHEDULE_NO_VARIANTS = "linkedin_schedule_no_variants"
 LINKEDIN_SCHEDULE_INVALID_STRATEGY = "linkedin_schedule_invalid_strategy"
 LINKEDIN_SCHEDULE_INVALID_ANCHOR = "linkedin_schedule_invalid_anchor"
 LINKEDIN_SCHEDULE_METADATA_WRITE_FAILED = "linkedin_schedule_metadata_write_failed"
+LINKEDIN_SCHEDULE_SPILL_DENSITY_EXHAUSTED = "linkedin_schedule_spill_density_exhausted"
+LINKEDIN_SCHEDULE_SPILL_CONTEXT_INVALID = "linkedin_schedule_spill_context_invalid"
 
 # Bounded CAS retries for first-time schedule apply (US-034); mirrors claim CAS.
 SCHEDULE_CAS_MAX_ATTEMPTS = 3
@@ -326,6 +332,35 @@ def _check_idempotent_completed(
     return True
 
 
+def _resolve_schedule_strategy(
+    base_path: Path,
+    campaign: dict[str, Any],
+    *,
+    strategy: str | None,
+) -> tuple[str | None, str | None]:
+    """Resolve strategy; auto-select spill A for Flow B provenance when omitted.
+
+    Explicit ``flow_a_staggered`` always wins (override). Unknown names fail closed.
+    """
+    from silverman_blog_linkedin.flow_b_spill_schedule import (
+        resolve_flow_b_spill_provenance,
+    )
+
+    if strategy is not None and strategy not in ALLOWED_SCHEDULE_STRATEGIES:
+        return None, LINKEDIN_SCHEDULE_INVALID_STRATEGY
+
+    if strategy == DEFAULT_STAGGER_STRATEGY:
+        return DEFAULT_STAGGER_STRATEGY, None
+    if strategy == FLOW_B_SPILL_A_STRATEGY:
+        return FLOW_B_SPILL_A_STRATEGY, None
+
+    # strategy omitted → auto-select
+    provenance = resolve_flow_b_spill_provenance(base_path, campaign)
+    if provenance is not None and provenance.usable:
+        return FLOW_B_SPILL_A_STRATEGY, None
+    return DEFAULT_STAGGER_STRATEGY, None
+
+
 def schedule_linkedin_distribution(
     base_path: Path,
     *,
@@ -338,23 +373,22 @@ def schedule_linkedin_distribution(
     """Schedule Flow A LinkedIn distribution for one campaign."""
     del timezone  # reserved for documentation/future use
 
-    resolved_strategy = strategy or DEFAULT_STAGGER_STRATEGY
-    if resolved_strategy != DEFAULT_STAGGER_STRATEGY:
-        return LinkedInDistributionScheduleResult(
-            status="failed",
-            strategy=resolved_strategy,
-            errors=[LINKEDIN_SCHEDULE_INVALID_STRATEGY],
-        )
-
     campaign = _resolve_campaign(
         base_path,
         campaign_id=campaign_id,
         source_relative_path=source_relative_path,
     )
     if campaign is None:
+        # Validate strategy name even without campaign when explicitly provided
+        if strategy is not None and strategy not in ALLOWED_SCHEDULE_STRATEGIES:
+            return LinkedInDistributionScheduleResult(
+                status="failed",
+                strategy=strategy,
+                errors=[LINKEDIN_SCHEDULE_INVALID_STRATEGY],
+            )
         return LinkedInDistributionScheduleResult(
             status="failed",
-            strategy=resolved_strategy,
+            strategy=strategy or DEFAULT_STAGGER_STRATEGY,
             errors=[LINKEDIN_SCHEDULE_CAMPAIGN_NOT_FOUND],
         )
 
@@ -362,7 +396,19 @@ def schedule_linkedin_distribution(
         return _failed_result(
             campaign=campaign,
             errors=[LINKEDIN_SCHEDULE_FLOW_NOT_ALLOWED],
-            strategy=resolved_strategy,
+            strategy=strategy or DEFAULT_STAGGER_STRATEGY,
+        )
+
+    resolved_strategy, strategy_error = _resolve_schedule_strategy(
+        base_path, campaign, strategy=strategy
+    )
+    if strategy_error or resolved_strategy is None:
+        return LinkedInDistributionScheduleResult(
+            status="failed",
+            campaign_id=campaign.get("campaign_id"),
+            state=campaign.get("state"),
+            strategy=strategy,
+            errors=[strategy_error or LINKEDIN_SCHEDULE_INVALID_STRATEGY],
         )
 
     state = campaign.get("state")
@@ -490,7 +536,37 @@ def schedule_linkedin_distribution(
             anchor_utc=anchor_utc,
         )
 
-    schedule_times = _compute_staggered_schedules(variant_ids, anchor_utc)
+    if resolved_strategy == FLOW_B_SPILL_A_STRATEGY:
+        from silverman_blog_linkedin.flow_b_spill_schedule import (
+            compute_spill_a_schedules,
+            resolve_flow_b_spill_provenance,
+        )
+
+        provenance = resolve_flow_b_spill_provenance(base_path, campaign)
+        if provenance is None or not provenance.usable:
+            return _failed_result(
+                campaign=campaign,
+                errors=[LINKEDIN_SCHEDULE_SPILL_CONTEXT_INVALID],
+                strategy=resolved_strategy,
+                anchor_utc=anchor_utc,
+            )
+        schedule_times, spill_error = compute_spill_a_schedules(
+            base_path,
+            variant_ids=variant_ids,
+            target_week=provenance.target_week,
+            empty_days=provenance.empty_days,
+            anchor_utc=anchor_utc,
+            campaign_id=campaign.get("campaign_id"),
+        )
+        if spill_error or schedule_times is None:
+            return _failed_result(
+                campaign=campaign,
+                errors=[spill_error or LINKEDIN_SCHEDULE_SPILL_DENSITY_EXHAUSTED],
+                strategy=resolved_strategy,
+                anchor_utc=anchor_utc,
+            )
+    else:
+        schedule_times = _compute_staggered_schedules(variant_ids, anchor_utc)
     campaign_id_resolved = campaign["campaign_id"]
 
     for _cas_attempt in range(SCHEDULE_CAS_MAX_ATTEMPTS):
@@ -575,6 +651,19 @@ def schedule_linkedin_distribution(
             "anchor_utc": anchor_utc,
             "variant_ids": variant_ids,
         }
+        if resolved_strategy == FLOW_B_SPILL_A_STRATEGY:
+            from silverman_blog_linkedin.flow_b_spill_schedule import (
+                resolve_flow_b_spill_provenance,
+            )
+
+            provenance = resolve_flow_b_spill_provenance(base_path, working_campaign)
+            if provenance is not None:
+                working_campaign["flow_b_origin"] = {
+                    "origin": "flow_b",
+                    "target_week": provenance.target_week,
+                    "empty_days": list(provenance.empty_days),
+                    "strategy": FLOW_B_SPILL_A_STRATEGY,
+                }
 
         history_len_before = len(working_campaign.get("state_history") or [])
         try:

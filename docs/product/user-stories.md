@@ -1231,7 +1231,7 @@ Operator walkthrough gate closed 2026-07-19 (incognito confirmation on deployed 
 
 **Business context:** Lock the simplified Flow B process: AI topic discovery → AI blog draft → one human blog-approval gate → then Flow A. Career north star: authority for senior leadership / architecture / transformation / AI roles (≥ ~USD 7,000). Operator surface: **Silverman Authority Manager**. Planning notes: [planning-notes-flow-b-simplification.md](planning-notes-flow-b-simplification.md).
 
-**Status note:** P4 stories **US-074–US-082**. IDs renumbered 2026-07-19 to match apply order. Apply order: **US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-081 → US-082**. First OpenSpec change (done): US-074 + US-075 (docs/policy).
+**Status note:** P4 stories **US-074–US-082**. IDs renumbered 2026-07-19 to match apply order. Apply order: **US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-081 → US-082**. First OpenSpec change (done): US-074 + US-075 (docs/policy). US-081 promote + spill A **implemented** (not Story accepted).
 
 ### US-074 — Define Simplified Flow B Process and Approval Boundary
 
@@ -1332,7 +1332,7 @@ As a content operator, I want a complete blog draft (and hero image) generated f
 
 ### US-080 — Present Flow B Blog Drafts for Approve or Reject
 
-**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=cb36fa9…`; OpenSpec archive `2026-07-19-present-flow-b-blog-drafts-for-approve-or-reject-us-080`). Automated AC coverage via `tests/test_flow_b_blog_draft_approval.py` + Vitest `us080.pending-drafts.test.tsx`; OpenAPI exposes `GET`/`POST /flow-b/pending-approval-drafts…`. **Not Story accepted** (operator walkthrough pending). **BL-018 remains open.** US-081–US-082 not implemented.
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=cb36fa9…`; OpenSpec archive `2026-07-19-present-flow-b-blog-drafts-for-approve-or-reject-us-080`). Automated AC coverage via `tests/test_flow_b_blog_draft_approval.py` + Vitest `us080.pending-drafts.test.tsx`; OpenAPI exposes `GET`/`POST /flow-b/pending-approval-drafts…`. **Not Story accepted** (operator walkthrough pending). **BL-018 remains open.** US-081 promote is implemented separately (not Story accepted); US-082 not implemented.
 
 **Description**
 
@@ -1350,7 +1350,7 @@ As a content operator, I want pending AI blog drafts presented in Silverman Auth
 
 ### US-081 — Promote Approved Flow B Blogs Onto the Flow A Path
 
-**Status:** Not started. AC locked 2026-07-19; **ID renumbered 2026-07-19** (was US-079). Ready for OpenSpec after US-080.
+**Status:** Implemented (OpenSpec change `promote-approved-flow-b-blogs-onto-flow-a-path-us-081`). Automated AC coverage via `tests/test_flow_b_blog_draft_promotion.py`, spill cases in `tests/test_linkedin_distribution_scheduling.py`, publish rejection in `tests/test_blog_publish_flow.py`, Vitest promote cases. OpenAPI exposes `POST /flow-b/pending-approval-drafts/{draft_id}/promote`. **Not Story accepted** (operator walkthrough pending). **Not deployed** unless separately approved. **BL-018 remains open.** US-082 not implemented.
 
 **Description**
 
@@ -1358,14 +1358,14 @@ As a content operator, I want an approved AI blog promoted from `pending-approva
 
 **Acceptance criteria**
 
-- [ ] On approve, record operator approval (who/when/draft id) in durable metadata.
-- [ ] Promote/move the approved pair from **`blog-posts/pending-approval/`** to **`blog-posts/ready/`** (Flow A eligibility contract).
-- [ ] After promotion, blog publish / LinkedIn package / schedule / optional supervision MUST reuse Flow A behavior — no second mandatory LinkedIn approval queue for Flow B.
-- [ ] When scheduling LinkedIn variants from an approved Flow B blog, apply **spill algorithm A**: (1) target-week gap days chronological (max 2) → (2) other days in target week with remaining capacity → (3) forward day-by-day after the week under US-040K max 2.
-- [ ] Unapproved drafts in `pending-approval/` MUST NOT be accepted by Flow A publish paths.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed (Flow A guards and density rules remain authoritative after promotion).
+- [x] On approve, record operator approval (who/when/draft id) in durable metadata. *(US-080 approve fields preserved on promote; promote requires `approved_at_utc`)*
+- [x] Promote/move the approved pair from **`blog-posts/pending-approval/`** to **`blog-posts/ready/`** (Flow A eligibility contract). *(automated: `POST …/promote` moves `.md` + `.png` + `.flow-b.json`)*
+- [x] After promotion, blog publish / LinkedIn package / schedule / optional supervision MUST reuse Flow A behavior — no second mandatory LinkedIn approval queue for Flow B. *(promote does not invent a second LinkedIn gate; campaign `flow` stays `flow_a`)*
+- [x] When scheduling LinkedIn variants from an approved Flow B blog, apply **spill algorithm A**: (1) target-week gap days chronological (max 2) → (2) other days in target week with remaining capacity → (3) forward day-by-day after the week under US-040K max 2. *(strategy `flow_b_spill_a`; auto-select on provenance)*
+- [x] Unapproved drafts in `pending-approval/` MUST NOT be accepted by Flow A publish paths. *(automated: `blog_publish_pending_approval_not_allowed`)*
+- [ ] The outcome is visible and understandable to the intended user. *(operator walkthrough / Story accepted gate)*
+- [x] Failures or blocked states are clearly communicated. *(automated: not-approved / rejected / incomplete / collision / auth + UI failure messaging)*
+- [x] Existing completed work is not duplicated or unintentionally changed (Flow A guards and density rules remain authoritative after promotion). *(US-080 approve remains decision-only; US-040K max 2; no US-082)*
 
 ## BL-019 — Trigger Flow B From Calendar Publication Gaps
 

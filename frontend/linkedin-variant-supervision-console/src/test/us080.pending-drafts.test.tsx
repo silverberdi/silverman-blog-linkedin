@@ -59,15 +59,18 @@ function createAppClient(options?: {
   readonly?: boolean;
   onApprove?: (body: unknown) => Response;
   onReject?: (body: unknown) => Response;
+  onPromote?: (body: unknown) => Response;
   listDrafts?: () => Response;
+  initialStatus?: string;
 }) {
   const auth = options?.readonly
     ? new ReadOnlyBearerAuthProvider()
     : new MemoryBearerAuthProvider();
   auth.setTokenForTests("test-key");
 
-  let drafts = [DRAFT_SUMMARY];
-  let detail = { ...DRAFT_DETAIL };
+  const initialStatus = options?.initialStatus || "pending_approval";
+  let drafts = [{ ...DRAFT_SUMMARY, status: initialStatus }];
+  let detail = { ...DRAFT_DETAIL, status: initialStatus };
 
   const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -96,6 +99,33 @@ function createAppClient(options?: {
         status: 200,
         headers: { "Content-Type": "image/png" },
       });
+    }
+    if (
+      url.includes("/flow-b/pending-approval-drafts/draft-alpha/promote") &&
+      method === "POST"
+    ) {
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      if (options?.onPromote) {
+        return options.onPromote(body);
+      }
+      if (!body.dry_run) {
+        drafts = [];
+      }
+      return new Response(
+        JSON.stringify({
+          status: "promoted",
+          draft_id: "draft-alpha",
+          promoted: true,
+          promotion_pending: false,
+          already_promoted: false,
+          dry_run: Boolean(body.dry_run),
+          flow_a_eligible: true,
+          blog_relative_path: "blog-posts/ready/draft-alpha.md",
+          operator_note:
+            "Promoted to blog-posts/ready/. Flow A eligible; promote does not publish.",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
     }
     if (
       url.includes("/flow-b/pending-approval-drafts/draft-alpha/approve") &&
@@ -200,7 +230,7 @@ describe("US-080 Flow B pending drafts modal", () => {
 
     const modal = await screen.findByTestId("flow-b-drafts-modal");
     expect(within(modal).getByTestId("flow-b-drafts-scope-note")).toHaveTextContent(
-      /does not promote to ready/i,
+      /Promote moves an approved draft to ready/i,
     );
     expect(within(modal).getByTestId("flow-b-drafts-scope-note")).toHaveTextContent(
       /no revision-history CMS/i,
@@ -255,10 +285,87 @@ describe("US-080 Flow B pending drafts modal", () => {
 
     await waitFor(() => {
       expect(within(modal).getByTestId("flow-b-drafts-outcome")).toHaveTextContent(
-        /Promotion to ready\/ is still pending/i,
+        /Still not Flow A eligible/i,
       );
     });
     expect(captured).toEqual({ dry_run: true });
+  });
+
+  it("promote is available for approved drafts and communicates Flow A eligibility", async () => {
+    const user = userEvent.setup();
+    let captured: unknown = null;
+    const client = createAppClient({
+      initialStatus: "approved",
+      onPromote: (body) => {
+        captured = body;
+        return new Response(
+          JSON.stringify({
+            status: "promoted",
+            draft_id: "draft-alpha",
+            promoted: true,
+            promotion_pending: false,
+            already_promoted: false,
+            dry_run: true,
+            flow_a_eligible: true,
+            operator_note: "Would promote to ready/",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      },
+    });
+    render(<App client={client} />);
+
+    await user.click(await screen.findByTestId("header-flow-b-drafts-btn"));
+    const modal = await screen.findByTestId("flow-b-drafts-modal");
+    await waitFor(() => {
+      expect(within(modal).getByTestId("flow-b-drafts-status")).toHaveTextContent(
+        /Approved \(not promoted\)/i,
+      );
+    });
+    expect(within(modal).getByTestId("flow-b-drafts-promote")).toBeInTheDocument();
+    expect(
+      within(modal).getByTestId("flow-b-drafts-approved-not-promoted"),
+    ).toBeInTheDocument();
+    await user.click(within(modal).getByTestId("flow-b-drafts-promote"));
+    await waitFor(() => {
+      expect(within(modal).getByTestId("flow-b-drafts-outcome")).toHaveTextContent(
+        /Flow A eligible/i,
+      );
+    });
+    expect(captured).toEqual({ dry_run: true });
+  });
+
+  it("promote failures are communicated without implying publish", async () => {
+    const user = userEvent.setup();
+    const client = createAppClient({
+      initialStatus: "approved",
+      onPromote: () =>
+        new Response(
+          JSON.stringify({
+            detail: {
+              status: "failed",
+              draft_id: "draft-alpha",
+              error_code: "draft_ready_collision",
+              error: "A file with this basename already exists under blog-posts/ready/.",
+            },
+          }),
+          { status: 422, headers: { "Content-Type": "application/json" } },
+        ),
+    });
+    render(<App client={client} />);
+    await user.click(await screen.findByTestId("header-flow-b-drafts-btn"));
+    const modal = await screen.findByTestId("flow-b-drafts-modal");
+    await waitFor(() => {
+      expect(within(modal).getByTestId("flow-b-drafts-promote")).toBeEnabled();
+    });
+    await user.click(within(modal).getByTestId("flow-b-drafts-promote"));
+    await waitFor(() => {
+      expect(within(modal).getByTestId("flow-b-drafts-error")).toBeInTheDocument();
+    });
+    expect(within(modal).queryByTestId("flow-b-drafts-outcome")).toBeNull();
+    expect(within(modal).getByTestId("flow-b-drafts-error").textContent || "").not.toMatch(
+      /published to (the )?blog|LinkedIn API/i,
+    );
   });
 
   it("reject communicates blocked state", async () => {

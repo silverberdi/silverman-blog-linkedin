@@ -1,13 +1,13 @@
 # Flow B simplified policy (US-074 / US-075)
 
-**Status:** Policy defined 2026-07-19 (documentation). **US-076** gap operator settings persistence is **implemented and deployed**. **US-077** next-week gap **detect** is **implemented and deployed** (authenticated `GET /flow-b/calendar-gaps`; not Story accepted). **US-078** AI topic **discovery** is **implemented and deployed** (authenticated `POST /flow-b/discover-topics`; not Story accepted). **US-079** AI blog **draft generation** is **implemented and deployed** (authenticated `POST /flow-b/generate-blog-drafts` → `blog-posts/pending-approval/`; not Story accepted). **US-080** blog draft **approve/reject presentation** is **implemented and deployed** (authenticated `GET`/`POST /flow-b/pending-approval-drafts…` + Authority Manager **Flow B drafts** panel; not Story accepted). **US-081–US-082** (promote + spill A, gap trigger) remain **not** implemented.
+**Status:** Policy defined 2026-07-19 (documentation). **US-076** gap operator settings persistence is **implemented and deployed**. **US-077** next-week gap **detect** is **implemented and deployed** (authenticated `GET /flow-b/calendar-gaps`; not Story accepted). **US-078** AI topic **discovery** is **implemented and deployed** (authenticated `POST /flow-b/discover-topics`; not Story accepted). **US-079** AI blog **draft generation** is **implemented and deployed** (authenticated `POST /flow-b/generate-blog-drafts` → `blog-posts/pending-approval/`; not Story accepted). **US-080** blog draft **approve/reject presentation** is **implemented and deployed** (authenticated `GET`/`POST /flow-b/pending-approval-drafts…` + Authority Manager **Flow B drafts** panel; not Story accepted). **US-081** promote-to-`ready/` + spill algorithm A scheduling is **implemented** (authenticated `POST …/promote` + `flow_b_spill_a` strategy; not Story accepted; not deployed unless separately approved). **US-082** gap trigger remains **not** implemented.
 **Story IDs:** renumbered 2026-07-19 to match apply order (settings=076 … trigger=082).
 **Product surface:** **Silverman Authority Manager**
 **Planning authority:** [planning-notes-flow-b-simplification.md](../product/planning-notes-flow-b-simplification.md)
-**Stories:** BL-016 — [US-074](../product/user-stories.md), [US-075](../product/user-stories.md); settings SoT — [US-076](../product/user-stories.md); gap detect — [US-077](../product/user-stories.md); topic discovery — [US-078](../product/user-stories.md); draft generation — [US-079](../product/user-stories.md); approve/reject presentation — [US-080](../product/user-stories.md)
-**OpenSpec:** `openspec/changes/define-simplified-flow-b-us-074-075` (capability `flow-b-simplified-process`); settings capability `flow-b-gap-operator-settings` (US-076); detect capability `flow-b-calendar-gap-detect` (US-077); discovery capability `flow-b-topic-discovery` (US-078); draft capability `flow-b-blog-draft-generation` (US-079); approve capability `flow-b-blog-draft-approval` (US-080)
+**Stories:** BL-016 — [US-074](../product/user-stories.md), [US-075](../product/user-stories.md); settings SoT — [US-076](../product/user-stories.md); gap detect — [US-077](../product/user-stories.md); topic discovery — [US-078](../product/user-stories.md); draft generation — [US-079](../product/user-stories.md); approve/reject presentation — [US-080](../product/user-stories.md); promote + spill A — [US-081](../product/user-stories.md)
+**OpenSpec:** `openspec/changes/define-simplified-flow-b-us-074-075` (capability `flow-b-simplified-process`); settings capability `flow-b-gap-operator-settings` (US-076); detect capability `flow-b-calendar-gap-detect` (US-077); discovery capability `flow-b-topic-discovery` (US-078); draft capability `flow-b-blog-draft-generation` (US-079); approve capability `flow-b-blog-draft-approval` (US-080); promote capability `flow-b-blog-draft-promotion` (US-081)
 
-This document is the operator-facing normative policy for simplified Flow B. Editable gap operator settings are persisted via **Postgres `silverman_linkedin_db` + Silverman Authority Manager UI** (US-076 / `GET`+`PUT /flow-b/gap-operator-settings`), with documented defaults including `gap_trigger_enabled=false`. **Runtime next-week LinkedIn gap detection** is provided by capability `flow-b-calendar-gap-detect` (US-077): authenticated detect-only `GET /flow-b/calendar-gaps` returns `gaps[]` / no-gap for the next operator-local week using settings from US-076, without mutating campaigns or starting drafts. Detect **MAY** run for inspection when `gap_trigger_enabled=false`; auto-trigger remains a separate fail-closed capability (US-082). **Runtime AI topic discovery** is provided by capability `flow-b-topic-discovery` (US-078): authenticated `POST /flow-b/discover-topics` returns authority-aligned topic choices (DeepSeek v1; provider-pluggable seam) without writing draft packages. **Runtime AI blog draft generation** is provided by capability `flow-b-blog-draft-generation` (US-079): authenticated `POST /flow-b/generate-blog-drafts` accepts US-078 topic payloads, generates Markdown + hero image pairs into `blog-posts/pending-approval/` (same pair rules as `ready/`), applies editorial canon and blocking anti-AI-writing rules, and records durable sidecar metadata — without writing `blog-posts/ready/` or invoking Flow A publish/package/schedule or LinkedIn API publish. **Runtime blog draft approve/reject presentation** is provided by capability `flow-b-blog-draft-approval` (US-080): authenticated worker HTTP plus Silverman Authority Manager UI that lists/presents drafts from `pending-approval/`, supports approve and reject, keeps rejected drafts non-publishable, and records approve decisions without promoting to `ready/`. This document does **not** implement promote/spill (US-081) or gap trigger (US-082).
+This document is the operator-facing normative policy for simplified Flow B. Editable gap operator settings are persisted via **Postgres `silverman_linkedin_db` + Silverman Authority Manager UI** (US-076 / `GET`+`PUT /flow-b/gap-operator-settings`), with documented defaults including `gap_trigger_enabled=false`. **Runtime next-week LinkedIn gap detection** is provided by capability `flow-b-calendar-gap-detect` (US-077): authenticated detect-only `GET /flow-b/calendar-gaps` returns `gaps[]` / no-gap for the next operator-local week using settings from US-076, without mutating campaigns or starting drafts. Detect **MAY** run for inspection when `gap_trigger_enabled=false`; auto-trigger remains a separate fail-closed capability (US-082). **Runtime AI topic discovery** is provided by capability `flow-b-topic-discovery` (US-078): authenticated `POST /flow-b/discover-topics` returns authority-aligned topic choices (DeepSeek v1; provider-pluggable seam) without writing draft packages. **Runtime AI blog draft generation** is provided by capability `flow-b-blog-draft-generation` (US-079): authenticated `POST /flow-b/generate-blog-drafts` accepts US-078 topic payloads, generates Markdown + hero image pairs into `blog-posts/pending-approval/` (same pair rules as `ready/`), applies editorial canon and blocking anti-AI-writing rules, and records durable sidecar metadata — without writing `blog-posts/ready/` or invoking Flow A publish/package/schedule or LinkedIn API publish. **Runtime blog draft approve/reject presentation** is provided by capability `flow-b-blog-draft-approval` (US-080): authenticated worker HTTP plus Silverman Authority Manager UI that lists/presents drafts from `pending-approval/`, supports approve and reject, keeps rejected drafts non-publishable, and records approve decisions without promoting to `ready/`. **Runtime promote-to-`ready/` and spill algorithm A** are provided by capability `flow-b-blog-draft-promotion` (US-081): authenticated `POST /flow-b/pending-approval-drafts/{draft_id}/promote` moves approved packages to `blog-posts/ready/` with durable promotion metadata; subsequent Flow A publish/package/schedule reuse (no second mandatory LinkedIn gate); LinkedIn scheduling strategy `flow_b_spill_a` under US-040K max 2. Promote does **not** auto-publish. Gap trigger remains US-082.
 
 ---
 
@@ -52,7 +52,7 @@ Cross-links (runtime, not this doc): operator settings **US-076**; detect **US-0
 
 - Unapproved drafts in `pending-approval/` **MUST NOT** publish blog or LinkedIn.  
 - Flow A **MUST NOT** consume `pending-approval/` as publish input.  
-- On approve: promote/move to `ready/`, then Flow A **MAY** run.  
+- On approve: record decision only (US-080). On **promote** (US-081): move to `ready/`, then Flow A **MAY** run.
 - Empty calendar days are a **proxy** for needing upstream content — not a filesystem inventory of `ready/` or `pending-approval/`.
 
 ---
@@ -95,7 +95,7 @@ After approve + Flow A package, when placing LinkedIn variants:
 2. Then other days **in the target week** with remaining capacity.  
 3. Then **forward** day-by-day after the week (“siguiente(s) día disponible”) under US-040K max 2.
 
-Runtime scheduling behavior is owned by **US-081**; this section locks the algorithm for implementers.
+Runtime scheduling behavior is owned by capability **`flow-b-blog-draft-promotion` (US-081)**: strategy `flow_b_spill_a` on `schedule_linkedin_distribution` (auto-selected when Flow B provenance with usable `target_week` / `empty_days[]` is present; explicit `flow_a_staggered` remains an override). Density ceiling = US-040K / settings `density_max_per_local_day` (default 2, never exceeding max 2). Schedule MUST NOT call LinkedIn API publish.
 
 ---
 
@@ -141,6 +141,22 @@ Runtime scheduling behavior is owned by **US-081**; this section locks the algor
 | Non-goals | Revision-history CMS; structured multi-round feedback; mandatory edit-apply loop; promote/spill A; gap trigger |
 
 **Runtime approve/reject (US-080):** authenticated `GET /flow-b/pending-approval-drafts` (+ detail + confined image) and `POST …/approve` / `…/reject` plus the Authority Manager **Flow B drafts** panel present pending drafts (title/topic, body, image, discovery summary; gap week / empty-days when present). Approve returns `promoted: false` / `promotion_pending: true`. **Approve/reject does not implement** promote-to-`ready/` or spill algorithm A (US-081), or gap trigger (US-082).
+
+---
+
+## 5d. Blog draft promotion + spill A (US-081 — policy + runtime)
+
+| Item | Normative |
+|------|-----------|
+| Operator surface | **Silverman Authority Manager** Promote control (distinct from approve) |
+| Action | Authenticated `POST /flow-b/pending-approval-drafts/{draft_id}/promote` |
+| Preconditions | Sidecar `status=approved` with durable approval fields; complete `.md` + `.png` + sidecar |
+| Move | Atomic move of trio into `blog-posts/ready/`; sidecar `status: promoted`, `origin: flow_b` |
+| After promote | Reuse Flow A publish/package/schedule/optional supervision — **no** second mandatory LinkedIn gate |
+| Spill | Strategy `flow_b_spill_a` under US-040K max 2 (see §4) |
+| Forbidden | Auto-publish without Flow A guards; gap trigger (US-082); changing US-080 approve semantics |
+
+**Runtime promote (US-081):** capability `flow-b-blog-draft-promotion`. Promote establishes Flow A eligibility only — it does **not** invoke publish/package/schedule, Git publish, or LinkedIn API. Unapproved `pending-approval/` paths are rejected by `publish_blog_post` (`blog_publish_pending_approval_not_allowed`). **US-082 gap trigger is not implemented by promote.**
 
 ---
 

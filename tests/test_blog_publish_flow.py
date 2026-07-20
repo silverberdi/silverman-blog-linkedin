@@ -15,6 +15,7 @@ from silverman_blog_linkedin.blog_publish_flow import (
     BLOG_PUBLISH_CONTENT_HASH_CHANGED,
     BLOG_PUBLISH_INVALID_CAMPAIGN_STATE,
     BLOG_PUBLISH_METADATA_WRITE_FAILED,
+    BLOG_PUBLISH_PENDING_APPROVAL_NOT_ALLOWED,
     BLOG_PUBLISH_PUBLIC_REPO_NOT_CONFIGURED,
     BLOG_PUBLISH_TARGET_EXISTS,
     BLOG_PUBLISH_VALIDATION_FAILED,
@@ -1226,6 +1227,38 @@ def test_flow_b_campaign_rejected(editorial_base: Path, public_repo: Path):
 
     assert result.status == "failed"
     assert "blog_publish_flow_b_not_allowed" in result.errors
+
+
+def test_pending_approval_path_rejected(editorial_base: Path, public_repo: Path):
+    pending = editorial_base / "blog-posts" / "pending-approval"
+    pending.mkdir(parents=True, exist_ok=True)
+    slug = "unapproved-draft"
+    (pending / f"{slug}.md").write_text("# Unapproved\n\nBody.\n", encoding="utf-8")
+    (pending / f"{slug}.png").write_bytes(b"\x89PNG\r\n\x1a\nfake")
+
+    result = publish_blog_post(
+        editorial_base,
+        f"blog-posts/pending-approval/{slug}.md",
+        github_pages_repo_path=str(public_repo),
+    )
+    assert result.status == "failed"
+    assert BLOG_PUBLISH_PENDING_APPROVAL_NOT_ALLOWED in result.errors
+    assert not list((public_repo / "_posts").glob("*.md"))
+
+
+def test_unapproved_draft_not_flow_a_publish_input(
+    editorial_base: Path, public_repo: Path
+):
+    """Unapproved drafts under pending-approval/ cannot be published via path alias."""
+    pending = editorial_base / "blog-posts" / "pending-approval"
+    pending.mkdir(parents=True, exist_ok=True)
+    (pending / "still-pending.md").write_text("# Still pending\n", encoding="utf-8")
+    result = publish_blog_post(
+        editorial_base,
+        "blog-posts/pending-approval/still-pending.md",
+        github_pages_repo_path=str(public_repo),
+    )
+    assert BLOG_PUBLISH_PENDING_APPROVAL_NOT_ALLOWED in result.errors
 
 
 def test_no_linkedin_drafts_generated(editorial_base: Path, public_repo: Path):

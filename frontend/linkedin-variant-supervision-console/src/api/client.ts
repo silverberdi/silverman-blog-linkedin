@@ -30,6 +30,8 @@ import {
   type FlowBDraftDecisionResponse,
   type FlowBPendingDraftDetail,
   type FlowBPendingDraftListResponse,
+  type FlowBPromoteDraftRequest,
+  type FlowBPromoteDraftResponse,
   type FlowBRejectDraftRequest,
   type GapOperatorSettingsPutRequest,
   type GapOperatorSettingsResponse,
@@ -278,6 +280,25 @@ export class SupervisionApiClient {
     const headers = await this.prepareHeaders("mutate");
     return this.requestJson<FlowBDraftDecisionResponse>(
       `${PENDING_APPROVAL_DRAFTS_PATH}/${encodeURIComponent(draftId)}/reject`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+  }
+
+  async promotePendingApprovalDraft(
+    draftId: string,
+    body: FlowBPromoteDraftRequest = {},
+  ): Promise<FlowBPromoteDraftResponse> {
+    const headers = await this.prepareHeaders("mutate");
+    return this.requestJson<FlowBPromoteDraftResponse>(
+      `${PENDING_APPROVAL_DRAFTS_PATH}/${encodeURIComponent(draftId)}/promote`,
       {
         method: "POST",
         headers: {

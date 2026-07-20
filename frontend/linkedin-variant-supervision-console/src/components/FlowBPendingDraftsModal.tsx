@@ -4,6 +4,7 @@ import type {
   FlowBDraftDecisionResponse,
   FlowBPendingDraftDetail,
   FlowBPendingDraftSummary,
+  FlowBPromoteDraftResponse,
 } from "../api/types";
 import { useSupervisionStore } from "../models/store";
 
@@ -19,7 +20,7 @@ function formatApiError(err: unknown): string {
     return "Sign in required to review Flow B drafts.";
   }
   if (apiErr?.kind === "forbidden" || apiErr?.kind === "mutation_denied") {
-    return "This session cannot approve or reject drafts.";
+    return "This session cannot approve, reject, or promote drafts.";
   }
   if (apiErr?.message) {
     return apiErr.message;
@@ -35,6 +36,8 @@ function statusLabel(status: string): string {
       return "Pending (image failed)";
     case "approved":
       return "Approved (not promoted)";
+    case "promoted":
+      return "Promoted (Flow A eligible)";
     case "rejected":
       return "Rejected / blocked";
     default:
@@ -43,8 +46,8 @@ function statusLabel(status: string): string {
 }
 
 /**
- * Flow B pending-approval drafts panel (US-080) — Authority Manager surface.
- * Approve records decision only; does not promote to ready/. No revision CMS.
+ * Flow B pending-approval drafts panel (US-080/US-081) — Authority Manager surface.
+ * Approve records decision only; Promote moves to ready/. No revision CMS.
  */
 export function FlowBPendingDraftsModal({
   open,
@@ -206,7 +209,7 @@ export function FlowBPendingDraftsModal({
     if (result.status === "approved") {
       const dry = result.dry_run ? " (dry-run — not saved)" : "";
       setOutcome(
-        `Approved${dry}. Promotion to ready/ is still pending (US-081). ` +
+        `Approved${dry}. Still not Flow A eligible — use Promote to move to ready/. ` +
           (result.operator_note || ""),
       );
     } else if (result.status === "rejected") {
@@ -216,6 +219,19 @@ export function FlowBPendingDraftsModal({
       );
     } else {
       setOutcome(result.error || result.operator_note || "Decision recorded.");
+    }
+  }
+
+  function applyPromoteOutcome(result: FlowBPromoteDraftResponse) {
+    if (result.status === "promoted") {
+      const dry = result.dry_run ? " (dry-run — not moved)" : "";
+      const already = result.already_promoted ? " Already promoted." : "";
+      setOutcome(
+        `Promoted to ready/${dry}.${already} Flow A eligible — does not publish blog or LinkedIn. ` +
+          (result.operator_note || ""),
+      );
+    } else {
+      setOutcome(result.error || result.operator_note || "Promote failed.");
     }
   }
 
@@ -268,6 +284,31 @@ export function FlowBPendingDraftsModal({
     }
   }
 
+  async function onPromote() {
+    if (!selectedId || !canMutate) {
+      return;
+    }
+    setMutating(true);
+    setError(null);
+    setOutcome(null);
+    try {
+      const result = await client.promotePendingApprovalDraft(selectedId, {
+        dry_run: dryRunDefault,
+      });
+      applyPromoteOutcome(result);
+      if (!result.dry_run && result.promoted) {
+        await loadList();
+        setSelectedId(null);
+        setDetail(null);
+        revokeImageUrl();
+      }
+    } catch (err) {
+      setError(formatApiError(err));
+    } finally {
+      setMutating(false);
+    }
+  }
+
   if (!open) {
     return null;
   }
@@ -277,11 +318,13 @@ export function FlowBPendingDraftsModal({
     sessionState === "expired" ||
     sessionState === "forbidden";
 
-  const actionable =
+  const canApproveReject =
     detail &&
     (detail.status === "pending_approval" ||
       detail.status === "pending_approval_image_failed" ||
       detail.status === "approved");
+
+  const canPromote = detail && detail.status === "approved";
 
   return (
     <div className="filters-modal-root" data-testid="flow-b-drafts-modal-root">
@@ -316,9 +359,9 @@ export function FlowBPendingDraftsModal({
 
         <p className="note" data-testid="flow-b-drafts-scope-note">
           Review pending AI blogs for approve or reject. Approve records a
-          decision only — it does not promote to ready/ or publish. Offline file
-          edits remain out of band; there is no revision-history CMS or
-          mandatory edit-apply loop.
+          decision only. Promote moves an approved draft to ready/ (Flow A
+          eligible) — it does not publish. Offline file edits remain out of
+          band; there is no revision-history CMS or mandatory edit-apply loop.
         </p>
 
         {needsReauth && (
@@ -465,41 +508,57 @@ export function FlowBPendingDraftsModal({
                   {detail.body_markdown}
                 </pre>
 
-                {actionable && (
+                {(canApproveReject || canPromote) && (
                   <div className="flow-b-drafts-actions" data-testid="flow-b-drafts-actions">
                     <p className="note" data-testid="flow-b-drafts-dry-run-hint">
                       Mutations use the shell {dryRunDefault ? "Dry-run" : "Commit"}{" "}
                       mode.
                     </p>
-                    <label className="field">
-                      Reject reason (optional)
-                      <input
-                        type="text"
-                        data-testid="flow-b-drafts-reject-reason"
-                        value={rejectionReason}
-                        onChange={(e) => setRejectionReason(e.target.value)}
-                        maxLength={2000}
-                        disabled={!canMutate || mutating}
-                      />
-                    </label>
+                    {canApproveReject && (
+                      <label className="field">
+                        Reject reason (optional)
+                        <input
+                          type="text"
+                          data-testid="flow-b-drafts-reject-reason"
+                          value={rejectionReason}
+                          onChange={(e) => setRejectionReason(e.target.value)}
+                          maxLength={2000}
+                          disabled={!canMutate || mutating}
+                        />
+                      </label>
+                    )}
                     <div className="drawer-actions">
-                      <button
-                        type="button"
-                        data-testid="flow-b-drafts-approve"
-                        disabled={!canMutate || mutating}
-                        onClick={() => void onApprove()}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary"
-                        data-testid="flow-b-drafts-reject"
-                        disabled={!canMutate || mutating}
-                        onClick={() => void onReject()}
-                      >
-                        Reject
-                      </button>
+                      {canApproveReject && (
+                        <button
+                          type="button"
+                          data-testid="flow-b-drafts-approve"
+                          disabled={!canMutate || mutating}
+                          onClick={() => void onApprove()}
+                        >
+                          Approve
+                        </button>
+                      )}
+                      {canPromote && (
+                        <button
+                          type="button"
+                          data-testid="flow-b-drafts-promote"
+                          disabled={!canMutate || mutating}
+                          onClick={() => void onPromote()}
+                        >
+                          Promote to ready/
+                        </button>
+                      )}
+                      {canApproveReject && (
+                        <button
+                          type="button"
+                          className="secondary"
+                          data-testid="flow-b-drafts-reject"
+                          disabled={!canMutate || mutating}
+                          onClick={() => void onReject()}
+                        >
+                          Reject
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -514,6 +573,16 @@ export function FlowBPendingDraftsModal({
                       ? `: ${detail.rejection_reason}`
                       : ""}
                     . Not publishable — not promoted to ready/.
+                  </p>
+                )}
+                {detail.status === "approved" && (
+                  <p
+                    className="note"
+                    data-testid="flow-b-drafts-approved-not-promoted"
+                    role="status"
+                  >
+                    Approved but not promoted — not Flow A eligible until
+                    Promote moves the package to blog-posts/ready/.
                   </p>
                 )}
               </>
