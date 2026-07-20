@@ -1332,7 +1332,7 @@ As a content operator, I want a complete blog draft (and hero image) generated f
 
 ### US-080 — Present Flow B Blog Drafts for Approve or Reject
 
-**Status:** Implemented 2026-07-19 (OpenSpec change `present-flow-b-blog-drafts-for-approve-or-reject-us-080`; not deployed unless separately approved). Automated AC coverage via `tests/test_flow_b_blog_draft_approval.py` + Vitest `us080.pending-drafts.test.tsx`; OpenAPI exposes `GET`/`POST /flow-b/pending-approval-drafts…`. **Not Story accepted** (operator walkthrough pending). **BL-018 remains open.** US-081–US-082 not implemented.
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=cb36fa9…`; OpenSpec archive `2026-07-19-present-flow-b-blog-drafts-for-approve-or-reject-us-080`). Automated AC coverage via `tests/test_flow_b_blog_draft_approval.py` + Vitest `us080.pending-drafts.test.tsx`; OpenAPI exposes `GET`/`POST /flow-b/pending-approval-drafts…`. **Not Story accepted** (operator walkthrough pending). **BL-018 remains open.** US-081–US-082 not implemented.
 
 **Description**
 
