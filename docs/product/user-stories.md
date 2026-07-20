@@ -1235,7 +1235,7 @@ Operator walkthrough gate closed 2026-07-19 (incognito confirmation on deployed 
 
 ### US-083 — Show Honest LinkedIn Publication Status and Available Actions
 
-**Status:** Open. Not started.
+**Status:** Implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-show-honest-linkedin-publication-status-and-actions-us-083`; git `801f1cb`; live assets `index-C4S9vr3i.js` / `index-BEnefPLS.css`; deploy verify OVERALL PASS). Vitest `us083.honest-status-actions.test.tsx`. **Not Story accepted** (operator walkthrough pending).
 
 **Description**
 

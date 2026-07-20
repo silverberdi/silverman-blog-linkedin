@@ -39,5 +39,7 @@
 ## 7. Business validation
 
 - [ ] 7.1 After explicit deploy approval (separate from apply): operator walkthrough that US-083 AC are visible on the live console
-- [ ] 7.2 Update `docs/product/progress-checklist.md` and US-083 status only for demonstrated criteria; leave US-084–US-086 and BL-015 untouched
+- [x] 7.2 Update `docs/product/progress-checklist.md` and US-083 status only for demonstrated criteria; leave US-084–US-086 and BL-015 untouched
 - [x] 7.3 Confirm non-goals held: no publish-now path, no cancel-queued mutation, no US-084 reschedule redesign, no ADR-0001 / enablement bypass
+
+> Deployed 2026-07-20 on `192.168.0.194:8010` (live assets `index-C4S9vr3i.js` / `index-BEnefPLS.css`; deploy verify OVERALL PASS). 7.1 remains open until the operator walkthrough closes Story accepted.

@@ -260,10 +260,10 @@ Use this checklist to track business progress. Mark items only when the stated b
   - Successor to BL-015 (BL-015 stays closed as pre-send supervision).
   - Apply order: US-083 → US-084 → US-085 → US-086.
   - [ ] **US-083** — Show honest LinkedIn publication status and available actions
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — deployed 2026-07-20; live assets serve Scheduled / Waiting to send / Live on LinkedIn / action matrix / preview honesty (`index-C4S9vr3i.js` / `index-BEnefPLS.css`); operator walkthrough still required before Story accepted
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
   - [ ] **US-084** — Postpone and reschedule LinkedIn variants from the console
