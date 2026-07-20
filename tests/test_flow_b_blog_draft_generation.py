@@ -504,10 +504,10 @@ def test_http_happy_path_and_openapi(tmp_path: Path, monkeypatch: Any) -> None:
 
     paths = {route.path for route in app.routes}
     assert GENERATE_PATH in paths
-    # Scope guard: no promote/trigger routes (approve lives under US-080 pending-approval-drafts)
+    # Scope guard: no promote/approve placeholder routes (US-080/US-081 use pending-approval-drafts)
     assert "/flow-b/promote-blog-draft" not in paths
-    assert "/flow-b/gap-trigger" not in paths
     assert "/flow-b/approve-blog-draft" not in paths
+    # Gap-trigger is owned by US-082 and MAY exist.
 
     fake = FakeComfyUIClient()
     provider = _StubDraftProvider(content=GOOD_MARKDOWN)

@@ -81,6 +81,23 @@ def isolate_gap_operator_settings_store(
 
 
 @pytest.fixture(autouse=True)
+def isolate_gap_trigger_batch_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> "MemoryGapTriggerBatchStore":
+    """Use an isolated in-memory Flow B gap-trigger batch store for every test."""
+    from silverman_blog_linkedin.flow_b_gap_trigger_batch_store import (
+        MemoryGapTriggerBatchStore,
+        reset_gap_trigger_batch_store_for_tests,
+    )
+
+    monkeypatch.setenv(ENV_CALENDAR_DATABASE_URL, "memory://")
+    store = MemoryGapTriggerBatchStore()
+    reset_gap_trigger_batch_store_for_tests(store)
+    yield store
+    reset_gap_trigger_batch_store_for_tests(None)
+
+
+@pytest.fixture(autouse=True)
 def default_operator_timezone(monkeypatch: pytest.MonkeyPatch) -> None:
     """US-040K: density-gated mutations need a valid TZ (request or env).
 

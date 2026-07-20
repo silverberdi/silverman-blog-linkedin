@@ -1231,7 +1231,7 @@ Operator walkthrough gate closed 2026-07-19 (incognito confirmation on deployed 
 
 **Business context:** Lock the simplified Flow B process: AI topic discovery → AI blog draft → one human blog-approval gate → then Flow A. Career north star: authority for senior leadership / architecture / transformation / AI roles (≥ ~USD 7,000). Operator surface: **Silverman Authority Manager**. Planning notes: [planning-notes-flow-b-simplification.md](planning-notes-flow-b-simplification.md).
 
-**Status note:** P4 stories **US-074–US-082**. IDs renumbered 2026-07-19 to match apply order. Apply order: **US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-081 → US-082**. First OpenSpec change (done): US-074 + US-075 (docs/policy). US-081 promote + spill A **implemented** (not Story accepted).
+**Status note:** P4 stories **US-074–US-082**. IDs renumbered 2026-07-19 to match apply order. Apply order: **US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-081 → US-082**. First OpenSpec change (done): US-074 + US-075 (docs/policy). US-081 promote + spill A **implemented** (not Story accepted). US-082 gap trigger **implemented** (not Story accepted; not deployed unless separately approved).
 
 ### US-074 — Define Simplified Flow B Process and Approval Boundary
 
@@ -1414,7 +1414,7 @@ As a content operator, I want the system to detect when the next local week has 
 
 ### US-082 — Trigger Flow B Draft Generation on Calendar Gaps
 
-**Status:** Not started. AC locked 2026-07-19; **ID renumbered 2026-07-19** (was US-081). Ready for OpenSpec after US-076, US-077, US-078, US-079.
+**Status:** Implemented (local worker + inactive n8n export; OpenSpec change `trigger-flow-b-draft-generation-on-calendar-gaps-us-082`). Automated AC coverage via `tests/test_flow_b_calendar_gap_trigger.py`; OpenAPI exposes `POST /flow-b/gap-trigger`. **Not Story accepted** (operator walkthrough pending). **Not deployed** unless separately approved. `gap_trigger_enabled` remains default **false**. **BL-019 remains open.**
 
 **Description**
 
@@ -1422,14 +1422,14 @@ As a content operator, I want a detected next-week LinkedIn gap batch to start F
 
 **Acceptance criteria**
 
-- [ ] When `gap_trigger_enabled` is true and the sensor reports one or more gaps for the target week, trigger Flow B discovery + draft generation up to **`max_drafts_per_weekly_run` (default 2)** into `pending-approval/` without auto-publishing.
-- [ ] When there is no gap, trigger is disabled, or an idempotent batch already exists for that ISO week (`flow_b_gap_week:{operator_tz}:{YYYY}-W{ww}`), perform a clean no-op (no duplicate draft spam).
-- [ ] Orchestration MUST use **n8n Schedule → worker HTTP** (no Execute Command); worker enforces local day/time / enablement from US-076 (no-op outside window); repo export stays `active: false` until operator activation.
-- [ ] Pass gap context (ISO week, `empty_days[]`) into US-078/US-079; leave drafts for US-080/US-081; do not skip the blog gate.
-- [ ] Surplus LinkedIn scheduling after approve is owned by US-081 (spill algorithm A); this story MUST NOT mark LinkedIn API published.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] When `gap_trigger_enabled` is true and the sensor reports one or more gaps for the target week, trigger Flow B discovery + draft generation up to **`max_drafts_per_weekly_run` (default 2)** into `pending-approval/` without auto-publishing. *(automated)*
+- [x] When there is no gap, trigger is disabled, or an idempotent batch already exists for that ISO week (`flow_b_gap_week:{operator_tz}:{YYYY}-W{ww}`), perform a clean no-op (no duplicate draft spam). *(automated)*
+- [x] Orchestration MUST use **n8n Schedule → worker HTTP** (no Execute Command); worker enforces local day/time / enablement from US-076 (no-op outside window); repo export stays `active: false` until operator activation. *(automated: inactive HTTP-only export)*
+- [x] Pass gap context (ISO week, `empty_days[]`) into US-078/US-079; leave drafts for US-080/US-081; do not skip the blog gate. *(automated)*
+- [x] Surplus LinkedIn scheduling after approve is owned by US-081 (spill algorithm A); this story MUST NOT mark LinkedIn API published. *(automated: no publish/promote imports)*
+- [ ] The outcome is visible and understandable to the intended user. *(operator walkthrough pending)*
+- [x] Failures or blocked states are clearly communicated. *(automated statuses + error_code; operator UX confirmation pending)*
+- [x] Existing completed work is not duplicated or unintentionally changed. *(composes US-076–US-079; settings save side-effect test updated)*
 
 ## BL-020 — Create the Editorial Content Backlog
 

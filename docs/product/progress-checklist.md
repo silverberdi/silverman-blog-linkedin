@@ -584,9 +584,9 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] **US-082** — Trigger Flow B draft generation on calendar gaps
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+    - [x] Work started
+    - [x] Business outcome demonstrated *(automated: `POST /flow-b/gap-trigger` → pending-approval ≤ max; no-ops; inactive n8n HTTP export; not Story accepted)*
+    - [ ] Acceptance criteria validated *(operator walkthrough)*
     - [ ] Story accepted
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated

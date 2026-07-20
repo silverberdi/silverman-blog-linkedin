@@ -307,9 +307,8 @@ def test_openapi_exposes_routes_and_leaves_prior_contracts(tmp_path: Path) -> No
     assert DISCOVER_PATH in paths
     assert GAPS_PATH in paths
     assert SETTINGS_PATH in paths
-    # US-082 still out of scope; promote uses pending-approval-drafts path (US-081)
+    # Promote uses pending-approval-drafts path (US-081); gap-trigger is US-082 and MAY exist
     assert "/flow-b/promote-blog-draft" not in paths
-    assert "/flow-b/gap-trigger" not in paths
 
 
 def test_no_flow_a_or_linkedin_publish_imports() -> None:

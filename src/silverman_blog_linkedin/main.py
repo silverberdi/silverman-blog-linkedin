@@ -44,6 +44,9 @@ from silverman_blog_linkedin.editorial_calendar_schedule_update import (
 from silverman_blog_linkedin.flow_b_calendar_gap_detect import (
     detect_next_week_calendar_gaps,
 )
+from silverman_blog_linkedin.flow_b_calendar_gap_trigger import (
+    run_flow_b_gap_trigger,
+)
 from silverman_blog_linkedin.flow_b_blog_draft_approval import (
     ERROR_DRAFT_ALREADY_REJECTED,
     ERROR_DRAFT_ID_INVALID,
@@ -898,6 +901,23 @@ class UpdateEditorialCalendarItemScheduleRequest(BaseModel):
                 "expected_calendar_fingerprint must be a SHA-256 hex digest"
             )
         return stripped
+
+
+class FlowBGapTriggerRequest(BaseModel):
+    """POST body for Flow B calendar gap trigger (US-082)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    now_utc: str | None = None
+    dry_run: bool = False
+    force_window: bool = False
+
+    @field_validator("now_utc")
+    @classmethod
+    def validate_gap_trigger_now_utc(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return validate_canonical_utc_timestamp(value)
 
 
 class FlowBDiscoverTopicsRequest(BaseModel):
@@ -2855,6 +2875,43 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             result.counts,
         )
         return result.to_dict()
+
+    @app.post("/flow-b/gap-trigger")
+    def post_flow_b_gap_trigger(
+        body: FlowBGapTriggerRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        """Authenticated Flow B weekly gap trigger (US-082).
+
+        When gap_trigger_enabled and inside the operator-local weekly window,
+        detects next-week gaps and on gaps runs discovery + draft generation
+        into blog-posts/pending-approval/ (capped by max_drafts_per_weekly_run).
+        Never writes ready/, never publishes blog/LinkedIn, never approves/promotes.
+        """
+        validated_now = (
+            validate_canonical_utc_timestamp(body.now_utc)
+            if body.now_utc is not None
+            else None
+        )
+        result = run_flow_b_gap_trigger(
+            settings.base_path,
+            now_utc=validated_now,
+            dry_run=body.dry_run,
+            force_window=body.force_window,
+            environ=os.environ,
+        )
+        payload = result.to_dict()
+        logger.info(
+            "flow-b/gap-trigger status=%s iso_week=%s drafts=%s "
+            "idempotency_key=%s dry_run=%s force_window=%s",
+            result.status,
+            result.target_week,
+            len(result.drafts),
+            result.idempotency_key,
+            result.dry_run,
+            result.force_window,
+        )
+        return payload
 
     @app.get("/flow-b/calendar-gaps")
     def get_flow_b_calendar_gaps(

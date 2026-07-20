@@ -522,12 +522,14 @@ def test_http_dry_run_skips_provider(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_no_out_of_scope_routes_added(tmp_path: Path) -> None:
-    """US-078 adds discovery only — not draft/approve/promote/trigger."""
+    """US-078 adds discovery only — not draft/approve/promote placeholder routes.
+
+    Gap-trigger (``/flow-b/gap-trigger``) is owned by US-082 and MAY exist.
+    """
     app = create_app(make_settings(_editorial_base(tmp_path)))
     paths = {getattr(route, "path", None) for route in app.routes}
     assert "/flow-b/discover-topics" in paths
     forbidden = {
-        "/flow-b/gap-trigger",
         "/flow-b/draft",
         "/flow-b/approve",
         "/flow-b/promote",

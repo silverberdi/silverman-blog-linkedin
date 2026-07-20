@@ -349,15 +349,15 @@ def test_http_invalid_now_utc_422(tmp_path: Path) -> None:
 
 
 def test_no_out_of_scope_flow_b_routes(tmp_path: Path) -> None:
-    """US-077 detect must not add trigger/draft/approve/promote.
+    """US-077 detect must not add draft/approve/promote placeholder routes.
 
-    Discovery (``/flow-b/discover-topics``) is owned by US-078 and MAY exist.
+    Discovery (``/flow-b/discover-topics``) and gap-trigger (``/flow-b/gap-trigger``)
+    are owned by later stories and MAY exist.
     """
     app = create_app(make_settings(_editorial_base(tmp_path)))
     paths = {getattr(route, "path", None) for route in app.routes}
     assert "/flow-b/calendar-gaps" in paths
     forbidden = {
-        "/flow-b/gap-trigger",
         "/flow-b/draft",
         "/flow-b/approve",
         "/flow-b/promote",

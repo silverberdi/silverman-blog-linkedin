@@ -235,7 +235,7 @@ def test_openapi_exposes_promote(tmp_path: Path) -> None:
     app = create_app(make_settings(_editorial_base(tmp_path)))
     paths = {route.path for route in app.routes}
     assert "/flow-b/pending-approval-drafts/{draft_id}/promote" in paths
-    assert "/flow-b/gap-trigger" not in paths
+    # Gap-trigger is owned by US-082 and MAY exist.
 
 
 def test_no_flow_a_imports_in_promote_module() -> None:

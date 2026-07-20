@@ -183,20 +183,33 @@ def test_put_does_not_enable_linkedin_publish(
 
 
 def test_gap_trigger_disabled_has_no_side_effect_routes(tmp_path: Path) -> None:
-    """US-076 must not add trigger/draft/approve/promote routes.
+    """US-076 must not start trigger/discovery as a side effect of settings.
 
-    Detect (US-077) and discovery (US-078) are separate capabilities and MAY exist.
-    Settings save still must not start discovery as a side effect.
+    `/flow-b/gap-trigger` MAY exist (US-082). Settings save still must not
+    start discovery or draft generation by itself.
     """
     app = create_app(make_settings(tmp_path))
     paths = {getattr(route, "path", None) for route in app.routes}
+    # Legacy placeholder paths that settings must never introduce.
     forbidden = {
-        "/flow-b/gap-trigger",
         "/flow-b/draft",
         "/flow-b/approve",
         "/flow-b/promote",
     }
     assert not (paths & forbidden)
+    # Saving settings must not create pending-approval drafts (side-effect check).
+    pending = tmp_path / "blog-posts" / "pending-approval"
+    pending.mkdir(parents=True, exist_ok=True)
+    before = {p.name for p in pending.iterdir()}
+    client = TestClient(app)
+    response = client.put(
+        SETTINGS_PATH,
+        headers=auth_header(),
+        json={**VALID_DOCUMENT, "gap_trigger_enabled": True},
+    )
+    assert response.status_code == 200
+    after = {p.name for p in pending.iterdir()}
+    assert after == before
 
 
 def test_memory_store_isolated_from_calendar(
