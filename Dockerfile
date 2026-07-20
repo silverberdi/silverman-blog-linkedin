@@ -12,6 +12,7 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src ./src
 COPY prompts ./prompts
+COPY content-strategy ./content-strategy
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git openssh-client \

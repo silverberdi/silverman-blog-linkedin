@@ -101,6 +101,7 @@ else
       "${SOURCE_ROOT}/README.md" \
       "${SOURCE_ROOT}/src" \
       "${SOURCE_ROOT}/prompts" \
+      "${SOURCE_ROOT}/content-strategy" \
       "${TARGET_DIR}/"
 
     rsync -a \
@@ -120,9 +121,10 @@ else
   else
     echo "    rsync not found; using cp (no delete of stale files)"
     cp "${SOURCE_ROOT}/Dockerfile" "${SOURCE_ROOT}/pyproject.toml" "${SOURCE_ROOT}/README.md" "${TARGET_DIR}/"
-    rm -rf "${TARGET_DIR}/src" "${TARGET_DIR}/prompts"
+    rm -rf "${TARGET_DIR}/src" "${TARGET_DIR}/prompts" "${TARGET_DIR}/content-strategy"
     cp -R "${SOURCE_ROOT}/src" "${TARGET_DIR}/src"
     cp -R "${SOURCE_ROOT}/prompts" "${TARGET_DIR}/prompts"
+    cp -R "${SOURCE_ROOT}/content-strategy" "${TARGET_DIR}/content-strategy"
     cp "${DEPLOY_SERVER_DIR}/silverman-worker.compose.yaml" \
       "${DEPLOY_SERVER_DIR}/silverman-worker.env.example" \
       "${DEPLOY_SERVER_DIR}/deploy-worker.sh" \
