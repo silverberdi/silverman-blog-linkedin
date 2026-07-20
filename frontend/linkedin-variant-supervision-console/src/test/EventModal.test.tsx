@@ -180,7 +180,7 @@ describe("Event modal calendar actions (US-040H)", () => {
     await user.click(screen.getByTestId("edit-submit"));
     await waitFor(() => {
       expect(screen.getByTestId("toast").textContent).toMatch(
-        /validated \(dry-run, no mutation\)/,
+        /Preview only \(dry-run\)/,
       );
     });
   });

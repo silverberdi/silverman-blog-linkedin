@@ -45,7 +45,7 @@ describe("US-040M completed blog display", () => {
     expect(PUBLICATION_STATES).toContain("completed");
     expect(PUBLICATION_STATE_LABEL.completed).toBe("Published on blog");
     expect(publicationStateLabel("completed")).toBe("Published on blog");
-    expect(publicationStateLabel("published")).toBe("Published (API evidence)");
+    expect(publicationStateLabel("published")).toBe("Live on LinkedIn");
     expect(STATUS_COLOR.completed).not.toBe(STATUS_COLOR.published);
   });
 

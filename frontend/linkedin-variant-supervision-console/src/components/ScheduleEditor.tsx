@@ -23,6 +23,11 @@ import {
 } from "../models/localDayDensity";
 import { confirmRealMutation, newIdempotencyKey } from "./ConfirmationFlow";
 import type { ScheduleEditorTarget } from "../models/supervision";
+import {
+  PREVIEW_CHECKBOX_LABEL,
+  dryRunModeBanner,
+  scheduleOutcomeToast,
+} from "../models/mutationMode";
 import { useSupervisionStore } from "../models/store";
 
 export const CONSOLE_SOURCE = "linkedin_variant_supervision_console";
@@ -351,7 +356,7 @@ export function ScheduleEditorPanel({
         if (dryRun || result.dry_run) {
           pushToast({
             kind: "info",
-            text: `Dry-run schedule change validated for ${active.itemId}. Schedule was not persisted.`,
+            text: scheduleOutcomeToast(true, active.itemId, ""),
           });
           setUnsavedScheduleDraft(false);
           return;
@@ -359,10 +364,11 @@ export function ScheduleEditorPanel({
         await refreshAll({ preserveActionBanner: true });
         pushToast({
           kind: "ok",
-          text:
-            `Schedule updated for ${active.itemId} (${active.channel}). ` +
-            `Previous: ${previous || "(none)"}. New: ${result.scheduled_at_utc || iso}. ` +
-            `Affected item is this LinkedIn variant (self-change).`,
+          text: scheduleOutcomeToast(
+            false,
+            active.itemId,
+            `Previous: ${previous || "(none)"}. New: ${result.scheduled_at_utc || iso}.`,
+          ),
         });
         setUnsavedScheduleDraft(false);
         closeScheduleEditor();
@@ -401,10 +407,11 @@ export function ScheduleEditorPanel({
       if (dryRun || result.dry_run) {
         pushToast({
           kind: "info",
-          text:
-            `Dry-run schedule change validated for ${active.itemId}. ` +
-            `Previous ${result.previous_due_at_utc || previous || "(none)"} → ` +
-            `proposed ${result.new_due_at_utc || iso}. Calendar was not written.`,
+          text: scheduleOutcomeToast(
+            true,
+            active.itemId,
+            `Previous ${result.previous_due_at_utc || previous || "(none)"} → proposed ${result.new_due_at_utc || iso}.`,
+          ),
         });
         setUnsavedScheduleDraft(false);
         return;
@@ -412,11 +419,11 @@ export function ScheduleEditorPanel({
       await refreshAll({ preserveActionBanner: true });
       pushToast({
         kind: "ok",
-        text:
-          `Schedule updated for ${active.itemId} (${active.channel}). ` +
-          `Previous: ${result.previous_due_at_utc || previous || "(none)"}. ` +
-          `New: ${result.new_due_at_utc || iso}. ` +
-          formatRelatedOutcome(result.related_linkedin_variants_outcome),
+        text: scheduleOutcomeToast(
+          false,
+          active.itemId,
+          `Previous: ${result.previous_due_at_utc || previous || "(none)"}. New: ${result.new_due_at_utc || iso}. ${formatRelatedOutcome(result.related_linkedin_variants_outcome)}`,
+        ),
       });
       setUnsavedScheduleDraft(false);
       closeScheduleEditor();
@@ -503,10 +510,11 @@ export function ScheduleEditorPanel({
               checked={dryRun}
               onChange={(e) => setDryRun(e.target.checked)}
             />
-            <label htmlFor="schedule-dry-run">
-              Dry-run (default on — validates without mutating)
-            </label>
+            <label htmlFor="schedule-dry-run">{PREVIEW_CHECKBOX_LABEL}</label>
           </div>
+          <p className="meta" data-testid="schedule-mode-banner">
+            {dryRunModeBanner(dryRun)}
+          </p>
         </>
       )}
       <div className="panel-actions">
@@ -517,7 +525,9 @@ export function ScheduleEditorPanel({
             disabled={submitting || mutationBlocked}
             onClick={() => void submit()}
           >
-            {dryRun ? "Validate schedule (dry-run)" : "Commit schedule change"}
+            {dryRun
+              ? "Preview schedule (no change)"
+              : "Save schedule change"}
           </button>
         )}
       </div>

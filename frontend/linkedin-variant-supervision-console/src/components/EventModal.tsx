@@ -25,10 +25,17 @@ import {
   othersOnLocalDay,
 } from "../models/localDayDensity";
 import {
+  publicationStateHelper,
   publicationStateLabel,
   type ScheduleItem,
   type SupervisionItem,
 } from "../models/supervision";
+import { buildLinkedInActionMatrix } from "../models/actionAvailability";
+import {
+  PREVIEW_CHECKBOX_LABEL,
+  dryRunModeBanner,
+  mutationOutcomeToast,
+} from "../models/mutationMode";
 import { useSupervisionStore } from "../models/store";
 
 type PanelMode = "view" | "edit" | "cancel" | "reopen";
@@ -278,12 +285,10 @@ export function EventModal() {
 
   function handleMutationResult(action: string, result: MutationResult): void {
     const dry = Boolean(result.dry_run);
-    const mode = dry
-      ? "validated (dry-run, no mutation)"
-      : "persisted (real write)";
+    const identity = `${result.campaign_id} / ${result.variant}`;
     pushToast({
       kind: dry ? "info" : "ok",
-      text: `${action} ${mode} for ${result.campaign_id} / ${result.variant}. publish_state=${result.publish_state ?? "—"}. Pending, cancelled, and flow_a_complete are not LinkedIn API published.`,
+      text: mutationOutcomeToast(action, dry, identity),
     });
     if (!dry) {
       setUnsavedEditDraft(false);
@@ -424,12 +429,99 @@ export function EventModal() {
     item.publicationState,
     item.linkedinApiPublished,
   );
+  const statusHelper = publicationStateHelper(item.publicationState, {
+    linkedinApiPublished: item.linkedinApiPublished,
+    channel: item.channel,
+  });
   const canEdit = Boolean(
     supervisionItem && item.actions.includes("edit"),
   );
   const canCancel = Boolean(
     supervisionItem && item.actions.includes("cancel"),
   );
+  const actionMatrix =
+    item.channel === "linkedin"
+      ? buildLinkedInActionMatrix({
+          item,
+          hasSupervisionJoin: Boolean(supervisionItem),
+          canMutate,
+        })
+      : [];
+
+  function renderStatusBlock(testId: string) {
+    return (
+      <>
+        <p className="item-detail-status" data-testid={testId}>
+          <span
+            className="status-pill"
+            style={{ backgroundColor: item.statusColor }}
+          >
+            {label}
+          </span>{" "}
+          <span className="mono">{item.channel}</span>
+          {item.audience ? (
+            <>
+              {" · "}
+              <span className="mono">{item.audience}</span>
+            </>
+          ) : null}
+          {" · "}
+          <span
+            className="mono"
+            data-testid="event-modal-schedule-local"
+          >
+            {formatLocalDisplay(item.scheduledAtUtc)}
+          </span>
+        </p>
+        {statusHelper ? (
+          <p className="sup-meta" data-testid="event-modal-status-helper">
+            {statusHelper}
+          </p>
+        ) : null}
+      </>
+    );
+  }
+
+  function renderActionMatrix() {
+    if (actionMatrix.length === 0) {
+      return null;
+    }
+    return (
+      <section
+        className="action-matrix"
+        data-testid="action-availability-matrix"
+        aria-labelledby="action-matrix-title"
+      >
+        <h3 id="action-matrix-title">What you can do now</h3>
+        <ul className="action-matrix-list">
+          {actionMatrix.map((row) => (
+            <li
+              key={row.id}
+              className={
+                row.available
+                  ? "action-matrix-row available"
+                  : "action-matrix-row unavailable"
+              }
+              data-testid={`action-matrix-${row.id}`}
+              data-available={row.available ? "true" : "false"}
+            >
+              <span className="action-matrix-label">{row.label}</span>
+              <span
+                className={
+                  row.available
+                    ? "action-matrix-badge available"
+                    : "action-matrix-badge unavailable"
+                }
+              >
+                {row.available ? "Available" : "Unavailable"}
+              </span>
+              <p className="action-matrix-reason">{row.reason}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
 
   return (
     <div
@@ -508,10 +600,11 @@ export function EventModal() {
                   checked={editDryRun}
                   onChange={(e) => setEditDryRun(e.target.checked)}
                 />
-                <label htmlFor="edit-dry-run">
-                  Dry-run (default on — validates without mutating)
-                </label>
+                <label htmlFor="edit-dry-run">{PREVIEW_CHECKBOX_LABEL}</label>
               </div>
+              <p className="meta" data-testid="edit-mode-banner">
+                {dryRunModeBanner(editDryRun)}
+              </p>
               <div className="panel-actions event-modal-actions">
                 <button
                   type="button"
@@ -537,7 +630,7 @@ export function EventModal() {
                   disabled={submitting || !canMutate}
                   onClick={() => void submitEdit()}
                 >
-                  {editDryRun ? "Validate edit (dry-run)" : "Commit edit"}
+                  {editDryRun ? "Preview edit (no change)" : "Save edit"}
                 </button>
               </div>
             </div>
@@ -576,10 +669,11 @@ export function EventModal() {
                   checked={cancelDryRun}
                   onChange={(e) => setCancelDryRun(e.target.checked)}
                 />
-                <label htmlFor="cancel-dry-run">
-                  Dry-run (default on — validates without mutating)
-                </label>
+                <label htmlFor="cancel-dry-run">{PREVIEW_CHECKBOX_LABEL}</label>
               </div>
+              <p className="meta" data-testid="cancel-mode-banner">
+                {dryRunModeBanner(cancelDryRun)}
+              </p>
               <div className="panel-actions panel-actions-destructive event-modal-actions">
                 <button
                   type="button"
@@ -595,8 +689,8 @@ export function EventModal() {
                   onClick={() => void submitCancel()}
                 >
                   {cancelDryRun
-                    ? "Validate cancel (dry-run)"
-                    : "Commit cancel"}
+                    ? "Preview cancel (no change)"
+                    : "Save cancel"}
                 </button>
               </div>
             </div>
@@ -643,10 +737,11 @@ export function EventModal() {
                   checked={reopenDryRun}
                   onChange={(e) => setReopenDryRun(e.target.checked)}
                 />
-                <label htmlFor="reopen-dry-run">
-                  Dry-run (default on — validates without mutating)
-                </label>
+                <label htmlFor="reopen-dry-run">{PREVIEW_CHECKBOX_LABEL}</label>
               </div>
+              <p className="meta" data-testid="reopen-mode-banner">
+                {dryRunModeBanner(reopenDryRun)}
+              </p>
               <div className="panel-actions event-modal-actions">
                 <button
                   type="button"
@@ -673,35 +768,14 @@ export function EventModal() {
                   onClick={() => void submitReopen()}
                 >
                   {reopenDryRun
-                    ? "Validate reopen (dry-run)"
-                    : "Commit reopen"}
+                    ? "Preview reopen (no change)"
+                    : "Save reopen"}
                 </button>
               </div>
             </div>
           ) : isCancelled ? (
             <div data-testid="cancelled-event-view">
-              <p className="item-detail-status" data-testid="event-modal-status">
-                <span
-                  className="status-pill"
-                  style={{ backgroundColor: item.statusColor }}
-                >
-                  {label}
-                </span>{" "}
-                <span className="mono">{item.channel}</span>
-                {item.audience ? (
-                  <>
-                    {" · "}
-                    <span className="mono">{item.audience}</span>
-                  </>
-                ) : null}
-                {" · "}
-                <span
-                  className="mono"
-                  data-testid="event-modal-schedule-local"
-                >
-                  {formatLocalDisplay(item.scheduledAtUtc)}
-                </span>
-              </p>
+              {renderStatusBlock("event-modal-status")}
 
               <section
                 className="cancelled-what"
@@ -750,32 +824,7 @@ export function EventModal() {
                 </p>
               </section>
 
-              <section
-                className="cancelled-what-next"
-                data-testid="cancelled-what-next"
-              >
-                <h3>What can I do now?</h3>
-                {canReopen && canMutate ? (
-                  <p>
-                    You can reopen and choose a new local schedule. The variant
-                    returns to editable pending (not queued). Max 2 publications
-                    per local day applies — a full day is blocked with plain
-                    language before commit.
-                  </p>
-                ) : canReopen && !canMutate ? (
-                  <p>
-                    Reopen is available for this cancellation, but this session
-                    cannot mutate. Sign in with mutation permission to reopen.
-                  </p>
-                ) : (
-                  <p>
-                    This cancellation is not reopen-eligible (for example a
-                    failed-publish recovery cancel). It stays cancelled; use the
-                    recovery path when applicable. No fake Edit controls are
-                    offered.
-                  </p>
-                )}
-              </section>
+              {renderActionMatrix()}
 
               <div
                 className="panel-actions event-modal-actions"
@@ -859,28 +908,7 @@ export function EventModal() {
             </div>
           ) : (
             <>
-              <p className="item-detail-status" data-testid="event-modal-status">
-                <span
-                  className="status-pill"
-                  style={{ backgroundColor: item.statusColor }}
-                >
-                  {label}
-                </span>{" "}
-                <span className="mono">{item.channel}</span>
-                {item.audience ? (
-                  <>
-                    {" · "}
-                    <span className="mono">{item.audience}</span>
-                  </>
-                ) : null}
-                {" · "}
-                <span
-                  className="mono"
-                  data-testid="event-modal-schedule-local"
-                >
-                  {formatLocalDisplay(item.scheduledAtUtc)}
-                </span>
-              </p>
+              {renderStatusBlock("event-modal-status")}
               {(item.blocked ||
                 item.critical ||
                 item.publicationState === "blocked" ||
@@ -888,10 +916,10 @@ export function EventModal() {
                 item.publicationState === "failed") && (
                 <p className="meta" data-testid="event-modal-risk">
                   {item.critical || item.publicationState === "failed"
-                    ? "Risk: failed / critical"
+                    ? "Risk: failed / critical — not live on LinkedIn"
                     : item.blocked || item.publicationState === "blocked"
-                      ? "Blocked"
-                      : "Deferred"}
+                      ? "Blocked — not live on LinkedIn"
+                      : "Deferred — not live on LinkedIn"}
                 </p>
               )}
               {supervisionItem?.draftContent && (
@@ -905,6 +933,7 @@ export function EventModal() {
                   </pre>
                 </details>
               )}
+              {renderActionMatrix()}
               <div
                 className="panel-actions event-modal-actions"
                 data-testid="event-modal-actions"
@@ -989,6 +1018,12 @@ export function EventModal() {
                     <dt>publication_state</dt>
                     <dd className="mono">{item.publicationState}</dd>
                   </div>
+                  {item.sourceState && (
+                    <div>
+                      <dt>source_state</dt>
+                      <dd className="mono">{item.sourceState}</dd>
+                    </div>
+                  )}
                   <div>
                     <dt>linkedinApiPublished</dt>
                     <dd className="mono">

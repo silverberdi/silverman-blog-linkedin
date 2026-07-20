@@ -1200,7 +1200,7 @@ Required scenes (desktop + mobile): header Filters/Search control visible; modal
 
 ### US-040M — Show Completed Blogs as Published on Blog in Schedule Visibility
 
-**Status:** **Story accepted** (operator-accepted 2026-07-19). OpenSpec change archived: `show-completed-blog-as-published-on-console-us-040m` (`2d46649`; deployed `192.168.0.194:8010`, assets `index-DXmpFC-X.js` / `index-CfjReggH.css`). Operator confirmed on deployed console (incognito hard-refresh after stale-bundle cache). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted).
+**Status:** **Story accepted** (operator-accepted 2026-07-19). OpenSpec change archived: `show-completed-blog-as-published-on-console-us-040m` (`2d46649`; deployed `192.168.0.194:8010`, assets `index-DXmpFC-X.js` / `index-CfjReggH.css`). Operator confirmed on deployed console (incognito hard-refresh after stale-bundle cache). **BL-015 closed 2026-07-19** (US-038–US-040M Story accepted). **Successor control-center work is BL-032 (US-083–US-086), not a reopen of BL-015.**
 
 **Description**
 
@@ -1224,6 +1224,88 @@ Operator walkthrough gate closed 2026-07-19 (incognito confirmation on deployed 
 - [x] The outcome is visible and understandable to the intended user. — Demonstrated: Week chips show Published on blog after fresh assets.
 - [x] Failures or blocked states are clearly communicated. — Preserved prior console failure/session patterns.
 - [x] Existing completed work is not duplicated or unintentionally changed (US-040G–L Story accepted not closed as a side effect; BL-015 remains open). — US-040L later Story accepted 2026-07-19; BL-015 closed with full US-038–US-040M set.
+
+## BL-032 — Turn the LinkedIn Console Into an Operator Control Center
+
+**Priority:** P2
+
+**Business context:** BL-015 closed as a pre-send supervision console. The operator needs a **control center**: after LinkedIn variants are created and scheduled, they must see honest status and actively postpone, reschedule, cancel, or publish immediately — without SSH, deploy scripts, or spectator-only UX. Prefer existing worker publication capabilities; do not invent a second publication pipeline.
+
+**Apply order:** US-083 → US-084 → US-085 → US-086.
+
+### US-083 — Show Honest LinkedIn Publication Status and Available Actions
+
+**Status:** Open. Not started.
+
+**Description**
+
+As a content operator, I want each LinkedIn variant on the console to show plain-language status and which actions I can take right now, so that I am commanding publication — not guessing what `pending` / `queued` mean or whether something already went live.
+
+**Acceptance criteria**
+
+- [ ] For LinkedIn variants, the console distinguishes at least: scheduled (not yet authorized to send), waiting to send (authorized but not yet on LinkedIn), live on LinkedIn, failed, and cancelled — in operator language (technical `publish_state` MAY remain secondary).
+- [ ] The console makes clear that waiting-to-send / `queued` is **not** LinkedIn API published.
+- [ ] For each opened LinkedIn item, show which control actions are available now vs unavailable (and why, in plain language when blocked).
+- [ ] Preview/dry-run vs real change is unmistakable before and after an action (operator never believes a schedule or publish happened when only a preview ran).
+- [ ] Blog published-on-site remains visually distinct from LinkedIn live.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed (BL-015 Story accepted remains; this story extends product intent toward control-center, not spectator mode).
+
+### US-084 — Postpone and Reschedule LinkedIn Variants From the Console
+
+**Status:** Open. Not started. Depends on US-083 language/action honesty where practical.
+
+**Description**
+
+As a content operator, I want to postpone or reschedule a LinkedIn variant from the console to a new local time I choose, so that I control when it is eligible to go out without fighting the UI or leaving the calendar lying about the new time.
+
+**Acceptance criteria**
+
+- [ ] From the console, postpone/reschedule a LinkedIn variant that is not yet live on LinkedIn to a new future local time the operator chooses.
+- [ ] After a real reschedule, the console calendar and the variant’s authoritative schedule agree on the new time (no stale “old slot” as the operator truth).
+- [ ] Reschedule is a deliberate control action with clear real vs preview behavior — not an accidental-looking single lever that the operator must misuse to get any control.
+- [ ] Density / cadence / other product rules that refuse a new time are explained in plain language with a usable next step.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-085 — Cancel LinkedIn Variants That Are Not Yet Live
+
+**Status:** Open. Not started. Depends on US-083 for action visibility where practical.
+
+**Description**
+
+As a content operator, I want to cancel a LinkedIn variant from the console while it is still not live on LinkedIn — including after it has been authorized to send — so that I can stop a post without leaving the control center.
+
+**Acceptance criteria**
+
+- [ ] From the console, cancel a LinkedIn variant that is scheduled but not yet live on LinkedIn.
+- [ ] From the console, cancel a LinkedIn variant that is authorized/waiting to send (`queued`) but not yet live on LinkedIn.
+- [ ] Real cancel requires explicit confirmation; preview/dry-run cannot be mistaken for a completed cancel.
+- [ ] After real cancel, status shows cancelled and publish actions for that variant are no longer offered (reopen remains the approved restore path where product already allows it).
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-086 — Publish a LinkedIn Variant Immediately From the Console
+
+**Status:** Open. Not started. Depends on US-083 for status honesty; SHOULD follow US-084/US-085 so schedule/cancel controls exist beside publish-now.
+
+**Description**
+
+As a content operator, I want to publish a chosen LinkedIn variant immediately from the console when I decide it should go out now, so that “sí o sí” is an operator action — not a hope that a hidden delay or remote script will eventually send it.
+
+**Acceptance criteria**
+
+- [ ] From the console, for an eligible LinkedIn variant, the operator can run **publish now** (send to LinkedIn API on this action, not merely re-label status).
+- [ ] Real publish now requires explicit confirmation and MUST respect LinkedIn publication enablement (fail closed when disabled) and existing duplicate-publication / once-only safeguards.
+- [ ] On success, the console shows live-on-LinkedIn status with traceable publication identity (e.g. URN) suitable for operator verification.
+- [ ] On block or failure, the console shows a plain-language reason (not enabled, cadence, sequence, content/platform failure, etc.) and does not claim published.
+- [ ] Publish now is available without requiring SSH or deploy-script operation for the routine happy path.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed (does not reopen BL-015 scope as “supervision only”; does not bypass ADR-0001 or secret-safety rules).
 
 ## BL-016 — Define Simplified Flow B
 

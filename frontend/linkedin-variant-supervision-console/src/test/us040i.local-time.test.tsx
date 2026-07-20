@@ -388,7 +388,7 @@ describe("US-040I local-first ScheduleEditor", () => {
     await user.click(screen.getByTestId("schedule-submit"));
     await waitFor(() => {
       expect(screen.getByTestId("toast").textContent).toMatch(
-        /Dry-run schedule change validated/,
+        /Preview only \(dry-run\).*schedule change validated/i,
       );
     });
     expect(deferBodies[0]).toMatchObject({

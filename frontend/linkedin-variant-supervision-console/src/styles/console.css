@@ -961,6 +961,71 @@ textarea {
   margin: 0 0 0.75rem;
 }
 
+.action-matrix {
+  margin: 0.85rem 0 1rem;
+  padding: 0.75rem 0.85rem;
+  background: #0b1017;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.action-matrix h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.95rem;
+  font-weight: 750;
+}
+
+.action-matrix-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.action-matrix-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.2rem 0.65rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: #0f1620;
+}
+
+.action-matrix-row.unavailable {
+  opacity: 0.92;
+}
+
+.action-matrix-label {
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.action-matrix-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  align-self: start;
+}
+
+.action-matrix-badge.available {
+  color: #3d9a6a;
+}
+
+.action-matrix-badge.unavailable {
+  color: var(--muted);
+}
+
+.action-matrix-reason {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
 .diagnostics-details {
   margin: 0.75rem 0;
   padding: 0.65rem 0.75rem;

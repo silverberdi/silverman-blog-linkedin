@@ -198,7 +198,7 @@ describe("US-040J cancelled visibility + reopen", () => {
       /not LinkedIn API published/i,
     );
     expect(screen.getByTestId("cancelled-why")).toHaveTextContent("operator_choice");
-    expect(screen.getByTestId("cancelled-what-next")).toHaveTextContent(
+    expect(screen.getByTestId("action-availability-matrix")).toHaveTextContent(
       /reopen and choose a new local schedule/i,
     );
     expect(screen.getByTestId("row-reopen")).toBeInTheDocument();
@@ -219,7 +219,7 @@ describe("US-040J cancelled visibility + reopen", () => {
     await waitFor(() => {
       expect(screen.getByTestId("cancelled-event-view")).toBeInTheDocument();
     });
-    expect(screen.getByTestId("cancelled-what-next")).toHaveTextContent(
+    expect(screen.getByTestId("action-availability-matrix")).toHaveTextContent(
       /not reopen-eligible/i,
     );
     expect(screen.queryByTestId("row-reopen")).not.toBeInTheDocument();
@@ -285,7 +285,7 @@ describe("US-040J cancelled visibility + reopen", () => {
     await user.click(screen.getByTestId("reopen-dry-run"));
     await user.click(screen.getByTestId("reopen-submit"));
     await waitFor(() => {
-      expect(screen.getByTestId("toast-host")).toHaveTextContent(/persisted/i);
+      expect(screen.getByTestId("toast-host")).toHaveTextContent(/Saved:/i);
     });
     expect(reopenCalls).toBe(2);
     expect(confirmSpy).toHaveBeenCalled();
@@ -351,7 +351,7 @@ describe("US-040J cancelled visibility + reopen", () => {
     );
     await user.click(chip!);
     await waitFor(() => {
-      expect(screen.getByTestId("cancelled-what-next")).toHaveTextContent(
+      expect(screen.getByTestId("action-availability-matrix")).toHaveTextContent(
         /cannot mutate/i,
       );
     });
@@ -378,7 +378,7 @@ describe("US-040J cancelled visibility + reopen", () => {
       await waitFor(() => {
         expect(screen.getByTestId("cancelled-what")).toBeInTheDocument();
         expect(screen.getByTestId("cancelled-why")).toBeInTheDocument();
-        expect(screen.getByTestId("cancelled-what-next")).toBeInTheDocument();
+        expect(screen.getByTestId("action-availability-matrix")).toBeInTheDocument();
       });
       unmount();
     }

@@ -24,7 +24,7 @@ const pendingPayload: PendingSupervisionResponse = {
       campaign_id: "camp-1",
       variant_id: "engineering-leadership",
       audience: "eng",
-      scheduled_at_utc: "2026-07-20T15:00:00Z",
+      scheduled_at_utc: "2026-07-25T15:00:00Z",
       publish_state: "pending",
       calendar_item_id: "cal-1",
       calendar_title: "Post",
@@ -92,7 +92,7 @@ const schedulePayload: ScheduleVisibilityResponse = {
       variant_id: "engineering-leadership",
       title: "eng",
       audience: "eng",
-      scheduled_at_utc: "2026-07-20T15:00:00Z",
+      scheduled_at_utc: "2026-07-25T15:00:00Z",
       publication_state: "pending",
       source_state: "pending",
       blocked: false,
@@ -269,7 +269,7 @@ describe("ScheduleEditor US-040C / US-040G", () => {
     await user.click(screen.getByTestId("schedule-submit"));
     await waitFor(() => {
       expect(screen.getByTestId("toast").textContent).toMatch(
-        /Dry-run schedule change validated/,
+        /Preview only \(dry-run\).*schedule change validated/i,
       );
     });
     expect(deferBodies[0]).toMatchObject({

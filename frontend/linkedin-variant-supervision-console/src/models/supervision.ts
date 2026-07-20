@@ -150,13 +150,17 @@ export const DUE_SOON_HOURS = 48;
 /** Recently-published window: last 7 days UTC from reference time. */
 export const RECENTLY_PUBLISHED_DAYS = 7;
 
-/** Concise operator-facing labels for publication display states (US-040E / US-040M). */
+/**
+ * Operator-facing primary labels (US-083 / US-040M).
+ * LinkedIn lifecycle: Scheduled / Waiting to send / Live on LinkedIn / Failed / Cancelled.
+ * Blog completed stays verbally distinct from Live on LinkedIn.
+ */
 export const PUBLICATION_STATE_LABEL: Record<PublicationDisplayState, string> =
   {
     planned: "Planned",
-    pending: "Pending review",
-    queued: "Queued",
-    published: "Published (API evidence)",
+    pending: "Scheduled",
+    queued: "Waiting to send",
+    published: "Live on LinkedIn",
     completed: "Published on blog",
     deferred: "Deferred",
     cancelled: "Cancelled",
@@ -168,10 +172,52 @@ export function publicationStateLabel(
   state: PublicationDisplayState,
   linkedinApiPublished = false,
 ): string {
-  if (linkedinApiPublished && state !== "published") {
-    return "Published (API evidence)";
+  // Blog completed must never become Live on LinkedIn via API-evidence override.
+  if (state === "completed") {
+    return PUBLICATION_STATE_LABEL.completed;
+  }
+  if (linkedinApiPublished || state === "published") {
+    return PUBLICATION_STATE_LABEL.published;
   }
   return PUBLICATION_STATE_LABEL[state];
+}
+
+/**
+ * Short helper under status pills so Waiting to send / queued cannot be read as live.
+ * Returns null when no extra helper is needed.
+ */
+export function publicationStateHelper(
+  state: PublicationDisplayState,
+  options?: {
+    linkedinApiPublished?: boolean;
+    channel?: ScheduleChannel;
+  },
+): string | null {
+  const linkedinApiPublished = options?.linkedinApiPublished === true;
+  const channel = options?.channel;
+
+  if (channel === "blog" && state === "completed") {
+    return "Live on the blog site — not LinkedIn API published.";
+  }
+  if (state === "completed") {
+    return "Published on blog — not LinkedIn API published.";
+  }
+  if (linkedinApiPublished || state === "published") {
+    return "Confirmed LinkedIn API publication evidence.";
+  }
+  if (state === "queued") {
+    return "Authorized / waiting to send — not yet on LinkedIn (not LinkedIn API published).";
+  }
+  if (state === "pending") {
+    return "Not yet authorized to send — not live on LinkedIn.";
+  }
+  if (state === "failed") {
+    return "Did not go live on LinkedIn.";
+  }
+  if (state === "cancelled") {
+    return "Will not send unless restored via reopen — not live on LinkedIn.";
+  }
+  return null;
 }
 
 export interface OperationalCounts {

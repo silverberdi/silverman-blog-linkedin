@@ -255,6 +255,42 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated — published posts carry correct scraped inputs; rendering behavior observed and reacted to per policy (v1 text post renders no card — accepted; `content.article` deferred)
   - [x] Backlog item closed — 2026-07-17
 
+- [ ] **BL-032 — Turn the LinkedIn Console Into an Operator Control Center**
+  - Business outcome: After create/schedule, the operator controls LinkedIn variants from the console — honest status, postpone/reschedule, cancel (including waiting-to-send), and publish now — without spectator-only UX or routine SSH/scripts.
+  - Successor to BL-015 (BL-015 stays closed as pre-send supervision).
+  - Apply order: US-083 → US-084 → US-085 → US-086.
+  - [ ] **US-083** — Show honest LinkedIn publication status and available actions
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-084** — Postpone and reschedule LinkedIn variants from the console
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-085** — Cancel LinkedIn variants that are not yet live
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-086** — Publish a LinkedIn variant immediately from the console
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
 ## P3 — Operations, Reliability, and Recovery
 
 - [x] **BL-010 — Add Operational Observability**
@@ -384,6 +420,7 @@ Use this checklist to track business progress. Mark items only when the stated b
   - Business outcome: Operators can supervise Flow A LinkedIn variants from one console during the pre-send window without opening multiple raw files.
   - Policy: [linkedin-variant-review-policy.md](../operations/linkedin-variant-review-policy.md)
   - Status: **Closed 2026-07-19** after US-038–US-040M Story accepted (final gate: US-040L operator walkthrough).
+  - Successor: **BL-032** (LinkedIn operator control center — US-083–US-086).
   - [x] **US-038**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed

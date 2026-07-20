@@ -120,13 +120,11 @@ describe("US-040E operational counts and labels", () => {
   });
 
   it("maps concise operator-facing labels", () => {
-    expect(publicationStateLabel("pending")).toBe("Pending review");
-    expect(publicationStateLabel("published")).toBe("Published (API evidence)");
+    expect(publicationStateLabel("pending")).toBe("Scheduled");
+    expect(publicationStateLabel("published")).toBe("Live on LinkedIn");
     expect(publicationStateLabel("blocked")).toBe("Blocked");
     expect(publicationStateLabel("failed")).toBe("Failed");
-    expect(publicationStateLabel("queued", true)).toBe(
-      "Published (API evidence)",
-    );
+    expect(publicationStateLabel("queued", true)).toBe("Live on LinkedIn");
   });
 });
 
@@ -273,7 +271,7 @@ describe("US-040E console polish UI", () => {
       expect.stringMatching(/\d+/),
     );
     expect(screen.getByTestId("count-failed")).toBeInTheDocument();
-    expect(screen.getAllByText("Pending review").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Scheduled").length).toBeGreaterThan(0);
   });
 
   it("separates cancel from routine nav and keeps confirmation for real cancel", async () => {

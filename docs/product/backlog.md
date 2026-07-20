@@ -168,6 +168,35 @@ This backlog describes the outstanding business and operational capabilities req
 
 **Status:** Closed 2026-07-17 after US-023, US-024, and US-025 operational demonstration and acceptance. Inputs LinkedIn scrapes are verified correct (`POST /validate-linkedin-article-preview`, live OG remediation `silverberdi.github.io` `e4d10de`); rendering behavior observed on a real post (`preview_not_rendered_post_format` — the v1 text post renders no article card); fallback reaction executed per policy (`fallback_accept_rendering`, `fallback_format_change_deferred`). An explicit article post format (`content.article`) remains a named deferred future-change candidate requiring its own OpenSpec change. Evidence: [us-023](../operations/us-023-linkedin-preview-input-validation-2026-07-17.md), [us-024 blocked](../operations/us-024-preview-confirmation-blocked-2026-07-17.md), [us-024 post-publish](../operations/us-024-preview-confirmation-keep-contracts-boring-2026-07-17.md), [us-025 decision](../operations/us-025-preview-fallback-decision-keep-contracts-boring-2026-07-17.md).
 
+### BL-032 — Turn the LinkedIn Console Into an Operator Control Center
+
+**Business need:** After create and schedule, the operator — not scripts, not spectator mode — must control each LinkedIn variant: see honest status, postpone, reschedule, cancel, and publish immediately when they decide. BL-015 delivered a calendar-first **pre-send supervision** console; that is not enough. A pretty viewer that only half-controls `pending` items does not add operational value.
+
+**Relationship to BL-015:** BL-015 stays closed (pre-send supervision delivered). BL-032 is the successor product outcome: the same Silverman Authority Manager / LinkedIn console becomes the **control center** for LinkedIn publication lifecycle, not only optional supervision before queue.
+
+**Expected outcomes:**
+
+- Show LinkedIn publication status in operator language (scheduled / waiting to send / live on LinkedIn / failed / cancelled) — not jargon that hides that `queued` is not yet published.
+- Make real vs preview (dry-run) unmistakable so the operator never believes a change happened when it did not.
+- Allow postpone and reschedule of LinkedIn variants from the console without forcing a confusing single lever; calendar and campaign schedule stay consistent with what the operator just set.
+- Allow cancel from the console for variants that are still not live on LinkedIn (including after they have been authorized/queued).
+- Allow **publish now** from the console for a chosen variant, with explicit confirmation and without bypassing LinkedIn enablement or duplicate-publication safeguards.
+- Surface blocked reasons in plain language (cadence, sequence, not enabled, not due, etc.) so the operator knows what to do next.
+- Prefer reusing existing worker publication capabilities; do not require the operator to SSH or run deploy scripts for routine control.
+- Keep blog Flow A and LinkedIn API publication distinct in the UI (blog live ≠ LinkedIn live).
+
+**Stories:** US-083, US-084, US-085, US-086.
+
+**Apply order (OpenSpec):**
+
+```text
+US-083 → US-084 → US-085 → US-086
+```
+
+**Completion outcome:** From one console, after LinkedIn variants exist and are scheduled, the operator can see true status and actively postpone, reschedule, cancel, or publish immediately — with clear confirmations and blocked-state messaging — without relying on a spectator calendar or remote scripts for those routine actions.
+
+**Status:** Open. Not started.
+
 
 ## P3 — Operations, Reliability, and Recovery
 
@@ -285,6 +314,8 @@ This backlog describes the outstanding business and operational capabilities req
 **Completion outcome:** Operators can supervise Flow A LinkedIn variants and upcoming editorial publication timing from one modern, calendar-first dark console (Week + Month), opening events into focused modals, working in local time, with toast feedback and density limits, with completed blogs shown honestly as published-on-blog (not planned), and with advanced filters available from a header Search/Filters modal rather than a permanent dock — during the optional pre-send window — without opening multiple raw files or reading technical implementation prose. **US-040G–M Story accepted requires Visual DoD evidence plus an operator walkthrough; Vitest/checkbox completion alone is insufficient.**
 
 **Status:** Closed 2026-07-19 after US-038–US-040M Story accepted (final operator gate: US-040L filters-modal walkthrough on deployed console, including wider-modal polish).
+
+**Successor:** Operator LinkedIn **control center** (postpone / reschedule / cancel / publish now with honest status) is **BL-032** — not a reopen of BL-015.
 
 
 ## P4 — Flow B

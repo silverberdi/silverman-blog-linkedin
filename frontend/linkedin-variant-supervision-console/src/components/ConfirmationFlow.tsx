@@ -7,7 +7,7 @@ export function confirmRealMutation(actionLabel: string): boolean {
     return false;
   }
   return window.confirm(
-    `Submit a real ${actionLabel} (not dry-run)? This will mutate campaign metadata.`,
+    `Make a real ${actionLabel} (not preview)? This will save campaign metadata. It does not publish live to LinkedIn.`,
   );
 }
 

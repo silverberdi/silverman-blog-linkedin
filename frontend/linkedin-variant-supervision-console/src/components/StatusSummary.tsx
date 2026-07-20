@@ -18,8 +18,8 @@ const COUNT_DEFS: Array<{
   },
   {
     key: "pending",
-    label: "Pending",
-    hint: "Pending review — not LinkedIn API published",
+    label: "Scheduled",
+    hint: "Scheduled (pending) — not yet authorized to send, not live on LinkedIn",
     tone: "neutral",
   },
   {
@@ -48,8 +48,8 @@ const COUNT_DEFS: Array<{
   },
   {
     key: "recentlyPublished",
-    label: "Recently published",
-    hint: "API evidence in last 7 days — not flow_a_complete or blog handoff",
+    label: "Live recently",
+    hint: "Live on LinkedIn (API evidence) in last 7 days — not flow_a_complete or blog Published on blog",
     tone: "success",
   },
 ];
