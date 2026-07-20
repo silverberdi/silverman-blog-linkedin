@@ -41,6 +41,7 @@ function scheduleItem(
     blocked: false,
     critical: false,
     linkedinApiPublished: false,
+    linkedinPostUrn: null,
     calendarItemId: null,
     scheduleEditable: true,
     scheduleEditBlockReason: null,
@@ -109,7 +110,7 @@ describe("US-084 action matrix and refusal copy", () => {
     );
   });
 
-  it("keeps cancel-queued available and publish-now unavailable (US-085 / US-086)", () => {
+  it("keeps cancel-queued and publish-now available as distinct controls (US-085 / US-086)", () => {
     const rows = buildLinkedInActionMatrix({
       item: scheduleItem({
         itemId: "li-queued",
@@ -121,7 +122,8 @@ describe("US-084 action matrix and refusal copy", () => {
       canMutate: true,
     });
     expect(rows.find((r) => r.id === "cancel_queued")?.available).toBe(true);
-    expect(rows.find((r) => r.id === "publish_now")?.available).toBe(false);
+    expect(rows.find((r) => r.id === "publish_now")?.available).toBe(true);
+    expect(rows.find((r) => r.id === "reschedule")?.available).toBe(true);
   });
 });
 

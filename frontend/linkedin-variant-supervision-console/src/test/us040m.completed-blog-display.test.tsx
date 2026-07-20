@@ -26,6 +26,7 @@ function scheduleItem(partial: Partial<ScheduleItem> & { itemId: string }): Sche
     blocked: partial.blocked ?? false,
     critical: partial.critical ?? false,
     linkedinApiPublished: partial.linkedinApiPublished ?? false,
+    linkedinPostUrn: partial.linkedinPostUrn ?? null,
     calendarItemId: partial.calendarItemId ?? partial.itemId,
     scheduleEditable: partial.scheduleEditable ?? false,
     scheduleEditBlockReason: partial.scheduleEditBlockReason ?? null,

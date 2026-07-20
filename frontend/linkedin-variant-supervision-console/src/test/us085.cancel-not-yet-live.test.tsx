@@ -38,6 +38,7 @@ function scheduleItem(
     blocked: false,
     critical: false,
     linkedinApiPublished: false,
+    linkedinPostUrn: null,
     calendarItemId: null,
     scheduleEditable: true,
     scheduleEditBlockReason: null,
@@ -86,7 +87,8 @@ describe("US-085 action matrix and refusal copy", () => {
       canMutate: true,
     });
     expect(pending.find((r) => r.id === "cancel_pending")?.available).toBe(true);
-    expect(pending.find((r) => r.id === "publish_now")?.available).toBe(false);
+    expect(pending.find((r) => r.id === "publish_now")?.available).toBe(true);
+    expect(pending.find((r) => r.id === "reschedule")?.available).toBe(true);
 
     const queued = buildLinkedInActionMatrix({
       item: scheduleItem({
@@ -100,7 +102,7 @@ describe("US-085 action matrix and refusal copy", () => {
     });
     expect(queued.find((r) => r.id === "cancel_queued")?.available).toBe(true);
     expect(queued.find((r) => r.id === "reschedule")?.available).toBe(true);
-    expect(queued.find((r) => r.id === "publish_now")?.available).toBe(false);
+    expect(queued.find((r) => r.id === "publish_now")?.available).toBe(true);
   });
 
   it("session cannot mutate blocks cancel clearly", () => {

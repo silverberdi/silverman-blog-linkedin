@@ -39,6 +39,7 @@ function scheduleItem(
     blocked: partial.blocked ?? false,
     critical: partial.critical ?? false,
     linkedinApiPublished: partial.linkedinApiPublished ?? false,
+    linkedinPostUrn: partial.linkedinPostUrn ?? null,
     calendarItemId: partial.calendarItemId ?? null,
     scheduleEditable: partial.scheduleEditable ?? true,
     scheduleEditBlockReason: partial.scheduleEditBlockReason ?? null,
@@ -82,7 +83,7 @@ describe("US-083 operator-language LinkedIn labels", () => {
 });
 
 describe("US-083 action availability matrix", () => {
-  it("pending with supervision join lists edit/cancel/reschedule available and publish now unavailable", () => {
+  it("pending with supervision join lists edit/cancel/reschedule available and publish now available (US-086)", () => {
     const rows = buildLinkedInActionMatrix({
       item: scheduleItem({
         itemId: "li-pending",
@@ -97,12 +98,12 @@ describe("US-083 action availability matrix", () => {
     expect(byId.edit?.available).toBe(true);
     expect(byId.cancel_pending?.available).toBe(true);
     expect(byId.reschedule?.available).toBe(true);
-    expect(byId.publish_now?.available).toBe(false);
-    expect(byId.publish_now?.reason).toMatch(/US-086/);
+    expect(byId.publish_now?.available).toBe(true);
+    expect(byId.publish_now?.reason).toMatch(/publish_now|auto_queue/i);
     expect(byId.cancel_queued).toBeUndefined();
   });
 
-  it("queued shows postpone and cancel-queued available when identity + canMutate; publish now not yet", () => {
+  it("queued shows postpone, cancel-queued, and publish now available when identity + canMutate", () => {
     const rows = buildLinkedInActionMatrix({
       item: scheduleItem({
         itemId: "li-queued",
@@ -119,8 +120,8 @@ describe("US-083 action availability matrix", () => {
     expect(byId.cancel_queued?.available).toBe(true);
     expect(byId.cancel_queued?.reason).toMatch(/will not send|Withdraw/i);
     expect(byId.cancel_queued?.reason).not.toMatch(/not available yet/i);
-    expect(byId.publish_now?.available).toBe(false);
-    expect(byId.publish_now?.reason).toMatch(/US-086/);
+    expect(byId.publish_now?.available).toBe(true);
+    expect(byId.publish_now?.reason).toMatch(/Waiting to send|publish_now/i);
     expect(byId.edit?.available).toBe(false);
   });
 
@@ -312,10 +313,10 @@ describe("US-083 EventModal matrix UI", () => {
     );
     expect(screen.getByTestId("action-matrix-publish_now")).toHaveAttribute(
       "data-available",
-      "false",
+      "true",
     );
     expect(screen.getByTestId("action-matrix-publish_now")).toHaveTextContent(
-      /US-086/,
+      /Available/i,
     );
   });
 

@@ -7,6 +7,7 @@ export const CORRECT_PATH = "/correct-linkedin-variant";
 export const DEFER_PATH = "/defer-linkedin-variant";
 export const CANCEL_PATH = "/cancel-linkedin-publication";
 export const REOPEN_PATH = "/reopen-linkedin-variant";
+export const PUBLISH_DUE_PATH = "/publish-linkedin-due-variants";
 export const UPDATE_CALENDAR_SCHEDULE_PATH =
   "/editorial-calendar/update-item-schedule";
 export const GAP_OPERATOR_SETTINGS_PATH = "/flow-b/gap-operator-settings";
@@ -88,6 +89,8 @@ export interface ScheduleVisibilityItemDto {
   cancellation_phase?: string | null;
   cancellation_reason?: string | null;
   reopen_eligible?: boolean | null;
+  /** US-086 optional Live publication identity (non-credential). */
+  linkedin_post_urn?: string | null;
 }
 
 export interface ScheduleVisibilityResponse {
@@ -145,6 +148,55 @@ export interface ReopenVariantRequest {
   source?: string | null;
   /** IANA timezone for US-040K local-day density (browser resolved). */
   operator_timezone?: string | null;
+}
+
+/** US-086 deliberate publish now via existing publish-due endpoint. */
+export interface PublishDueVariantRequest {
+  campaign_id: string;
+  variant: string;
+  dry_run?: boolean;
+  publish_now: true;
+  auto_queue_pending?: boolean;
+}
+
+export interface PublishDueVariantResultItem {
+  campaign_id: string;
+  variant: string;
+  publish_state: string;
+  publish_after_utc?: string | null;
+  published_at?: string | null;
+  linkedin_post_urn?: string | null;
+  status: string;
+  errors?: string[];
+  warnings?: string[];
+  skipped?: boolean;
+  skip_reason?: string | null;
+}
+
+export interface PublishDueAutoQueueResultItem {
+  campaign_id: string;
+  variant: string;
+  publish_state: string;
+  publish_after_utc?: string | null;
+  linkedin_post_urn?: string | null;
+  published_at?: string | null;
+  status: string;
+  errors?: string[];
+  warnings?: string[];
+  skipped?: boolean;
+  skip_reason?: string | null;
+  metadata_written?: boolean;
+}
+
+export interface PublishDueVariantResult {
+  status: "completed" | "failed" | string;
+  dry_run: boolean;
+  publish_now: boolean;
+  results: PublishDueVariantResultItem[];
+  errors: string[];
+  warnings: string[];
+  auto_queue_pending?: boolean;
+  auto_queue_results?: PublishDueAutoQueueResultItem[];
 }
 
 export interface UpdateCalendarItemScheduleRequest {

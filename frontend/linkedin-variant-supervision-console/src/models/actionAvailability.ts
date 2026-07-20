@@ -1,9 +1,9 @@
 import type { ScheduleItem } from "./supervision";
 
 /**
- * EventModal “What you can do now” matrix (US-083 / US-084 / US-085).
+ * EventModal “What you can do now” matrix (US-083 / US-084 / US-085 / US-086).
  * Available rows reflect real eligibility; unavailable expected controls stay visible
- * with plain-language reasons (including not-yet for US-086).
+ * with plain-language reasons.
  */
 
 export type ActionAvailabilityId =
@@ -26,6 +26,10 @@ export interface ActionAvailabilityInput {
   /** Pending-supervision join present (required for edit/cancel-pending). */
   hasSupervisionJoin: boolean;
   canMutate: boolean;
+  /** Schedule-visibility enablement flag (worker remains authoritative on real publish). */
+  linkedinPublicationEnabled?: boolean;
+  /** Optional clock for deferred-future checks (tests). */
+  nowMs?: number;
 }
 
 function blockReasonPlain(code: string | null): string {
@@ -39,6 +43,130 @@ function blockReasonPlain(code: string | null): string {
     return `Schedule blocked: ${code.replace(/_/g, " ")}. Choose another editable item or fix the calendar status.`;
   }
   return `Schedule blocked: ${code}. Reload the item or choose another local day/time.`;
+}
+
+/** Underlying wire publish_state when display state is remapped (e.g. enablement-off → blocked). */
+export function linkedInWirePublishState(item: ScheduleItem): string | null {
+  if (item.sourceState) {
+    return item.sourceState;
+  }
+  if (
+    item.publicationState === "pending" ||
+    item.publicationState === "queued" ||
+    item.publicationState === "published" ||
+    item.publicationState === "cancelled" ||
+    item.publicationState === "failed"
+  ) {
+    return item.publicationState;
+  }
+  return null;
+}
+
+/**
+ * Deferred with a future scheduled_at_utc — publish_now must not bypass (worker skips).
+ */
+export function isDeferredFutureNotDue(
+  item: ScheduleItem,
+  nowMs: number = Date.now(),
+): boolean {
+  if (item.publicationState !== "deferred") {
+    return false;
+  }
+  if (!item.scheduledAtUtc) {
+    return true;
+  }
+  const scheduledMs = Date.parse(item.scheduledAtUtc);
+  if (Number.isNaN(scheduledMs)) {
+    return true;
+  }
+  return scheduledMs > nowMs;
+}
+
+export type PublishNowEligibility =
+  | { eligible: true; path: "queued" | "pending" }
+  | { eligible: false; reason: string };
+
+/**
+ * Whether publish now is a working control for this LinkedIn item (US-086).
+ */
+export function publishNowEligibility(
+  item: ScheduleItem,
+  opts: { canMutate: boolean; nowMs?: number } = { canMutate: true },
+): PublishNowEligibility {
+  const nowMs = opts.nowMs ?? Date.now();
+  const isLive =
+    item.publicationState === "published" || item.linkedinApiPublished === true;
+  if (isLive) {
+    return {
+      eligible: false,
+      reason:
+        "Unavailable — already Live on LinkedIn. Publish now is not offered for live posts (no duplicate send).",
+    };
+  }
+  if (item.publicationState === "cancelled") {
+    return {
+      eligible: false,
+      reason:
+        "Unavailable — Cancelled. Use Reopen & reschedule first (US-040J), then publish when eligible.",
+    };
+  }
+  const wire = linkedInWirePublishState(item);
+  if (wire === "failed" || item.publicationState === "failed") {
+    return {
+      eligible: false,
+      reason:
+        "Unavailable — Failed / critical recovery is not the primary publish-now path. Use recovery or cancel paths as applicable; do not treat this as Live on LinkedIn.",
+    };
+  }
+  if (!item.campaignId || !item.variantId) {
+    return {
+      eligible: false,
+      reason:
+        "Unavailable — campaign and variant identity are required to publish now. Reload schedule visibility.",
+    };
+  }
+  if (!opts.canMutate) {
+    return {
+      eligible: false,
+      reason:
+        "Blocked — this session cannot mutate. Sign in with mutation permission, then publish now.",
+    };
+  }
+  if (isDeferredFutureNotDue(item, nowMs)) {
+    return {
+      eligible: false,
+      reason:
+        "Unavailable — deferred time is not due yet. Publish now does not bypass a deferred schedule; wait until the new time or postpone again.",
+    };
+  }
+  if (wire === "queued" || item.publicationState === "queued") {
+    return { eligible: true, path: "queued" };
+  }
+  if (
+    wire === "pending" ||
+    item.publicationState === "pending" ||
+    item.publicationState === "deferred" ||
+    item.publicationState === "blocked"
+  ) {
+    // Enablement-off remaps pending/queued to blocked display; wire state still drives path.
+    if (wire === "queued") {
+      return { eligible: true, path: "queued" };
+    }
+    if (wire === "pending" || item.publicationState === "pending" || item.publicationState === "deferred") {
+      return { eligible: true, path: "pending" };
+    }
+    // blocked without pending/queued wire — not a publish-now target
+    return {
+      eligible: false,
+      reason:
+        "Unavailable — this item is not in Scheduled (pending) or Waiting to send (queued). Reload if status looks stale.",
+    };
+  }
+  return {
+    eligible: false,
+    reason:
+      "Unavailable — this item is not in Scheduled (pending) or Waiting to send (queued). Reload if status looks stale.",
+  };
 }
 
 /**
@@ -57,13 +185,23 @@ export function buildLinkedInActionMatrix(
   const isLive =
     state === "published" || item.linkedinApiPublished === true;
   const isCancelled = state === "cancelled";
-  const isQueued = state === "queued";
+  const wire = linkedInWirePublishState(item);
+  const isQueued = wire === "queued" || state === "queued";
   const isPendingLike =
-    state === "pending" || state === "deferred" || state === "blocked";
+    !isLive &&
+    !isCancelled &&
+    (state === "pending" ||
+      state === "deferred" ||
+      state === "blocked" ||
+      wire === "pending");
   const canEdit =
-    hasSupervisionJoin && item.actions.includes("edit") && isPendingLike;
+    hasSupervisionJoin && item.actions.includes("edit") && isPendingLike && !isQueued;
   const canCancelPending =
-    hasSupervisionJoin && item.actions.includes("cancel") && isPendingLike;
+    hasSupervisionJoin &&
+    item.actions.includes("cancel") &&
+    isPendingLike &&
+    !isQueued &&
+    wire !== "queued";
   const hasCancelIdentity = Boolean(item.campaignId && item.variantId);
   const canCancelQueued = isQueued && hasCancelIdentity;
   const canReopen =
@@ -131,7 +269,7 @@ export function buildLinkedInActionMatrix(
   }
 
   // Cancel while scheduled (US-017 / US-085) — show for pre-send; omit when cancelled/live.
-  if (isPendingLike) {
+  if (isPendingLike && !isQueued) {
     if (canCancelPending && canMutate) {
       rows.push({
         id: "cancel_pending",
@@ -216,17 +354,35 @@ export function buildLinkedInActionMatrix(
     }
   }
 
-  // Publish now — expected whenever not already live; never a working control in US-083.
+  // Publish now — working control when eligible (US-086); omit when already Live.
   if (!isLive) {
-    const failedContext = item.critical || state === "failed";
-    rows.push({
-      id: "publish_now",
-      label: "Publish now",
-      available: false,
-      reason: failedContext
-        ? "Not available yet (US-086) — item failed or is critical and is not live on LinkedIn; publish-now from console is not shipped."
-        : "Not available yet (US-086) — no LinkedIn API publish from this console in this story.",
+    const pub = publishNowEligibility(item, {
+      canMutate,
+      nowMs: input.nowMs,
     });
+    if (pub.eligible) {
+      const enablementNote =
+        input.linkedinPublicationEnabled === false
+          ? " LinkedIn publication enablement is off — real publish will fail closed at the worker."
+          : "";
+      const pathNote =
+        pub.path === "queued"
+          ? "Sends via publish-due with publish_now (Waiting to send)."
+          : "Queues then sends in one action (auto_queue_pending + publish_now) for Scheduled.";
+      rows.push({
+        id: "publish_now",
+        label: "Publish now",
+        available: true,
+        reason: `Available — open Publish now, then Preview or Real with confirmation. ${pathNote} Distinct from postpone and cancel.${enablementNote}`,
+      });
+    } else {
+      rows.push({
+        id: "publish_now",
+        label: "Publish now",
+        available: false,
+        reason: pub.reason,
+      });
+    }
   }
 
   return rows;

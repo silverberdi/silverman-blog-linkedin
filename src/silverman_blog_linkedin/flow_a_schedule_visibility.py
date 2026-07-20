@@ -122,9 +122,24 @@ class ScheduleVisibilityItem:
     cancellation_phase: str | None = None
     cancellation_reason: str | None = None
     reopen_eligible: bool | None = None
+    # US-086 optional Live re-open verification (non-credential URN only).
+    linkedin_post_urn: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def _linkedin_post_urn_from_entry(entry: dict[str, Any]) -> str | None:
+    """Return stored LinkedIn post URN when present (secret-safe identity only)."""
+    urn = _optional_str(entry.get("linkedin_post_urn"))
+    if urn:
+        return urn
+    evidence = entry.get("linkedin_publication")
+    if isinstance(evidence, dict):
+        return _optional_str(evidence.get("linkedin_post_urn")) or _optional_str(
+            evidence.get("post_urn")
+        )
+    return None
 
 
 @dataclass(frozen=True)
@@ -468,6 +483,9 @@ def _linkedin_rows_from_campaign(
                     cancelled_at_utc = _optional_str(cancellation.get("cancelled_at_utc"))
                     cancellation_reason = _optional_str(cancellation.get("reason"))
             reopen_eligible = is_reopen_eligible_variant(entry)
+        linkedin_post_urn = (
+            _linkedin_post_urn_from_entry(entry) if linkedin_api_published else None
+        )
         rows.append(
             ScheduleVisibilityItem(
                 item_id=f"linkedin:{campaign_id}:{variant_id}",
@@ -489,6 +507,7 @@ def _linkedin_rows_from_campaign(
                 cancellation_phase=cancellation_phase,
                 cancellation_reason=cancellation_reason,
                 reopen_eligible=reopen_eligible,
+                linkedin_post_urn=linkedin_post_urn,
             )
         )
     return rows

@@ -30,15 +30,19 @@ import {
   type ScheduleItem,
   type SupervisionItem,
 } from "../models/supervision";
-import { buildLinkedInActionMatrix } from "../models/actionAvailability";
+import { buildLinkedInActionMatrix, publishNowEligibility } from "../models/actionAvailability";
 import {
   PREVIEW_CHECKBOX_LABEL,
+  PREVIEW_PUBLISH_CHECKBOX_LABEL,
   dryRunModeBanner,
   mutationOutcomeToast,
+  publishDryRunModeBanner,
+  publishOutcomeToast,
 } from "../models/mutationMode";
 import { useSupervisionStore } from "../models/store";
+import type { PublishDueVariantResult } from "../api/types";
 
-type PanelMode = "view" | "edit" | "cancel" | "reopen";
+type PanelMode = "view" | "edit" | "cancel" | "reopen" | "publish";
 
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -90,6 +94,8 @@ export function EventModal() {
   const [editDryRun, setEditDryRun] = useState(dryRunDefault);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelDryRun, setCancelDryRun] = useState(dryRunDefault);
+  const [publishDryRun, setPublishDryRun] = useState(dryRunDefault);
+  const [lastPublishUrn, setLastPublishUrn] = useState<string | null>(null);
   const [reopenSchedule, setReopenSchedule] = useState("");
   const [reopenReason, setReopenReason] = useState("");
   const [reopenDryRun, setReopenDryRun] = useState(dryRunDefault);
@@ -275,6 +281,27 @@ export function EventModal() {
     setPanel("cancel");
   }
 
+  function openPublish() {
+    const campaignId = item.campaignId;
+    const variantId = item.variantId;
+    if (!campaignId || !variantId || !requireMutate("publish now")) {
+      return;
+    }
+    const eligibility = publishNowEligibility(item, { canMutate });
+    if (!eligibility.eligible) {
+      setModalError(eligibility.reason);
+      pushToast({ kind: "error", text: eligibility.reason });
+      return;
+    }
+    setPublishDryRun(dryRunDefault);
+    setLastPublishUrn(null);
+    setUnsavedEditDraft(false);
+    setUnsavedScheduleDraft(false);
+    setModalError("");
+    closeScheduleEditor();
+    setPanel("publish");
+  }
+
   function openReopen() {
     if (!canReopen || !requireMutate("reopen")) {
       return;
@@ -374,6 +401,131 @@ export function EventModal() {
     }
   }
 
+  function explainPublishBlock(codes: string[]): string {
+    if (!codes.length) {
+      return "Publish now was refused. The variant is not Live on LinkedIn.";
+    }
+    return explainErrorCodes(codes);
+  }
+
+  function extractPublishUrn(result: PublishDueVariantResult): string | null {
+    for (const row of result.results || []) {
+      if (row.linkedin_post_urn && row.publish_state === "published") {
+        return row.linkedin_post_urn;
+      }
+    }
+    for (const row of result.auto_queue_results || []) {
+      if (row.linkedin_post_urn && row.publish_state === "published") {
+        return row.linkedin_post_urn;
+      }
+    }
+    for (const row of result.results || []) {
+      if (row.linkedin_post_urn) {
+        return row.linkedin_post_urn;
+      }
+    }
+    return null;
+  }
+
+  async function submitPublish() {
+    const campaignId = item.campaignId;
+    const variantId = item.variantId;
+    if (!campaignId || !variantId || !requireMutate("publish now")) {
+      return;
+    }
+    const eligibility = publishNowEligibility(item, { canMutate });
+    if (!eligibility.eligible) {
+      setModalError(eligibility.reason);
+      pushToast({ kind: "error", text: eligibility.reason });
+      return;
+    }
+    if (
+      !publishDryRun &&
+      !confirmRealMutation("publish now (send to LinkedIn API now)")
+    ) {
+      return;
+    }
+    setSubmitting(true);
+    setModalError("");
+    try {
+      const result = await client.publishDueVariant({
+        campaign_id: campaignId,
+        variant: variantId,
+        dry_run: publishDryRun,
+        publish_now: true,
+        auto_queue_pending: eligibility.path === "pending",
+      });
+
+      const skipCodes = (result.results || [])
+        .filter((row) => row.skipped && row.skip_reason)
+        .map((row) => row.skip_reason as string);
+      const autoSkipCodes = (result.auto_queue_results || [])
+        .filter((row) => row.skipped && row.skip_reason)
+        .map((row) => row.skip_reason as string);
+      const blockCodes = [...skipCodes, ...autoSkipCodes];
+
+      const publishedRow = (result.results || []).find(
+        (row) =>
+          row.publish_state === "published" &&
+          row.status === "completed" &&
+          !row.skipped,
+      );
+      const identity = `${campaignId} / ${variantId}`;
+
+      if (!publishDryRun && blockCodes.length && !publishedRow) {
+        const text = explainPublishBlock(blockCodes);
+        setModalError(text);
+        pushToast({ kind: "error", text });
+        return;
+      }
+
+      if (publishDryRun) {
+        pushToast({
+          kind: "info",
+          text: publishOutcomeToast({
+            dryRun: true,
+            identity,
+            urn: null,
+          }),
+        });
+        return;
+      }
+
+      if (!publishedRow) {
+        const text =
+          result.warnings?.length
+            ? explainPublishBlock(result.warnings)
+            : "Publish now did not complete a LinkedIn send. The variant is not claimed Live on LinkedIn.";
+        setModalError(text);
+        pushToast({ kind: "error", text });
+        return;
+      }
+
+      const urn = extractPublishUrn(result);
+      setLastPublishUrn(urn);
+      pushToast({
+        kind: "ok",
+        text: publishOutcomeToast({ dryRun: false, identity, urn }),
+      });
+      setUnsavedEditDraft(false);
+      setUnsavedScheduleDraft(false);
+      await refreshAll({ preserveActionBanner: true });
+      setPanel("view");
+      closeScheduleEditor();
+      // Keep modal open so operator can see Live status + URN after refresh.
+    } catch (err) {
+      const apiErr = err as ApiError;
+      const text =
+        apiErr?.codes?.length
+          ? explainErrorCodes(apiErr.codes)
+          : apiErr?.message || String(err);
+      setModalError(text);
+      pushToast({ kind: "error", text });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function submitReopen() {
     if (!canReopen || !requireMutate("reopen")) {
       return;
@@ -453,26 +605,35 @@ export function EventModal() {
   const isLiveOnLinkedIn =
     item.publicationState === "published" ||
     item.linkedinApiPublished === true;
-  const isQueuedWaiting = item.publicationState === "queued";
+  const isQueuedWaiting =
+    item.publicationState === "queued" || item.sourceState === "queued";
   const isPendingLike =
     item.publicationState === "pending" ||
     item.publicationState === "deferred" ||
-    item.publicationState === "blocked";
+    item.publicationState === "blocked" ||
+    item.sourceState === "pending";
   const hasCancelIdentity = Boolean(item.campaignId && item.variantId);
   const canEdit = Boolean(
-    supervisionItem && item.actions.includes("edit"),
+    supervisionItem && item.actions.includes("edit") && !isQueuedWaiting,
   );
   /** Pending cancel via supervision join; queued cancel via schedule identity (US-085). */
   const canCancelPending = Boolean(
     supervisionItem &&
       item.actions.includes("cancel") &&
       isPendingLike &&
+      !isQueuedWaiting &&
       !isLiveOnLinkedIn,
   );
   const canCancelQueued = Boolean(
     isQueuedWaiting && hasCancelIdentity && !isLiveOnLinkedIn,
   );
   const canCancel = canCancelPending || canCancelQueued;
+  const publishEligibility = publishNowEligibility(item, { canMutate });
+  const canPublish = publishEligibility.eligible;
+  const publishPanelTitle =
+    publishEligibility.eligible && publishEligibility.path === "queued"
+      ? "Publish waiting-to-send variant now"
+      : "Publish scheduled variant now";
   const cancelPanelTitle = isQueuedWaiting
     ? "Cancel waiting-to-send variant"
     : "Cancel scheduled variant";
@@ -484,6 +645,8 @@ export function EventModal() {
           item,
           hasSupervisionJoin: Boolean(supervisionItem),
           canMutate,
+          linkedinPublicationEnabled:
+            scheduleSnapshot?.linkedinPublicationEnabled,
         })
       : [];
 
@@ -515,6 +678,14 @@ export function EventModal() {
         {statusHelper ? (
           <p className="sup-meta" data-testid="event-modal-status-helper">
             {statusHelper}
+          </p>
+        ) : null}
+        {isLiveOnLinkedIn && (item.linkedinPostUrn || lastPublishUrn) ? (
+          <p className="sup-meta" data-testid="event-modal-linkedin-urn">
+            Publication identity (URN):{" "}
+            <span className="mono">
+              {item.linkedinPostUrn || lastPublishUrn}
+            </span>
           </p>
         ) : null}
       </>
@@ -733,6 +904,73 @@ export function EventModal() {
                   {cancelDryRun
                     ? "Preview cancel (no change)"
                     : "Save cancel"}
+                </button>
+              </div>
+            </div>
+          ) : panel === "publish" && cancelCampaignId && cancelVariantId ? (
+            <div
+              data-testid="publish-panel"
+              role="group"
+              aria-labelledby="publish-panel-title"
+            >
+              <h3 id="publish-panel-title">{publishPanelTitle}</h3>
+              <p className="meta">
+                Campaign {cancelCampaignId} · variant {cancelVariantId}
+              </p>
+              <p
+                className="sup-meta"
+                data-testid="publish-control-framing"
+              >
+                {publishEligibility.eligible &&
+                publishEligibility.path === "pending"
+                  ? "Sends to the LinkedIn API now in one deliberate action: authorize/queue then publish (auto_queue_pending + publish_now). This is not postpone and not cancel/withdraw."
+                  : "Sends to the LinkedIn API now via publish-due with publish_now for this Waiting-to-send variant. This is not a status re-label, not postpone, and not cancel/withdraw."}{" "}
+                Real publish requires confirmation and fails closed when LinkedIn
+                publication enablement is off. Preview must not be mistaken for
+                Live on LinkedIn.
+              </p>
+              {scheduleSnapshot?.linkedinPublicationEnabled === false ? (
+                <p
+                  className="banner warn"
+                  data-testid="publish-enablement-warn"
+                >
+                  LinkedIn publication enablement is off. Real publish will fail
+                  closed at the worker — use Preview, or enable publication for a
+                  controlled real send.
+                </p>
+              ) : null}
+              <div className="check-row">
+                <input
+                  type="checkbox"
+                  id="publish-dry-run"
+                  data-testid="publish-dry-run"
+                  checked={publishDryRun}
+                  onChange={(e) => setPublishDryRun(e.target.checked)}
+                />
+                <label htmlFor="publish-dry-run">
+                  {PREVIEW_PUBLISH_CHECKBOX_LABEL}
+                </label>
+              </div>
+              <p className="meta" data-testid="publish-mode-banner">
+                {publishDryRunModeBanner(publishDryRun)}
+              </p>
+              <div className="panel-actions event-modal-actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setPanel("view")}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  data-testid="publish-submit"
+                  disabled={submitting || !canMutate}
+                  onClick={() => void submitPublish()}
+                >
+                  {publishDryRun
+                    ? "Preview publish (no LinkedIn send)"
+                    : "Publish now (LinkedIn API)"}
                 </button>
               </div>
             </div>
@@ -1011,6 +1249,17 @@ export function EventModal() {
                     onClick={openCancel}
                   >
                     Cancel
+                  </button>
+                )}
+                {canPublish && (
+                  <button
+                    type="button"
+                    className="row-action"
+                    data-testid="row-publish"
+                    disabled={!canMutate}
+                    onClick={openPublish}
+                  >
+                    Publish now
                   </button>
                 )}
               </div>

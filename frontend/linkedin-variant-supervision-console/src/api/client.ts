@@ -19,6 +19,7 @@ import {
   GAP_OPERATOR_SETTINGS_PATH,
   PENDING_APPROVAL_DRAFTS_PATH,
   PENDING_SUPERVISION_PATH,
+  PUBLISH_DUE_PATH,
   REOPEN_PATH,
   SCHEDULE_VISIBILITY_PATH,
   UPDATE_CALENDAR_SCHEDULE_PATH,
@@ -37,6 +38,8 @@ import {
   type GapOperatorSettingsResponse,
   type MutationResult,
   type PendingSupervisionResponse,
+  type PublishDueVariantRequest,
+  type PublishDueVariantResult,
   type ReopenVariantRequest,
   type ScheduleVisibilityResponse,
   type UpdateCalendarItemScheduleRequest,
@@ -125,6 +128,41 @@ export class SupervisionApiClient {
 
   async reopenVariant(body: ReopenVariantRequest): Promise<MutationResult> {
     return this.postMutation(REOPEN_PATH, body);
+  }
+
+  /**
+   * US-086 publish now — sole LinkedIn API publish path from the console
+   * (`POST /publish-linkedin-due-variants`, targeted + publish_now).
+   */
+  async publishDueVariant(
+    body: PublishDueVariantRequest,
+  ): Promise<PublishDueVariantResult> {
+    const headers = await this.prepareHeaders("mutate");
+    const result = await this.requestJson<PublishDueVariantResult>(
+      PUBLISH_DUE_PATH,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    if (result.status === "failed") {
+      const codes = Array.isArray(result.errors) ? result.errors : [];
+      const fromResults = (result.results || []).flatMap((row) =>
+        Array.isArray(row.errors) ? row.errors : [],
+      );
+      const fromAuto = (result.auto_queue_results || []).flatMap((row) =>
+        Array.isArray(row.errors) ? row.errors : [],
+      );
+      throw businessFailureError(
+        codes.length ? codes : [...fromResults, ...fromAuto],
+      );
+    }
+    return result;
   }
 
   async updateCalendarItemSchedule(

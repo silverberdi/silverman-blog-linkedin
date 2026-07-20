@@ -165,6 +165,7 @@ def test_happy_path_blog_and_linkedin_items(schedule_base: Path):
                 "published-variant",
                 publish_state="published",
                 scheduled_at_utc="2026-07-10T12:00:00Z",
+                linkedin_post_urn="urn:li:share:schedule-visibility-published",
             ),
             _variant(
                 "failed-variant",
@@ -228,6 +229,7 @@ def test_happy_path_blog_and_linkedin_items(schedule_base: Path):
     published = by_id["linkedin:flow-a-2026-07-18-schedule-visibility:published-variant"]
     assert published.publication_state == DISPLAY_PUBLISHED
     assert published.linkedin_api_published is True
+    assert published.linkedin_post_urn == "urn:li:share:schedule-visibility-published"
 
     failed = by_id["linkedin:flow-a-2026-07-18-schedule-visibility:failed-variant"]
     assert failed.publication_state == DISPLAY_FAILED

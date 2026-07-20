@@ -38,6 +38,7 @@ function scheduleItem(
     blocked: partial.blocked ?? false,
     critical: partial.critical ?? false,
     linkedinApiPublished: partial.linkedinApiPublished ?? false,
+    linkedinPostUrn: partial.linkedinPostUrn ?? null,
     calendarItemId: partial.calendarItemId ?? null,
     scheduleEditable: partial.scheduleEditable ?? true,
     scheduleEditBlockReason: partial.scheduleEditBlockReason ?? null,

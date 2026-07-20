@@ -72,6 +72,8 @@ export interface ScheduleItem {
   blocked: boolean;
   critical: boolean;
   linkedinApiPublished: boolean;
+  /** US-086 optional Live publication identity from schedule-visibility. */
+  linkedinPostUrn: string | null;
   calendarItemId: string | null;
   scheduleEditable: boolean;
   scheduleEditBlockReason: string | null;
@@ -398,6 +400,10 @@ export function normalizeScheduleItem(
     blocked: row.blocked === true,
     critical: row.critical === true,
     linkedinApiPublished: row.linkedin_api_published === true,
+    linkedinPostUrn:
+      typeof row.linkedin_post_urn === "string" && row.linkedin_post_urn.trim()
+        ? row.linkedin_post_urn.trim()
+        : null,
     calendarItemId: row.calendar_item_id ?? null,
     scheduleEditable,
     scheduleEditBlockReason: row.schedule_edit_block_reason ?? null,
@@ -496,6 +502,7 @@ export function supervisionToFilterable(item: SupervisionItem): ScheduleItem {
     blocked: item.blocked,
     critical: item.critical,
     linkedinApiPublished: item.linkedinApiPublished,
+    linkedinPostUrn: null,
     calendarItemId: item.calendarItemId,
     scheduleEditable:
       item.publishState === "pending" || item.publishState === "queued",

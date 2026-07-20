@@ -39,6 +39,10 @@ export default defineConfig({
         target: process.env.VITE_WORKER_PROXY || "http://192.168.0.194:8010",
         changeOrigin: true,
       },
+      "/publish-linkedin-due-variants": {
+        target: process.env.VITE_WORKER_PROXY || "http://192.168.0.194:8010",
+        changeOrigin: true,
+      },
       "/reopen-linkedin-variant": {
         target: process.env.VITE_WORKER_PROXY || "http://192.168.0.194:8010",
         changeOrigin: true,
