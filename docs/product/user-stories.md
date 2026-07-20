@@ -1414,7 +1414,7 @@ As a content operator, I want the system to detect when the next local week has 
 
 ### US-082 — Trigger Flow B Draft Generation on Calendar Gaps
 
-**Status:** Implemented (local worker + inactive n8n export; OpenSpec change `trigger-flow-b-draft-generation-on-calendar-gaps-us-082`). Automated AC coverage via `tests/test_flow_b_calendar_gap_trigger.py`; OpenAPI exposes `POST /flow-b/gap-trigger`. **Not Story accepted** (operator walkthrough pending). **Not deployed** unless separately approved. `gap_trigger_enabled` remains default **false**. **BL-019 remains open.**
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=652b73d…`; OpenSpec archive `2026-07-19-trigger-flow-b-draft-generation-on-calendar-gaps-us-082`). Automated AC coverage via `tests/test_flow_b_calendar_gap_trigger.py`; OpenAPI exposes `POST /flow-b/gap-trigger`. **Not Story accepted** (operator walkthrough pending). `gap_trigger_enabled` remains default **false**. n8n export remains `active: false`. **BL-019 remains open.**
 
 **Description**
 
