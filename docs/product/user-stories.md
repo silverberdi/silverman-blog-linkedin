@@ -1350,7 +1350,7 @@ As a content operator, I want pending AI blog drafts presented in Silverman Auth
 
 ### US-081 — Promote Approved Flow B Blogs Onto the Flow A Path
 
-**Status:** Implemented (OpenSpec change `promote-approved-flow-b-blogs-onto-flow-a-path-us-081`). Automated AC coverage via `tests/test_flow_b_blog_draft_promotion.py`, spill cases in `tests/test_linkedin_distribution_scheduling.py`, publish rejection in `tests/test_blog_publish_flow.py`, Vitest promote cases. OpenAPI exposes `POST /flow-b/pending-approval-drafts/{draft_id}/promote`. **Not Story accepted** (operator walkthrough pending). **Not deployed** unless separately approved. **BL-018 remains open.** US-082 not implemented.
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=34eb531…`; OpenSpec archive `2026-07-19-promote-approved-flow-b-blogs-onto-flow-a-path-us-081`). Automated AC coverage via `tests/test_flow_b_blog_draft_promotion.py`, spill cases in `tests/test_linkedin_distribution_scheduling.py`, publish rejection in `tests/test_blog_publish_flow.py`, Vitest promote cases. OpenAPI exposes `POST /flow-b/pending-approval-drafts/{draft_id}/promote`. **Not Story accepted** (operator walkthrough pending). **BL-018 remains open.** US-082 not implemented.
 
 **Description**
 
