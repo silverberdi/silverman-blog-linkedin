@@ -507,7 +507,9 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** Operational secrets are current, protected, and auditable.
 
-**Status:** In progress — **US-057 closed/waived 2026-07-21** (operator deferred key rotation; no rotation performed). US-058 / US-059 remain open.
+**Status:** In progress — **US-057 closed/waived 2026-07-21**; **US-058 Story accepted 2026-07-21**; US-059 remains open. BL-024 not closed.
+
+**US-058 procedure + evidence:** [operational-secrets-permissions-review.md](../operations/operational-secrets-permissions-review.md); [us-058-permissions-review-2026-07-21.md](../operations/us-058-permissions-review-2026-07-21.md).
 
 ### BL-025 — Formalize LinkedIn Token Management
 

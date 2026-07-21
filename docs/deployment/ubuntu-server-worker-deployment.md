@@ -354,6 +354,8 @@ The deploy builds with `BUILD_REVISION`, recreates the container (`--force-recre
 
 ## Worker API key rotation
 
+**Related (US-058 — review, not rotation):** For a least-privilege permissions review and secrets-absence confirmation (Git, logs, n8n exports) without rotating keys, see [operational-secrets-permissions-review.md](../operations/operational-secrets-permissions-review.md). That procedure does **not** replace or reopen the live rotation steps below (US-057 rotation remains deferred unless separately approved).
+
 Rotate `SILVERMAN_BLOG_LINKEDIN_API_KEY` when replacing a temporary or compromised key. Real keys must exist **only** in the server-local `.env` and n8n workflow configuration—never in git.
 
 **Warning:** Do not commit `.env`, paste keys into the repository, or store them in workflow JSON checked into git.

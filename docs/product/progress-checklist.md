@@ -745,21 +745,21 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 - [ ] **BL-024 — Rotate and Review Operational Secrets**
   - Business outcome: Operational secrets are current, protected, and auditable.
-  - Status: **In progress** — US-057 closed/waived 2026-07-21 (no key rotation performed; deferred). US-058 / US-059 remain open; BL-024 not closed.
+  - Status: **In progress** — US-057 closed/waived 2026-07-21; **US-058 Story accepted** 2026-07-21; US-059 remains open; BL-024 not closed.
   - [x] **US-057**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started — operator review only (no rotation execution)
     - [x] Business outcome demonstrated — waived: rotation deferred by operator 2026-07-21
-    - [x] Acceptance criteria validated — waived for rotate-keys AC; secure-storage AC left open for US-058 / later work
+    - [x] Acceptance criteria validated — waived for rotate-keys AC; secure-storage AC satisfied via US-058 live review 2026-07-21
     - [x] Story accepted — **waived/closed** operator 2026-07-21 (key rotation **not** performed)
-  - [ ] **US-058**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
+  - [x] **US-058**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — docs/procedure + live review + remediations 2026-07-21
+    - [x] Business outcome demonstrated — evidence [us-058-permissions-review-2026-07-21.md](../operations/us-058-permissions-review-2026-07-21.md)
+    - [x] Acceptance criteria validated
+    - [x] Story accepted — operator-accepted 2026-07-21
   - [ ] **US-059**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed

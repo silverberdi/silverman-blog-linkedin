@@ -1761,12 +1761,14 @@ As a system owner, I want to rotate keys that may have been exposed during testi
 **Acceptance criteria**
 
 - [x] Rotate keys that may have been exposed during testing. — **Waived** (operator 2026-07-21): no rotation executed now; deferred.
-- [ ] Verify secure storage.
+- [x] Verify secure storage. — Satisfied via US-058 live review 2026-07-21 (`.env`/`secrets/` modes; absence checks; remediations recorded).
 - [x] The outcome is visible and understandable to the intended user. — Decision recorded in product docs / progress checklist.
 - [x] Failures or blocked states are clearly communicated. — Explicit “not rotated / deferred” status (not a silent skip).
 - [x] Existing completed work is not duplicated or unintentionally changed. — No secret mutation, no enablement changes, no worker/n8n credential edits from this close.
 
 ### US-058 — Rotate and Review Operational Secrets: Story 2
+
+**Status note:** **Story accepted** (operator-accepted 2026-07-21). Procedure + live permissions/secrets-absence review completed; n8n-imports live-key copies removed; deploy-key/`known_hosts` file layout fixed and GitHub deploy key registered/verified. Evidence: [operational-secrets-permissions-review.md](../operations/operational-secrets-permissions-review.md), [us-058-permissions-review-2026-07-21.md](../operations/us-058-permissions-review-2026-07-21.md). Independent of US-057 rotation (deferred) and US-059 ownership/cadence. **BL-024 remains open** until US-059 Story accepted.
 
 **Description**
 
@@ -1774,11 +1776,11 @@ As a system owner, I want to review permissions, so that operational secrets are
 
 **Acceptance criteria**
 
-- [ ] Review permissions.
-- [ ] Confirm secrets are absent from Git, logs, and workflow exports.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Review permissions.
+- [x] Confirm secrets are absent from Git, logs, and workflow exports.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-059 — Rotate and Review Operational Secrets: Story 3
 
