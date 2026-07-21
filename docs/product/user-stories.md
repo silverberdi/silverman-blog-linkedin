@@ -1602,6 +1602,8 @@ As a content operator, I want Scheduled (and other not-yet-Live) LinkedIn items 
 
 **Prerequisites:** US-051 (cadence conflict definition ratified).
 
+**Status:** **Implemented** (OpenSpec `show-linkedin-console-cadence-conflict-warning-us-087`) — schedule-visibility additive cadence fields + Week/Month red indicator + EventModal explanation/next step; pytest + Vitest evidence. **Not Story accepted** (deploy + Visual DoD + operator walkthrough pending). Does not close BL-021; US-088/US-089 remain out of scope.
+
 **Acceptance criteria**
 
 - [ ] Silverman Authority Manager Week and Month views show a **red or equivalent warning indicator** on LinkedIn items whose current slot is cadence-infeasible under the US-051/US-020 rule (same meaning as live `linkedin_publish_blocked_cadence` / cadence skip at that `scheduled_at_utc`).

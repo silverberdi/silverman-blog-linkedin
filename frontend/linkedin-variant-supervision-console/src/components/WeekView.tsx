@@ -310,6 +310,16 @@ export function WeekView() {
                         >
                           {label}
                         </span>
+                        {item.cadenceConflict ? (
+                          <span
+                            className="cadence-conflict-indicator"
+                            data-testid="cadence-conflict-indicator"
+                            title="Cadence conflict — slot would be blocked at send"
+                            aria-label="Cadence conflict"
+                          >
+                            !
+                          </span>
+                        ) : null}
                       </button>
                     );
                   })

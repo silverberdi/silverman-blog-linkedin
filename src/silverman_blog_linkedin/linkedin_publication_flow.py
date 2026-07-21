@@ -708,6 +708,74 @@ def _publish_guard_block_reason(
     return None
 
 
+@dataclass(frozen=True)
+class CadenceConflictProjection:
+    """US-087 read-only cadence conflict projection (not a publish-time block)."""
+
+    cadence_conflict: bool
+    cadence_conflict_code: str | None
+    cadence_earliest_feasible_at_utc: str | None
+
+
+def _valid_same_campaign_published_at_values(
+    campaign: dict[str, Any],
+) -> list[datetime]:
+    """Collect parseable same-campaign `published_at` evidence for cadence math.
+
+    Skips published siblings with missing/unparsable `published_at` rather than
+    treating them as cadence conflict (US-087: evidence-invalid alone ≠ cadence).
+    """
+    published_at_values: list[datetime] = []
+    for entry in _campaign_variants_in_sequence(campaign):
+        if entry.get("publish_state") != PUBLISH_STATE_PUBLISHED:
+            continue
+        published_at = entry.get("published_at")
+        if not isinstance(published_at, str) or not published_at.strip():
+            continue
+        try:
+            published_at_values.append(_parse_utc(published_at))
+        except (CampaignLifecycleError, TypeError, ValueError):
+            continue
+    return published_at_values
+
+
+def project_cadence_conflict_at(
+    campaign: dict[str, Any],
+    *,
+    evaluation_at: datetime,
+) -> CadenceConflictProjection:
+    """Project US-020 cadence refuse/skip at ``evaluation_at`` (read-only).
+
+    Uses the same ``CADENCE_MINIMUM_INTERVAL`` (72h) as the publish-time guard.
+    Cadence-only: does not fold sequence, density, OAuth, enablement, or
+    evidence-invalid alone into ``cadence_conflict``. Does not mutate campaign
+    metadata or call LinkedIn.
+    """
+    published_at_values = _valid_same_campaign_published_at_values(campaign)
+    if not published_at_values:
+        return CadenceConflictProjection(
+            cadence_conflict=False,
+            cadence_conflict_code=None,
+            cadence_earliest_feasible_at_utc=None,
+        )
+
+    latest_published = max(published_at_values)
+    earliest_feasible = latest_published + CADENCE_MINIMUM_INTERVAL
+    earliest_iso = earliest_feasible.strftime("%Y-%m-%dT%H:%M:%SZ")
+    conflict = earliest_feasible > evaluation_at
+    if not conflict:
+        return CadenceConflictProjection(
+            cadence_conflict=False,
+            cadence_conflict_code=None,
+            cadence_earliest_feasible_at_utc=None,
+        )
+    return CadenceConflictProjection(
+        cadence_conflict=True,
+        cadence_conflict_code=LINKEDIN_PUBLISH_BLOCKED_CADENCE,
+        cadence_earliest_feasible_at_utc=earliest_iso,
+    )
+
+
 def _compute_publish_after_utc(
     *,
     now: datetime,

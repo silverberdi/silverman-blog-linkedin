@@ -46,6 +46,9 @@ function scheduleItem(
     cancellationPhase: partial.cancellationPhase ?? null,
     cancellationReason: partial.cancellationReason ?? null,
     reopenEligible: partial.reopenEligible ?? false,
+    cadenceConflict: partial.cadenceConflict ?? false,
+    cadenceConflictCode: partial.cadenceConflictCode ?? null,
+    cadenceEarliestFeasibleAtUtc: partial.cadenceEarliestFeasibleAtUtc ?? null,
     actions: partial.actions ?? [],
     statusColor: partial.statusColor ?? STATUS_COLOR[partial.publicationState],
   };

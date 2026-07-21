@@ -82,6 +82,10 @@ export interface ScheduleItem {
   cancellationPhase: string | null;
   cancellationReason: string | null;
   reopenEligible: boolean;
+  /** US-087 cadence-conflict projection from schedule-visibility. */
+  cadenceConflict: boolean;
+  cadenceConflictCode: string | null;
+  cadenceEarliestFeasibleAtUtc: string | null;
   /** Actions only for pending LinkedIn supervision rows. */
   actions: ReadonlyArray<"edit" | "defer" | "cancel">;
   statusColor: string;
@@ -411,6 +415,17 @@ export function normalizeScheduleItem(
     cancellationPhase: row.cancellation_phase ?? null,
     cancellationReason: row.cancellation_reason ?? null,
     reopenEligible: row.reopen_eligible === true,
+    cadenceConflict: row.cadence_conflict === true,
+    cadenceConflictCode:
+      typeof row.cadence_conflict_code === "string" &&
+      row.cadence_conflict_code.trim()
+        ? row.cadence_conflict_code.trim()
+        : null,
+    cadenceEarliestFeasibleAtUtc:
+      typeof row.cadence_earliest_feasible_at_utc === "string" &&
+      row.cadence_earliest_feasible_at_utc.trim()
+        ? row.cadence_earliest_feasible_at_utc.trim()
+        : null,
     actions: pendingLinkedIn ? ["edit", "defer", "cancel"] : [],
     statusColor: STATUS_COLOR[publicationState],
   };
@@ -514,6 +529,9 @@ export function supervisionToFilterable(item: SupervisionItem): ScheduleItem {
     cancellationPhase: null,
     cancellationReason: null,
     reopenEligible: false,
+    cadenceConflict: false,
+    cadenceConflictCode: null,
+    cadenceEarliestFeasibleAtUtc: null,
     actions: item.actions,
     statusColor: item.statusColor,
   };

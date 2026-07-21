@@ -91,6 +91,10 @@ export interface ScheduleVisibilityItemDto {
   reopen_eligible?: boolean | null;
   /** US-086 optional Live publication identity (non-credential). */
   linkedin_post_urn?: string | null;
+  /** US-087 cadence-conflict projection (schedule-visibility SoT). */
+  cadence_conflict?: boolean;
+  cadence_conflict_code?: string | null;
+  cadence_earliest_feasible_at_utc?: string | null;
 }
 
 export interface ScheduleVisibilityResponse {

@@ -669,9 +669,9 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
   - [ ] **US-087** — Console visual cadence-conflict warning (red / warning)
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — implemented (OpenSpec `show-linkedin-console-cadence-conflict-warning-us-087`); schedule-visibility cadence projection + Week/Month indicator + EventModal; pytest + Vitest; static assets `index-DW7TiD4B.js` / `index-VJdhmMw8.css`. **Not deployed / not Story accepted** (Visual DoD + operator walkthrough pending).
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted

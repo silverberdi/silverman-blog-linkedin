@@ -493,3 +493,222 @@ def test_schedule_visibility_exposes_cancellation_context_and_reopen_eligible(
     assert pending.cancelled_at_utc is None
     assert pending.cancellation_phase is None
     assert pending.cancellation_reason is None
+
+
+def test_schedule_visibility_projects_cadence_conflict_true_and_false(
+    schedule_base: Path,
+):
+    """US-087: cadence_conflict true only when scheduled_at hits US-020 72h gate."""
+    from silverman_blog_linkedin.linkedin_publication_flow import (
+        CADENCE_MINIMUM_INTERVAL,
+        LINKEDIN_PUBLISH_BLOCKED_CADENCE,
+    )
+
+    _write_calendar(schedule_base, [])
+    published_at = "2026-07-20T12:00:00Z"
+    # published + 72h = 2026-07-23T12:00:00Z; conflict when scheduled_at is earlier.
+    conflict_at = "2026-07-21T12:00:00Z"
+    feasible_at = "2026-07-23T12:00:00Z"
+
+    _write_campaign(
+        schedule_base,
+        variants=[
+            _variant(
+                "already-live",
+                publish_state="published",
+                scheduled_at_utc="2026-07-20T12:00:00Z",
+                published_at=published_at,
+                linkedin_post_urn="urn:li:share:cadence-test",
+            ),
+            _variant(
+                "conflicted-pending",
+                publish_state="pending",
+                scheduled_at_utc=conflict_at,
+            ),
+            _variant(
+                "feasible-pending",
+                publish_state="pending",
+                scheduled_at_utc=feasible_at,
+            ),
+            _variant(
+                "conflicted-queued",
+                publish_state="queued",
+                scheduled_at_utc=conflict_at,
+            ),
+        ],
+    )
+
+    before = _snapshot_tree(schedule_base)
+    result = get_flow_a_schedule_visibility(
+        schedule_base,
+        year=2026,
+        month=7,
+        environ={"SILVERMAN_LINKEDIN_PUBLICATION_ENABLED": "true"},
+    )
+    after = _snapshot_tree(schedule_base)
+    assert before == after
+
+    by_id = {item.item_id: item for item in result.items}
+    conflicted = by_id[f"linkedin:{CAMPAIGN_ID}:conflicted-pending"]
+    assert conflicted.cadence_conflict is True
+    assert conflicted.cadence_conflict_code == LINKEDIN_PUBLISH_BLOCKED_CADENCE
+    assert conflicted.cadence_earliest_feasible_at_utc == "2026-07-23T12:00:00Z"
+    assert conflicted.publication_state == DISPLAY_PENDING
+
+    feasible = by_id[f"linkedin:{CAMPAIGN_ID}:feasible-pending"]
+    assert feasible.cadence_conflict is False
+    assert feasible.cadence_conflict_code is None
+    assert feasible.cadence_earliest_feasible_at_utc is None
+
+    queued = by_id[f"linkedin:{CAMPAIGN_ID}:conflicted-queued"]
+    assert queued.cadence_conflict is True
+    assert queued.cadence_conflict_code == LINKEDIN_PUBLISH_BLOCKED_CADENCE
+
+    live = by_id[f"linkedin:{CAMPAIGN_ID}:already-live"]
+    assert live.linkedin_api_published is True
+    assert live.cadence_conflict is False
+    assert live.cadence_conflict_code is None
+    assert live.cadence_earliest_feasible_at_utc is None
+
+    # Interval constant shared with US-020 (no second engine).
+    assert CADENCE_MINIMUM_INTERVAL.total_seconds() == 72 * 3600
+
+
+def test_schedule_visibility_cadence_conflict_negatives_live_cancelled_failed_blog(
+    schedule_base: Path,
+):
+    """US-087: Live / cancelled / failed / blog never get cadence_conflict true."""
+    _write_calendar(
+        schedule_base,
+        [
+            _calendar_item(
+                "blog-planned",
+                due_at_utc="2026-07-21T14:00:00Z",
+                status="planned",
+                title="Blog item",
+            ),
+        ],
+    )
+    _write_campaign(
+        schedule_base,
+        variants=[
+            _variant(
+                "published-sibling",
+                publish_state="published",
+                scheduled_at_utc="2026-07-20T12:00:00Z",
+                published_at="2026-07-20T12:00:00Z",
+                linkedin_post_urn="urn:li:share:neg",
+            ),
+            _variant(
+                "cancelled-near",
+                publish_state="cancelled",
+                scheduled_at_utc="2026-07-21T12:00:00Z",
+            ),
+            _variant(
+                "failed-near",
+                publish_state="failed",
+                scheduled_at_utc="2026-07-21T13:00:00Z",
+            ),
+            _variant(
+                "live-item",
+                publish_state="published",
+                scheduled_at_utc="2026-07-21T14:00:00Z",
+                published_at="2026-07-21T14:00:00Z",
+                linkedin_post_urn="urn:li:share:live2",
+            ),
+        ],
+    )
+
+    result = get_flow_a_schedule_visibility(
+        schedule_base,
+        year=2026,
+        month=7,
+        environ={"SILVERMAN_LINKEDIN_PUBLICATION_ENABLED": "true"},
+    )
+    by_id = {item.item_id: item for item in result.items}
+
+    for item_id in (
+        f"linkedin:{CAMPAIGN_ID}:cancelled-near",
+        f"linkedin:{CAMPAIGN_ID}:failed-near",
+        f"linkedin:{CAMPAIGN_ID}:live-item",
+        "blog:blog-planned",
+    ):
+        item = by_id[item_id]
+        assert item.cadence_conflict is False, item_id
+        assert item.cadence_conflict_code is None, item_id
+        assert item.cadence_earliest_feasible_at_utc is None, item_id
+
+
+def test_schedule_visibility_evidence_invalid_alone_is_not_cadence_conflict(
+    schedule_base: Path,
+):
+    """US-087: published sibling with unparsable published_at ≠ cadence conflict."""
+    _write_calendar(schedule_base, [])
+    _write_campaign(
+        schedule_base,
+        variants=[
+            _variant(
+                "bad-evidence",
+                publish_state="published",
+                scheduled_at_utc="2026-07-20T12:00:00Z",
+                published_at="not-a-timestamp",
+                linkedin_post_urn="urn:li:share:bad",
+            ),
+            _variant(
+                "pending-near",
+                publish_state="pending",
+                scheduled_at_utc="2026-07-21T12:00:00Z",
+            ),
+        ],
+    )
+    result = get_flow_a_schedule_visibility(
+        schedule_base,
+        year=2026,
+        month=7,
+        environ={"SILVERMAN_LINKEDIN_PUBLICATION_ENABLED": "true"},
+    )
+    pending = next(i for i in result.items if i.variant_id == "pending-near")
+    assert pending.cadence_conflict is False
+    assert pending.cadence_conflict_code is None
+
+
+def test_schedule_visibility_http_exposes_cadence_fields(
+    schedule_base: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """US-087: authenticated schedule-visibility JSON includes additive fields."""
+    from silverman_blog_linkedin.linkedin_publication_flow import (
+        LINKEDIN_PUBLISH_BLOCKED_CADENCE,
+    )
+
+    monkeypatch.setenv("SILVERMAN_LINKEDIN_PUBLICATION_ENABLED", "true")
+    _write_calendar(schedule_base, [])
+    _write_campaign(
+        schedule_base,
+        variants=[
+            _variant(
+                "live",
+                publish_state="published",
+                scheduled_at_utc="2026-07-20T12:00:00Z",
+                published_at="2026-07-20T12:00:00Z",
+                linkedin_post_urn="urn:li:share:http",
+            ),
+            _variant(
+                "conflicted",
+                publish_state="pending",
+                scheduled_at_utc="2026-07-21T12:00:00Z",
+            ),
+        ],
+    )
+    client = TestClient(create_app(make_settings(schedule_base)))
+    response = client.get(
+        SCHEDULE_API,
+        params={"year": 2026, "month": 7},
+        headers=auth_header(),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["read_only"] is True
+    conflicted = next(i for i in body["items"] if i["variant_id"] == "conflicted")
+    assert conflicted["cadence_conflict"] is True
+    assert conflicted["cadence_conflict_code"] == LINKEDIN_PUBLISH_BLOCKED_CADENCE
+    assert conflicted["cadence_earliest_feasible_at_utc"] == "2026-07-23T12:00:00Z"

@@ -680,6 +680,37 @@ export function EventModal() {
             {statusHelper}
           </p>
         ) : null}
+        {item.cadenceConflict ? (
+          <div
+            className="cadence-conflict-banner"
+            data-testid="event-modal-cadence-conflict"
+            role="status"
+          >
+            <p className="cadence-conflict-title">
+              Cadence conflict — this slot would be blocked at send
+            </p>
+            <p className="meta">
+              Same-campaign LinkedIn publications must be at least 72 hours
+              apart. This is not density-full, not Failed/Cancelled, and not Live
+              on LinkedIn.
+            </p>
+            {item.cadenceEarliestFeasibleAtUtc ? (
+              <p className="meta" data-testid="event-modal-cadence-earliest">
+                Earliest feasible time:{" "}
+                <span className="mono">
+                  {formatLocalDisplay(item.cadenceEarliestFeasibleAtUtc)}
+                </span>
+                . Use Postpone / reschedule to move this item, or wait for a
+                later replan capability.
+              </p>
+            ) : (
+              <p className="meta" data-testid="event-modal-cadence-next-step">
+                Use Postpone / reschedule to move this item to a later time, or
+                wait for a later replan capability.
+              </p>
+            )}
+          </div>
+        ) : null}
         {isLiveOnLinkedIn && (item.linkedinPostUrn || lastPublishUrn) ? (
           <p className="sup-meta" data-testid="event-modal-linkedin-urn">
             Publication identity (URN):{" "}

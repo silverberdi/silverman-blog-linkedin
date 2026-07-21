@@ -33,6 +33,10 @@ from silverman_blog_linkedin.editorial_calendar_schedule_update import (
     TERMINAL_SCHEDULE_STATUSES,
 )
 from silverman_blog_linkedin.linkedin_config import load_linkedin_publication_settings
+from silverman_blog_linkedin.linkedin_publication_flow import (
+    LINKEDIN_PUBLISH_BLOCKED_CADENCE,
+    project_cadence_conflict_at,
+)
 from silverman_blog_linkedin.linkedin_supervision_flow import (
     cancellation_phase_for_entry,
     is_reopen_eligible_variant,
@@ -99,6 +103,9 @@ BLOG_STATUS_COMPLETED = "completed"
 YEAR_MONTH_INVALID = "year_month_invalid"
 SCHEDULE_EDIT_BLOCK_NOT_PENDING = "linkedin_supervision_variant_not_pending"
 
+# US-087: not-yet-Live LinkedIn states eligible for cadence-conflict projection.
+_CADENCE_CONFLICT_ELIGIBLE_PUBLISH_STATES = frozenset({"pending", "queued"})
+
 
 @dataclass(frozen=True)
 class ScheduleVisibilityItem:
@@ -124,6 +131,10 @@ class ScheduleVisibilityItem:
     reopen_eligible: bool | None = None
     # US-086 optional Live re-open verification (non-credential URN only).
     linkedin_post_urn: str | None = None
+    # US-087 cadence-conflict projection (read-only; cadence-only at scheduled_at_utc).
+    cadence_conflict: bool = False
+    cadence_conflict_code: str | None = None
+    cadence_earliest_feasible_at_utc: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -293,6 +304,30 @@ def _linkedin_schedule_editability(publish_state: str) -> tuple[bool, str | None
     if publish_state in (PUBLISH_STATE_PENDING, DISPLAY_QUEUED):
         return True, None
     return False, SCHEDULE_EDIT_BLOCK_NOT_PENDING
+
+
+def _cadence_conflict_fields(
+    campaign: dict[str, Any],
+    *,
+    publish_state: str,
+    scheduled_at_utc: str | None,
+    linkedin_api_published: bool,
+) -> tuple[bool, str | None, str | None]:
+    """US-087 additive cadence projection for schedule-visibility LinkedIn rows.
+
+    Returns (cadence_conflict, cadence_conflict_code, cadence_earliest_feasible_at_utc).
+    Live / cancelled / failed / missing schedule → false/null. Cadence-only.
+    """
+    if linkedin_api_published or publish_state not in _CADENCE_CONFLICT_ELIGIBLE_PUBLISH_STATES:
+        return False, None, None
+    evaluation_at = _parse_utc(scheduled_at_utc)
+    if evaluation_at is None:
+        return False, None, None
+    projection = project_cadence_conflict_at(campaign, evaluation_at=evaluation_at)
+    if not projection.cadence_conflict:
+        return False, None, None
+    code = projection.cadence_conflict_code or LINKEDIN_PUBLISH_BLOCKED_CADENCE
+    return True, code, projection.cadence_earliest_feasible_at_utc
 
 
 def _map_blog_display_state(status: str | None) -> tuple[str, bool, bool]:
@@ -486,6 +521,16 @@ def _linkedin_rows_from_campaign(
         linkedin_post_urn = (
             _linkedin_post_urn_from_entry(entry) if linkedin_api_published else None
         )
+        (
+            cadence_conflict,
+            cadence_conflict_code,
+            cadence_earliest_feasible_at_utc,
+        ) = _cadence_conflict_fields(
+            campaign,
+            publish_state=publish_state,
+            scheduled_at_utc=scheduled_at,
+            linkedin_api_published=linkedin_api_published,
+        )
         rows.append(
             ScheduleVisibilityItem(
                 item_id=f"linkedin:{campaign_id}:{variant_id}",
@@ -508,6 +553,9 @@ def _linkedin_rows_from_campaign(
                 cancellation_reason=cancellation_reason,
                 reopen_eligible=reopen_eligible,
                 linkedin_post_urn=linkedin_post_urn,
+                cadence_conflict=cadence_conflict,
+                cadence_conflict_code=cadence_conflict_code,
+                cadence_earliest_feasible_at_utc=cadence_earliest_feasible_at_utc,
             )
         )
     return rows
