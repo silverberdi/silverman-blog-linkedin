@@ -105,6 +105,22 @@ from silverman_blog_linkedin.flow_b_topic_discovery import (
     discover_flow_b_topics,
     validate_discovery_request_fields,
 )
+from silverman_blog_linkedin.editorial_content_backlog import (
+    ALLOWED_FORMATS,
+    ALLOWED_PRIORITIES,
+    ALLOWED_STATUSES,
+    ERROR_ITEM_NOT_FOUND,
+    ERROR_STORE_NOT_CONFIGURED,
+    ERROR_STORE_UNAVAILABLE,
+    create_backlog_item,
+    get_backlog_item,
+    list_backlog_items,
+    update_backlog_item,
+)
+from silverman_blog_linkedin.editorial_content_backlog_store import (
+    DEFAULT_LIST_LIMIT,
+    MAX_LIST_LIMIT,
+)
 from silverman_blog_linkedin.flow_b_gap_operator_settings import (
     ALLOWED_GAP_SCAN_MODES,
     ALLOWED_WEEKDAYS,
@@ -1112,6 +1128,32 @@ class GapOperatorSettingsPutRequest(BaseModel):
         if value < 0:
             raise ValueError("must be a non-negative integer")
         return value
+
+
+class LinkedInDerivativeNoteRequest(BaseModel):
+    """Planning note linking a backlog topic to an intended LinkedIn derivative."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    audience_hint: str = ""
+    format_hint: str = ""
+    notes: str = ""
+
+
+class EditorialContentBacklogWriteRequest(BaseModel):
+    """Create/update body for editorial content backlog items (US-049)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    topic: str
+    audience: str
+    objective: str
+    format: str
+    priority: str
+    status: str
+    target_date: str | None = None
+    linkedin_derivatives: list[LinkedInDerivativeNoteRequest] = []
+    expected_row_version: int | None = None
 
 
 class CompleteFlowAReadyPathRequest(BaseModel):
@@ -3187,6 +3229,264 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "flow-b/gap-operator-settings PUT source=%s gap_trigger_enabled=%s",
             snapshot.source,
             snapshot.settings.get("gap_trigger_enabled"),
+        )
+        return snapshot.to_response_dict()
+
+    def _backlog_store_http_error(errors: list[dict[str, str]]) -> HTTPException:
+        codes = {e.get("code") for e in errors}
+        if ERROR_ITEM_NOT_FOUND in codes:
+            return HTTPException(status_code=404, detail={"errors": errors})
+        if ERROR_STORE_NOT_CONFIGURED in codes or ERROR_STORE_UNAVAILABLE in codes:
+            return HTTPException(status_code=503, detail={"errors": errors})
+        return HTTPException(status_code=422, detail={"errors": errors})
+
+    def _backlog_write_document(body: EditorialContentBacklogWriteRequest) -> dict:
+        return {
+            "topic": body.topic,
+            "audience": body.audience,
+            "objective": body.objective,
+            "format": body.format,
+            "priority": body.priority,
+            "status": body.status,
+            "target_date": body.target_date,
+            "linkedin_derivatives": [
+                note.model_dump() for note in body.linkedin_derivatives
+            ],
+        }
+
+    @app.get("/editorial/content-backlog")
+    def get_editorial_content_backlog(
+        status: str | None = None,
+        priority: str | None = None,
+        limit: int = DEFAULT_LIST_LIMIT,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        """Authenticated list of editorial content backlog items (US-049).
+
+        Empty list is success. Store failure is distinct from emptiness.
+        """
+        if limit < 1 or limit > MAX_LIST_LIMIT:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "errors": [
+                        {
+                            "field": "limit",
+                            "code": "limit_invalid",
+                            "message": f"limit must be between 1 and {MAX_LIST_LIMIT}",
+                        }
+                    ]
+                },
+            )
+        if status is not None and status not in ALLOWED_STATUSES:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "errors": [
+                        {
+                            "field": "status",
+                            "code": "status_invalid",
+                            "message": (
+                                "status filter must be one of: "
+                                "idea, planned, in_progress, done, dropped"
+                            ),
+                        }
+                    ]
+                },
+            )
+        if priority is not None and priority not in ALLOWED_PRIORITIES:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "errors": [
+                        {
+                            "field": "priority",
+                            "code": "priority_invalid",
+                            "message": "priority filter must be one of: low, medium, high",
+                        }
+                    ]
+                },
+            )
+        try:
+            items, errors = list_backlog_items(
+                status=status, priority=priority, limit=limit
+            )
+        except RuntimeError as exc:
+            code = str(exc)
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "errors": [
+                        {
+                            "field": "_store",
+                            "code": code or ERROR_STORE_UNAVAILABLE,
+                            "message": "backlog store is unavailable",
+                        }
+                    ]
+                },
+            ) from exc
+        if errors:
+            raise _backlog_store_http_error(errors)
+        logger.info("editorial/content-backlog GET count=%s", len(items))
+        return {
+            "status": "ok",
+            "items": [item.to_response_dict() for item in items],
+            "count": len(items),
+        }
+
+    @app.get("/editorial/content-backlog/{item_id}")
+    def get_editorial_content_backlog_item(
+        item_id: str,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        """Authenticated detail of one editorial content backlog item (US-049)."""
+        stripped = item_id.strip()
+        if not stripped:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "errors": [
+                        {
+                            "field": "item_id",
+                            "code": "item_id_required",
+                            "message": "item_id must not be empty",
+                        }
+                    ]
+                },
+            )
+        try:
+            snapshot, errors = get_backlog_item(stripped)
+        except RuntimeError as exc:
+            code = str(exc)
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "errors": [
+                        {
+                            "field": "_store",
+                            "code": code or ERROR_STORE_UNAVAILABLE,
+                            "message": "backlog store is unavailable",
+                        }
+                    ]
+                },
+            ) from exc
+        if errors:
+            raise _backlog_store_http_error(errors)
+        if snapshot is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "errors": [
+                        {
+                            "field": "item_id",
+                            "code": ERROR_ITEM_NOT_FOUND,
+                            "message": "backlog item not found",
+                        }
+                    ]
+                },
+            )
+        return snapshot.to_response_dict()
+
+    @app.post("/editorial/content-backlog")
+    def post_editorial_content_backlog(
+        body: EditorialContentBacklogWriteRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        """Authenticated create of an editorial content backlog item (US-049).
+
+        Does not mutate SILVERMAN_LINKEDIN_PUBLICATION_ENABLED, publish to LinkedIn,
+        or write linkedin-posts/ packages. Does not seed Flow B discovery/gap-trigger.
+        """
+        if body.format not in ALLOWED_FORMATS:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "errors": [
+                        {
+                            "field": "format",
+                            "code": "format_invalid",
+                            "message": "format must be one of: blog, linkedin, both",
+                        }
+                    ]
+                },
+            )
+        try:
+            snapshot, errors = create_backlog_item(_backlog_write_document(body))
+        except RuntimeError as exc:
+            code = str(exc)
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "errors": [
+                        {
+                            "field": "_store",
+                            "code": code or ERROR_STORE_UNAVAILABLE,
+                            "message": "backlog store is unavailable",
+                        }
+                    ]
+                },
+            ) from exc
+        if errors:
+            raise _backlog_store_http_error(errors)
+        assert snapshot is not None
+        logger.info(
+            "editorial/content-backlog POST item_id=%s status=%s",
+            snapshot.item["item_id"],
+            snapshot.item["status"],
+        )
+        return snapshot.to_response_dict()
+
+    @app.put("/editorial/content-backlog/{item_id}")
+    def put_editorial_content_backlog_item(
+        item_id: str,
+        body: EditorialContentBacklogWriteRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        """Authenticated update of an editorial content backlog item (US-049).
+
+        Does not mutate SILVERMAN_LINKEDIN_PUBLICATION_ENABLED or write packages.
+        """
+        stripped = item_id.strip()
+        if not stripped:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "errors": [
+                        {
+                            "field": "item_id",
+                            "code": "item_id_required",
+                            "message": "item_id must not be empty",
+                        }
+                    ]
+                },
+            )
+        try:
+            snapshot, errors = update_backlog_item(
+                stripped,
+                _backlog_write_document(body),
+                expected_row_version=body.expected_row_version,
+            )
+        except RuntimeError as exc:
+            code = str(exc)
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "errors": [
+                        {
+                            "field": "_store",
+                            "code": code or ERROR_STORE_UNAVAILABLE,
+                            "message": "backlog store is unavailable",
+                        }
+                    ]
+                },
+            ) from exc
+        if errors:
+            raise _backlog_store_http_error(errors)
+        assert snapshot is not None
+        logger.info(
+            "editorial/content-backlog PUT item_id=%s row_version=%s",
+            snapshot.item["item_id"],
+            snapshot.item["row_version"],
         )
         return snapshot.to_response_dict()
 

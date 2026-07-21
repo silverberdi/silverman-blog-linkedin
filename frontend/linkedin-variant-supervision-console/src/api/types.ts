@@ -13,6 +13,7 @@ export const UPDATE_CALENDAR_SCHEDULE_PATH =
   "/editorial-calendar/update-item-schedule";
 export const GAP_OPERATOR_SETTINGS_PATH = "/flow-b/gap-operator-settings";
 export const PENDING_APPROVAL_DRAFTS_PATH = "/flow-b/pending-approval-drafts";
+export const EDITORIAL_CONTENT_BACKLOG_PATH = "/editorial/content-backlog";
 
 export type PendingSupervisionStatus = "ok" | "partial";
 
@@ -420,4 +421,53 @@ export interface FlowBPromoteDraftResponse {
   operator_note?: string | null;
   error_code?: string | null;
   error?: string | null;
+}
+
+/** US-049 editorial content backlog (optional enrichment; not a Flow B prerequisite). */
+export type BacklogFormat = "blog" | "linkedin" | "both";
+export type BacklogPriority = "low" | "medium" | "high";
+export type BacklogStatus =
+  | "idea"
+  | "planned"
+  | "in_progress"
+  | "done"
+  | "dropped";
+
+export interface LinkedInDerivativeNote {
+  audience_hint: string;
+  format_hint: string;
+  notes: string;
+}
+
+export interface EditorialContentBacklogItem {
+  item_id: string;
+  topic: string;
+  audience: string;
+  objective: string;
+  format: BacklogFormat | string;
+  priority: BacklogPriority | string;
+  status: BacklogStatus | string;
+  target_date: string | null;
+  linkedin_derivatives: LinkedInDerivativeNote[];
+  created_at_utc: string;
+  updated_at_utc: string;
+  row_version: number;
+}
+
+export interface EditorialContentBacklogListResponse {
+  status: "ok" | string;
+  items: EditorialContentBacklogItem[];
+  count: number;
+}
+
+export interface EditorialContentBacklogWriteRequest {
+  topic: string;
+  audience: string;
+  objective: string;
+  format: BacklogFormat | string;
+  priority: BacklogPriority | string;
+  status: BacklogStatus | string;
+  target_date?: string | null;
+  linkedin_derivatives?: LinkedInDerivativeNote[];
+  expected_row_version?: number | null;
 }

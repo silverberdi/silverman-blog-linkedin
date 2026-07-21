@@ -1521,18 +1521,20 @@ As a content operator, I want a detected next-week LinkedIn gap batch to start F
 
 ### US-049 — Create the Editorial Content Backlog: Story 1
 
+**Status:** Implemented locally (OpenSpec `create-editorial-content-backlog-us-049`); automated AC coverage via `tests/test_editorial_content_backlog.py` + Vitest `us049.content-backlog.test.tsx`. Authority Manager **Content backlog** modal rebuilt into worker static assets. **Not deployed. Not Story accepted. BL-020 remains open.** US-050 not started.
+
 **Description**
 
 As a editorial manager, I want to capture topic, audience, objective, format, priority, status, and target date, so that I can optionally maintain a hand-curated topic queue without blocking Flow B.
 
 **Acceptance criteria**
 
-- [ ] Capture topic, audience, objective, format, priority, status, and target date.
-- [ ] Link blog topics to potential LinkedIn derivatives.
-- [ ] MUST NOT be required before Flow B AI discovery (BL-017) or gap trigger (BL-019) can run.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Capture topic, audience, objective, format, priority, status, and target date. *(automated: store + HTTP create/list/update)*
+- [x] Link blog topics to potential LinkedIn derivatives. *(automated: `linkedin_derivatives` planning notes; no package/publish)*
+- [x] MUST NOT be required before Flow B AI discovery (BL-017) or gap trigger (BL-019) can run. *(automated: import independence + empty-backlog discovery/gap-trigger regression)*
+- [x] The outcome is visible and understandable to the intended user. *(console Content backlog modal + authenticated JSON; operator walkthrough / Story accepted gate pending)*
+- [x] Failures or blocked states are clearly communicated. *(automated 401/422/503 + console plain-language errors; operator UX confirmation pending)*
+- [x] Existing completed work is not duplicated or unintentionally changed. *(no Flow A route changes; no gap-trigger default changes; no discovery seed wiring)*
 
 ### US-050 — Create the Editorial Content Backlog: Story 2
 

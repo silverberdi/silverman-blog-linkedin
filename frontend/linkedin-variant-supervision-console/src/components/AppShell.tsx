@@ -1,5 +1,6 @@
 import { type ReactNode, useCallback, useState } from "react";
 import { Banner } from "./Banner";
+import { ContentBacklogModal } from "./ContentBacklogModal";
 import { FiltersModal } from "./FiltersModal";
 import { FlowBPendingDraftsModal } from "./FlowBPendingDraftsModal";
 import { GapSettingsModal } from "./GapSettingsModal";
@@ -39,6 +40,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const closeGapSettings = useCallback(() => setGapSettingsOpen(false), []);
   const [flowBDraftsOpen, setFlowBDraftsOpen] = useState(false);
   const closeFlowBDrafts = useCallback(() => setFlowBDraftsOpen(false), []);
+  const [contentBacklogOpen, setContentBacklogOpen] = useState(false);
+  const closeContentBacklog = useCallback(() => setContentBacklogOpen(false), []);
 
   const activeFilterCount = countActiveFilters(filters);
   const filtersActive = activeFilterCount > 0;
@@ -110,6 +113,17 @@ export function AppShell({ children }: { children: ReactNode }) {
             onClick={() => setGapSettingsOpen(true)}
           >
             Gap settings
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Editorial content backlog"
+            aria-haspopup="dialog"
+            aria-expanded={contentBacklogOpen}
+            data-testid="header-content-backlog-btn"
+            onClick={() => setContentBacklogOpen(true)}
+          >
+            Content backlog
           </button>
           <button
             type="button"
@@ -231,6 +245,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <FiltersModal open={filtersOpen} onClose={closeFilters} />
       <GapSettingsModal open={gapSettingsOpen} onClose={closeGapSettings} />
+      <ContentBacklogModal
+        open={contentBacklogOpen}
+        onClose={closeContentBacklog}
+      />
       <FlowBPendingDraftsModal open={flowBDraftsOpen} onClose={closeFlowBDrafts} />
     </main>
   );

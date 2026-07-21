@@ -26,6 +26,10 @@ from silverman_blog_linkedin.editorial_calendar_store import (
     MemoryCalendarStore,
     reset_calendar_store_for_tests,
 )
+from silverman_blog_linkedin.editorial_content_backlog_store import (
+    MemoryEditorialContentBacklogStore,
+    reset_editorial_content_backlog_store_for_tests,
+)
 from silverman_blog_linkedin.flow_b_gap_operator_settings_store import (
     MemoryGapOperatorSettingsStore,
     reset_gap_operator_settings_store_for_tests,
@@ -95,6 +99,18 @@ def isolate_gap_trigger_batch_store(
     reset_gap_trigger_batch_store_for_tests(store)
     yield store
     reset_gap_trigger_batch_store_for_tests(None)
+
+
+@pytest.fixture(autouse=True)
+def isolate_editorial_content_backlog_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> MemoryEditorialContentBacklogStore:
+    """Use an isolated in-memory editorial content backlog store for every test."""
+    monkeypatch.setenv(ENV_CALENDAR_DATABASE_URL, "memory://")
+    store = MemoryEditorialContentBacklogStore()
+    reset_editorial_content_backlog_store_for_tests(store)
+    yield store
+    reset_editorial_content_backlog_store_for_tests(None)
 
 
 @pytest.fixture(autouse=True)

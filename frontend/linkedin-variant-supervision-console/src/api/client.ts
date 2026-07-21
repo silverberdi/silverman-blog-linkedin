@@ -16,6 +16,7 @@ import {
   CANCEL_PATH,
   CORRECT_PATH,
   DEFER_PATH,
+  EDITORIAL_CONTENT_BACKLOG_PATH,
   GAP_OPERATOR_SETTINGS_PATH,
   PENDING_APPROVAL_DRAFTS_PATH,
   PENDING_SUPERVISION_PATH,
@@ -28,6 +29,9 @@ import {
   type CalendarScheduleUpdateResult,
   type CorrectVariantRequest,
   type DeferVariantRequest,
+  type EditorialContentBacklogItem,
+  type EditorialContentBacklogListResponse,
+  type EditorialContentBacklogWriteRequest,
   type FlowBApproveDraftRequest,
   type FlowBDraftDecisionResponse,
   type FlowBPendingDraftDetail,
@@ -241,6 +245,73 @@ export class SupervisionApiClient {
     const headers = await this.prepareHeaders("mutate");
     return this.requestJson<GapOperatorSettingsResponse>(
       GAP_OPERATOR_SETTINGS_PATH,
+      {
+        method: "PUT",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+  }
+
+  async listEditorialContentBacklog(): Promise<EditorialContentBacklogListResponse> {
+    const headers = await this.prepareHeaders("load");
+    return this.requestJson<EditorialContentBacklogListResponse>(
+      EDITORIAL_CONTENT_BACKLOG_PATH,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          ...headers,
+        },
+      },
+    );
+  }
+
+  async getEditorialContentBacklogItem(
+    itemId: string,
+  ): Promise<EditorialContentBacklogItem> {
+    const headers = await this.prepareHeaders("load");
+    return this.requestJson<EditorialContentBacklogItem>(
+      `${EDITORIAL_CONTENT_BACKLOG_PATH}/${encodeURIComponent(itemId)}`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          ...headers,
+        },
+      },
+    );
+  }
+
+  async createEditorialContentBacklogItem(
+    body: EditorialContentBacklogWriteRequest,
+  ): Promise<EditorialContentBacklogItem> {
+    const headers = await this.prepareHeaders("mutate");
+    return this.requestJson<EditorialContentBacklogItem>(
+      EDITORIAL_CONTENT_BACKLOG_PATH,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+  }
+
+  async updateEditorialContentBacklogItem(
+    itemId: string,
+    body: EditorialContentBacklogWriteRequest,
+  ): Promise<EditorialContentBacklogItem> {
+    const headers = await this.prepareHeaders("mutate");
+    return this.requestJson<EditorialContentBacklogItem>(
+      `${EDITORIAL_CONTENT_BACKLOG_PATH}/${encodeURIComponent(itemId)}`,
       {
         method: "PUT",
         headers: {

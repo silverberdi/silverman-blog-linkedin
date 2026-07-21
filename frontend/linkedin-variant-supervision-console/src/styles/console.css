@@ -512,6 +512,72 @@ code {
   margin-top: 0.5rem;
 }
 
+.content-backlog-modal {
+  max-width: min(40rem, 96vw);
+}
+
+.content-backlog-list-actions {
+  justify-content: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.content-backlog-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.content-backlog-list-item {
+  display: grid;
+  gap: 0.2rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.content-backlog-list-item span {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.content-backlog-form textarea {
+  font: inherit;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+  color: inherit;
+  resize: vertical;
+}
+
+.content-backlog-derivatives {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.content-backlog-derivative {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--line);
+}
+
+.content-backlog-derivative:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
 .flow-b-drafts-modal {
   max-width: min(68rem, 96vw);
   width: 96vw;
