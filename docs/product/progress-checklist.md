@@ -841,25 +841,25 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated
   - [x] Backlog item closed
 
-- [ ] **BL-028 — Establish a Warning and Test Quality Baseline**
+- [x] **BL-028 — Establish a Warning and Test Quality Baseline**
   - Business outcome: The team can identify whether a change introduces new quality problems.
-  - [ ] **US-067**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-068**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+  - [x] **US-067**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted — operator-accepted 2026-07-21
+  - [x] **US-068**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted — operator-accepted 2026-07-21
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted 2026-07-21
+  - [x] Backlog item closed — 2026-07-21
 
 - [ ] **BL-029 — Establish Continuous Integration**
   - Business outcome: Invalid changes are detected before they reach the main branch.

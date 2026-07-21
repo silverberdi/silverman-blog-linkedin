@@ -1930,6 +1930,10 @@ As a content operator, I want to document the new baseline, so that flow a readi
 
 **Business context:** Create a known baseline for test-suite warnings and code-quality signals.
 
+**Status:** **Closed 2026-07-21** — US-067 + US-068 Story accepted.
+
+**SoT:** [warning-and-test-quality-baseline.md](../operations/warning-and-test-quality-baseline.md). Evidence: [us-067-us-068-warning-test-quality-baseline-2026-07-21.md](../operations/us-067-us-068-warning-test-quality-baseline-2026-07-21.md).
+
 ### US-067 — Establish a Warning and Test Quality Baseline: Story 1
 
 **Description**
@@ -1938,12 +1942,12 @@ As a content operator, I want to run the full suite, so that the team can identi
 
 **Acceptance criteria**
 
-- [ ] Run the full suite.
-- [ ] Inventory warnings.
-- [ ] Correct root causes where possible.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Run the full suite.
+- [x] Inventory warnings.
+- [x] Correct root causes where possible.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-068 — Establish a Warning and Test Quality Baseline: Story 2
 
@@ -1953,12 +1957,12 @@ As a content operator, I want to separate inherited warnings from new warnings, 
 
 **Acceptance criteria**
 
-- [ ] Separate inherited warnings from new warnings.
-- [ ] Document the baseline.
-- [ ] Maintain zero new warnings.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Separate inherited warnings from new warnings.
+- [x] Document the baseline.
+- [x] Maintain zero new warnings.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ## BL-029 — Establish Continuous Integration
 

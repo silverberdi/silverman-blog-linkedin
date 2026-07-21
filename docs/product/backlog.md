@@ -583,6 +583,10 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** The team can identify whether a change introduces new quality problems.
 
+**Status:** **Closed 2026-07-21** — US-067 + US-068 Story accepted (docs/contract + suite baseline run).
+
+**SoT:** [warning-and-test-quality-baseline.md](../operations/warning-and-test-quality-baseline.md).
+
 ### BL-029 — Establish Continuous Integration
 
 **Business need:** Run repository validation automatically on proposed changes.
