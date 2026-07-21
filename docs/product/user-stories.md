@@ -1843,6 +1843,10 @@ As a content operator, I want to detect invalid tokens, so that linkedin token m
 
 **Business context:** Reduce the attack surface of the worker, n8n, ComfyUI, Docker, shared filesystem, and public checkout.
 
+**Status:** **Closed 2026-07-21** — US-062 + US-063 Story accepted.
+
+**SoT:** [service-permissions-and-exposure.md](../operations/service-permissions-and-exposure.md). Evidence: [us-062-us-063-service-exposure-review-2026-07-21.md](../operations/us-062-us-063-service-exposure-review-2026-07-21.md).
+
 ### US-062 — Review Service Permissions and Exposure: Story 1
 
 **Description**
@@ -1851,12 +1855,12 @@ As a system owner, I want to apply least privilege, so that services and files a
 
 **Acceptance criteria**
 
-- [ ] Apply least privilege.
-- [ ] Review open ports.
-- [ ] Review authentication.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Apply least privilege.
+- [x] Review open ports.
+- [x] Review authentication.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-063 — Review Service Permissions and Exposure: Story 2
 
@@ -1866,12 +1870,12 @@ As a system owner, I want to review allowed paths, so that services and files ar
 
 **Acceptance criteria**
 
-- [ ] Review allowed paths.
-- [ ] Separate secrets.
-- [ ] Document accepted exposure.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Review allowed paths.
+- [x] Separate secrets.
+- [x] Document accepted exposure.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ## BL-027 — Correct Stale Flow A Readiness Defaults
 

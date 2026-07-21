@@ -792,25 +792,25 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated — operator-accepted 2026-07-21
   - [x] Backlog item closed — 2026-07-21
 
-- [ ] **BL-026 — Review Service Permissions and Exposure**
+- [x] **BL-026 — Review Service Permissions and Exposure**
   - Business outcome: Services and files are exposed only as required for operation.
-  - [ ] **US-062**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-063**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+  - [x] **US-062**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted — operator-accepted 2026-07-21 (OAuth exception option 1)
+  - [x] **US-063**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated
+    - [x] Acceptance criteria validated
+    - [x] Story accepted — operator-accepted 2026-07-21
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted 2026-07-21
+  - [x] Backlog item closed — 2026-07-21
 
 ## P7 — Technical Debt and Maintenance
 

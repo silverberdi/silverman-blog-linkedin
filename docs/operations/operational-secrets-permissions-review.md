@@ -28,7 +28,7 @@ This document is the shared written meaning of US-058 for the system owner and o
 | **US-059** (ownership + rotation cadence) | Out of scope — leave open. Do not invent cadence tables here. |
 | **BL-024** | Remains open until US-058 **and** US-059 are Story accepted. |
 | **BL-025** | LinkedIn token lifecycle formalization — out of scope; leave open. |
-| **BL-026** | Service permissions/exposure (ports, ComfyUI, public checkout attack surface) — adjacent; **not** required to complete US-058. Stay secrets-focused. |
+| **BL-026** | Service permissions/exposure — adjacent; **not** required to complete US-058. Broader review: [service-permissions-and-exposure.md](service-permissions-and-exposure.md) (**closed 2026-07-21**). Stay secrets-focused here. |
 | **Flow A / Flow B** | No pipeline behavior changes. |
 | **`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`** | MUST NOT be mutated by this review. |
 

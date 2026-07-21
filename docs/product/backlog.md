@@ -547,6 +547,10 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** Services and files are exposed only as required for operation.
 
+**Status:** **Closed 2026-07-21** — US-062 + US-063 Story accepted (docs/contract + live review).
+
+**SoT:** [service-permissions-and-exposure.md](../operations/service-permissions-and-exposure.md).
+
 
 ## P7 — Technical Debt and Maintenance
 

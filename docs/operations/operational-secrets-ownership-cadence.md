@@ -56,7 +56,7 @@ Missed due dates MUST NOT be silently skipped. Deferred ≠ rotated.
 | US-057 | Remains deferred until separately approved; this doc does not force rotation |
 | US-058 | Permissions checklist remains the re-audit SoT; this doc only schedules it |
 | BL-025 | LinkedIn token lifecycle detail stays there |
-| BL-026 | Service exposure out of scope |
+| BL-026 | Service exposure — closed 2026-07-21; see [service-permissions-and-exposure.md](service-permissions-and-exposure.md) |
 | Enablement | MUST NOT change `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` as part of cadence work |
 | Pipelines | No Flow A/B behavior changes |
 
