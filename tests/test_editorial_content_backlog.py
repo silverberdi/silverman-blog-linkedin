@@ -215,12 +215,145 @@ def test_invalid_status_and_target_date_rejected() -> None:
 def test_create_without_dependency_fields_succeeds(
     isolate_editorial_content_backlog_store: MemoryEditorialContentBacklogStore,
 ) -> None:
-    """US-050 dependency identifiers must not be required."""
+    """Dependencies and ranks are optional; empty deps + default rank are valid."""
     snapshot, errors = create_backlog_item(VALID_ITEM)
     assert errors == []
     assert snapshot is not None
-    assert "depends_on" not in snapshot.to_response_dict()
-    assert "dependency_ids" not in snapshot.to_response_dict()
+    body = snapshot.to_response_dict()
+    assert body["depends_on_item_ids"] == []
+    assert isinstance(body["queue_rank"], int)
+    assert body["queue_rank"] >= 0
+
+
+def test_dependency_round_trip_and_empty_deps(
+    isolate_editorial_content_backlog_store: MemoryEditorialContentBacklogStore,
+) -> None:
+    base, errors = create_backlog_item({**VALID_ITEM, "topic": "Foundation topic"})
+    assert errors == []
+    assert base is not None
+    base_id = base.item["item_id"]
+
+    dependent, dep_errors = create_backlog_item(
+        {
+            **VALID_ITEM,
+            "topic": "Follow-on topic",
+            "depends_on_item_ids": [base_id],
+        }
+    )
+    assert dep_errors == []
+    assert dependent is not None
+    assert dependent.item["depends_on_item_ids"] == [base_id]
+
+    empty_deps, empty_errors = create_backlog_item(
+        {**VALID_ITEM, "topic": "Independent", "depends_on_item_ids": []}
+    )
+    assert empty_errors == []
+    assert empty_deps is not None
+    assert empty_deps.item["depends_on_item_ids"] == []
+
+
+def test_dangling_self_and_cycle_deps_rejected(
+    isolate_editorial_content_backlog_store: MemoryEditorialContentBacklogStore,
+) -> None:
+    from silverman_blog_linkedin.editorial_content_backlog import (
+        ERROR_DEPENDENCY_CYCLE,
+        ERROR_DEPENDENCY_NOT_FOUND,
+        ERROR_DEPENDENCY_SELF,
+    )
+
+    a, _ = create_backlog_item({**VALID_ITEM, "topic": "A"})
+    b, _ = create_backlog_item({**VALID_ITEM, "topic": "B"})
+    assert a is not None and b is not None
+    a_id = a.item["item_id"]
+    b_id = b.item["item_id"]
+
+    dangling, dang_errors = create_backlog_item(
+        {
+            **VALID_ITEM,
+            "topic": "Dangling",
+            "depends_on_item_ids": ["missing-id-xyz"],
+        }
+    )
+    assert dangling is None
+    assert any(e["code"] == ERROR_DEPENDENCY_NOT_FOUND for e in dang_errors)
+
+    self_dep, self_errors = update_backlog_item(
+        a_id,
+        {**VALID_ITEM, "topic": "A", "depends_on_item_ids": [a_id]},
+        expected_row_version=1,
+    )
+    assert self_dep is None
+    assert any(e["code"] == ERROR_DEPENDENCY_SELF for e in self_errors)
+    unchanged, _ = get_backlog_item(a_id)
+    assert unchanged is not None
+    assert unchanged.item["depends_on_item_ids"] == []
+
+    updated_b, b_errors = update_backlog_item(
+        b_id,
+        {**VALID_ITEM, "topic": "B", "depends_on_item_ids": [a_id]},
+        expected_row_version=1,
+    )
+    assert b_errors == []
+    assert updated_b is not None
+
+    cycle, cycle_errors = update_backlog_item(
+        a_id,
+        {**VALID_ITEM, "topic": "A", "depends_on_item_ids": [b_id]},
+        expected_row_version=1,
+    )
+    assert cycle is None
+    assert any(e["code"] == ERROR_DEPENDENCY_CYCLE for e in cycle_errors)
+    still_a, _ = get_backlog_item(a_id)
+    assert still_a is not None
+    assert still_a.item["depends_on_item_ids"] == []
+
+
+def test_priority_and_queue_rank_update_and_list_order(
+    isolate_editorial_content_backlog_store: MemoryEditorialContentBacklogStore,
+) -> None:
+    from silverman_blog_linkedin.editorial_content_backlog import (
+        ERROR_QUEUE_RANK_INVALID,
+        reorder_backlog_items,
+    )
+
+    first, _ = create_backlog_item({**VALID_ITEM, "topic": "First", "priority": "low"})
+    second, _ = create_backlog_item(
+        {**VALID_ITEM, "topic": "Second", "priority": "high"}
+    )
+    assert first is not None and second is not None
+
+    listed, list_errors = list_backlog_items()
+    assert list_errors == []
+    assert [row.item["topic"] for row in listed] == ["First", "Second"]
+    assert listed[0].item["queue_rank"] < listed[1].item["queue_rank"]
+
+    updated, update_errors = update_backlog_item(
+        second.item["item_id"],
+        {
+            **VALID_ITEM,
+            "topic": "Second",
+            "priority": "medium",
+            "queue_rank": 0,
+            "depends_on_item_ids": [],
+        },
+        expected_row_version=1,
+    )
+    assert update_errors == []
+    assert updated is not None
+    assert updated.item["priority"] == "medium"
+    assert updated.item["queue_rank"] == 0
+
+    reordered_list, reorder_errors = reorder_backlog_items(
+        [second.item["item_id"], first.item["item_id"]]
+    )
+    assert reorder_errors == []
+    assert reordered_list is not None
+    assert [row.item["topic"] for row in reordered_list] == ["Second", "First"]
+    assert reordered_list[0].item["queue_rank"] == 0
+    assert reordered_list[1].item["queue_rank"] == 1
+
+    bad_rank = validate_backlog_write_document({**VALID_ITEM, "queue_rank": -1})
+    assert any(e["code"] == ERROR_QUEUE_RANK_INVALID for e in bad_rank)
 
 
 def test_http_list_requires_auth(tmp_path: Path) -> None:
@@ -337,10 +470,11 @@ def test_create_does_not_enable_linkedin_or_write_packages(
             assert list(folder.iterdir()) == []
 
 
-def test_no_us050_or_flow_b_seed_routes(tmp_path: Path) -> None:
+def test_no_discovery_seed_routes(tmp_path: Path) -> None:
     app = create_app(make_settings(tmp_path))
     paths = {getattr(route, "path", None) for route in app.routes}
     assert BACKLOG_PATH in paths
+    assert f"{BACKLOG_PATH}/reorder" in paths
     forbidden = {
         "/editorial/content-backlog/dependencies",
         "/editorial/content-backlog/reprioritize",
@@ -348,6 +482,97 @@ def test_no_us050_or_flow_b_seed_routes(tmp_path: Path) -> None:
         "/flow-b/seed-from-backlog",
     }
     assert not (paths & forbidden)
+
+
+def test_http_dependency_and_reorder(tmp_path: Path) -> None:
+    client = TestClient(create_app(make_settings(tmp_path)))
+    a = client.post(
+        BACKLOG_PATH,
+        headers=auth_header(),
+        json={**VALID_ITEM, "topic": "A"},
+    )
+    b = client.post(
+        BACKLOG_PATH,
+        headers=auth_header(),
+        json={**VALID_ITEM, "topic": "B"},
+    )
+    assert a.status_code == 200 and b.status_code == 200
+    a_id = a.json()["item_id"]
+    b_id = b.json()["item_id"]
+    assert a.json()["depends_on_item_ids"] == []
+    assert isinstance(a.json()["queue_rank"], int)
+
+    linked = client.put(
+        f"{BACKLOG_PATH}/{b_id}",
+        headers=auth_header(),
+        json={
+            **VALID_ITEM,
+            "topic": "B",
+            "depends_on_item_ids": [a_id],
+            "expected_row_version": 1,
+        },
+    )
+    assert linked.status_code == 200
+    assert linked.json()["depends_on_item_ids"] == [a_id]
+
+    cycle = client.put(
+        f"{BACKLOG_PATH}/{a_id}",
+        headers=auth_header(),
+        json={
+            **VALID_ITEM,
+            "topic": "A",
+            "depends_on_item_ids": [b_id],
+            "expected_row_version": 1,
+        },
+    )
+    assert cycle.status_code == 422
+    assert any(
+        e.get("code") == "dependency_cycle"
+        for e in cycle.json()["detail"]["errors"]
+    )
+
+    reordered = client.put(
+        f"{BACKLOG_PATH}/reorder",
+        headers=auth_header(),
+        json={"ordered_item_ids": [b_id, a_id]},
+    )
+    assert reordered.status_code == 200
+    topics = [row["topic"] for row in reordered.json()["items"]]
+    assert topics[:2] == ["B", "A"]
+    _assert_no_secrets(reordered.json())
+
+    unknown = client.put(
+        f"{BACKLOG_PATH}/reorder",
+        headers=auth_header(),
+        json={"ordered_item_ids": [a_id, "missing-id"]},
+    )
+    assert unknown.status_code == 404
+
+
+def test_http_create_does_not_enable_linkedin_on_deps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(ENV_PUBLICATION_ENABLED, "false")
+    base = _editorial_base(tmp_path)
+    client = TestClient(create_app(make_settings(base)))
+    first = client.post(
+        BACKLOG_PATH, headers=auth_header(), json={**VALID_ITEM, "topic": "A"}
+    )
+    assert first.status_code == 200
+    second = client.post(
+        BACKLOG_PATH,
+        headers=auth_header(),
+        json={
+            **VALID_ITEM,
+            "topic": "B",
+            "depends_on_item_ids": [first.json()["item_id"]],
+        },
+    )
+    assert second.status_code == 200
+    assert os.environ.get(ENV_PUBLICATION_ENABLED) == "false"
+    review = base / "linkedin-posts" / "review"
+    if review.exists():
+        assert list(review.iterdir()) == []
 
 
 def test_flow_b_modules_do_not_import_backlog() -> None:
@@ -403,3 +628,42 @@ def test_gap_trigger_noop_with_empty_backlog(tmp_path: Path) -> None:
     assert result.status == STATUS_NOOP_DISABLED
     assert result.error_code != "backlog_required"
     assert "backlog" not in str(getattr(result, "error_code", "") or "").lower()
+
+
+def test_flow_b_independence_with_unused_deps_and_ranks(
+    isolate_editorial_content_backlog_store: MemoryEditorialContentBacklogStore,
+    tmp_path: Path,
+) -> None:
+    """Backlog items with deps/ranks must not be required by discovery or gap-trigger."""
+    first, _ = create_backlog_item({**VALID_ITEM, "topic": "A", "priority": "high"})
+    second, _ = create_backlog_item(
+        {
+            **VALID_ITEM,
+            "topic": "B",
+            "depends_on_item_ids": [first.item["item_id"]] if first else [],
+            "priority": "low",
+        }
+    )
+    assert first is not None and second is not None
+    assert second.item["depends_on_item_ids"] == [first.item["item_id"]]
+
+    base = _editorial_base(tmp_path)
+    canon = _write_canon(tmp_path)
+    stub = _StubProvider(_topics_json(1))
+    discovery = discover_flow_b_topics(
+        base,
+        count=1,
+        provider=stub,
+        canon_path=canon,
+    )
+    assert discovery.status == STATUS_TOPICS_DISCOVERED
+    assert "backlog" not in (discovery.error_code or "").lower()
+
+    save_gap_operator_settings(VALID_SETTINGS)
+    gap = run_flow_b_gap_trigger(
+        base,
+        now_utc="2026-07-17T20:00:00Z",
+        environ={"SILVERMAN_OPERATOR_TIMEZONE": "America/Chicago"},
+    )
+    assert gap.status == STATUS_NOOP_DISABLED
+    assert "backlog" not in str(getattr(gap, "error_code", "") or "").lower()

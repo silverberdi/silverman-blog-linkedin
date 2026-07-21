@@ -1521,7 +1521,7 @@ As a content operator, I want a detected next-week LinkedIn gap batch to start F
 
 ### US-049 — Create the Editorial Content Backlog: Story 1
 
-**Status:** Implemented locally (OpenSpec `create-editorial-content-backlog-us-049`); automated AC coverage via `tests/test_editorial_content_backlog.py` + Vitest `us049.content-backlog.test.tsx`. Authority Manager **Content backlog** modal rebuilt into worker static assets. **Not deployed. Not Story accepted. BL-020 remains open.** US-050 not started.
+**Status:** Implemented locally (OpenSpec `create-editorial-content-backlog-us-049`); automated AC coverage via `tests/test_editorial_content_backlog.py` + Vitest `us049.content-backlog.test.tsx`. Authority Manager **Content backlog** modal rebuilt into worker static assets. **Not deployed. Not Story accepted. BL-020 remains open.** US-050 implemented locally in a separate change (also not Story accepted).
 
 **Description**
 
@@ -1538,18 +1538,20 @@ As a editorial manager, I want to capture topic, audience, objective, format, pr
 
 ### US-050 — Create the Editorial Content Backlog: Story 2
 
+**Status:** Implemented locally (OpenSpec `add-editorial-content-backlog-dependencies-us-050`); automated AC coverage via `tests/test_editorial_content_backlog.py` + Vitest `us050.content-backlog.test.tsx`. Authority Manager Content backlog modal extended for dependencies + prioritize/reprioritize; static assets rebuilt. **Not deployed. Not Story accepted. BL-020 remains open.** Discovery seed/override not implemented.
+
 **Description**
 
 As a editorial manager, I want to identify dependencies, so that the optional content topic queue can be prioritized and reprioritized.
 
 **Acceptance criteria**
 
-- [ ] Identify dependencies.
-- [ ] Support prioritization and reprioritization.
-- [ ] MAY later seed or override AI discovery; MUST NOT block P4 Flow B.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Identify dependencies. *(automated: `depends_on_item_ids` persist + cycle/dangling/self rejection; console dependency multi-select)*
+- [x] Support prioritization and reprioritization. *(automated: `priority` + `queue_rank` + `PUT …/reorder`; console Earlier/Later + priority select)*
+- [x] MAY later seed or override AI discovery; MUST NOT block P4 Flow B. *(automated: Flow B modules do not import backlog; empty/unused deps/ranks non-blocking; no discovery seed routes)*
+- [x] The outcome is visible and understandable to the intended user. *(console dependency labels + queue rank + move controls; operator walkthrough / Story accepted gate pending)*
+- [x] Failures or blocked states are clearly communicated. *(automated 4xx cycle/dangling + console plain-language errors; operator UX confirmation pending)*
+- [x] Existing completed work is not duplicated or unintentionally changed. *(extends US-049; no Flow A route changes; no gap-trigger default changes; no discovery seed wiring)*
 
 ## BL-021 — Define Editorial Calendar and Publishing Cadence
 

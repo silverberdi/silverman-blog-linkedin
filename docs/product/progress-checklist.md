@@ -637,7 +637,7 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 - [ ] **BL-020 — Create the Editorial Content Backlog**
   - Business outcome: Optional hand-curated topic queue exists; Flow B remains runnable without it.
-  - Status: **In progress** — US-049 implemented locally (not deployed / not Story accepted); US-050 not started; BL-020 remains open.
+  - Status: **In progress** — US-049 + US-050 implemented locally (not deployed / not Story accepted); BL-020 remains open.
   - [ ] **US-049**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
@@ -646,11 +646,11 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Acceptance criteria validated — local pytest/Vitest (operator Story acceptance pending)
     - [ ] Story accepted
   - [ ] **US-050**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — OpenSpec `add-editorial-content-backlog-dependencies-us-050`; deps + `queue_rank` + reorder + Content backlog UI
+    - [x] Business outcome demonstrated — local automated + console (operator Story acceptance pending)
+    - [x] Acceptance criteria validated — local pytest/Vitest (operator Story acceptance pending)
     - [ ] Story accepted
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated

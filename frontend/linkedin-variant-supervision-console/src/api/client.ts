@@ -31,6 +31,7 @@ import {
   type DeferVariantRequest,
   type EditorialContentBacklogItem,
   type EditorialContentBacklogListResponse,
+  type EditorialContentBacklogReorderRequest,
   type EditorialContentBacklogWriteRequest,
   type FlowBApproveDraftRequest,
   type FlowBDraftDecisionResponse,
@@ -312,6 +313,24 @@ export class SupervisionApiClient {
     const headers = await this.prepareHeaders("mutate");
     return this.requestJson<EditorialContentBacklogItem>(
       `${EDITORIAL_CONTENT_BACKLOG_PATH}/${encodeURIComponent(itemId)}`,
+      {
+        method: "PUT",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+  }
+
+  async reorderEditorialContentBacklog(
+    body: EditorialContentBacklogReorderRequest,
+  ): Promise<EditorialContentBacklogListResponse> {
+    const headers = await this.prepareHeaders("mutate");
+    return this.requestJson<EditorialContentBacklogListResponse>(
+      `${EDITORIAL_CONTENT_BACKLOG_PATH}/reorder`,
       {
         method: "PUT",
         headers: {

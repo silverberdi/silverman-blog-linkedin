@@ -1,7 +1,8 @@
-"""Editorial content backlog: validation and create/list/get/update helpers (US-049).
+"""Editorial content backlog: validation and create/list/get/update helpers.
 
-Postgres-backed SoT via ``editorial_content_backlog_store``. Creating or updating
-items MUST NOT enable LinkedIn API publish or write LinkedIn packages.
+US-049 capture fields + US-050 dependencies (`depends_on_item_ids`) and
+prioritization (`queue_rank`). Creating or updating items MUST NOT enable
+LinkedIn API publish or write LinkedIn packages.
 """
 
 from __future__ import annotations
@@ -55,6 +56,7 @@ MAX_OBJECTIVE_LEN = 2000
 MAX_DERIVATIVE_HINT_LEN = 500
 MAX_DERIVATIVE_NOTES_LEN = 2000
 MAX_LINKEDIN_DERIVATIVES = 20
+MAX_DEPENDS_ON_ITEM_IDS = 20
 
 ERROR_TOPIC_REQUIRED = "topic_required"
 ERROR_AUDIENCE_REQUIRED = "audience_required"
@@ -64,6 +66,13 @@ ERROR_PRIORITY_INVALID = "priority_invalid"
 ERROR_STATUS_INVALID = "status_invalid"
 ERROR_TARGET_DATE_INVALID = "target_date_invalid"
 ERROR_LINKEDIN_DERIVATIVES_INVALID = "linkedin_derivatives_invalid"
+ERROR_DEPENDENCY_INVALID = "depends_on_item_ids_invalid"
+ERROR_DEPENDENCY_NOT_FOUND = "dependency_not_found"
+ERROR_DEPENDENCY_SELF = "dependency_self"
+ERROR_DEPENDENCY_CYCLE = "dependency_cycle"
+ERROR_DEPENDENCY_DUPLICATE = "dependency_duplicate"
+ERROR_QUEUE_RANK_INVALID = "queue_rank_invalid"
+ERROR_REORDER_INVALID = "reorder_invalid"
 ERROR_ITEM_NOT_FOUND = BACKLOG_ITEM_NOT_FOUND
 ERROR_CONCURRENT_UPDATE = BACKLOG_CONCURRENT_UPDATE
 ERROR_STORE_UNAVAILABLE = BACKLOG_STORE_UNAVAILABLE
@@ -89,6 +98,8 @@ class BacklogItemSnapshot:
             "status": self.item["status"],
             "target_date": self.item.get("target_date"),
             "linkedin_derivatives": list(self.item.get("linkedin_derivatives") or []),
+            "depends_on_item_ids": list(self.item.get("depends_on_item_ids") or []),
+            "queue_rank": int(self.item.get("queue_rank") or 0),
             "created_at_utc": self.item["created_at_utc"],
             "updated_at_utc": self.item["updated_at_utc"],
             "row_version": int(self.item["row_version"]),
@@ -193,8 +204,187 @@ def _validate_linkedin_derivatives(value: Any) -> tuple[list[dict[str, str]], li
     return normalized, []
 
 
-def validate_backlog_write_document(document: dict[str, Any]) -> list[dict[str, str]]:
-    """Validate capture fields + LinkedIn derivative notes. No partial persist."""
+def _validate_queue_rank_value(value: Any) -> tuple[int | None, list[dict[str, str]]]:
+    """Return ``(rank_or_none, errors)``. ``None`` input means omitted (caller assigns)."""
+    if value is None:
+        return None, []
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None, [
+            {
+                "field": "queue_rank",
+                "code": ERROR_QUEUE_RANK_INVALID,
+                "message": "queue_rank must be a non-negative integer",
+            }
+        ]
+    if value < 0:
+        return None, [
+            {
+                "field": "queue_rank",
+                "code": ERROR_QUEUE_RANK_INVALID,
+                "message": "queue_rank must be a non-negative integer",
+            }
+        ]
+    return value, []
+
+
+def _validate_depends_on_shape(
+    value: Any,
+) -> tuple[list[str] | None, list[dict[str, str]]]:
+    """Shape-only validation: list of distinct non-empty strings, bounded length."""
+    if value is None:
+        return [], []
+    if not isinstance(value, list):
+        return None, [
+            {
+                "field": "depends_on_item_ids",
+                "code": ERROR_DEPENDENCY_INVALID,
+                "message": "depends_on_item_ids must be a list of backlog item ids",
+            }
+        ]
+    if len(value) > MAX_DEPENDS_ON_ITEM_IDS:
+        return None, [
+            {
+                "field": "depends_on_item_ids",
+                "code": ERROR_DEPENDENCY_INVALID,
+                "message": (
+                    f"depends_on_item_ids must have at most "
+                    f"{MAX_DEPENDS_ON_ITEM_IDS} items"
+                ),
+            }
+        ]
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for index, raw in enumerate(value):
+        if not isinstance(raw, str) or not raw.strip():
+            return None, [
+                {
+                    "field": f"depends_on_item_ids[{index}]",
+                    "code": ERROR_DEPENDENCY_INVALID,
+                    "message": "each dependency must be a non-empty item_id string",
+                }
+            ]
+        dep_id = raw.strip()
+        if dep_id in seen:
+            return None, [
+                {
+                    "field": "depends_on_item_ids",
+                    "code": ERROR_DEPENDENCY_DUPLICATE,
+                    "message": f"depends_on_item_ids contains duplicate id {dep_id}",
+                }
+            ]
+        seen.add(dep_id)
+        normalized.append(dep_id)
+    return normalized, []
+
+
+def _dependency_graph_has_cycle(edges: dict[str, list[str]]) -> bool:
+    """DFS cycle detection on directed graph item → depends_on."""
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color: dict[str, int] = {node: WHITE for node in edges}
+
+    def visit(node: str) -> bool:
+        color[node] = GRAY
+        for neighbor in edges.get(node, []):
+            if neighbor not in color:
+                color[neighbor] = WHITE
+            if color[neighbor] == GRAY:
+                return True
+            if color[neighbor] == WHITE and visit(neighbor):
+                return True
+        color[node] = BLACK
+        return False
+
+    for node in list(edges):
+        if color.get(node, WHITE) == WHITE and visit(node):
+            return True
+    return False
+
+
+def _validate_depends_on_against_store(
+    depends_on: list[str],
+    *,
+    self_item_id: str,
+    store: EditorialContentBacklogStore,
+) -> list[dict[str, str]]:
+    """Existence, self-ref, and cycle checks. No partial persist."""
+    errors: list[dict[str, str]] = []
+    for dep_id in depends_on:
+        if dep_id == self_item_id:
+            errors.append(
+                {
+                    "field": "depends_on_item_ids",
+                    "code": ERROR_DEPENDENCY_SELF,
+                    "message": "an item cannot depend on itself",
+                }
+            )
+            return errors
+
+    for dep_id in depends_on:
+        try:
+            row, store_errors = store.get(dep_id)
+        except RuntimeError as exc:
+            code = str(exc)
+            return [
+                {
+                    "field": "_store",
+                    "code": code if code else ERROR_STORE_UNAVAILABLE,
+                    "message": "backlog store read failed",
+                }
+            ]
+        if store_errors:
+            return _store_errors_to_structured(store_errors)
+        if row is None:
+            errors.append(
+                {
+                    "field": "depends_on_item_ids",
+                    "code": ERROR_DEPENDENCY_NOT_FOUND,
+                    "message": f"dependency item_id not found: {dep_id}",
+                }
+            )
+            return errors
+
+    try:
+        existing_rows, store_errors = store.list_items(limit=MAX_LIST_LIMIT)
+    except RuntimeError as exc:
+        code = str(exc)
+        return [
+            {
+                "field": "_store",
+                "code": code if code else ERROR_STORE_UNAVAILABLE,
+                "message": "backlog store read failed",
+            }
+        ]
+    if store_errors:
+        return _store_errors_to_structured(store_errors)
+
+    edges: dict[str, list[str]] = {}
+    for row in existing_rows:
+        item_id = str(row["item_id"])
+        if item_id == self_item_id:
+            continue
+        edges[item_id] = list(row.get("depends_on_item_ids") or [])
+    edges[self_item_id] = list(depends_on)
+
+    if _dependency_graph_has_cycle(edges):
+        return [
+            {
+                "field": "depends_on_item_ids",
+                "code": ERROR_DEPENDENCY_CYCLE,
+                "message": (
+                    "dependencies would create a cycle among backlog items; "
+                    "remove the cycle and retry"
+                ),
+            }
+        ]
+    return []
+
+
+def validate_backlog_write_document(
+    document: dict[str, Any],
+    *,
+    require_queue_rank: bool = False,
+) -> list[dict[str, str]]:
+    """Validate capture fields, derivatives, deps shape, and queue_rank shape."""
     errors: list[dict[str, str]] = []
 
     topic = _non_empty_string(document.get("topic"), max_len=MAX_TOPIC_LEN)
@@ -271,6 +461,27 @@ def validate_backlog_write_document(document: dict[str, Any]) -> list[dict[str, 
         document.get("linkedin_derivatives")
     )
     errors.extend(derivative_errors)
+
+    _, dep_errors = _validate_depends_on_shape(document.get("depends_on_item_ids"))
+    errors.extend(dep_errors)
+
+    if "queue_rank" in document or require_queue_rank:
+        rank_value = document.get("queue_rank")
+        if require_queue_rank and rank_value is None and "queue_rank" not in document:
+            errors.append(
+                {
+                    "field": "queue_rank",
+                    "code": ERROR_QUEUE_RANK_INVALID,
+                    "message": "queue_rank must be a non-negative integer",
+                }
+            )
+        else:
+            _, rank_errors = _validate_queue_rank_value(rank_value)
+            errors.extend(rank_errors)
+    elif document.get("queue_rank") is not None:
+        _, rank_errors = _validate_queue_rank_value(document.get("queue_rank"))
+        errors.extend(rank_errors)
+
     return errors
 
 
@@ -286,11 +497,15 @@ def normalize_backlog_write_document(document: dict[str, Any]) -> dict[str, Any]
         document.get("linkedin_derivatives")
     )
     assert not derivative_errors
+    depends_on, dep_errors = _validate_depends_on_shape(
+        document.get("depends_on_item_ids")
+    )
+    assert not dep_errors and depends_on is not None
     fmt = document["format"]
     priority = document["priority"]
     status = document["status"]
     assert isinstance(fmt, str) and isinstance(priority, str) and isinstance(status, str)
-    return {
+    result: dict[str, Any] = {
         "topic": topic,
         "audience": audience,
         "objective": objective,
@@ -299,7 +514,13 @@ def normalize_backlog_write_document(document: dict[str, Any]) -> dict[str, Any]
         "status": status.strip(),
         "target_date": target_date,
         "linkedin_derivatives": derivatives,
+        "depends_on_item_ids": depends_on,
     }
+    if "queue_rank" in document and document["queue_rank"] is not None:
+        rank, rank_errors = _validate_queue_rank_value(document["queue_rank"])
+        assert not rank_errors and rank is not None
+        result["queue_rank"] = rank
+    return result
 
 
 def create_backlog_item(
@@ -314,13 +535,39 @@ def create_backlog_item(
 
     normalized = normalize_backlog_write_document(document)
     now = utc_now_iso()
+    item_id = str(uuid.uuid4())
+    active = store if store is not None else get_editorial_content_backlog_store()
+
+    dep_errors = _validate_depends_on_against_store(
+        list(normalized["depends_on_item_ids"]),
+        self_item_id=item_id,
+        store=active,
+    )
+    if dep_errors:
+        return None, dep_errors
+
+    if "queue_rank" not in normalized:
+        try:
+            next_rank, rank_store_errors = active.next_queue_rank()
+        except RuntimeError as exc:
+            code = str(exc)
+            return None, [
+                {
+                    "field": "_store",
+                    "code": code if code else ERROR_STORE_UNAVAILABLE,
+                    "message": "backlog store write failed",
+                }
+            ]
+        if rank_store_errors:
+            return None, _store_errors_to_structured(rank_store_errors)
+        normalized["queue_rank"] = next_rank
+
     payload = {
         **normalized,
-        "item_id": str(uuid.uuid4()),
+        "item_id": item_id,
         "created_at_utc": now,
         "updated_at_utc": now,
     }
-    active = store if store is not None else get_editorial_content_backlog_store()
     try:
         row, store_errors = active.create(payload)
     except RuntimeError as exc:
@@ -370,7 +617,7 @@ def list_backlog_items(
     limit: int = DEFAULT_LIST_LIMIT,
     store: EditorialContentBacklogStore | None = None,
 ) -> tuple[list[BacklogItemSnapshot], list[dict[str, str]]]:
-    """List backlog items (newest-updated first). Empty list is success."""
+    """List backlog items under the prioritization sort contract."""
     filter_errors: list[dict[str, str]] = []
     if status is not None and status not in ALLOWED_STATUSES:
         filter_errors.append(
@@ -419,16 +666,41 @@ def update_backlog_item(
     store: EditorialContentBacklogStore | None = None,
 ) -> tuple[BacklogItemSnapshot | None, list[dict[str, str]]]:
     """Validate and update an existing backlog item (full mutable document)."""
+    # Updates must include queue_rank (or retain via document); if omitted, keep
+    # current rank after load — validate shape when present.
     validation_errors = validate_backlog_write_document(document)
     if validation_errors:
         return None, validation_errors
 
+    active = store if store is not None else get_editorial_content_backlog_store()
+    existing, get_errors = get_backlog_item(item_id, store=active)
+    if get_errors:
+        return None, get_errors
+    if existing is None:
+        return None, [
+            {
+                "field": "item_id",
+                "code": ERROR_ITEM_NOT_FOUND,
+                "message": "backlog item not found",
+            }
+        ]
+
     normalized = normalize_backlog_write_document(document)
+    if "queue_rank" not in normalized:
+        normalized["queue_rank"] = int(existing.item.get("queue_rank") or 0)
+
+    dep_errors = _validate_depends_on_against_store(
+        list(normalized["depends_on_item_ids"]),
+        self_item_id=item_id,
+        store=active,
+    )
+    if dep_errors:
+        return None, dep_errors
+
     payload = {
         **normalized,
         "updated_at_utc": utc_now_iso(),
     }
-    active = store if store is not None else get_editorial_content_backlog_store()
     try:
         row, store_errors = active.update(
             item_id,
@@ -447,6 +719,68 @@ def update_backlog_item(
     if store_errors or row is None:
         return None, _store_errors_to_structured(store_errors or [ERROR_STORE_UNAVAILABLE])
     return BacklogItemSnapshot(item=row), []
+
+
+def reorder_backlog_items(
+    ordered_item_ids: list[str],
+    *,
+    store: EditorialContentBacklogStore | None = None,
+) -> tuple[list[BacklogItemSnapshot] | None, list[dict[str, str]]]:
+    """Reassign contiguous ``queue_rank`` values ``0..n-1`` from ordered ids."""
+    if not isinstance(ordered_item_ids, list):
+        return None, [
+            {
+                "field": "ordered_item_ids",
+                "code": ERROR_REORDER_INVALID,
+                "message": "ordered_item_ids must be a list of backlog item ids",
+            }
+        ]
+    if not ordered_item_ids:
+        return None, [
+            {
+                "field": "ordered_item_ids",
+                "code": ERROR_REORDER_INVALID,
+                "message": "ordered_item_ids must not be empty",
+            }
+        ]
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for index, raw in enumerate(ordered_item_ids):
+        if not isinstance(raw, str) or not raw.strip():
+            return None, [
+                {
+                    "field": f"ordered_item_ids[{index}]",
+                    "code": ERROR_REORDER_INVALID,
+                    "message": "each ordered id must be a non-empty item_id string",
+                }
+            ]
+        item_id = raw.strip()
+        if item_id in seen:
+            return None, [
+                {
+                    "field": "ordered_item_ids",
+                    "code": ERROR_REORDER_INVALID,
+                    "message": f"ordered_item_ids contains duplicate id {item_id}",
+                }
+            ]
+        seen.add(item_id)
+        normalized.append(item_id)
+
+    active = store if store is not None else get_editorial_content_backlog_store()
+    try:
+        rows, store_errors = active.reorder(normalized)
+    except RuntimeError as exc:
+        code = str(exc)
+        return None, [
+            {
+                "field": "_store",
+                "code": code if code else ERROR_STORE_UNAVAILABLE,
+                "message": "backlog store write failed",
+            }
+        ]
+    if store_errors or rows is None:
+        return None, _store_errors_to_structured(store_errors or [ERROR_STORE_UNAVAILABLE])
+    return [BacklogItemSnapshot(item=row) for row in rows], []
 
 
 def _store_errors_to_structured(codes: list[str]) -> list[dict[str, str]]:

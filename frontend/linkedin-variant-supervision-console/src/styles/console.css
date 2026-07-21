@@ -548,6 +548,39 @@ code {
   opacity: 0.85;
 }
 
+.content-backlog-list-row {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.content-backlog-rank-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.content-backlog-dependencies {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.content-backlog-dep-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.content-backlog-dep-checklist label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
 .content-backlog-form textarea {
   font: inherit;
   padding: 0.4rem 0.55rem;

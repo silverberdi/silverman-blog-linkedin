@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useId, useRef, useState } from "react";
 import type { ApiError } from "../api/errors";
+import { explainErrorCodes } from "../api/errors";
 import type {
   BacklogFormat,
   BacklogPriority,
@@ -35,6 +36,7 @@ function emptyForm(): EditorialContentBacklogWriteRequest {
     linkedin_derivatives: [
       { audience_hint: "", format_hint: "", notes: "" },
     ],
+    depends_on_item_ids: [],
   };
 }
 
@@ -51,12 +53,20 @@ function formFromItem(item: EditorialContentBacklogItem): EditorialContentBacklo
       item.linkedin_derivatives.length > 0
         ? item.linkedin_derivatives.map((d) => ({ ...d }))
         : [{ audience_hint: "", format_hint: "", notes: "" }],
+    depends_on_item_ids: [...(item.depends_on_item_ids ?? [])],
+    queue_rank: item.queue_rank,
     expected_row_version: item.row_version,
   };
 }
 
 function formatApiError(err: unknown): string {
   const apiErr = err as ApiError | undefined;
+  if (apiErr?.codes?.length) {
+    const explained = explainErrorCodes(apiErr.codes);
+    if (explained && !explained.startsWith("Request failed without")) {
+      return explained;
+    }
+  }
   if (apiErr?.kind === "validation") {
     return apiErr.message || "Validation failed.";
   }
@@ -72,8 +82,20 @@ function formatApiError(err: unknown): string {
   return "Unable to load or save the content backlog.";
 }
 
+function dependencyLabels(
+  item: EditorialContentBacklogItem,
+  allItems: EditorialContentBacklogItem[],
+): string {
+  const ids = item.depends_on_item_ids ?? [];
+  if (ids.length === 0) {
+    return "none";
+  }
+  const byId = new Map(allItems.map((row) => [row.item_id, row.topic]));
+  return ids.map((id) => byId.get(id) ?? id).join(", ");
+}
+
 /**
- * Editorial content backlog panel (US-049) — Authority Manager surface.
+ * Editorial content backlog panel (US-049/US-050) — Authority Manager surface.
  * Optional enrichment only: save ≠ LinkedIn publish and ≠ Flow B trigger.
  */
 export function ContentBacklogModal({
@@ -90,6 +112,7 @@ export function ContentBacklogModal({
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [reordering, setReordering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<string | null>(null);
   const [items, setItems] = useState<EditorialContentBacklogItem[]>([]);
@@ -206,6 +229,52 @@ export function ContentBacklogModal({
     setForm({ ...form, linkedin_derivatives: next });
   }
 
+  function toggleDependency(itemId: string) {
+    const current = new Set(form.depends_on_item_ids ?? []);
+    if (current.has(itemId)) {
+      current.delete(itemId);
+    } else {
+      current.add(itemId);
+    }
+    setForm({ ...form, depends_on_item_ids: Array.from(current) });
+  }
+
+  async function moveItem(itemId: string, direction: "earlier" | "later") {
+    if (!canMutate || reordering) {
+      return;
+    }
+    const index = items.findIndex((row) => row.item_id === itemId);
+    if (index < 0) {
+      return;
+    }
+    const swapWith = direction === "earlier" ? index - 1 : index + 1;
+    if (swapWith < 0 || swapWith >= items.length) {
+      return;
+    }
+    const ordered = items.map((row) => row.item_id);
+    const tmp = ordered[index];
+    ordered[index] = ordered[swapWith];
+    ordered[swapWith] = tmp;
+    setReordering(true);
+    setError(null);
+    setOutcome(null);
+    try {
+      const response = await client.reorderEditorialContentBacklog({
+        ordered_item_ids: ordered,
+      });
+      setItems(response.items);
+      setOutcome(
+        direction === "earlier"
+          ? "Moved item earlier in the queue."
+          : "Moved item later in the queue.",
+      );
+    } catch (err) {
+      setError(formatApiError(err));
+    } finally {
+      setReordering(false);
+    }
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (!canMutate) {
@@ -222,6 +291,7 @@ export function ContentBacklogModal({
         (d) =>
           d.audience_hint.trim() || d.format_hint.trim() || d.notes.trim(),
       ),
+      depends_on_item_ids: form.depends_on_item_ids ?? [],
     };
     try {
       if (mode === "edit" && editingId) {
@@ -241,6 +311,10 @@ export function ContentBacklogModal({
       setSaving(false);
     }
   }
+
+  const dependencyCandidates = items.filter(
+    (item) => item.item_id !== editingId,
+  );
 
   return (
     <div className="modal-backdrop" data-testid="content-backlog-modal-backdrop">
@@ -272,7 +346,8 @@ export function ContentBacklogModal({
           <p className="note" data-testid="content-backlog-optional-note">
             Optional hand-curated topic queue. Saving here does not publish to
             LinkedIn and does not start Flow B discovery or gap trigger. Flow B
-            still runs when this backlog is empty.
+            still runs when this backlog is empty. Dependencies and queue order
+            are planning metadata only.
           </p>
 
           {needsReauth && (
@@ -333,20 +408,56 @@ export function ContentBacklogModal({
                   className="content-backlog-list"
                   data-testid="content-backlog-list"
                 >
-                  {items.map((item) => (
+                  {items.map((item, index) => (
                     <li key={item.item_id}>
-                      <button
-                        type="button"
-                        className="content-backlog-list-item"
-                        data-testid={`content-backlog-item-${item.item_id}`}
-                        onClick={() => startEdit(item)}
-                      >
-                        <strong>{item.topic}</strong>
-                        <span>
-                          {item.status} · {item.priority} · {item.format}
-                        </span>
-                        <span>{item.audience}</span>
-                      </button>
+                      <div className="content-backlog-list-row">
+                        <button
+                          type="button"
+                          className="content-backlog-list-item"
+                          data-testid={`content-backlog-item-${item.item_id}`}
+                          onClick={() => startEdit(item)}
+                        >
+                          <strong>{item.topic}</strong>
+                          <span>
+                            {item.status} · {item.priority} · {item.format} ·
+                            rank {item.queue_rank}
+                          </span>
+                          <span>
+                            Depends on: {dependencyLabels(item, items)}
+                          </span>
+                          <span>{item.audience}</span>
+                        </button>
+                        <div className="content-backlog-rank-actions">
+                          <button
+                            type="button"
+                            className="secondary"
+                            data-testid={`content-backlog-move-earlier-${item.item_id}`}
+                            disabled={
+                              !canMutate || reordering || index === 0
+                            }
+                            onClick={() =>
+                              void moveItem(item.item_id, "earlier")
+                            }
+                          >
+                            Earlier
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary"
+                            data-testid={`content-backlog-move-later-${item.item_id}`}
+                            disabled={
+                              !canMutate ||
+                              reordering ||
+                              index === items.length - 1
+                            }
+                            onClick={() =>
+                              void moveItem(item.item_id, "later")
+                            }
+                          >
+                            Later
+                          </button>
+                        </div>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -480,6 +591,46 @@ export function ContentBacklogModal({
                   placeholder="2026-08-01"
                 />
               </label>
+
+              <fieldset
+                className="content-backlog-dependencies"
+                data-testid="content-backlog-dependencies"
+              >
+                <legend>Depends on (optional)</legend>
+                <p className="note">
+                  Planning dependencies only — does not gate Flow B or LinkedIn
+                  publish.
+                </p>
+                {dependencyCandidates.length === 0 ? (
+                  <p className="note" data-testid="content-backlog-deps-empty">
+                    No other backlog items available to depend on yet.
+                  </p>
+                ) : (
+                  <ul className="content-backlog-dep-checklist">
+                    {dependencyCandidates.map((candidate) => {
+                      const checked = (form.depends_on_item_ids ?? []).includes(
+                        candidate.item_id,
+                      );
+                      return (
+                        <li key={candidate.item_id}>
+                          <label>
+                            <input
+                              type="checkbox"
+                              data-testid={`content-backlog-dep-${candidate.item_id}`}
+                              checked={checked}
+                              disabled={!canMutate || saving}
+                              onChange={() =>
+                                toggleDependency(candidate.item_id)
+                              }
+                            />
+                            <span>{candidate.topic}</span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </fieldset>
 
               <fieldset className="content-backlog-derivatives">
                 <legend>LinkedIn derivative planning notes</legend>

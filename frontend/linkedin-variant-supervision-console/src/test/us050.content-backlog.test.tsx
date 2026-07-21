@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "../App";
-import { MemoryBearerAuthProvider, ReadOnlyBearerAuthProvider } from "../api/auth";
+import { MemoryBearerAuthProvider } from "../api/auth";
 import { SupervisionApiClient } from "../api/client";
 import type { EditorialContentBacklogItem } from "../api/types";
 
@@ -61,13 +61,7 @@ function sampleItem(
     priority: "high",
     status: "idea",
     target_date: "2026-08-01",
-    linkedin_derivatives: [
-      {
-        audience_hint: "hiring managers",
-        format_hint: "short post",
-        notes: "Link to blog after review",
-      },
-    ],
+    linkedin_derivatives: [],
     depends_on_item_ids: [],
     queue_rank: 0,
     created_at_utc: "2026-07-20T12:00:00Z",
@@ -78,17 +72,14 @@ function sampleItem(
 }
 
 function createAppClient(options?: {
-  readonly?: boolean;
-  backlogList?: () => Response;
-  backlogCreate?: (body: unknown) => Response;
+  initialItems?: EditorialContentBacklogItem[];
   backlogUpdate?: (body: unknown) => Response;
+  backlogReorder?: (body: unknown) => Response;
 }) {
-  const auth = options?.readonly
-    ? new ReadOnlyBearerAuthProvider()
-    : new MemoryBearerAuthProvider();
+  const auth = new MemoryBearerAuthProvider();
   auth.setTokenForTests("test-key");
 
-  let items: EditorialContentBacklogItem[] = [];
+  let items: EditorialContentBacklogItem[] = [...(options?.initialItems ?? [])];
 
   const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -122,6 +113,22 @@ function createAppClient(options?: {
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
     }
+    if (url.endsWith("/editorial/content-backlog/reorder")) {
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      if (options?.backlogReorder) {
+        return options.backlogReorder(body);
+      }
+      const orderedIds: string[] = body.ordered_item_ids ?? [];
+      const byId = new Map(items.map((row) => [row.item_id, row]));
+      items = orderedIds.map((id, rank) => {
+        const current = byId.get(id)!;
+        return { ...current, queue_rank: rank, row_version: current.row_version + 1 };
+      });
+      return new Response(
+        JSON.stringify({ status: "ok", items, count: items.length }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
     if (url.match(/\/editorial\/content-backlog\/[^/?]+/) && !url.endsWith("/content-backlog")) {
       const method = (init?.method || "GET").toUpperCase();
       if (method === "PUT") {
@@ -129,14 +136,17 @@ function createAppClient(options?: {
         if (options?.backlogUpdate) {
           return options.backlogUpdate(body);
         }
+        const itemId = url.split("/").pop()!;
         const updated = {
           ...sampleItem(),
           ...body,
-          item_id: "item-1",
+          item_id: itemId,
+          depends_on_item_ids: body.depends_on_item_ids ?? [],
+          queue_rank: body.queue_rank ?? 0,
           row_version: 2,
           updated_at_utc: "2026-07-21T12:00:00Z",
         };
-        items = [updated];
+        items = items.map((row) => (row.item_id === itemId ? updated : row));
         return new Response(JSON.stringify(updated), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -146,9 +156,6 @@ function createAppClient(options?: {
     if (url.includes("/editorial/content-backlog")) {
       const method = (init?.method || "GET").toUpperCase();
       if (method === "GET") {
-        if (options?.backlogList) {
-          return options.backlogList();
-        }
         return new Response(
           JSON.stringify({ status: "ok", items, count: items.length }),
           { status: 200, headers: { "Content-Type": "application/json" } },
@@ -156,15 +163,14 @@ function createAppClient(options?: {
       }
       if (method === "POST") {
         const body = init?.body ? JSON.parse(String(init.body)) : {};
-        if (options?.backlogCreate) {
-          return options.backlogCreate(body);
-        }
         const created = sampleItem({
           ...body,
-          item_id: "item-created",
+          item_id: `item-created-${items.length + 1}`,
+          depends_on_item_ids: body.depends_on_item_ids ?? [],
+          queue_rank: items.length,
           row_version: 1,
         });
-        items = [created, ...items];
+        items = [...items, created];
         return new Response(JSON.stringify(created), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -177,93 +183,113 @@ function createAppClient(options?: {
   return new SupervisionApiClient(auth, fetchImpl as typeof fetch);
 }
 
-describe("US-049 Content backlog modal", () => {
-  it("shows empty state and creates an item", async () => {
-    const user = userEvent.setup();
-    const client = createAppClient();
-    render(<App client={client} />);
-
-    await user.click(screen.getByTestId("header-content-backlog-btn"));
-    const modal = await screen.findByTestId("content-backlog-modal");
-    expect(
-      within(modal).getByTestId("content-backlog-optional-note"),
-    ).toHaveTextContent(/does not publish to LinkedIn/i);
-    expect(
-      within(modal).getByTestId("content-backlog-optional-note"),
-    ).toHaveTextContent(/does not start Flow B/i);
-
-    await waitFor(() => {
-      expect(within(modal).getByTestId("content-backlog-empty")).toBeInTheDocument();
-    });
-
-    await user.click(within(modal).getByTestId("content-backlog-new-btn"));
-    await user.type(within(modal).getByTestId("content-backlog-topic"), "Topic A");
-    await user.type(
-      within(modal).getByTestId("content-backlog-audience"),
-      "Audience A",
-    );
-    await user.type(
-      within(modal).getByTestId("content-backlog-objective"),
-      "Objective A",
-    );
-    await user.click(within(modal).getByTestId("content-backlog-save"));
-
-    await waitFor(() => {
-      expect(
-        within(modal).getByTestId("content-backlog-outcome"),
-      ).toHaveTextContent(/created/i);
-    });
-    expect(within(modal).getByText("Topic A")).toBeInTheDocument();
-  });
-
-  it("edits an existing item", async () => {
+describe("US-050 Content backlog dependencies and prioritization", () => {
+  it("edits dependencies and shows resolved labels", async () => {
     const user = userEvent.setup();
     const client = createAppClient({
-      backlogList: () =>
-        new Response(
-          JSON.stringify({
-            status: "ok",
-            items: [sampleItem()],
-            count: 1,
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
+      initialItems: [
+        sampleItem({ item_id: "item-a", topic: "Foundation", queue_rank: 0 }),
+        sampleItem({
+          item_id: "item-b",
+          topic: "Follow-on",
+          queue_rank: 1,
+          depends_on_item_ids: [],
+        }),
+      ],
     });
     render(<App client={client} />);
 
     await user.click(screen.getByTestId("header-content-backlog-btn"));
     const modal = await screen.findByTestId("content-backlog-modal");
     await waitFor(() => {
-      expect(
-        within(modal).getByTestId("content-backlog-item-item-1"),
-      ).toBeInTheDocument();
+      expect(within(modal).getByTestId("content-backlog-item-item-b")).toBeInTheDocument();
     });
 
-    await user.click(within(modal).getByTestId("content-backlog-item-item-1"));
-    const topic = within(modal).getByTestId("content-backlog-topic");
-    await user.clear(topic);
-    await user.type(topic, "Updated topic");
+    await user.click(within(modal).getByTestId("content-backlog-item-item-b"));
+    const depCheckbox = within(modal).getByTestId("content-backlog-dep-item-a");
+    await user.click(depCheckbox);
     await user.click(within(modal).getByTestId("content-backlog-save"));
 
     await waitFor(() => {
-      expect(
-        within(modal).getByTestId("content-backlog-outcome"),
-      ).toHaveTextContent(/updated/i);
+      expect(within(modal).getByTestId("content-backlog-outcome")).toHaveTextContent(
+        /updated/i,
+      );
+    });
+    expect(within(modal).getByTestId("content-backlog-item-item-b")).toHaveTextContent(
+      /Depends on: Foundation/i,
+    );
+  });
+
+  it("reprioritizes via move earlier and priority change", async () => {
+    const user = userEvent.setup();
+    const client = createAppClient({
+      initialItems: [
+        sampleItem({ item_id: "item-a", topic: "Alpha", priority: "low", queue_rank: 0 }),
+        sampleItem({
+          item_id: "item-b",
+          topic: "Beta",
+          priority: "medium",
+          queue_rank: 1,
+        }),
+      ],
+    });
+    render(<App client={client} />);
+
+    await user.click(screen.getByTestId("header-content-backlog-btn"));
+    const modal = await screen.findByTestId("content-backlog-modal");
+    await waitFor(() => {
+      expect(within(modal).getByTestId("content-backlog-item-item-a")).toBeInTheDocument();
+    });
+
+    await user.click(within(modal).getByTestId("content-backlog-move-earlier-item-b"));
+    await waitFor(() => {
+      expect(within(modal).getByTestId("content-backlog-outcome")).toHaveTextContent(
+        /earlier/i,
+      );
+    });
+    const list = within(modal).getByTestId("content-backlog-list");
+    const topics = within(list)
+      .getAllByRole("button")
+      .filter((btn) => btn.className.includes("content-backlog-list-item"))
+      .map((btn) => btn.querySelector("strong")?.textContent);
+    expect(topics[0]).toBe("Beta");
+    expect(topics[1]).toBe("Alpha");
+
+    await user.click(within(modal).getByTestId("content-backlog-item-item-a"));
+    await user.selectOptions(
+      within(modal).getByTestId("content-backlog-priority"),
+      "high",
+    );
+    await user.click(within(modal).getByTestId("content-backlog-save"));
+    await waitFor(() => {
+      expect(within(modal).getByTestId("content-backlog-outcome")).toHaveTextContent(
+        /updated/i,
+      );
     });
   });
 
-  it("shows validation errors in plain language", async () => {
+  it("shows plain-language cycle dependency failures", async () => {
     const user = userEvent.setup();
     const client = createAppClient({
-      backlogCreate: () =>
+      initialItems: [
+        sampleItem({ item_id: "item-a", topic: "A", queue_rank: 0 }),
+        sampleItem({
+          item_id: "item-b",
+          topic: "B",
+          queue_rank: 1,
+          depends_on_item_ids: ["item-a"],
+        }),
+      ],
+      backlogUpdate: () =>
         new Response(
           JSON.stringify({
             detail: {
               errors: [
                 {
-                  field: "topic",
-                  code: "topic_required",
-                  message: "topic must be a non-empty string",
+                  field: "depends_on_item_ids",
+                  code: "dependency_cycle",
+                  message:
+                    "dependencies would create a cycle among backlog items; remove the cycle and retry",
                 },
               ],
             },
@@ -275,28 +301,15 @@ describe("US-049 Content backlog modal", () => {
 
     await user.click(screen.getByTestId("header-content-backlog-btn"));
     const modal = await screen.findByTestId("content-backlog-modal");
-    await user.click(within(modal).getByTestId("content-backlog-new-btn"));
-    await user.type(within(modal).getByTestId("content-backlog-topic"), "x");
-    await user.type(within(modal).getByTestId("content-backlog-audience"), "y");
-    await user.type(within(modal).getByTestId("content-backlog-objective"), "z");
+    await user.click(within(modal).getByTestId("content-backlog-item-item-a"));
+    await user.click(within(modal).getByTestId("content-backlog-dep-item-b"));
     await user.click(within(modal).getByTestId("content-backlog-save"));
 
     await waitFor(() => {
       expect(within(modal).getByTestId("content-backlog-error")).toHaveTextContent(
-        /topic must be a non-empty string/i,
+        /cycle/i,
       );
     });
-  });
-
-  it("gates mutations for read-only sessions", async () => {
-    const user = userEvent.setup();
-    const client = createAppClient({ readonly: true });
-    render(<App client={client} />);
-
-    await user.click(screen.getByTestId("header-content-backlog-btn"));
-    const modal = await screen.findByTestId("content-backlog-modal");
-    await waitFor(() => {
-      expect(within(modal).getByTestId("content-backlog-new-btn")).toBeDisabled();
-    });
+    expect(within(modal).queryByTestId("content-backlog-outcome")).not.toBeInTheDocument();
   });
 });

@@ -69,6 +69,20 @@ export const SUPERVISION_ERROR_MESSAGES: Record<string, string> = {
     "Operator timezone is required. Schedule was not changed.",
   operator_timezone_invalid:
     "Operator timezone is invalid. Schedule was not changed.",
+  dependency_cycle:
+    "Those dependencies would create a cycle. Remove one of the circular links and try again.",
+  dependency_not_found:
+    "One of the selected dependencies no longer exists. Reload the backlog and pick again.",
+  dependency_self:
+    "An item cannot depend on itself. Clear that selection and try again.",
+  dependency_duplicate:
+    "Dependency list has a duplicate. Remove the duplicate and try again.",
+  depends_on_item_ids_invalid:
+    "Dependencies are invalid. Select existing backlog items only.",
+  queue_rank_invalid:
+    "Queue order must be a non-negative whole number.",
+  reorder_invalid:
+    "Could not reorder the queue. Reload and try again.",
 };
 
 const DENSITY_CODES = new Set([

@@ -449,6 +449,8 @@ export interface EditorialContentBacklogItem {
   status: BacklogStatus | string;
   target_date: string | null;
   linkedin_derivatives: LinkedInDerivativeNote[];
+  depends_on_item_ids: string[];
+  queue_rank: number;
   created_at_utc: string;
   updated_at_utc: string;
   row_version: number;
@@ -469,5 +471,11 @@ export interface EditorialContentBacklogWriteRequest {
   status: BacklogStatus | string;
   target_date?: string | null;
   linkedin_derivatives?: LinkedInDerivativeNote[];
+  depends_on_item_ids?: string[];
+  queue_rank?: number | null;
   expected_row_version?: number | null;
+}
+
+export interface EditorialContentBacklogReorderRequest {
+  ordered_item_ids: string[];
 }

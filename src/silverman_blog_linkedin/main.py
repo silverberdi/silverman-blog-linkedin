@@ -115,6 +115,7 @@ from silverman_blog_linkedin.editorial_content_backlog import (
     create_backlog_item,
     get_backlog_item,
     list_backlog_items,
+    reorder_backlog_items,
     update_backlog_item,
 )
 from silverman_blog_linkedin.editorial_content_backlog_store import (
@@ -1141,7 +1142,7 @@ class LinkedInDerivativeNoteRequest(BaseModel):
 
 
 class EditorialContentBacklogWriteRequest(BaseModel):
-    """Create/update body for editorial content backlog items (US-049)."""
+    """Create/update body for editorial content backlog items (US-049/US-050)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -1153,7 +1154,17 @@ class EditorialContentBacklogWriteRequest(BaseModel):
     status: str
     target_date: str | None = None
     linkedin_derivatives: list[LinkedInDerivativeNoteRequest] = []
+    depends_on_item_ids: list[str] = []
+    queue_rank: int | None = None
     expected_row_version: int | None = None
+
+
+class EditorialContentBacklogReorderRequest(BaseModel):
+    """Bulk queue-rank reassignment (US-050). Contiguous ranks 0..n-1."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ordered_item_ids: list[str]
 
 
 class CompleteFlowAReadyPathRequest(BaseModel):
@@ -3241,7 +3252,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return HTTPException(status_code=422, detail={"errors": errors})
 
     def _backlog_write_document(body: EditorialContentBacklogWriteRequest) -> dict:
-        return {
+        document: dict = {
             "topic": body.topic,
             "audience": body.audience,
             "objective": body.objective,
@@ -3252,7 +3263,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "linkedin_derivatives": [
                 note.model_dump() for note in body.linkedin_derivatives
             ],
+            "depends_on_item_ids": list(body.depends_on_item_ids),
         }
+        if body.queue_rank is not None:
+            document["queue_rank"] = body.queue_rank
+        return document
 
     @app.get("/editorial/content-backlog")
     def get_editorial_content_backlog(
@@ -3436,13 +3451,51 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         return snapshot.to_response_dict()
 
+    @app.put("/editorial/content-backlog/reorder")
+    def put_editorial_content_backlog_reorder(
+        body: EditorialContentBacklogReorderRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        """Authenticated bulk queue-rank reassignment (US-050).
+
+        Does not mutate SILVERMAN_LINKEDIN_PUBLICATION_ENABLED or write packages.
+        """
+        try:
+            items, errors = reorder_backlog_items(body.ordered_item_ids)
+        except RuntimeError as exc:
+            code = str(exc)
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "errors": [
+                        {
+                            "field": "_store",
+                            "code": code or ERROR_STORE_UNAVAILABLE,
+                            "message": "backlog store is unavailable",
+                        }
+                    ]
+                },
+            ) from exc
+        if errors:
+            raise _backlog_store_http_error(errors)
+        assert items is not None
+        logger.info(
+            "editorial/content-backlog/reorder PUT count=%s",
+            len(body.ordered_item_ids),
+        )
+        return {
+            "status": "ok",
+            "items": [item.to_response_dict() for item in items],
+            "count": len(items),
+        }
+
     @app.put("/editorial/content-backlog/{item_id}")
     def put_editorial_content_backlog_item(
         item_id: str,
         body: EditorialContentBacklogWriteRequest,
         _auth: None = Depends(require_api_key),
     ) -> dict:
-        """Authenticated update of an editorial content backlog item (US-049).
+        """Authenticated update of an editorial content backlog item (US-049/US-050).
 
         Does not mutate SILVERMAN_LINKEDIN_PUBLICATION_ENABLED or write packages.
         """
