@@ -465,7 +465,7 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** The content program has measurable business and editorial outcomes.
 
-**US-053 / US-054 definition (docs):** [business-and-content-metrics.md](../operations/business-and-content-metrics.md) — Story 1: blog traffic, LinkedIn reach/engagement, profile/audience growth; Story 2: recruiter/executive conversations, job/consulting opportunities, high-performing topics/formats. BL-023 automation remains separate. Story accepted (US-053 and US-054) / BL-022 close require operator review.
+**US-053 / US-054 definition (docs):** [business-and-content-metrics.md](../operations/business-and-content-metrics.md) — Story 1: blog traffic, LinkedIn reach/engagement, profile/audience growth; Story 2: recruiter/executive conversations, job/consulting opportunities, high-performing topics/formats. Story accepted (US-053 and US-054) / BL-022 close require operator review.
 
 ### BL-023 — Use Performance Feedback to Improve Future Content
 
@@ -481,6 +481,8 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 - Keep human oversight over strategic changes.
 
 **Completion outcome:** Future editorial decisions are informed by evidence rather than intuition alone.
+
+**US-055 collection procedure (docs):** [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§14–16 — consistent collection; theme/variant comparison; effective formats (reuses US-054 §8). Log template: [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md). **US-056** planning feed remains separate. Story accepted (US-055) / BL-023 close require operator review; does not mark US-053 / US-054 Story accepted or close BL-022.
 
 
 ## P6 — Security and Administration
