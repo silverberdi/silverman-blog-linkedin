@@ -143,8 +143,7 @@ def _setup_public_repo(repo: Path) -> None:
 
 
 def _write_calendar(base: Path, *, item_id: str = "markdown-only-flow-a") -> None:
-    calendar_dir = base / "editorial-calendar"
-    calendar_dir.mkdir(parents=True, exist_ok=True)
+    """Seed the calendar store (DB/memory), not only legacy calendar.json."""
     payload = {
         "schema_version": "1",
         "updated_at_utc": NOW_UTC,
@@ -167,9 +166,7 @@ def _write_calendar(base: Path, *, item_id: str = "markdown-only-flow-a") -> Non
             }
         ],
     }
-    (calendar_dir / "calendar.json").write_text(
-        json.dumps(payload, indent=2), encoding="utf-8"
-    )
+    write_and_seed_calendar(base, payload)
 
 
 def _connector_package(*args, **kwargs) -> LinkedInPackageResult:

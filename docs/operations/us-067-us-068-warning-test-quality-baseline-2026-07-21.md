@@ -50,7 +50,7 @@ Recorded so operators do not confuse red tests with the warning baseline:
 | `tests/test_server_deployment_artifacts.py::test_compose_editorial_volume_mount` | Compose editorial host path expectation stale vs current compose |
 | `tests/test_server_deployment_artifacts.py::test_compose_allows_external_n8n_network_only` | False positive on `postgres:` substring in commented calendar URL example |
 
-**Remediation:** deferred follow-ups (update tests/docs or restore behavior) — **out of BL-028 warning scope**. Prefer fixing before relying on BL-029 as a hard gate.
+**Remediation:** deferred to **BL-033 / US-090** (update tests/docs or restore behavior **and** clear W1) — out of BL-028 warning-baseline scope. Prefer completing US-090 before relying on BL-029 as a hard gate.
 
 ### Cheap warning remediation attempted
 

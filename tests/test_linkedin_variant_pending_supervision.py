@@ -608,8 +608,10 @@ def test_console_action_contract_wiring_in_static_html():
     assert "cancel-dry-run" in bundle
     assert "draft_content" in bundle
     assert "new_scheduled_at_utc" in bundle
-    assert "validated (dry-run, no mutation)" in bundle
-    assert "persisted (real write)" in bundle
+    # US-083+ preview/real copy (Vite static bundle) — not legacy dry-run strings.
+    assert "Preview only (dry-run)" in bundle
+    assert "No lasting change was made" in bundle or "Schedule was not saved" in bundle
+    assert "Saved:" in bundle or "Make real change" in bundle
     assert "Schedule edit does not call LinkedIn publication API" in bundle
     assert "not strategy-driven auto-queue eligible" in bundle or (
         "not auto-queue eligible" in bundle

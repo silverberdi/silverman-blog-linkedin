@@ -77,8 +77,9 @@ def test_compose_base_path_environment(compose_text: str) -> None:
 
 
 def test_compose_editorial_volume_mount(compose_text: str) -> None:
+    # Durable editorial data mount (must not share the code sync checkout).
     expected = (
-        "/home/silverman/compartido_mac/silverman-blog-linkedin:"
+        "/home/silverman/silverman-blog-linkedin-worker/data/silverman-blog-linkedin:"
         "/data/silverman-blog-linkedin"
     )
     assert expected in compose_text
@@ -104,14 +105,18 @@ def test_compose_allows_external_n8n_network_only(compose_text: str) -> None:
     """Option A: external local-ai-stack_backend OK; no shared service defs."""
     assert "local-ai-stack_backend" in compose_text
     assert "external: true" in compose_text
-    # Must not embed shared-stack application services into this project
+    # Must not embed shared-stack application services into this project.
+    # Use service-definition shapes (not bare "postgres:" which matches JDBC hostnames
+    # in commented calendar URL examples).
     forbidden_service_markers = (
         "image: n8nio/n8n",
         "container_name: n8n",
-        "postgres:",
-        "minio:",
-        "qdrant:",
-        "portainer:",
+        "image: postgres",
+        "container_name: postgres",
+        "image: minio",
+        "container_name: minio",
+        "image: qdrant",
+        "container_name: portainer",
         "backup-runner:",
         "auto-ingest-runner:",
         "n8n-gateway:",

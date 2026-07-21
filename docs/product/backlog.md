@@ -587,6 +587,28 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **SoT:** [warning-and-test-quality-baseline.md](../operations/warning-and-test-quality-baseline.md).
 
+### BL-033 — Clear Pytest Suite Debt and Inherited Warnings
+
+**Business need:** Before continuous integration (BL-029), restore a green pytest suite and eliminate the inherited warning recorded in the BL-028 baseline so CI does not start red and “zero new warnings” is measurable from a clean baseline.
+
+**Expected outcomes:**
+
+- Fix or correctly realign the known failing pytest nodes from the BL-028 baseline evidence.
+- Eliminate the inherited `StarletteDeprecationWarning` (FastAPI/Starlette TestClient + `httpx`) by root-cause remediation (dependency/API upgrade path preferred over broad suppression).
+- Re-run full pytest with warnings visible; achieve **0 failed** and **0 warnings** (or document only environment noise, not inherited product/third-party warnings).
+- Update the warning/test quality baseline evidence so inherited warning W1 is cleared and suite debt is no longer listed as open.
+- Preserve Vitest green; do not weaken assertions to hide real regressions.
+
+**Completion outcome:** Full pytest is green with zero suite warnings, and the BL-028 baseline is refreshed to a clean bar ready for BL-029 CI.
+
+**Prerequisite / ordering:** Complete **before** treating BL-029 as a hard gate on `main`.
+
+**Stories:** US-090.
+
+**Status:** **Closed 2026-07-21** — US-090 Story accepted (suite green + W1 cleared).
+
+**Evidence:** [us-090-pytest-suite-debt-clearance-2026-07-21.md](../operations/us-090-pytest-suite-debt-clearance-2026-07-21.md).
+
 ### BL-029 — Establish Continuous Integration
 
 **Business need:** Run repository validation automatically on proposed changes.

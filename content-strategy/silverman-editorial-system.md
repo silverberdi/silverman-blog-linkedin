@@ -652,7 +652,7 @@ While variants remain `pending` before API queue/send, the operator MAY edit, de
 
 ### Flow B guardrail
 
-Unapproved drafts in `blog-posts/pending-approval/` MUST NOT enter Flow A automatic publish paths. After recorded operator blog approval and promote to `ready/`, content MAY enter Flow A like other ready posts.
+Flow B content MUST NOT enter Flow A automatic publish paths. Unapproved drafts in `blog-posts/pending-approval/` MUST NOT enter Flow A automatic publish paths. After recorded operator blog approval and promote to `ready/`, content MAY enter Flow A like other ready posts.
 
 ---
 

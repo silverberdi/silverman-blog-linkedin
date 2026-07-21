@@ -1964,6 +1964,34 @@ As a content operator, I want to separate inherited warnings from new warnings, 
 - [x] Failures or blocked states are clearly communicated.
 - [x] Existing completed work is not duplicated or unintentionally changed.
 
+## BL-033 — Clear Pytest Suite Debt and Inherited Warnings
+
+**Priority:** P7
+
+**Business context:** The BL-028 baseline recorded **11 failing pytest nodes** and **1 inherited** `StarletteDeprecationWarning`. CI (BL-029) should not start against a red suite or a known third-party warning treated as “OK forever.”
+
+**Status:** **Closed 2026-07-21** — US-090 Story accepted.
+
+**Baseline evidence (historical debt):** [us-067-us-068-warning-test-quality-baseline-2026-07-21.md](../operations/us-067-us-068-warning-test-quality-baseline-2026-07-21.md).
+**Clearance evidence:** [us-090-pytest-suite-debt-clearance-2026-07-21.md](../operations/us-090-pytest-suite-debt-clearance-2026-07-21.md).
+
+### US-090 — Clear Pytest Failures and Inherited Suite Warnings
+
+**Description**
+
+As a system owner, I want the full pytest suite green and free of the inherited Starlette/httpx deprecation warning, so that quality gates and continuous integration start from a clean, measurable baseline.
+
+**Acceptance criteria**
+
+- [x] Resolve all pytest failures listed in the BL-028 baseline evidence (canon, markdown-only connector claim/release, console static dry-run copy, compose volume/path and `postgres:` false positive) by fixing product/docs/tests appropriately — do not weaken assertions to hide real regressions.
+- [x] Eliminate the inherited `StarletteDeprecationWarning` (FastAPI/Starlette TestClient + `httpx`) via root-cause remediation (preferred: compatible upgrade / supported TestClient path); broad global warning filters are not an acceptable sole fix.
+- [x] Re-run full pytest with warnings visible (`.venv/bin/python -m pytest -q -W default`) and demonstrate **0 failed** and **0 warnings** attributable to the suite (environment-only noise, if any, must be explained and not counted as inherited product debt).
+- [x] Confirm frontend Vitest remains green (`npm test` in the LinkedIn console package).
+- [x] Refresh the warning/test quality baseline evidence (and SoT pointer as needed) so W1 and the open failure list are cleared or explicitly closed.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed (BL-028 stays closed as the historical baseline; BL-029 remains separate).
+
 ## BL-029 — Establish Continuous Integration
 
 **Priority:** P7

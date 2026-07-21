@@ -861,6 +861,20 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated — operator-accepted 2026-07-21
   - [x] Backlog item closed — 2026-07-21
 
+- [x] **BL-033 — Clear Pytest Suite Debt and Inherited Warnings**
+  - Business outcome: Full pytest is green with zero suite warnings; BL-028 baseline refreshed for BL-029.
+  - Prerequisite: before hard CI gate (BL-029).
+  - [x] **US-090**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — pytest 1415 passed / 0 failed / 0 warnings; Vitest 173 passed
+    - [x] Acceptance criteria validated
+    - [x] Story accepted — operator-accepted 2026-07-21
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted 2026-07-21
+  - [x] Backlog item closed — 2026-07-21
+
 - [ ] **BL-029 — Establish Continuous Integration**
   - Business outcome: Invalid changes are detected before they reach the main branch.
   - [ ] **US-069**

@@ -56,15 +56,18 @@ Use a project `.venv` with `dev` extras (`pytest`). Do not invent alternate runn
 
 ## 5. Current baseline (pointer)
 
-See [us-067-us-068-warning-test-quality-baseline-2026-07-21.md](us-067-us-068-warning-test-quality-baseline-2026-07-21.md) for the 2026-07-21 snapshot (git `6bb4a90` at measurement; counts may move as HEAD advances).
+See [us-090-pytest-suite-debt-clearance-2026-07-21.md](us-090-pytest-suite-debt-clearance-2026-07-21.md) for the cleared bar (2026-07-21): pytest **1415 passed / 0 failed / 0 warnings**; Vitest **173 passed**.
 
-**Inherited warnings (pytest):** one `StarletteDeprecationWarning` from FastAPI/Starlette `TestClient` / `httpx` (third-party).
+Historical BL-028 snapshot (pre-clearance debt): [us-067-us-068-warning-test-quality-baseline-2026-07-21.md](us-067-us-068-warning-test-quality-baseline-2026-07-21.md).
 
-**Known suite debt (not warnings):** pytest had **11 failed** tests at baseline time — listed in evidence as follow-ups; do not confuse with the warning inventory. Vitest was green (173 passed).
+**Inherited warnings (pytest):** none after US-090 clearance.
+
+**Known suite debt:** none open after US-090 / BL-033.
 
 ---
 
 ## 6. Related
 
-- CI automation → **BL-029** (consumes this baseline).
+- Clearance completed: **BL-033 / US-090** — [us-090-pytest-suite-debt-clearance-2026-07-21.md](us-090-pytest-suite-debt-clearance-2026-07-21.md).
+- CI automation → **BL-029** (may now consume a clean baseline).
 - Engineering standards: zero new warnings attributable to your change.

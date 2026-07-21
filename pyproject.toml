@@ -20,6 +20,8 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "httpx>=0.27.0",
+    # Starlette/FastAPI TestClient: clears StarletteDeprecationWarning (prefer httpx2).
+    "httpx2>=2.0.0",
 ]
 
 [tool.setuptools.packages.find]
