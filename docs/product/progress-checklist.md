@@ -678,7 +678,7 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] **US-088** — Schedule-time cadence-aware shift forward
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [x] Work started — implemented (OpenSpec `schedule-linkedin-variants-with-cadence-aware-shift-forward-us-088`); pytest US-088 cases in `tests/test_linkedin_distribution_scheduling.py`; CURRENT-STATE + ops policy pointer. **Not Story accepted** (operator review / deploy pending). Does not close BL-021; US-089 remains out of scope.
+    - [x] Work started — implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-schedule-linkedin-variants-with-cadence-aware-shift-forward-us-088`; git `fa90a7f`; `BUILD_REVISION=fa90a7fd86a7…`; deploy verify OVERALL PASS). **Not Story accepted** (operator review pending). Does not close BL-021; US-089 remains out of scope.
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted

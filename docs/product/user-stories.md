@@ -1623,7 +1623,7 @@ As a content operator, I want distribution scheduling to place variants only on 
 
 **Prerequisites:** US-051; US-052 policy for shift-forward. Prefer after or with US-087 so residual edge conflicts stay visible.
 
-**Status:** **Implemented** (OpenSpec change `schedule-linkedin-variants-with-cadence-aware-shift-forward-us-088`; pytest coverage in `tests/test_linkedin_distribution_scheduling.py`). **Not Story accepted** (operator review / deploy pending). Does not close BL-021; US-089 remains out of scope. Does not call LinkedIn API publish or bypass `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`.
+**Status:** **Implemented and deployed 2026-07-20** on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-schedule-linkedin-variants-with-cadence-aware-shift-forward-us-088`; git `fa90a7f`; `BUILD_REVISION=fa90a7fd86a7…`; deploy verify OVERALL PASS; pytest coverage in `tests/test_linkedin_distribution_scheduling.py`). **Not Story accepted** (operator review pending). Does not close BL-021; US-089 remains out of scope. Does not call LinkedIn API publish or bypass `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`.
 
 **Acceptance criteria**
 
