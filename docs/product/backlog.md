@@ -528,6 +528,10 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** LinkedIn token management is secure, predictable, and recoverable.
 
+**Status:** **Closed 2026-07-21** — US-060 + US-061 Story accepted (docs/contract).
+
+**SoT:** [linkedin-token-management.md](../operations/linkedin-token-management.md).
+
 ### BL-026 — Review Service Permissions and Exposure
 
 **Business need:** Reduce the attack surface of the worker, n8n, ComfyUI, Docker, shared filesystem, and public checkout.

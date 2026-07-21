@@ -1805,20 +1805,24 @@ As a system owner, I want to define ownership and rotation cadence, so that oper
 
 ### US-060 — Formalize LinkedIn Token Management: Story 1
 
+**Status note:** **Story accepted** (operator-accepted 2026-07-21). SoT: [linkedin-token-management.md](../operations/linkedin-token-management.md) (OpenSpec `formalize-linkedin-token-management-us-060-061`). **BL-025 closed 2026-07-21.**
+
 **Description**
 
 As a content operator, I want to store tokens securely, so that linkedin token management is secure, predictable, and recoverable.
 
 **Acceptance criteria**
 
-- [ ] Store tokens securely.
-- [ ] Handle renewal and expiration.
-- [ ] Support revocation.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Store tokens securely.
+- [x] Handle renewal and expiration.
+- [x] Support revocation.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-061 — Formalize LinkedIn Token Management: Story 2
+
+**Status note:** **Story accepted** (operator-accepted 2026-07-21). Same SoT as US-060; detection/recovery documented without requiring a live invalid token. **BL-025 closed 2026-07-21.**
 
 **Description**
 
@@ -1826,12 +1830,12 @@ As a content operator, I want to detect invalid tokens, so that linkedin token m
 
 **Acceptance criteria**
 
-- [ ] Detect invalid tokens.
-- [ ] Separate development and production credentials.
-- [ ] Document recovery.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Detect invalid tokens.
+- [x] Separate development and production credentials.
+- [x] Document recovery.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ## BL-026 — Review Service Permissions and Exposure
 

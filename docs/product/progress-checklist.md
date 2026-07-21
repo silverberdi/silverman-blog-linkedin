@@ -771,25 +771,26 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated — operator-accepted 2026-07-21
   - [x] Backlog item closed — 2026-07-21
 
-- [ ] **BL-025 — Formalize LinkedIn Token Management**
+- [x] **BL-025 — Formalize LinkedIn Token Management**
   - Business outcome: LinkedIn token management is secure, predictable, and recoverable.
-  - [ ] **US-060**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-061**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+  - Status: **Closed 2026-07-21** — US-060 + US-061 Story accepted (docs/contract SoT).
+  - [x] **US-060**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — OpenSpec `formalize-linkedin-token-management-us-060-061`; [linkedin-token-management.md](../operations/linkedin-token-management.md)
+    - [x] Business outcome demonstrated — store / renew / revoke documented; ratifies existing OAuth worker behavior
+    - [x] Acceptance criteria validated
+    - [x] Story accepted — operator-accepted 2026-07-21
+  - [x] **US-061**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — same SoT as US-060
+    - [x] Business outcome demonstrated — detect invalid / dev vs prod / recovery documented; no forced invalid token
+    - [x] Acceptance criteria validated
+    - [x] Story accepted — operator-accepted 2026-07-21
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted 2026-07-21
+  - [x] Backlog item closed — 2026-07-21
 
 - [ ] **BL-026 — Review Service Permissions and Exposure**
   - Business outcome: Services and files are exposed only as required for operation.

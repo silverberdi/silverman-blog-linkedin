@@ -13,6 +13,8 @@ Public site prerequisites for LinkedIn app configuration:
 
 ## LinkedIn Developer App and OAuth
 
+**Operator token-management SoT (BL-025 / US-060 + US-061):** [linkedin-token-management.md](../operations/linkedin-token-management.md) — store, renew, revoke, detect invalid, recover, dev vs prod. This section remains app/setup prerequisites.
+
 1. Create a LinkedIn Developer App at [LinkedIn Developer Portal](https://www.linkedin.com/developers/).
 2. Add products:
    - **Share on LinkedIn** — scope `w_member_social`
