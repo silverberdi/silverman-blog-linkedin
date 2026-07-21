@@ -1235,7 +1235,7 @@ Operator walkthrough gate closed 2026-07-19 (incognito confirmation on deployed 
 
 ### US-083 — Show Honest LinkedIn Publication Status and Available Actions
 
-**Status:** Implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-show-honest-linkedin-publication-status-and-actions-us-083`; git `801f1cb`; live assets `index-C4S9vr3i.js` / `index-BEnefPLS.css`; deploy verify OVERALL PASS). Vitest `us083.honest-status-actions.test.tsx`. **Not Story accepted** (operator walkthrough pending).
+**Status:** Implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-show-honest-linkedin-publication-status-and-actions-us-083`; git `801f1cb`; live assets `index-C4S9vr3i.js` / `index-BEnefPLS.css`; deploy verify OVERALL PASS). Vitest `us083.honest-status-actions.test.tsx`. **Story accepted** (operator-accepted 2026-07-20). **BL-032 closed 2026-07-20** (US-083–US-086 Story accepted).
 
 **Description**
 
@@ -1243,18 +1243,18 @@ As a content operator, I want each LinkedIn variant on the console to show plain
 
 **Acceptance criteria**
 
-- [ ] For LinkedIn variants, the console distinguishes at least: scheduled (not yet authorized to send), waiting to send (authorized but not yet on LinkedIn), live on LinkedIn, failed, and cancelled — in operator language (technical `publish_state` MAY remain secondary).
-- [ ] The console makes clear that waiting-to-send / `queued` is **not** LinkedIn API published.
-- [ ] For each opened LinkedIn item, show which control actions are available now vs unavailable (and why, in plain language when blocked).
-- [ ] Preview/dry-run vs real change is unmistakable before and after an action (operator never believes a schedule or publish happened when only a preview ran).
-- [ ] Blog published-on-site remains visually distinct from LinkedIn live.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed (BL-015 Story accepted remains; this story extends product intent toward control-center, not spectator mode).
+- [x] For LinkedIn variants, the console distinguishes at least: scheduled (not yet authorized to send), waiting to send (authorized but not yet on LinkedIn), live on LinkedIn, failed, and cancelled — in operator language (technical `publish_state` MAY remain secondary).
+- [x] The console makes clear that waiting-to-send / `queued` is **not** LinkedIn API published.
+- [x] For each opened LinkedIn item, show which control actions are available now vs unavailable (and why, in plain language when blocked).
+- [x] Preview/dry-run vs real change is unmistakable before and after an action (operator never believes a schedule or publish happened when only a preview ran).
+- [x] Blog published-on-site remains visually distinct from LinkedIn live.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed (BL-015 Story accepted remains; this story extends product intent toward control-center, not spectator mode).
 
 ### US-084 — Postpone and Reschedule LinkedIn Variants From the Console
 
-**Status:** Implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-postpone-and-reschedule-linkedin-variants-from-console-us-084`; git `8184d2d`; live assets `index-DzxHvZB-.js` / `index-BEnefPLS.css`; deploy verify OVERALL PASS). Vitest `us084.postpone-reschedule.test.tsx`. **Not Story accepted** (operator walkthrough pending).
+**Status:** Implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-postpone-and-reschedule-linkedin-variants-from-console-us-084`; git `8184d2d`; live assets `index-DzxHvZB-.js` / `index-BEnefPLS.css`; deploy verify OVERALL PASS). Vitest `us084.postpone-reschedule.test.tsx`. **Story accepted** (operator-accepted 2026-07-20). **BL-032 closed 2026-07-20** (US-083–US-086 Story accepted).
 
 **Description**
 
@@ -1262,17 +1262,17 @@ As a content operator, I want to postpone or reschedule a LinkedIn variant from 
 
 **Acceptance criteria**
 
-- [ ] From the console, postpone/reschedule a LinkedIn variant that is not yet live on LinkedIn to a new future local time the operator chooses.
-- [ ] After a real reschedule, the console calendar and the variant’s authoritative schedule agree on the new time (no stale “old slot” as the operator truth).
-- [ ] Reschedule is a deliberate control action with clear real vs preview behavior — not an accidental-looking single lever that the operator must misuse to get any control.
-- [ ] Density / cadence / other product rules that refuse a new time are explained in plain language with a usable next step.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] From the console, postpone/reschedule a LinkedIn variant that is not yet live on LinkedIn to a new future local time the operator chooses.
+- [x] After a real reschedule, the console calendar and the variant’s authoritative schedule agree on the new time (no stale “old slot” as the operator truth).
+- [x] Reschedule is a deliberate control action with clear real vs preview behavior — not an accidental-looking single lever that the operator must misuse to get any control.
+- [x] Density / cadence / other product rules that refuse a new time are explained in plain language with a usable next step.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-085 — Cancel LinkedIn Variants That Are Not Yet Live
 
-**Status:** Implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-cancel-linkedin-variants-not-yet-live-from-console-us-085`; live with rebuild git `7b4561b`; assets `index-DjTtqvO6.js` / `index-BEnefPLS.css`; deploy verify OVERALL PASS). Vitest `us085.cancel-not-yet-live.test.tsx`. **Not Story accepted** (operator walkthrough pending).
+**Status:** Implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-cancel-linkedin-variants-not-yet-live-from-console-us-085`; live with rebuild git `7b4561b`; assets `index-DjTtqvO6.js` / `index-BEnefPLS.css`; deploy verify OVERALL PASS). Vitest `us085.cancel-not-yet-live.test.tsx`. **Story accepted** (operator-accepted 2026-07-20). **BL-032 closed 2026-07-20** (US-083–US-086 Story accepted).
 
 **Description**
 
@@ -1280,17 +1280,17 @@ As a content operator, I want to cancel a LinkedIn variant from the console whil
 
 **Acceptance criteria**
 
-- [ ] From the console, cancel a LinkedIn variant that is scheduled but not yet live on LinkedIn.
-- [ ] From the console, cancel a LinkedIn variant that is authorized/waiting to send (`queued`) but not yet live on LinkedIn.
-- [ ] Real cancel requires explicit confirmation; preview/dry-run cannot be mistaken for a completed cancel.
-- [ ] After real cancel, status shows cancelled and publish actions for that variant are no longer offered (reopen remains the approved restore path where product already allows it).
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] From the console, cancel a LinkedIn variant that is scheduled but not yet live on LinkedIn.
+- [x] From the console, cancel a LinkedIn variant that is authorized/waiting to send (`queued`) but not yet live on LinkedIn.
+- [x] Real cancel requires explicit confirmation; preview/dry-run cannot be mistaken for a completed cancel.
+- [x] After real cancel, status shows cancelled and publish actions for that variant are no longer offered (reopen remains the approved restore path where product already allows it).
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-086 — Publish a LinkedIn Variant Immediately From the Console
 
-**Status:** Implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-publish-linkedin-variant-immediately-from-console-us-086`; git `7b4561b`; live assets `index-DjTtqvO6.js` / `index-BEnefPLS.css`; deploy verify OVERALL PASS). Vitest `us086.publish-now.test.tsx`. **Not Story accepted** (operator walkthrough pending). AC checkboxes remain open until walkthrough demonstrates them.
+**Status:** Implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-publish-linkedin-variant-immediately-from-console-us-086`; git `7b4561b`; live assets `index-DjTtqvO6.js` / `index-BEnefPLS.css`; deploy verify OVERALL PASS). Vitest `us086.publish-now.test.tsx`. **Story accepted** (operator-accepted 2026-07-20). **BL-032 closed 2026-07-20** (US-083–US-086 Story accepted). AC checkboxes closed by operator acceptance 2026-07-20.
 
 **Description**
 
@@ -1298,14 +1298,14 @@ As a content operator, I want to publish a chosen LinkedIn variant immediately f
 
 **Acceptance criteria**
 
-- [ ] From the console, for an eligible LinkedIn variant, the operator can run **publish now** (send to LinkedIn API on this action, not merely re-label status).
-- [ ] Real publish now requires explicit confirmation and MUST respect LinkedIn publication enablement (fail closed when disabled) and existing duplicate-publication / once-only safeguards.
-- [ ] On success, the console shows live-on-LinkedIn status with traceable publication identity (e.g. URN) suitable for operator verification.
-- [ ] On block or failure, the console shows a plain-language reason (not enabled, cadence, sequence, content/platform failure, etc.) and does not claim published.
-- [ ] Publish now is available without requiring SSH or deploy-script operation for the routine happy path.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed (does not reopen BL-015 scope as “supervision only”; does not bypass ADR-0001 or secret-safety rules).
+- [x] From the console, for an eligible LinkedIn variant, the operator can run **publish now** (send to LinkedIn API on this action, not merely re-label status).
+- [x] Real publish now requires explicit confirmation and MUST respect LinkedIn publication enablement (fail closed when disabled) and existing duplicate-publication / once-only safeguards.
+- [x] On success, the console shows live-on-LinkedIn status with traceable publication identity (e.g. URN) suitable for operator verification.
+- [x] On block or failure, the console shows a plain-language reason (not enabled, cadence, sequence, content/platform failure, etc.) and does not claim published.
+- [x] Publish now is available without requiring SSH or deploy-script operation for the routine happy path.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed (does not reopen BL-015 scope as “supervision only”; does not bypass ADR-0001 or secret-safety rules).
 
 ## BL-016 — Define Simplified Flow B
 
@@ -1313,7 +1313,7 @@ As a content operator, I want to publish a chosen LinkedIn variant immediately f
 
 **Business context:** Lock the simplified Flow B process: AI topic discovery → AI blog draft → one human blog-approval gate → then Flow A. Career north star: authority for senior leadership / architecture / transformation / AI roles (≥ ~USD 7,000). Operator surface: **Silverman Authority Manager**. Planning notes: [planning-notes-flow-b-simplification.md](planning-notes-flow-b-simplification.md).
 
-**Status note:** P4 stories **US-074–US-082**. IDs renumbered 2026-07-19 to match apply order. Apply order: **US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-081 → US-082**. First OpenSpec change (done): US-074 + US-075 (docs/policy). US-081 promote + spill A **implemented** (not Story accepted). US-082 gap trigger **implemented** (not Story accepted; not deployed unless separately approved).
+**Status note:** P4 stories **US-074–US-082**. IDs renumbered 2026-07-19 to match apply order. Apply order: **US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-081 → US-082**. First OpenSpec change (done): US-074 + US-075 (docs/policy). US-076–US-082 **Story accepted** 2026-07-20; BL-017 / BL-018 / BL-019 closed 2026-07-20.
 
 ### US-074 — Define Simplified Flow B Process and Approval Boundary
 
@@ -1366,7 +1366,7 @@ As a content operator, I want publication eligibility and the calendar gap-trigg
 
 ### US-078 — Discover Current Objective-Aligned Topics With AI
 
-**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=18b6bec…`; OpenSpec archive `2026-07-19-discover-flow-b-topics-with-ai-us-078`). Automated AC coverage via `tests/test_flow_b_topic_discovery.py`; OpenAPI exposes `POST /flow-b/discover-topics`. **Not Story accepted** (operator walkthrough pending). **BL-017 remains open.** US-079–US-082 not implemented.
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=18b6bec…`; OpenSpec archive `2026-07-19-discover-flow-b-topics-with-ai-us-078`). Automated AC coverage via `tests/test_flow_b_topic_discovery.py`; OpenAPI exposes `POST /flow-b/discover-topics`. **Story accepted** (operator-accepted 2026-07-20). **BL-017 closed 2026-07-20.** US-079–US-082 Story accepted 2026-07-20.
 
 **Description**
 
@@ -1382,13 +1382,13 @@ As a content operator, I want AI to propose authority-aligned topics for senior-
 - [x] Support producing up to N distinct topic choices in one batch (N ≤ `max_drafts_per_weekly_run`, default 2).
 - [x] Surface the chosen topic (thesis + why it positions as referent + brief rationale) with each draft package for operator review. *(attachable `topics[]` payload returned now; draft-package filesystem write remains US-079)*
 - [x] Fail closed with a clear operator-visible error when discovery cannot produce an objective-aligned topic.
-- [ ] The outcome is visible and understandable to the intended user. *(operator walkthrough pending)*
+- [x] The outcome is visible and understandable to the intended user. *(operator walkthrough pending)*
 - [x] Failures or blocked states are clearly communicated. *(auth 401 / validation 422 / provider 502 structured `error_code`; operator UX confirmation pending)*
 - [x] Existing completed work is not duplicated or unintentionally changed. *(gap-detect and settings GET/PUT contracts unchanged aside from consuming `max_drafts_per_weekly_run`)*
 
 ### US-079 — Generate Flow B Blog Draft and Image Without Publishing
 
-**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=c69b603…`; OpenSpec archive `2026-07-19-generate-flow-b-blog-draft-and-image-us-079`). Automated AC coverage via `tests/test_flow_b_blog_draft_generation.py`; OpenAPI exposes `POST /flow-b/generate-blog-drafts`. **Not Story accepted** (operator walkthrough pending). **BL-017 remains open.** US-080 approve/reject presentation is implemented separately (not Story accepted); US-081–US-082 not implemented.
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=c69b603…`; OpenSpec archive `2026-07-19-generate-flow-b-blog-draft-and-image-us-079`). Automated AC coverage via `tests/test_flow_b_blog_draft_generation.py`; OpenAPI exposes `POST /flow-b/generate-blog-drafts`. **Story accepted** (operator-accepted 2026-07-20). **BL-017 closed 2026-07-20.** US-080–US-082 Story accepted 2026-07-20.
 
 **Description**
 
@@ -1402,7 +1402,7 @@ As a content operator, I want a complete blog draft (and hero image) generated f
 - [x] MUST NOT write to `blog-posts/ready/` on this path; MUST NOT auto-publish; MUST NOT run Flow A publish/package/schedule; MUST NOT call LinkedIn API publish. *(automated write-guard + import/source guards)*
 - [x] Preserve Silverio voice / anti-AI-writing rules per editorial canon at draft time (warnings or blocking per canon for Flow B drafts). *(automated: blocking heuristics; blocked drafts not successful packages)*
 - [x] A single weekly gap batch MAY create up to **`max_drafts_per_weekly_run` (default 2)** drafts in `pending-approval/` without skipping the blog gate. *(automated: clamp via `load_gap_operator_settings()`)*
-- [ ] The outcome is visible and understandable to the intended user. *(operator walkthrough / Story accepted gate)*
+- [x] The outcome is visible and understandable to the intended user. *(operator walkthrough / Story accepted gate)*
 - [x] Failures or blocked states are clearly communicated. *(automated: structured `error_code` / per-draft `image_status` / `anti_ai_status`)*
 - [x] Existing completed work is not duplicated or unintentionally changed. *(discover-topics / calendar-gaps / settings GET/PUT unchanged aside from consuming `max_drafts_per_weekly_run`)*
 
@@ -1414,7 +1414,7 @@ As a content operator, I want a complete blog draft (and hero image) generated f
 
 ### US-080 — Present Flow B Blog Drafts for Approve or Reject
 
-**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=cb36fa9…`; OpenSpec archive `2026-07-19-present-flow-b-blog-drafts-for-approve-or-reject-us-080`). Automated AC coverage via `tests/test_flow_b_blog_draft_approval.py` + Vitest `us080.pending-drafts.test.tsx`; OpenAPI exposes `GET`/`POST /flow-b/pending-approval-drafts…`. **Not Story accepted** (operator walkthrough pending). **BL-018 remains open.** US-081 promote is implemented separately (not Story accepted); US-082 not implemented.
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=cb36fa9…`; OpenSpec archive `2026-07-19-present-flow-b-blog-drafts-for-approve-or-reject-us-080`). Automated AC coverage via `tests/test_flow_b_blog_draft_approval.py` + Vitest `us080.pending-drafts.test.tsx`; OpenAPI exposes `GET`/`POST /flow-b/pending-approval-drafts…`. **Story accepted** (operator-accepted 2026-07-20). **BL-018 closed 2026-07-20.** US-081–US-082 Story accepted 2026-07-20.
 
 **Description**
 
@@ -1426,13 +1426,13 @@ As a content operator, I want pending AI blog drafts presented in Silverman Auth
 - [x] Support **approve** and **reject** actions. *(automated: `POST …/approve` / `…/reject` + console affordances; approve does not promote to `ready/`)*
 - [x] Do **not** require a revision-history CMS, structured multi-round feedback capture, or mandatory edit-apply loop (operator MAY edit files offline; out of band). *(automated: UI/API omit revision CMS / multi-round feedback / edit-apply)*
 - [x] Communicate rejected/blocked state clearly; rejected drafts MUST remain non-publishable (MUST NOT promote to `ready/`). *(automated: reject sidecar status + no `ready/` writes; UI rejected/blocked copy)*
-- [ ] The outcome is visible and understandable to the intended user. *(operator walkthrough / Story accepted gate)*
+- [x] The outcome is visible and understandable to the intended user. *(operator walkthrough / Story accepted gate)*
 - [x] Failures or blocked states are clearly communicated. *(automated: auth/validation/missing-draft errors + UI failure messaging)*
 - [x] Existing completed work is not duplicated or unintentionally changed. *(generate-blog-drafts / discover-topics / calendar-gaps / settings contracts unchanged aside from consuming pending-approval packages)*
 
 ### US-081 — Promote Approved Flow B Blogs Onto the Flow A Path
 
-**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=34eb531…`; OpenSpec archive `2026-07-19-promote-approved-flow-b-blogs-onto-flow-a-path-us-081`). Automated AC coverage via `tests/test_flow_b_blog_draft_promotion.py`, spill cases in `tests/test_linkedin_distribution_scheduling.py`, publish rejection in `tests/test_blog_publish_flow.py`, Vitest promote cases. OpenAPI exposes `POST /flow-b/pending-approval-drafts/{draft_id}/promote`. **Not Story accepted** (operator walkthrough pending). **BL-018 remains open.** US-082 not implemented.
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=34eb531…`; OpenSpec archive `2026-07-19-promote-approved-flow-b-blogs-onto-flow-a-path-us-081`). Automated AC coverage via `tests/test_flow_b_blog_draft_promotion.py`, spill cases in `tests/test_linkedin_distribution_scheduling.py`, publish rejection in `tests/test_blog_publish_flow.py`, Vitest promote cases. OpenAPI exposes `POST /flow-b/pending-approval-drafts/{draft_id}/promote`. **Story accepted** (operator-accepted 2026-07-20). **BL-018 closed 2026-07-20.** US-082 Story accepted 2026-07-20.
 
 **Description**
 
@@ -1445,7 +1445,7 @@ As a content operator, I want an approved AI blog promoted from `pending-approva
 - [x] After promotion, blog publish / LinkedIn package / schedule / optional supervision MUST reuse Flow A behavior — no second mandatory LinkedIn approval queue for Flow B. *(promote does not invent a second LinkedIn gate; campaign `flow` stays `flow_a`)*
 - [x] When scheduling LinkedIn variants from an approved Flow B blog, apply **spill algorithm A**: (1) target-week gap days chronological (max 2) → (2) other days in target week with remaining capacity → (3) forward day-by-day after the week under US-040K max 2. *(strategy `flow_b_spill_a`; auto-select on provenance)*
 - [x] Unapproved drafts in `pending-approval/` MUST NOT be accepted by Flow A publish paths. *(automated: `blog_publish_pending_approval_not_allowed`)*
-- [ ] The outcome is visible and understandable to the intended user. *(operator walkthrough / Story accepted gate)*
+- [x] The outcome is visible and understandable to the intended user. *(operator walkthrough / Story accepted gate)*
 - [x] Failures or blocked states are clearly communicated. *(automated: not-approved / rejected / incomplete / collision / auth + UI failure messaging)*
 - [x] Existing completed work is not duplicated or unintentionally changed (Flow A guards and density rules remain authoritative after promotion). *(US-080 approve remains decision-only; US-040K max 2; no US-082)*
 
@@ -1457,7 +1457,7 @@ As a content operator, I want an approved AI blog promoted from `pending-approva
 
 ### US-076 — Persist and Edit Flow B Gap Operator Settings
 
-**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=b89c429…`; OpenSpec archive `2026-07-19-persist-flow-b-gap-operator-settings-us-076`). Automated AC coverage via pytest + Vitest; live authenticated GET smoke returned defaults. **Not Story accepted** (operator walkthrough pending). BL-019 remains open.
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=b89c429…`; OpenSpec archive `2026-07-19-persist-flow-b-gap-operator-settings-us-076`). Automated AC coverage via pytest + Vitest; live authenticated GET smoke returned defaults. **Story accepted** (operator-accepted 2026-07-20). **BL-019 closed 2026-07-20.**
 
 **Description**
 
@@ -1470,13 +1470,13 @@ As a content operator, I want Flow B gap and cadence knobs stored in the editori
 - [x] Provide authenticated UI in **Silverman Authority Manager** to view and update these settings with validation (IANA timezone, time-of-day, non-negative integers, enums). *(console Gap settings modal; Vitest)*
 - [x] Worker/sensor paths MUST read DB settings when present; documented defaults apply when a row is missing. *(`load_gap_operator_settings()`)*
 - [x] MUST NOT expose secrets; MUST NOT enable LinkedIn API publish merely by saving settings; `gap_trigger_enabled=false` keeps auto-trigger fail-closed.
-- [ ] The outcome is visible and understandable to the intended user. *(operator walkthrough pending)*
+- [x] The outcome is visible and understandable to the intended user. *(operator walkthrough pending)*
 - [x] Failures or blocked states are clearly communicated. *(422/auth messaging in API + UI; operator UX confirmation pending)*
 - [x] Existing completed work is not duplicated or unintentionally changed (calendar SoT / US-041 contracts remain authoritative for schedule rows).
 
 ### US-077 — Detect Upcoming LinkedIn Calendar Gaps
 
-**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=52fa1c7…`; OpenSpec archive `2026-07-19-detect-flow-b-calendar-gaps-us-077`). Automated AC coverage via `tests/test_flow_b_calendar_gap_detect.py`; deploy verify OVERALL PASS; OpenAPI exposes `GET /flow-b/calendar-gaps`. **Not Story accepted** (operator walkthrough pending). BL-019 remains open. US-078 topic discovery is implemented separately (not Story accepted); US-079–US-082 not implemented.
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=52fa1c7…`; OpenSpec archive `2026-07-19-detect-flow-b-calendar-gaps-us-077`). Automated AC coverage via `tests/test_flow_b_calendar_gap_detect.py`; deploy verify OVERALL PASS; OpenAPI exposes `GET /flow-b/calendar-gaps`. **Story accepted** (operator-accepted 2026-07-20). **BL-019 closed 2026-07-20.** US-078–US-082 Story accepted 2026-07-20.
 
 **Description**
 
@@ -1490,13 +1490,13 @@ As a content operator, I want the system to detect when the next local week has 
 - [x] Read sensor knobs from DB-backed operator settings (US-076) when present (with documented defaults).
 - [x] Document that empty coverage is a proxy for needing upstream content (not a filesystem inventory of `ready/` or `pending-approval/`).
 - [x] Expose an authenticated worker endpoint (and/or dry-run diagnostic) so operators can inspect the next-week gap result without triggering drafts.
-- [ ] The outcome is visible and understandable to the intended user. *(operator walkthrough pending)*
+- [x] The outcome is visible and understandable to the intended user. *(operator walkthrough pending)*
 - [x] Failures or blocked states are clearly communicated. *(auth 401 / invalid `now_utc` 422 / blocked settings status; operator UX confirmation pending)*
 - [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-082 — Trigger Flow B Draft Generation on Calendar Gaps
 
-**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=652b73d…`; OpenSpec archive `2026-07-19-trigger-flow-b-draft-generation-on-calendar-gaps-us-082`). Automated AC coverage via `tests/test_flow_b_calendar_gap_trigger.py`; OpenAPI exposes `POST /flow-b/gap-trigger`. **Not Story accepted** (operator walkthrough pending). `gap_trigger_enabled` remains default **false**. n8n export remains `active: false`. **BL-019 remains open.**
+**Status:** Implemented and deployed 2026-07-19 on `192.168.0.194:8010` (`BUILD_REVISION=652b73d…`; OpenSpec archive `2026-07-19-trigger-flow-b-draft-generation-on-calendar-gaps-us-082`). Automated AC coverage via `tests/test_flow_b_calendar_gap_trigger.py`; OpenAPI exposes `POST /flow-b/gap-trigger`. **Story accepted** (operator-accepted 2026-07-20). `gap_trigger_enabled` remains default **false**. n8n export remains `active: false`. **BL-019 closed 2026-07-20.**
 
 **Description**
 
@@ -1509,7 +1509,7 @@ As a content operator, I want a detected next-week LinkedIn gap batch to start F
 - [x] Orchestration MUST use **n8n Schedule → worker HTTP** (no Execute Command); worker enforces local day/time / enablement from US-076 (no-op outside window); repo export stays `active: false` until operator activation. *(automated: inactive HTTP-only export)*
 - [x] Pass gap context (ISO week, `empty_days[]`) into US-078/US-079; leave drafts for US-080/US-081; do not skip the blog gate. *(automated)*
 - [x] Surplus LinkedIn scheduling after approve is owned by US-081 (spill algorithm A); this story MUST NOT mark LinkedIn API published. *(automated: no publish/promote imports)*
-- [ ] The outcome is visible and understandable to the intended user. *(operator walkthrough pending)*
+- [x] The outcome is visible and understandable to the intended user. *(operator walkthrough pending)*
 - [x] Failures or blocked states are clearly communicated. *(automated statuses + error_code; operator UX confirmation pending)*
 - [x] Existing completed work is not duplicated or unintentionally changed. *(composes US-076–US-079; settings save side-effect test updated)*
 
@@ -1561,36 +1561,38 @@ As a editorial manager, I want to identify dependencies, so that the optional co
 
 ### US-051 — Define Editorial Calendar and Publishing Cadence: Story 1
 
+**Status:** **Story accepted** (operator-accepted 2026-07-20). Policy/docs shipped; BL-021 closed with sibling stories.
 **Description**
 
 As an editorial manager, I want LinkedIn spacing and frequency rules written down and aligned with what the worker already enforces, so that the calendar, scheduler, and console share one cadence meaning.
 
 **Acceptance criteria**
 
-- [ ] Ratify US-020 as the normative LinkedIn **campaign** spacing rule: minimum **72 hours** between successful publications (`published` with evidence) within the **same** campaign; cross-campaign independence unchanged.
-- [ ] Define or reaffirm LinkedIn frequency planning assumption (default ≈ fill toward ~2 publications per operator-local day via US-040K density unless this story explicitly changes the number).
-- [ ] Define or reaffirm blog frequency expectations at strategy level (need not automate blog cadence in this story).
-- [ ] Clarify relationship to US-040K density and BL-019 gap trigger: **ratify as interim coexisting controls** unless this story documents a supersession (density ≠ cadence 72h; gap trigger does not bypass cadence).
-- [ ] Document that “cadence conflict” for console/scheduler stories means: at the variant’s `scheduled_at_utc` (or proposed slot), a real publish-due / auto-queue path would refuse or skip for **cadence** the same way operators saw in live simulation (`linkedin_publish_blocked_cadence` / cadence skip) — not density-full alone, not OAuth, not enablement-off.
-- [ ] The outcome is visible and understandable to the intended user (policy doc or CURRENT-STATE / ops contract pointer operators can open).
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed (US-020 / BL-007 stay closed; no weaken of publish-time cadence guard).
+- [x] Ratify US-020 as the normative LinkedIn **campaign** spacing rule: minimum **72 hours** between successful publications (`published` with evidence) within the **same** campaign; cross-campaign independence unchanged.
+- [x] Define or reaffirm LinkedIn frequency planning assumption (default ≈ fill toward ~2 publications per operator-local day via US-040K density unless this story explicitly changes the number).
+- [x] Define or reaffirm blog frequency expectations at strategy level (need not automate blog cadence in this story).
+- [x] Clarify relationship to US-040K density and BL-019 gap trigger: **ratify as interim coexisting controls** unless this story documents a supersession (density ≠ cadence 72h; gap trigger does not bypass cadence).
+- [x] Document that “cadence conflict” for console/scheduler stories means: at the variant’s `scheduled_at_utc` (or proposed slot), a real publish-due / auto-queue path would refuse or skip for **cadence** the same way operators saw in live simulation (`linkedin_publish_blocked_cadence` / cadence skip) — not density-full alone, not OAuth, not enablement-off.
+- [x] The outcome is visible and understandable to the intended user (policy doc or CURRENT-STATE / ops contract pointer operators can open).
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed (US-020 / BL-007 stay closed; no weaken of publish-time cadence guard).
 
 ### US-052 — Define Editorial Calendar and Publishing Cadence: Story 2
 
+**Status:** **Story accepted** (operator-accepted 2026-07-20). Policy/docs shipped; BL-021 closed with sibling stories.
 **Description**
 
 As an editorial manager, I want publishing windows and rescheduling rules (including shift-forward when cadence blocks a slot), so that cadence stays sustainable without Flow B owning audience-balancing logic.
 
 **Acceptance criteria**
 
-- [ ] Define preferred publishing windows (local-day / clock guidance) for LinkedIn variant placement at strategy level.
-- [ ] Balance audience segments at strategy level (variant packaging remains Flow A).
-- [ ] Define rescheduling rules: when a candidate `scheduled_at_utc` is cadence-infeasible, the system MUST **shift forward** to the next feasible slot (also respecting US-040K max 2/local day and existing distribution strategy constraints); MUST NOT silently keep an infeasible time as if it will send.
-- [ ] State that if a Scheduled item remains cadence-conflicted after placement (edge case), the console MUST still show the US-087 warning.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Define preferred publishing windows (local-day / clock guidance) for LinkedIn variant placement at strategy level.
+- [x] Balance audience segments at strategy level (variant packaging remains Flow A).
+- [x] Define rescheduling rules: when a candidate `scheduled_at_utc` is cadence-infeasible, the system MUST **shift forward** to the next feasible slot (also respecting US-040K max 2/local day and existing distribution strategy constraints); MUST NOT silently keep an infeasible time as if it will send.
+- [x] State that if a Scheduled item remains cadence-conflicted after placement (edge case), the console MUST still show the US-087 warning.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 **Note:** Executable shift-forward in `schedule-linkedin-distribution` / spill paths is **US-088**. US-052 is the policy story; it MAY ship as docs-only if US-088 implements the mechanics in the same change set, but Story accepted for US-052 still requires the written rules.
 
@@ -1602,18 +1604,18 @@ As a content operator, I want Scheduled (and other not-yet-Live) LinkedIn items 
 
 **Prerequisites:** US-051 (cadence conflict definition ratified).
 
-**Status:** **Implemented and deployed 2026-07-20** on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-show-linkedin-console-cadence-conflict-warning-us-087`; git `f97920a`; live assets `index-DW7TiD4B.js` / `index-VJdhmMw8.css`; deploy verify OVERALL PASS). **Not Story accepted** (Visual DoD + operator walkthrough pending). Does not close BL-021; US-088/US-089 remain out of scope.
+**Status:** **Implemented and deployed 2026-07-20** on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-show-linkedin-console-cadence-conflict-warning-us-087`; git `f97920a`; live assets `index-DW7TiD4B.js` / `index-VJdhmMw8.css`; deploy verify OVERALL PASS). **Story accepted** (operator-accepted 2026-07-20; Visual DoD waived by operator). **BL-021 closed 2026-07-20** with sibling cadence stories.
 
 **Acceptance criteria**
 
-- [ ] Silverman Authority Manager Week and Month views show a **red or equivalent warning indicator** on LinkedIn items whose current slot is cadence-infeasible under the US-051/US-020 rule (same meaning as live `linkedin_publish_blocked_cadence` / cadence skip at that `scheduled_at_utc`).
-- [ ] EventModal (or equivalent detail) explains the conflict in plain language, including a usable next step (e.g. earliest feasible time or “postpone / wait for replan”).
-- [ ] Warning MUST NOT imply Live on LinkedIn, MUST NOT imply density-full alone, and MUST remain distinct from Failed / Cancelled / Waiting to send labels.
-- [ ] If schedule-visibility needs additive fields for the indicator, expose them via authenticated worker HTTP (no browser filesystem SoT; ADR-0001).
-- [ ] Items that are cadence-feasible at their slot MUST NOT show the cadence-conflict warning.
-- [ ] The outcome is visible and understandable to the intended user (desktop + mobile readable).
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed (BL-032 control-center labels remain; no second publish pipeline; enablement guard untouched).
+- [x] Silverman Authority Manager Week and Month views show a **red or equivalent warning indicator** on LinkedIn items whose current slot is cadence-infeasible under the US-051/US-020 rule (same meaning as live `linkedin_publish_blocked_cadence` / cadence skip at that `scheduled_at_utc`).
+- [x] EventModal (or equivalent detail) explains the conflict in plain language, including a usable next step (e.g. earliest feasible time or “postpone / wait for replan”).
+- [x] Warning MUST NOT imply Live on LinkedIn, MUST NOT imply density-full alone, and MUST remain distinct from Failed / Cancelled / Waiting to send labels.
+- [x] If schedule-visibility needs additive fields for the indicator, expose them via authenticated worker HTTP (no browser filesystem SoT; ADR-0001).
+- [x] Items that are cadence-feasible at their slot MUST NOT show the cadence-conflict warning.
+- [x] The outcome is visible and understandable to the intended user (desktop + mobile readable).
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed (BL-032 control-center labels remain; no second publish pipeline; enablement guard untouched).
 
 ### US-088 — Schedule LinkedIn Variants With Cadence-Aware Shift Forward
 
@@ -1623,7 +1625,7 @@ As a content operator, I want distribution scheduling to place variants only on 
 
 **Prerequisites:** US-051; US-052 policy for shift-forward. Prefer after or with US-087 so residual edge conflicts stay visible.
 
-**Status:** **Implemented and deployed 2026-07-20** on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-schedule-linkedin-variants-with-cadence-aware-shift-forward-us-088`; git `fa90a7f`; `BUILD_REVISION=fa90a7fd86a7…`; deploy verify OVERALL PASS; pytest coverage in `tests/test_linkedin_distribution_scheduling.py`). **Not Story accepted** (operator review pending). Does not close BL-021; US-089 remains out of scope. Does not call LinkedIn API publish or bypass `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`.
+**Status:** **Implemented and deployed 2026-07-20** on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-schedule-linkedin-variants-with-cadence-aware-shift-forward-us-088`; git `fa90a7f`; `BUILD_REVISION=fa90a7fd86a7…`; deploy verify OVERALL PASS; pytest coverage in `tests/test_linkedin_distribution_scheduling.py`). **Story accepted** (operator-accepted 2026-07-20). **BL-021 closed 2026-07-20** with sibling cadence stories. Does not call LinkedIn API publish or bypass `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`.
 
 **Acceptance criteria**
 
@@ -1644,7 +1646,7 @@ As a content operator, I want existing Scheduled LinkedIn variants that are cade
 
 **Prerequisites:** US-088 shift-forward mechanics (reuse the same placement rules). US-087 SHOULD show conflicts before/during replan and clear them after success.
 
-**Status:** **Implemented and deployed 2026-07-20** on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-replan-already-scheduled-linkedin-cadence-conflicts-us-089`; git `e603b20`; `BUILD_REVISION=e603b200b4d9…`; live assets `index-DPqdVRPa.js` / `index-VJdhmMw8.css`; deploy verify OVERALL PASS; pytest `tests/test_linkedin_cadence_replan.py` + Vitest `us089.replan-cadence-conflicts.test.tsx`). **Not Story accepted** (operator review / live conflict-set walkthrough pending). Does **not** close BL-021. Does **not** mark US-087 / US-088 accepted.
+**Status:** **Implemented and deployed 2026-07-20** on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-replan-already-scheduled-linkedin-cadence-conflicts-us-089`; git `e603b20`; `BUILD_REVISION=e603b200b4d9…`; live assets `index-DPqdVRPa.js` / `index-VJdhmMw8.css`; deploy verify OVERALL PASS; pytest `tests/test_linkedin_cadence_replan.py` + Vitest `us089.replan-cadence-conflicts.test.tsx`). **Story accepted** (operator-accepted 2026-07-20). **BL-021 closed 2026-07-20** (US-051–US-052 / US-087–US-089 Story accepted).
 
 **Acceptance criteria**
 

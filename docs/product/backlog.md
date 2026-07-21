@@ -195,7 +195,7 @@ US-083 → US-084 → US-085 → US-086
 
 **Completion outcome:** From one console, after LinkedIn variants exist and are scheduled, the operator can see true status and actively postpone, reschedule, cancel, or publish immediately — with clear confirmations and blocked-state messaging — without relying on a spectator calendar or remote scripts for those routine actions.
 
-**Status:** Open. Not started.
+**Status:** Closed 2026-07-20 after US-083–US-086 Story accepted (operator-accepted on deployed console `192.168.0.194:8010`).
 
 
 ## P3 — Operations, Reliability, and Recovery
@@ -371,6 +371,8 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** The system can produce objective-aligned, approval-ready Flow B blog drafts (with image) without publishing.
 
+**Status:** Closed 2026-07-20 after US-078–US-079 Story accepted.
+
 ### BL-018 — Approve Flow B Blog Drafts Into Flow A
 
 **Business need:** Let the operator approve or reject AI blog drafts with a simple gate, then hand approved content into Flow A.
@@ -388,6 +390,8 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** AI blog drafts cannot publish until recorded operator approval; approved drafts proceed on the Flow A path.
 
+**Status:** Closed 2026-07-20 after US-080–US-081 Story accepted.
+
 ### BL-019 — Trigger Flow B From Calendar Publication Gaps
 
 **Business need:** Keep LinkedIn cadence filled by detecting **zero-post days in the next operator-local week** and generating upstream blog content via Flow B (typically Friday afternoon for the following week).
@@ -404,6 +408,8 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 **Stories:** US-076, US-077, US-082 (apply order: settings → detect → trigger).
 
 **Completion outcome:** Empty days in the next LinkedIn week reliably trigger up to two Flow B blog drafts for operator approval; weeks without zero-post days do not; surplus LinkedIn slots spill forward.
+
+**Status:** Closed 2026-07-20 after US-076–US-077 / US-082 Story accepted. Note: `gap_trigger_enabled` default remains false; n8n export remains inactive until operator enables.
 
 **Policy detail:** [planning-notes-flow-b-simplification.md](planning-notes-flow-b-simplification.md).
 
@@ -441,6 +447,8 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 - Balance audience segments (strategy-level; not a P4 Flow B scheduler).
 
 **Completion outcome:** Publications follow an approved cadence; the calendar and scheduler do not leave operators with Scheduled times that cannot send because of cadence.
+
+**Status:** Closed 2026-07-20 after US-051–US-052 / US-087–US-089 Story accepted.
 
 ### BL-022 — Define Business and Content Metrics
 

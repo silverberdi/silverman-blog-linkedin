@@ -255,41 +255,42 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated — published posts carry correct scraped inputs; rendering behavior observed and reacted to per policy (v1 text post renders no card — accepted; `content.article` deferred)
   - [x] Backlog item closed — 2026-07-17
 
-- [ ] **BL-032 — Turn the LinkedIn Console Into an Operator Control Center**
+- [x] **BL-032 — Turn the LinkedIn Console Into an Operator Control Center**
   - Business outcome: After create/schedule, the operator controls LinkedIn variants from the console — honest status, postpone/reschedule, cancel (including waiting-to-send), and publish now — without spectator-only UX or routine SSH/scripts.
+  - Status: **Closed 2026-07-20** — US-083–US-086 Story accepted
   - Successor to BL-015 (BL-015 stays closed as pre-send supervision).
   - Apply order: US-083 → US-084 → US-085 → US-086.
-  - [ ] **US-083** — Show honest LinkedIn publication status and available actions
+  - [x] **US-083** — Show honest LinkedIn publication status and available actions
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — deployed 2026-07-20; live assets serve Scheduled / Waiting to send / Live on LinkedIn / action matrix / preview honesty (`index-C4S9vr3i.js` / `index-BEnefPLS.css`); operator walkthrough still required before Story accepted
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-084** — Postpone and reschedule LinkedIn variants from the console
+    - [x] Business outcome demonstrated — deployed 2026-07-20; live assets serve Scheduled / Waiting to send / Live on LinkedIn / action matrix / preview honesty (`index-C4S9vr3i.js` / `index-BEnefPLS.css`); operator-accepted 2026-07-20
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-20
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] **US-084** — Postpone and reschedule LinkedIn variants from the console
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated — deployed 2026-07-20; live assets serve postpone for pending+queued via defer (`index-DzxHvZB-.js` / `index-BEnefPLS.css`); operator walkthrough still required before Story accepted
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-085** — Cancel LinkedIn variants that are not yet live
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-086** — Publish a LinkedIn variant immediately from the console
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+    - [x] Business outcome demonstrated — deployed 2026-07-20; live assets serve postpone for pending+queued via defer (`index-DzxHvZB-.js` / `index-BEnefPLS.css`); operator-accepted 2026-07-20
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-20
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] **US-085** — Cancel LinkedIn variants that are not yet live
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — operator-accepted 2026-07-20 on deployed console/worker
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-20
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] **US-086** — Publish a LinkedIn variant immediately from the console
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — operator-accepted 2026-07-20 on deployed console/worker
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-20
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted 2026-07-20
+  - [x] Backlog item closed — 2026-07-20
 
 ## P3 — Operations, Reliability, and Recovery
 
@@ -562,72 +563,75 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated
   - [x] Backlog item closed — 2026-07-19
 
-- [ ] **BL-017 — Discover Topics and Generate Flow B Blog Drafts**
+- [x] **BL-017 — Discover Topics and Generate Flow B Blog Drafts**
   - Business outcome: The system can produce objective-aligned, approval-ready Flow B blog drafts (with image) without publishing.
-  - [ ] **US-078** — Discover current objective-aligned topics with AI
+  - Status: **Closed 2026-07-20** — US-078–US-079 Story accepted
+  - [x] **US-078** — Discover current objective-aligned topics with AI
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated *(automated: `POST /flow-b/discover-topics` + `tests/test_flow_b_topic_discovery.py`; discovery-only — no draft writes)*
+    - [x] Business outcome demonstrated *(automated: `POST /flow-b/discover-topics` + `tests/test_flow_b_topic_discovery.py`; discovery-only — no draft writes)* — operator-accepted 2026-07-20
     - [x] Acceptance criteria validated *(automated ACs; operator walkthrough pending)*
-    - [ ] Story accepted
-  - [ ] **US-079** — Generate Flow B blog draft and image without publishing
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] **US-079** — Generate Flow B blog draft and image without publishing
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated *(automated: `POST /flow-b/generate-blog-drafts` + `tests/test_flow_b_blog_draft_generation.py`; `pending-approval/` only — no `ready/` / Flow A / LinkedIn publish)*
+    - [x] Business outcome demonstrated *(automated: `POST /flow-b/generate-blog-drafts` + `tests/test_flow_b_blog_draft_generation.py`; `pending-approval/` only — no `ready/` / Flow A / LinkedIn publish)* — operator-accepted 2026-07-20
     - [x] Acceptance criteria validated *(automated ACs; operator walkthrough pending)*
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted 2026-07-20
+  - [x] Backlog item closed — 2026-07-20
 
-- [ ] **BL-018 — Approve Flow B Blog Drafts Into Flow A**
+- [x] **BL-018 — Approve Flow B Blog Drafts Into Flow A**
   - Business outcome: AI blog drafts cannot publish until recorded operator approval; approved drafts proceed on the Flow A path (surplus LinkedIn slots spill forward).
-  - [ ] **US-080** — Present Flow B blog drafts for approve or reject
+  - Status: **Closed 2026-07-20** — US-080–US-081 Story accepted
+  - [x] **US-080** — Present Flow B blog drafts for approve or reject
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated *(automated: `GET`/`POST /flow-b/pending-approval-drafts…` + Authority Manager Flow B drafts panel; approve decision only — no `ready/` promote; reject non-publishable)*
+    - [x] Business outcome demonstrated *(automated: `GET`/`POST /flow-b/pending-approval-drafts…` + Authority Manager Flow B drafts panel; approve decision only — no `ready/` promote; reject non-publishable)* — operator-accepted 2026-07-20
     - [x] Acceptance criteria validated *(automated ACs; operator walkthrough pending)*
-    - [ ] Story accepted
-  - [ ] **US-081** — Promote approved Flow B blogs onto the Flow A path
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] **US-081** — Promote approved Flow B blogs onto the Flow A path
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated *(automated: `POST …/promote` → `ready/`; spill A; pending-approval publish rejected; Authority Manager Promote; not Story accepted)*
+    - [x] Business outcome demonstrated *(automated: `POST …/promote` → `ready/`; spill A; pending-approval publish rejected; Authority Manager Promote; Story accepted 2026-07-20)* — operator-accepted 2026-07-20
     - [x] Acceptance criteria validated *(automated ACs; operator walkthrough pending)*
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted 2026-07-20
+  - [x] Backlog item closed — 2026-07-20
 
-- [ ] **BL-019 — Trigger Flow B From Calendar Publication Gaps**
+- [x] **BL-019 — Trigger Flow B From Calendar Publication Gaps**
   - Business outcome: Zero-post days in the next local week trigger up to 2 Flow B blog drafts (ISO-week idempotent); surplus LinkedIn slots spill to next available days; weeks without gaps are no-op.
-  - [ ] **US-076** — Persist and edit Flow B gap operator settings (Postgres + UI)
+  - Status: **Closed 2026-07-20** — US-076–US-077 / US-082 Story accepted
+  - [x] **US-076** — Persist and edit Flow B gap operator settings (Postgres + UI)
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated *(local automated evidence; operator UI walkthrough pending)*
-    - [ ] Acceptance criteria validated *(operator walkthrough)*
-    - [ ] Story accepted
-  - [ ] **US-077** — Detect upcoming LinkedIn calendar gaps
+    - [x] Business outcome demonstrated *(local automated evidence; operator UI walkthrough pending)* — operator-accepted 2026-07-20
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-20
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] **US-077** — Detect upcoming LinkedIn calendar gaps
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated *(local automated evidence; operator walkthrough pending)*
-    - [ ] Acceptance criteria validated *(operator walkthrough)*
-    - [ ] Story accepted
-  - [ ] **US-082** — Trigger Flow B draft generation on calendar gaps
+    - [x] Business outcome demonstrated *(local automated evidence; operator walkthrough pending)* — operator-accepted 2026-07-20
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-20
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] **US-082** — Trigger Flow B draft generation on calendar gaps
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated *(automated: `POST /flow-b/gap-trigger` → pending-approval ≤ max; no-ops; inactive n8n HTTP export; not Story accepted)*
-    - [ ] Acceptance criteria validated *(operator walkthrough)*
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+    - [x] Business outcome demonstrated *(automated: `POST /flow-b/gap-trigger` → pending-approval ≤ max; no-ops; inactive n8n HTTP export; Story accepted 2026-07-20)* — operator-accepted 2026-07-20
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-20
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted 2026-07-20
+  - [x] Backlog item closed — 2026-07-20
 
 ## P5 — Editorial Strategy and Measurement
 
@@ -651,47 +655,48 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed
 
-- [ ] **BL-021 — Define Editorial Calendar and Publishing Cadence**
+- [x] **BL-021 — Define Editorial Calendar and Publishing Cadence**
   - Business outcome: Publications follow an approved cadence; calendar/scheduler do not leave Scheduled times that US-020 cadence will refuse; console warns on residual conflicts.
+  - Status: **Closed 2026-07-20** — US-051–US-052 / US-087–US-089 Story accepted
   - Apply order: US-051 → US-087 → US-088 → US-089 (US-052 policy may ship with US-088).
-  - [ ] **US-051** — Ratify 72h same-campaign spacing + density/gap relationship
+  - [x] **US-051** — Ratify 72h same-campaign spacing + density/gap relationship
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started — policy artifacts: [linkedin-cadence-spacing-policy.md](../operations/linkedin-cadence-spacing-policy.md); CURRENT-STATE pointer (OpenSpec `ratify-linkedin-cadence-spacing-policy-us-051`)
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-052** — Publishing windows + shift-forward reschedule policy
+    - [x] Business outcome demonstrated — operator-accepted 2026-07-20 on deployed console/worker
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-20
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] **US-052** — Publishing windows + shift-forward reschedule policy
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started — policy artifacts: [linkedin-publishing-windows-and-shift-forward-policy.md](../operations/linkedin-publishing-windows-and-shift-forward-policy.md); CURRENT-STATE pointer (OpenSpec `define-linkedin-publishing-windows-and-shift-forward-policy-us-052`)
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-087** — Console visual cadence-conflict warning (red / warning)
+    - [x] Business outcome demonstrated — operator-accepted 2026-07-20 on deployed console/worker
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-20
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] **US-087** — Console visual cadence-conflict warning (red / warning)
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [x] Work started — implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-show-linkedin-console-cadence-conflict-warning-us-087`; git `f97920a`; assets `index-DW7TiD4B.js` / `index-VJdhmMw8.css`; deploy verify OVERALL PASS). **Not Story accepted** (Visual DoD + operator walkthrough pending).
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-088** — Schedule-time cadence-aware shift forward
+    - [x] Work started — implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-show-linkedin-console-cadence-conflict-warning-us-087`; git `f97920a`; assets `index-DW7TiD4B.js` / `index-VJdhmMw8.css`; deploy verify OVERALL PASS). **Story accepted** (operator-accepted 2026-07-20).
+    - [x] Business outcome demonstrated — operator-accepted 2026-07-20 on deployed console/worker
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-20
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] **US-088** — Schedule-time cadence-aware shift forward
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [x] Work started — implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-schedule-linkedin-variants-with-cadence-aware-shift-forward-us-088`; git `fa90a7f`; `BUILD_REVISION=fa90a7fd86a7…`; deploy verify OVERALL PASS). **Not Story accepted** (operator review pending). Does not close BL-021; US-089 remains out of scope.
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-089** — Replan already-Scheduled cadence conflicts
+    - [x] Work started — implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-schedule-linkedin-variants-with-cadence-aware-shift-forward-us-088`; git `fa90a7f`; `BUILD_REVISION=fa90a7fd86a7…`; deploy verify OVERALL PASS). **Story accepted** (operator-accepted 2026-07-20). **BL-021 closed 2026-07-20**.
+    - [x] Business outcome demonstrated — operator-accepted 2026-07-20 on deployed console/worker
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-20
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] **US-089** — Replan already-Scheduled cadence conflicts
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
-    - [x] Work started — implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-replan-already-scheduled-linkedin-cadence-conflicts-us-089`; git `e603b20`; `BUILD_REVISION=e603b200b4d9…`; deploy verify OVERALL PASS; `POST /replan-linkedin-cadence-conflicts`; pytest + Vitest US-089). **Not Story accepted** (operator review / live conflict-set walkthrough pending). Does not close BL-021; does not mark US-087/US-088 accepted.
-    - [ ] Business outcome demonstrated — fixture criteria demonstrated; live conflict-set / operator walkthrough pending
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+    - [x] Work started — implemented and deployed 2026-07-20 on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-replan-already-scheduled-linkedin-cadence-conflicts-us-089`; git `e603b20`; `BUILD_REVISION=e603b200b4d9…`; deploy verify OVERALL PASS; `POST /replan-linkedin-cadence-conflicts`; pytest + Vitest US-089). **Story accepted** (operator-accepted 2026-07-20). **BL-021 closed 2026-07-20**.
+    - [x] Business outcome demonstrated — operator-accepted 2026-07-20 on deployed console/worker
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-20
+    - [x] Story accepted — operator-accepted 2026-07-20
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted 2026-07-20
+  - [x] Backlog item closed — 2026-07-20
 
 - [ ] **BL-022 — Define Business and Content Metrics**
   - Business outcome: The content program has measurable business and editorial outcomes.
