@@ -1752,17 +1752,19 @@ As a business owner, I want to feed insights into future planning, so that futur
 
 ### US-057 — Rotate and Review Operational Secrets: Story 1
 
+**Status note:** **Closed / waived** (operator decision 2026-07-21). Key rotation **not performed** at this time — deferred by system owner. Secure-storage verification and remaining BL-024 stories (**US-058**, **US-059**) stay open. **BL-024 remains open.**
+
 **Description**
 
 As a system owner, I want to rotate keys that may have been exposed during testing, so that operational secrets are current, protected, and auditable.
 
 **Acceptance criteria**
 
-- [ ] Rotate keys that may have been exposed during testing.
+- [x] Rotate keys that may have been exposed during testing. — **Waived** (operator 2026-07-21): no rotation executed now; deferred.
 - [ ] Verify secure storage.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] The outcome is visible and understandable to the intended user. — Decision recorded in product docs / progress checklist.
+- [x] Failures or blocked states are clearly communicated. — Explicit “not rotated / deferred” status (not a silent skip).
+- [x] Existing completed work is not duplicated or unintentionally changed. — No secret mutation, no enablement changes, no worker/n8n credential edits from this close.
 
 ### US-058 — Rotate and Review Operational Secrets: Story 2
 
