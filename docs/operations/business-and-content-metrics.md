@@ -1,17 +1,18 @@
-# Business and content metrics (US-053 / US-054 / US-055)
+# Business and content metrics (US-053 / US-054 / US-055 / US-056)
 
-**Scope:** Operator-facing definition and collection procedure for **business and content metrics**:
+**Scope:** Operator-facing definition, collection, and planning-feedback procedure for **business and content metrics**:
 - **US-053 (BL-022 Story 1):** blog traffic; LinkedIn reach and engagement; profile visits and audience growth.
 - **US-054 (BL-022 Story 2):** recruiter and executive conversations; job and consulting opportunities; high-performing topics and formats.
 - **US-055 (BL-023 Story 1):** collect those metrics **consistently** per measurement period; **compare themes and variants**; **identify effective formats** (aligned with US-054 §8) — thin operator procedure, not a BI platform.
+- **US-056 (BL-023 Story 2):** **feed insights** from recorded period evidence into future editorial planning; **reduce repetition** of low-performing content (documented criteria); keep **human oversight** over strategic changes — thin operator procedure, not an auto-planning engine.
 
-Includes intended sources, measurement period, tracking procedure, blocked/unavailable vocabulary (with US-054-specific none-recorded vs zero-measured guidance), supporting reuse of existing publication evidence as **eligibility context only**, and the US-055 collection-consistency / comparison procedure (§§14–16).
-**Status:** Definition published (documentation/contract) for US-053 and US-054. US-055 collection procedure **published** (documentation/contract) in this same artifact. Analytics platforms, required auto-fetch workers, metrics dashboards, and **US-056** planning feed remain **not** implemented. **US-053 Story accepted, US-054 Story accepted, US-055 Story accepted, BL-022 close, and BL-023 close require operator review beyond this docs change.** This document does **not** close BL-020 / US-049–US-050.
-**Authority:** Complements [GLOSSARY.md](../GLOSSARY.md), [CURRENT-STATE.md](../CURRENT-STATE.md), [user-stories.md](../product/user-stories.md) US-053 / US-054 / US-055, and publication honesty in Silverman Authority Manager (US-083 **Live on LinkedIn** / **Published on blog**).
-**OpenSpec:** capability `business-and-content-metrics` (`define-business-and-content-metrics-us-053`; `define-business-outcome-metrics-us-054`; `collect-performance-feedback-consistently-us-055`).
+Includes intended sources, measurement period, tracking procedure, blocked/unavailable vocabulary (with US-054-specific none-recorded vs zero-measured guidance), supporting reuse of existing publication evidence as **eligibility context only**, the US-055 collection-consistency / comparison procedure (§§14–16), and the US-056 planning-feedback procedure (§§17–19). US-055 §§14–16 remain the source contract for collection consistency — US-056 reuses them as input only and does **not** redefine them.
+**Status:** Definition published (documentation/contract) for US-053 and US-054. US-055 collection procedure **published** (documentation/contract). US-056 planning-feedback procedure **published** (documentation/contract) in this same artifact. Analytics platforms, required auto-fetch workers, metrics dashboards, statistical recommendation engines, and auto-apply planning mutation remain **not** implemented. **US-053 Story accepted, US-054 Story accepted, US-055 Story accepted, US-056 Story accepted, BL-022 close, and BL-023 close require operator review beyond this docs change.** This document does **not** close BL-020 / US-049–US-050.
+**Authority:** Complements [GLOSSARY.md](../GLOSSARY.md), [CURRENT-STATE.md](../CURRENT-STATE.md), [user-stories.md](../product/user-stories.md) US-053 / US-054 / US-055 / US-056, and publication honesty in Silverman Authority Manager (US-083 **Live on LinkedIn** / **Published on blog**).
+**OpenSpec:** capability `business-and-content-metrics` (`define-business-and-content-metrics-us-053`; `define-business-outcome-metrics-us-054`; `collect-performance-feedback-consistently-us-055`; `feed-performance-insights-into-planning-us-056`).
 **Operator log template:** [business-and-content-metrics-log-TEMPLATE.md](business-and-content-metrics-log-TEMPLATE.md).
 
-This document is the shared written meaning of BL-022 metrics and the BL-023 Story 1 collection procedure for the business owner and content operator. It does **not** change Flow A publish/package/schedule, Flow B discover/draft/gap-trigger/promote, n8n, LinkedIn publish-due cron, OAuth, or `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`. Metrics presence, freshness, or collection completeness (including US-054 / US-055 rows) MUST NOT gate those pipelines.
+This document is the shared written meaning of BL-022 metrics, the BL-023 Story 1 collection procedure, and the BL-023 Story 2 planning-feedback procedure for the business owner and content operator. It does **not** change Flow A publish/package/schedule, Flow B discover/draft/gap-trigger/promote, n8n, LinkedIn publish-due cron, OAuth, or `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`. Metrics presence, freshness, collection completeness, or planning-insight notes (including US-054 / US-055 / US-056 rows) MUST NOT gate those pipelines. It MUST NOT auto-mutate strategy docs, editorial content backlog, or Flow B discovery/draft/gap-trigger without explicit operator action.
 
 ---
 
@@ -20,10 +21,10 @@ This document is the shared written meaning of BL-022 metrics and the BL-023 Sto
 | This document | MUST NOT mean |
 |---------------|---------------|
 | Named metric families, plain-language definitions, intended sources, review cadence | An analytics warehouse, BI dashboard, or required GA/LinkedIn Analytics API worker |
-| Manual-first tracking + US-055 consistent collection / theme-variant comparison / effective-format procedure + durable log template | Required auto-fetch worker, statistical comparison engine, metrics dashboard, or **US-056** planning-automation feed |
+| Manual-first tracking + US-055 consistent collection / theme-variant comparison / effective-format procedure + US-056 planning-feedback procedure + durable log template | Required auto-fetch worker, statistical comparison/recommendation engine, metrics dashboard, or auto-apply planning mutation of backlog / Flow B / strategy |
 | Eligibility context from campaign/calendar/Authority Manager honesty | A second publication pipeline that “produces” impressions or invents conversations |
-| US-053 / US-054 definitions **and** US-055 Story 1 procedure | CRM/ATS as system of record; ranks invented from schedule/pending/package-complete |
-| Definition / procedure published in CURRENT-STATE | Story accepted (US-053, US-054, or US-055) or BL-022 / BL-023 closed |
+| US-053 / US-054 definitions, US-055 Story 1 procedure, **and** US-056 Story 2 planning-feedback procedure | CRM/ATS as system of record; ranks invented from schedule/pending/package-complete; metrics-log notes as automatic backlog mutation |
+| Definition / procedure published in CURRENT-STATE | Story accepted (US-053, US-054, US-055, or US-056) or BL-022 / BL-023 closed |
 
 **Operational metric chips are not business metrics.** Authority Manager at-a-glance counts (upcoming, pending, due soon, deferred, blocked, failed, recently published) are **triage for publication operations**. They answer “what needs attention in the console,” not “did the content program attract traffic, grow the audience, or produce professional outcomes.” See [GLOSSARY.md](../GLOSSARY.md) (**business and content metrics** vs **operational metric chips**).
 
@@ -185,7 +186,7 @@ Same default as conversations and US-053: at least once per calendar month after
 
 **Intent:** Which themes and formats appear worth repeating?
 
-This is **thin, operator-applied criteria** — not a BI platform, statistical comparison engine, or automated theme/variant ranking. **US-055** (§§14–16) reuses these criteria for period collection practice and effective-format labels; it does **not** invent a second contradictory table. **US-056** (feeding insights into planning / reducing low-performing repetition) remains out of scope.
+This is **thin, operator-applied criteria** — not a BI platform, statistical comparison engine, or automated theme/variant ranking. **US-055** (§§14–16) reuses these criteria for period collection practice and effective-format labels; it does **not** invent a second contradictory table. **US-056** (§§17–19) uses the **inverse/complement** of these criteria (plus §16 effective-format labels) for low-performing reduction notes — not a second contradictory ranking table.
 
 ### Criteria (at least one)
 
@@ -207,18 +208,19 @@ When using LinkedIn post metrics as evidence, **blocked by publication honesty**
 
 ## 9. Operator tracking procedure
 
-Manual recording from external UIs and operator-owned records is the first tracking method. **US-055** (§§14–16) defines what “collect consistently,” theme/variant comparison, and effective-format identification mean for each period. Required analytics auto-fetch and **US-056** planning feed remain out of scope.
+Manual recording from external UIs and operator-owned records is the first tracking method. **US-055** (§§14–16) defines what “collect consistently,” theme/variant comparison, and effective-format identification mean for each period. **US-056** (§§17–19) defines how recorded period evidence feeds future planning (human-oversight fail-closed). Required analytics auto-fetch and auto-apply planning mutation remain out of scope.
 
 1. **Pick the period** — default calendar month in **America/Bogota**; optionally add per-post/per-campaign rows after Live on LinkedIn / Published on blog.
 2. **Confirm eligibility context** — use Authority Manager / campaign / calendar to list what was **Published on blog** and **Live on LinkedIn** (or document a manual-post exception). Do not invent zeros for ineligible items. Eligibility is **supporting context only**.
 3. **Read US-053 values** from the intended sources above (hosting/web analytics; LinkedIn post analytics; LinkedIn profile analytics).
 4. **Record US-053** into a durable operator log using [business-and-content-metrics-log-TEMPLATE.md](business-and-content-metrics-log-TEMPLATE.md) (copy a period section into an operator-owned log file or spreadsheet as preferred; keep secrets out of git).
 5. **Record US-054 outcomes** — conversations and opportunities for the same period (count + optional fields); then write topic/format high-performing notes using US-053 signals where available and/or outcome attribution (§8).
-6. **Complete the US-055 pass** — collection completeness checklist; theme/variant comparison notes; effective-format labels (§§14–16). Incomplete families MUST be labeled — NEVER invent filler zeros.
-7. **Label blocked states** with the vocabulary in §11 — never substitute measured **zero** for **not configured**, **unavailable**, **not applicable**, **not applicable — none recorded**, or incomplete collection.
-8. **Review cadence** — at least once per calendar month after the period closes (or sooner after a notable Live on LinkedIn / Published on blog wave or a notable conversation).
+6. **Complete the US-055 pass** — collection completeness checklist; theme/variant comparison notes; effective-format labels (§§14–16). Incomplete families MUST be labeled — NEVER invent filler zeros. Do **not** redefine §§14–16 here.
+7. **Complete the US-056 planning-feedback pass** — planning-insight notes; low-performing labels; planning decisions for the next horizon; human-applied confirmation (§§17–19). Incomplete / blocked insight inputs MUST be labeled — NEVER invent actionable ranks from missing evidence.
+8. **Label blocked states** with the vocabulary in §11 — never substitute measured **zero** for **not configured**, **unavailable**, **not applicable**, **not applicable — none recorded**, or incomplete collection / incomplete insight.
+9. **Review cadence** — at least once per calendar month after the period closes (or sooner after a notable Live on LinkedIn / Published on blog wave or a notable conversation). Planning-feedback for the next horizon uses the same default period alignment.
 
-Empty, missing, or incomplete metrics (including empty outcome / comparison rows) MUST NOT change Flow A or Flow B success paths.
+Empty, missing, or incomplete metrics (including empty outcome / comparison / planning-insight rows) MUST NOT change Flow A or Flow B success paths.
 
 ---
 
@@ -246,22 +248,25 @@ Distinguish these classes — they are **not** interchangeable:
 | **Not applicable** | No eligible published content in the period (US-053); or outcome tracking not meaningful for a chosen signal | No Live on LinkedIn posts that month |
 | **Not applicable — none recorded** | No conversation or opportunity **rows** because none occurred **or** the operator did not operate an outcome log that period — **not** the same as measured zero | Period closed without reviewing inbox / without writing outcome rows |
 | **Zero (measured)** | Source returned an actual numeric zero (US-053), **or** the operator affirmatively reviewed intended sources for the period and found no qualifying conversations/opportunities | Post went live; analytics shows 0 reactions — **or** operator reviewed inbox/email/calendar and found no qualifying conversations |
-| **Blocked by publication honesty** | Scheduled / pending / package-complete / `distribution_scheduled` must not be counted as LinkedIn reach or as high-performing reach evidence | Operator tries to record impressions or invent a “top post” rank for a Scheduled variant |
+| **Blocked by publication honesty** | Scheduled / pending / package-complete / `distribution_scheduled` must not be counted as LinkedIn reach, high-performing reach evidence, or US-056 planning-insight / low-performing ranks from LinkedIn post metrics | Operator tries to record impressions or invent a “top post” / “low-performing” rank for a Scheduled variant |
 
 **Numeric zero MUST NOT mean “we did not track.”** Prefer **not applicable — none recorded** when tracking was not performed; use **zero (measured)** only after affirmative review of intended sources.
 
+**US-056 insight guidance:** Incomplete collection, **unavailable**, **not applicable**, **not applicable — none recorded**, or **not configured** inputs MUST NOT be silently treated as measured low- or high-performing ranks. Planning-insight and low-performing notes under incomplete evidence MUST carry the blocked state.
+
 ---
 
-## 12. Non-goals (this definition + US-055 procedure)
+## 12. Non-goals (this definition + US-055 / US-056 procedure)
 
-- **US-056** — feeding insights into future planning; reducing low-performing repetition; strategic automation loops (BL-023 Story 2).
-- Analytics platform, warehouse, BI dashboard, statistical comparison engine, or required GA / LinkedIn Analytics API auto-fetch worker routes.
+- Analytics platform, warehouse, BI dashboard, statistical comparison / recommendation engine, or required GA / LinkedIn Analytics API auto-fetch worker routes.
+- **Auto-apply planning mutation** — mutating strategy docs, editorial content backlog, or Flow B discovery seeds / gap-trigger / draft/promote queues without **explicit operator action** (US-056 requires human oversight; metrics-log notes ≠ backlog mutation).
 - Mutating `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`, auto-publishing LinkedIn, or treating package/schedule as API-published.
-- Gating Flow A publish/package/schedule or Flow B discover/draft/gap-trigger/promote on metrics presence, freshness, or collection completeness (including US-054 / US-055 rows).
+- Gating Flow A publish/package/schedule or Flow B discover/draft/gap-trigger/promote on metrics presence, freshness, collection completeness, or planning-insight / low-performing / planning-decision notes (including US-054 / US-055 / US-056 rows).
+- Redefining US-055 §§14–16 collection consistency / theme-variant comparison / effective-format identification (reuse as input only).
 - Closing **BL-020 / US-049–US-050** or marking them Story accepted.
-- Closing **BL-022** or **BL-023**, marking US-053 / US-054 / US-055 Story accepted, or deploying by documentation alone.
+- Closing **BL-022** or **BL-023**, marking US-053 / US-054 / US-055 / US-056 Story accepted, or deploying by documentation alone.
 - Inventing a CRM/ATS as the system of record in this definition.
-- Inventing a second high-performing / effective-format criteria table that contradicts §8.
+- Inventing a second high-performing / effective-format / low-performing criteria table that contradicts §8 / §16 / §18.
 
 ---
 
@@ -269,11 +274,12 @@ Distinguish these classes — they are **not** interchangeable:
 
 - ADR-0001 (n8n → worker HTTP only) and ADR-0002 (blog canonical) unchanged.
 - LinkedIn publication enablement guard unchanged.
-- Flow A / Flow B pipelines remain independent of metrics collection and collection completeness.
-- BL-020 editorial backlog remains implemented-but-open (optional enrichment only).
-- US-053 Story accepted, US-054 Story accepted, and BL-022 close remain separate operator gates from US-055 procedure publish.
-- US-055 Story accepted and BL-023 close remain separate operator gates from this documentation change.
-- US-056 planning feed remains not started.
+- Flow A / Flow B pipelines remain independent of metrics collection, collection completeness, and planning-insight notes.
+- Strategy docs, editorial content backlog, and Flow B discovery/draft/gap-trigger are **not** auto-mutated by this documentation change (human-oversight fail-closed).
+- BL-020 editorial backlog remains implemented-but-open (optional enrichment only; human-edited when applying approved planning decisions).
+- US-053 Story accepted, US-054 Story accepted, and BL-022 close remain separate operator gates from US-055 / US-056 procedure publish.
+- US-055 Story accepted, US-056 Story accepted, and BL-023 close remain separate operator gates from this documentation change.
+- US-055 §§14–16 collection procedure remains prerequisite/input and is not redefined by US-056.
 
 ---
 
@@ -384,4 +390,117 @@ Reuse §8 at least-one criteria:
 - **MUST NOT** duplicate Flow A publish/package/schedule or Flow B discover/draft/gap-trigger/promote to “produce” effectiveness.
 - **MUST NOT** invent numeric effectiveness ranks from schedule / pending / package-complete metadata.
 
-**US-056** (feed insights into planning; reduce low-performing repetition) remains out of scope — effective-format labels here are period evidence only.
+Effective-format labels here are **period evidence** for US-056 planning feedback (§§17–19) — they do **not** themselves mutate backlog, strategy, or Flow B.
+
+---
+
+## 17. Feed insights into future planning (US-056)
+
+**Intent:** After a US-055 consistent collection pass for a measurement period (or with incomplete-collection / blocked states explicitly labeled), feed **recorded** period evidence into future editorial planning — thin operator procedure, not a BI dashboard, recommendation engine, or auto-planning worker.
+
+**Reuses as input only:** US-053 / US-054 recorded values (§§3–8); US-055 collection completeness, theme/variant comparison, and effective-format notes (§§14–16); eligibility context (**Published on blog** / **Live on LinkedIn** / documented manual-post exception) as supporting only; blocked-state vocabulary (§11). US-056 does **not** redefine US-055 §§14–16.
+
+### Planning horizon
+
+| Parameter | Normative default |
+|-----------|-------------------|
+| **Next planning horizon** | Next **calendar month** after the measured period (operator-local) |
+| **Operator-facing dates** | **America/Bogota** (same as §2) |
+| **Period label** | Same measured-period label (e.g. `2026-07`) for insight notes; name the target horizon in planning decisions (e.g. `2026-08`) |
+
+### Allowed inputs
+
+| Allowed | Notes |
+|---------|-------|
+| Recorded **US-053** family values (or blocked states) | Blog traffic; LinkedIn reach/engagement; profile/audience growth |
+| Recorded **US-054** conversations, opportunities, high-performing notes | Same period |
+| **US-055** collection completeness, theme/variant comparison, effective-format labels | Prerequisite/input — not redefined |
+| Eligibility context | Supporting only — what was eligible to measure |
+
+### Forbidden as insight ranks
+
+- `distribution_scheduled`, package-complete, `pending`, `queued`
+- Unqualified Flow A completion / `flow_a_complete`
+- Authority Manager **operational metric chips** as “performance”
+- Inventing ranks from missing / incomplete evidence
+
+**Intuition:** MAY appear as a labeled qualitative note (“operator judgment”) — MUST NOT be presented as measured US-053 evidence.
+
+### Where notes go
+
+1. **Durable period log** — write the US-056 block in [business-and-content-metrics-log-TEMPLATE.md](business-and-content-metrics-log-TEMPLATE.md) (or operator-owned copy): planning-insight notes (inputs cited); low-performing labels (§18); planning decisions; human-applied confirmation (§19).
+2. **Operator-owned planning surfaces** (optional copy) — approved decisions MAY be copied into editorial backlog notes, strategy docs, or Flow B seed lists **only via explicit human edit**. Recording a note in the metrics log is **not** a mutation of those surfaces.
+
+### How planning decisions are recorded
+
+| Field | Meaning |
+|-------|---------|
+| **Planning-insight notes** | What the recorded evidence suggests (prioritize / de-emphasize / revisit topics or formats) — cite which US-053 / US-054 / US-055 inputs were used |
+| **Planning decisions** | What **will change** in editorial planning for the next horizon — decision ≠ measured metric |
+| **Blocked / incomplete state** | When US-055 collection is incomplete / unavailable / not applicable, insight notes MUST carry that state — MUST NOT invent actionable ranks |
+
+### When evidence is incomplete
+
+| Situation | Required behavior |
+|-----------|-------------------|
+| US-055 pass **incomplete** / **unavailable** / **not applicable** | Label insight notes with that state; do not invent ranks |
+| Quantitative sources **not configured** | Label blocked state; qualitative caution notes allowed with state labeled |
+| No eligible published content in the period | Planning reduction notes for low-performing content are **not applicable** (§18) |
+
+---
+
+## 18. Reduce repetition of low-performing content (US-056)
+
+**Intent:** Label **low-performing** topics, formats, or variants for the period and record an intent to **reduce repetition** in the next planning horizon — planning decision, not automated backlog deletion.
+
+### Criteria (inverse/complement of §8 / §16)
+
+“Low-performing” for US-056 SHALL be the operator-applied **inverse/complement** of US-054 §8 high-performing / US-055 §16 effective-format criteria among eligible **Published on blog** / **Live on LinkedIn** (or documented manual-post exception) items, using a **documented US-053 signal** (or blocked state). Typical practice:
+
+1. **Relative bottom-tier** by the **same signal** used for high-performing / effective-format labels in that period (document which signal), **and/or**
+2. **Absence of outcome linkage** when peers in the period have attributed conversations/opportunities, **and/or**
+3. **Qualitative caution** when quantitative sources are blocked — state labeled explicitly.
+
+Criteria MUST be thin and operator-applied — MUST NOT require a statistical engine or a second contradictory ranking table that diverges from §8 / §16.
+
+### Reduce-repetition recording
+
+Planning notes SHOULD name themes/formats/variants labeled low-performing that the operator intends to **avoid repeating** in the next horizon (or to revise materially), and record that as a **planning decision** (§17). “Reduce repetition” is **not** an automated backlog delete or Flow B seed purge.
+
+### Forbidden
+
+- **MUST NOT** invent low-performing ranks from `distribution_scheduled`, package-complete, `pending`, `queued`, or unqualified Flow A completion language.
+- **MUST NOT** invent ranks when quantitative sources are **not configured** / **unavailable** / **not applicable** — record the blocked state instead.
+- **MUST NOT** treat Authority Manager operational metric chips as low-performing evidence.
+- When no eligible published content exists in the period, low-performing reduction notes are **not applicable**.
+
+When using LinkedIn post metrics as evidence, **blocked by publication honesty** still applies (same eligibility as §4).
+
+---
+
+## 19. Human oversight over strategic changes (US-056)
+
+**Intent:** Strategic changes arising from performance insights require **explicit operator action**. Fail-closed by default.
+
+### MUST NOT auto-mutate (this capability’s default design)
+
+| Surface | Rule |
+|---------|------|
+| Strategy docs | No automated mutation from metrics / planning-insight notes |
+| Editorial content backlog (BL-020) | No automated create/update/delete/reorder from metrics |
+| Flow B discovery seeds, gap-trigger settings, draft/promote queues | No automated mutation from metrics |
+| Campaign metadata used as planning state | No automated planning mutation from metrics |
+
+Recording planning-insight, low-performing, or planning-decision notes in the **metrics log** MUST NOT itself mutate those surfaces.
+
+### Human-edited apply step
+
+Applying approved planning decisions to backlog / strategy / Flow B is a **human-edited** step. The operator confirms in the log template that those surfaces were **not** auto-mutated (human-applied confirmation).
+
+### Optional future automation
+
+Any future automation that **proposes** planning changes MUST be out of scope for this change’s default design or **fail-closed** (disabled by default; requires explicit operator approval before any mutation).
+
+### Independence reminder
+
+Planning-insight notes, low-performing labels, and planning decisions MUST NOT gate Flow A publish/package/schedule or Flow B discover/draft/gap-trigger/promote. Empty or incomplete planning notes MUST NOT change those pipelines. This documentation change MUST NOT mutate `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`.

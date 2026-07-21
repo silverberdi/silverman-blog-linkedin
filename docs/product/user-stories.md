@@ -1712,7 +1712,7 @@ As a business owner, I want to track recruiter and executive conversations, so t
 
 ### US-055 — Use Performance Feedback to Improve Future Content: Story 1
 
-**Status note:** Collection procedure artifacts published (docs OpenSpec `collect-performance-feedback-consistently-us-055`): [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§14–16; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-055-performance-feedback-collection-doc-walk-2026-07-21.md](../operations/us-055-performance-feedback-collection-doc-walk-2026-07-21.md). **US-055 Story accepted / BL-023 close remain operator gates** — acceptance-criteria checkboxes below stay unchecked until operator review. Does **not** mark US-053 or US-054 Story accepted; does **not** close BL-022; **US-056** remains not started.
+**Status note:** Collection procedure artifacts published (docs OpenSpec `collect-performance-feedback-consistently-us-055`): [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§14–16; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-055-performance-feedback-collection-doc-walk-2026-07-21.md](../operations/us-055-performance-feedback-collection-doc-walk-2026-07-21.md). **US-055 Story accepted / BL-023 close remain operator gates** — acceptance-criteria checkboxes below stay unchecked until operator review. Does **not** mark US-053 or US-054 Story accepted; does **not** close BL-022. **US-056** planning-feedback procedure is published separately (§§17–19) — still not Story accepted.
 
 **Description**
 
@@ -1728,6 +1728,8 @@ As a business owner, I want to collect metrics consistently, so that future edit
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-056 — Use Performance Feedback to Improve Future Content: Story 2
+
+**Status note:** Planning-feedback procedure artifacts published (docs OpenSpec `feed-performance-insights-into-planning-us-056`): [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§17–19; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-056-planning-feedback-doc-walk-2026-07-21.md](../operations/us-056-planning-feedback-doc-walk-2026-07-21.md). **US-056 Story accepted / BL-023 close remain operator gates** — acceptance-criteria checkboxes below stay unchecked until operator review. Does **not** mark US-053 / US-054 / US-055 Story accepted; does **not** close BL-022 or BL-020.
 
 **Description**
 

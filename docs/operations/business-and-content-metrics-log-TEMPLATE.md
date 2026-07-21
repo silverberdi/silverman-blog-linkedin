@@ -1,10 +1,10 @@
-# Business and content metrics — operator log template (US-053 / US-054 / US-055)
+# Business and content metrics — operator log template (US-053 / US-054 / US-055 / US-056)
 
-**Purpose:** Lightweight durable place to record period values for US-053 traffic/reach/audience-growth metrics, US-054 outcome metrics (conversations, opportunities, high-performing topic/format notes), and US-055 collection completeness / theme-variant comparison / effective-format labels — without a worker DB, analytics API, CRM, or metrics dashboard.
-**Normative definitions:** [business-and-content-metrics.md](business-and-content-metrics.md) (US-053/US-054 families §§3–8; US-055 procedure §§14–16; blocked vocabulary §11).
+**Purpose:** Lightweight durable place to record period values for US-053 traffic/reach/audience-growth metrics, US-054 outcome metrics (conversations, opportunities, high-performing topic/format notes), US-055 collection completeness / theme-variant comparison / effective-format labels, and US-056 planning-insight / low-performing / planning-decision notes — without a worker DB, analytics API, CRM, metrics dashboard, or auto-planning engine.
+**Normative definitions:** [business-and-content-metrics.md](business-and-content-metrics.md) (US-053/US-054 families §§3–8; US-055 procedure §§14–16; US-056 planning-feedback §§17–19; blocked vocabulary §11).
 **Usage:** Copy a period block into an operator-owned log (markdown under `docs/operations/` **only if** it contains no secrets, or a private spreadsheet). Do not commit credentials, cookies, personal analytics tokens, or third-party PII (use initials, company-only labels, or private tracker IDs).
 
-**Blocked-state vocabulary:** `not configured` | `unavailable` | `not applicable` | `not applicable — none recorded` | `zero (measured)` | `blocked by publication honesty` — see normative doc §11. Do not use numeric `0` for not configured / not applicable / none recorded / incomplete collection.
+**Blocked-state vocabulary:** `not configured` | `unavailable` | `not applicable` | `not applicable — none recorded` | `zero (measured)` | `blocked by publication honesty` — see normative doc §11. Do not use numeric `0` for not configured / not applicable / none recorded / incomplete collection. Incomplete insight inputs ≠ actionable ranks.
 
 ---
 
@@ -107,7 +107,7 @@ Thin operator notes only. Document the signal used. Do **not** invent ranks from
 
 ### Effective formats (US-055)
 
-Reuse US-054 §8 high-performing criteria — do **not** invent a second criteria table. Document signal or blocked state. Do **not** invent ranks from schedule metadata. US-056 planning feed is out of scope.
+Reuse US-054 §8 high-performing criteria — do **not** invent a second criteria table. Document signal or blocked state. Do **not** invent ranks from schedule metadata. Labels are period evidence for US-056 planning feedback (§§17–19).
 
 | Format (or topic-as-format) | Why effective (§8: US-053 strength / outcome linkage / qualitative) | Signal used or blocked state | Notes |
 |-----------------------------|---------------------------------------------------------------------|------------------------------|-------|
@@ -115,8 +115,51 @@ Reuse US-054 §8 high-performing criteria — do **not** invent a second criteri
 
 **Period effective-format summary state** (optional): `labels recorded` | `not applicable` | `unavailable` | other —
 
+### Planning-insight notes (US-056)
+
+Cite allowed inputs only (recorded US-053 / US-054 / US-055 period evidence). Do **not** invent insight ranks from schedule / pending / package-complete / `flow_a_complete`. When US-055 collection is incomplete / unavailable / not applicable, carry that state — incomplete ≠ actionable rank. Normative: §§17–19.
+
+| Insight (prioritize / de-emphasize / revisit) | Inputs cited (US-053 / US-054 / US-055 fields or blocked state) | Target horizon (e.g. next calendar month) | Notes |
+|-----------------------------------------------|----------------------------------------------------------------|-------------------------------------------|-------|
+| | | | |
+
+**Insight summary state** (pick one): `notes recorded` | `incomplete collection — insights labeled` | `not applicable` | `unavailable` | other —
+
+### Low-performing labels (US-056)
+
+Inverse/complement of §8 high-performing / §16 effective-format criteria. Document signal or blocked state. Do **not** invent ranks from schedule metadata. When no eligible published content: `not applicable`.
+
+| Topic / format / variant | Why low-performing (relative bottom-tier / no outcome linkage / qualitative caution) | Signal used or blocked state | Intent for next horizon (avoid / revise materially) |
+|--------------------------|--------------------------------------------------------------------------------------|------------------------------|-----------------------------------------------------|
+| | | | |
+
+**Low-performing summary state** (pick one): `labels recorded` | `not applicable` | `unavailable` | `not configured` | other —
+
+### Planning decisions for next horizon (US-056)
+
+Decision ≠ measured metric. Record what **will change** in editorial planning. Applying decisions to backlog / strategy / Flow B is a separate **human-edited** step (§19).
+
+| Decision (what changes in planning) | Related insight / low-performing label | Target horizon | Applied by human? (yes / not yet / n/a) | Where applied (backlog note / strategy / Flow B seeds / none yet) |
+|-------------------------------------|----------------------------------------|----------------|-----------------------------------------|-------------------------------------------------------------------|
+| | | | | |
+
+### Human-applied confirmation (US-056)
+
+Confirm fail-closed human oversight. Metrics-log notes MUST NOT themselves mutate strategy, editorial backlog, or Flow B.
+
+| Check | Yes / no / n/a | Notes |
+|-------|----------------|-------|
+| Strategy docs were **not** auto-mutated by this period’s metrics/planning notes | | |
+| Editorial content backlog was **not** auto-mutated | | |
+| Flow B discovery seeds / gap-trigger / draft/promote queues were **not** auto-mutated | | |
+| Any approved decisions copied to planning surfaces were **human-edited** | | |
+
+**Confirmed by:**
+
+**Confirmed at (UTC or local):**
+
 ### Period review notes
 
 - What went well:
 - What to investigate next month:
-- Follow-ups for US-056 (do not invent ad-hoc planning automation here):
+- Planning follow-ups (human-applied only — do not invent auto-planning here):

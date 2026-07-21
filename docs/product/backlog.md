@@ -482,7 +482,9 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** Future editorial decisions are informed by evidence rather than intuition alone.
 
-**US-055 collection procedure (docs):** [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§14–16 — consistent collection; theme/variant comparison; effective formats (reuses US-054 §8). Log template: [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md). **US-056** planning feed remains separate. Story accepted (US-055) / BL-023 close require operator review; does not mark US-053 / US-054 Story accepted or close BL-022.
+**US-055 collection procedure (docs):** [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§14–16 — consistent collection; theme/variant comparison; effective formats (reuses US-054 §8). Log template: [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md). Story accepted (US-055) / BL-023 close require operator review; does not mark US-053 / US-054 Story accepted or close BL-022.
+
+**US-056 planning-feedback procedure (docs):** [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§17–19 — feed insights into future planning; reduce low-performing repetition (inverse/complement of §8 / §16); human oversight fail-closed (no auto-mutation of strategy / backlog / Flow B). Log template US-056 blocks: [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md). Story accepted (US-056) / BL-023 close require operator review; does not mark US-053 / US-054 / US-055 Story accepted or close BL-022.
 
 
 ## P6 — Security and Administration

@@ -724,14 +724,14 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] **US-055**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed
-    - [x] Work started — OpenSpec `collect-performance-feedback-consistently-us-055` docs applied 2026-07-21; [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§14–16; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-055-performance-feedback-collection-doc-walk-2026-07-21.md](../operations/us-055-performance-feedback-collection-doc-walk-2026-07-21.md). **US-055 Story accepted / BL-023 remain open** pending operator review. Does not mark US-053/US-054 Story accepted or close BL-022; US-056 not started.
+    - [x] Work started — OpenSpec `collect-performance-feedback-consistently-us-055` docs applied 2026-07-21; [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§14–16; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-055-performance-feedback-collection-doc-walk-2026-07-21.md](../operations/us-055-performance-feedback-collection-doc-walk-2026-07-21.md). **US-055 Story accepted / BL-023 remain open** pending operator review. Does not mark US-053/US-054 Story accepted or close BL-022.
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
   - [ ] **US-056**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed
-    - [ ] Work started
+    - [x] Work started — OpenSpec `feed-performance-insights-into-planning-us-056` docs applied 2026-07-21; [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§17–19; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-056-planning-feedback-doc-walk-2026-07-21.md](../operations/us-056-planning-feedback-doc-walk-2026-07-21.md). **US-056 Story accepted / BL-023 remain open** pending operator review. Does not mark US-053/US-054/US-055 Story accepted or close BL-022 / BL-020.
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
