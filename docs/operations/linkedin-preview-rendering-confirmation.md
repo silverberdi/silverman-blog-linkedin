@@ -1,7 +1,7 @@
 # LinkedIn article preview rendering confirmation (US-024)
 
 **Scope:** BL-009 / US-024 — normative operator procedure to confirm how LinkedIn actually renders the article preview (title, description, image) for a campaign's public blog URL, diagnose cache vs input issues, perform a safe re-scrape, and record confirmation evidence.
-**Status:** procedure **defined — not operationally validated, story not accepted**; BL-009 remains open. Procedure defined ≠ operationally validated ≠ accepted.
+**Status:** procedure **operationally demonstrated and operator-accepted**; **BL-009 closed** — see [CURRENT-STATE.md](../CURRENT-STATE.md).
 **Authority:** Canonical spec `openspec/specs/linkedin-article-preview-rendering-confirmation/` (after sync). Complements [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md) (US-023 input verification, unchanged) and [user-stories.md](../product/user-stories.md) US-024.
 
 ## Purpose and boundaries
@@ -11,7 +11,7 @@ US-023 (`POST /validate-linkedin-article-preview`) proves the **inputs** LinkedI
 Boundaries:
 
 - **US-023 boundary (input truth):** this procedure consumes a US-023 verification run as the sole source of input-correctness truth. It never re-derives or duplicates any input check. "Inputs correct?" is always answered by the US-023 result, not by manual inspection.
-- **US-025 boundary (fallback):** when the preview is genuinely incorrect and cannot be fixed by this procedure (for example an already-published post with a stale card, or a v1 text post that renders no card), the reaction is defined by the US-025 fallback policy — [linkedin-preview-fallback-policy.md](linkedin-preview-fallback-policy.md) (policy defined — not operationally validated) — and MUST NOT be improvised here. This procedure records the observation only.
+- **US-025 boundary (fallback):** when the preview is genuinely incorrect and cannot be fixed by this procedure (for example an already-published post with a stale card, or a v1 text post that renders no card), the reaction is defined by the US-025 fallback policy — [linkedin-preview-fallback-policy.md](linkedin-preview-fallback-policy.md) (operator-accepted; BL-009 closed) — and MUST NOT be improvised here. This procedure records the observation only.
 - **No automation:** no worker code, no LinkedIn API calls, no UI scraping, no browser automation against LinkedIn. LinkedIn Post Inspector usage is manual, browser-based, operator-driven.
 - **No secrets:** never store LinkedIn session cookies, credentials, variant body text, or image bytes in evidence records or anywhere in the repository.
 

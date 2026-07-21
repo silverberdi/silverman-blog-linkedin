@@ -1,5 +1,7 @@
 # Worker Architecture
 
+> **Historical bootstrap** — Rationale and early topology. **Current status:** [CURRENT-STATE.md](../CURRENT-STATE.md). **Live flags:** [RUNTIME-STATE.md](../RUNTIME-STATE.md). Authority: [CONTEXT-AUTHORITY.md](../CONTEXT-AUTHORITY.md). Do not treat this file as current operational truth.
+
 Canonical status: [CURRENT-STATE.md](../CURRENT-STATE.md). Terminology: [GLOSSARY.md](../GLOSSARY.md). Specs: `openspec/specs/`.
 
 ## System Pattern
@@ -18,6 +20,8 @@ Canonical status: [CURRENT-STATE.md](../CURRENT-STATE.md). Terminology: [GLOSSAR
 The worker does not replace n8n; it executes bounded processing steps n8n requests over HTTP only (ADR-0001).
 
 ## Endpoints (current)
+
+This table is historical/partial; the live HTTP surface is [CURRENT-STATE.md](../CURRENT-STATE.md) and OpenAPI on the deployed worker.
 
 | Method | Path | Purpose |
 |--------|------|---------|

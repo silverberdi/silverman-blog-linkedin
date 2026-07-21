@@ -95,7 +95,7 @@ When placing LinkedIn variants after Flow B approve + Flow A package:
 US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-081 → US-082
 ```
 
-First OpenSpec change **archived** (`2026-07-19-define-simplified-flow-b-us-074-075`): US-074 + US-075 docs/policy. **US-076** settings persistence **implemented and deployed**. **US-077** gap detect **implemented and deployed**. **US-078** topic discovery **implemented** (`discover-flow-b-topics-with-ai-us-078`; authenticated `POST /flow-b/discover-topics`; DeepSeek v1 + pluggable seam; not Story accepted / not deployed until separately approved). Next runtime: **US-079** (draft generation into `pending-approval/`).
+First OpenSpec change **archived** (`2026-07-19-define-simplified-flow-b-us-074-075`): US-074 + US-075 docs/policy. **US-076–US-082** runtime stories are **implemented, deployed, and Story accepted** (including **US-078** topic discovery via `POST /flow-b/discover-topics`) — see [CURRENT-STATE.md](../CURRENT-STATE.md).
 
 ## Topics
 

@@ -1,5 +1,7 @@
 # n8n Integration Context
 
+> **Historical bootstrap** — Rationale and early topology. **Current status:** [CURRENT-STATE.md](../CURRENT-STATE.md). **Live flags:** [RUNTIME-STATE.md](../RUNTIME-STATE.md). Authority: [CONTEXT-AUTHORITY.md](../CONTEXT-AUTHORITY.md). Do not treat this file as current operational truth.
+
 Status: [CURRENT-STATE.md](../CURRENT-STATE.md). Live n8n state: [RUNTIME-STATE.md](../RUNTIME-STATE.md).
 
 ## Why Execute Command Is Not Used
@@ -23,7 +25,7 @@ n8n does **not** own filesystem generation logic, shell-based processing, or LLM
 | **Implemented** | Worker endpoints and workflow JSON exist in repo |
 | **Imported** | Flow A workflow present in n8n (`silvermanFlowAPublish01`) |
 | **Tested** | Manual execution and worker smoke validated |
-| **Active** | **No** — workflow export keeps `active: false`; not unattended automation |
+| **Active** | Repo export inactive (`active: false`); server workflow may be active — see [RUNTIME-STATE.md](../RUNTIME-STATE.md) / [CURRENT-STATE.md](../CURRENT-STATE.md) |
 
 Draft-generation workflow (`silverman-blog-linkedin-draft-generation.json`) is a separate Flow B–adjacent path.
 

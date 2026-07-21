@@ -2036,19 +2036,23 @@ As a content operator, I want to check whitespace and repository consistency, so
 
 ### US-071 — Maintain Current Project and Runtime Context: Story 1
 
+**Status note:** **Story accepted** (operator-accepted 2026-07-21). SoT: [project-runtime-context-maintenance.md](../operations/project-runtime-context-maintenance.md); live RUNTIME-STATE refresh `verified_at_utc=2026-07-21T19:32:13Z`; evidence [us-071-us-073-context-maintenance-audit-2026-07-21.md](../operations/us-071-us-073-context-maintenance-audit-2026-07-21.md). **BL-030 closed 2026-07-21.** **BL-029 remains open.**
+
 **Description**
 
 As a content operator, I want to update current-state documentation when capabilities change, so that project context remains accurate, current, and trustworthy.
 
 **Acceptance criteria**
 
-- [ ] Update current-state documentation when capabilities change.
-- [ ] Update runtime state after deployment or live validation.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Update current-state documentation when capabilities change.
+- [x] Update runtime state after deployment or live validation.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-072 — Maintain Current Project and Runtime Context: Story 2
+
+**Status note:** **Story accepted** (operator-accepted 2026-07-21). Same SoT + depth-C audit evidence as US-071; historical banners on `docs/context/*`; status-header remediations. **BL-030 closed 2026-07-21.**
 
 **Description**
 
@@ -2056,13 +2060,15 @@ As a content operator, I want to detect contradictions, so that project context 
 
 **Acceptance criteria**
 
-- [ ] Detect contradictions.
-- [ ] Prevent historical documents from being treated as current.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Detect contradictions.
+- [x] Prevent historical documents from being treated as current.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-073 — Maintain Current Project and Runtime Context: Story 3
+
+**Status note:** **Story accepted** (operator-accepted 2026-07-21). Cursor rules verified as subordinate pointers to CONTEXT-AUTHORITY / CURRENT-STATE / GLOSSARY / RUNTIME-STATE (no volatile inventory embedded). **BL-030 closed 2026-07-21.**
 
 **Description**
 
@@ -2070,10 +2076,10 @@ As a content operator, I want to keep cursor and repository guidance aligned, so
 
 **Acceptance criteria**
 
-- [ ] Keep Cursor and repository guidance aligned.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Keep Cursor and repository guidance aligned.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ## BL-031 — Persist Editorial Calendar in Database
 

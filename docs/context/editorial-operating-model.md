@@ -1,5 +1,7 @@
 # Editorial Operating Model
 
+> **Historical bootstrap** — Rationale and early topology. **Current status:** [CURRENT-STATE.md](../CURRENT-STATE.md). **Live flags:** [RUNTIME-STATE.md](../RUNTIME-STATE.md). Authority: [CONTEXT-AUTHORITY.md](../CONTEXT-AUTHORITY.md). Do not treat this file as current operational truth.
+
 Terminology: [GLOSSARY.md](../GLOSSARY.md). Flow A vs Flow B: [flow-a-target-flow.md](../workflows/flow-a-target-flow.md), [linkedin-draft-review-flow.md](../workflows/linkedin-draft-review-flow.md).
 
 ## Canonical Content Rule

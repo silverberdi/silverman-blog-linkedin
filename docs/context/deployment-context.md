@@ -1,5 +1,7 @@
 # Deployment Context
 
+> **Historical bootstrap** — Rationale and early topology. **Current status:** [CURRENT-STATE.md](../CURRENT-STATE.md). **Live flags:** [RUNTIME-STATE.md](../RUNTIME-STATE.md). Authority: [CONTEXT-AUTHORITY.md](../CONTEXT-AUTHORITY.md). Do not treat this file as current operational truth.
+
 Canonical status: [CURRENT-STATE.md](../CURRENT-STATE.md). Live flags: [RUNTIME-STATE.md](../RUNTIME-STATE.md). Deploy guide: [ubuntu-server-worker-deployment.md](../deployment/ubuntu-server-worker-deployment.md).
 
 ## Development Model
@@ -18,7 +20,7 @@ Production worker runs as a **Docker container** on the Linux server. The contai
 |------|-------|
 | Server IP | `192.168.0.194` |
 | Worker port | `8010` |
-| Editorial host folder | `/home/silverman/compartido_mac/silverman-blog-linkedin` |
+| Editorial host folder | Durable: `/home/silverman/silverman-blog-linkedin-worker/data/silverman-blog-linkedin` (historical share: `/home/silverman/compartido_mac/silverman-blog-linkedin`) |
 | Container editorial mount | `/data/silverman-blog-linkedin` |
 | Public blog host folder | `/home/silverman/silverberdi.github.io` |
 | Container public mount | `/public-blog` |

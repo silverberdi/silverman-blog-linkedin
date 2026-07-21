@@ -877,6 +877,7 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 - [ ] **BL-029 — Establish Continuous Integration**
   - Business outcome: Invalid changes are detected before they reach the main branch.
+  - Status: **Open / deferred** (larger iteration; left open when BL-030 closed 2026-07-21).
   - [ ] **US-069**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed
@@ -895,32 +896,33 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed
 
-- [ ] **BL-030 — Maintain Current Project and Runtime Context**
+- [x] **BL-030 — Maintain Current Project and Runtime Context**
   - Business outcome: Project context remains accurate, current, and trustworthy.
-  - [ ] **US-071**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-072**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-073**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+  - Status: **Closed 2026-07-21** — US-071 + US-072 + US-073 Story accepted (depth-C audit + live RUNTIME-STATE). **BL-029 remains open.**
+  - [x] **US-071**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — CURRENT-STATE hygiene + RUNTIME-STATE live probe `2026-07-21T19:32:13Z`
+    - [x] Acceptance criteria validated
+    - [x] Story accepted — operator-accepted 2026-07-21
+  - [x] **US-072**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — contradiction audit + historical demotion remediations
+    - [x] Acceptance criteria validated
+    - [x] Story accepted — operator-accepted 2026-07-21
+  - [x] **US-073**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated — Cursor rules pointer check (no volatile inventory)
+    - [x] Acceptance criteria validated
+    - [x] Story accepted — operator-accepted 2026-07-21
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted 2026-07-21
+  - [x] Backlog item closed — 2026-07-21
 
 - [x] **BL-031 — Persist Editorial Calendar in Database**
   - Business outcome: Calendar schedule state survives editorial mount wipe and code sync; operators can plan and supervise from database-backed calendar reads.

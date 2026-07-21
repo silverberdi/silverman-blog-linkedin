@@ -4,9 +4,9 @@
 
 OpenSpec changes must represent **coherent capabilities**, not one change per tiny file. Implementation starts only after a change is proposed, reviewed, validated, and approved.
 
-## Phase 0: Context Bootstrap (current)
+## Phase 0: Context Bootstrap (historical ladder)
 
-**Status:** In progress / complete when context docs and ADRs exist.
+**Status:** Historical — complete when context docs and ADRs exist (see CURRENT-STATE for live roadmap).
 
 Deliverables:
 

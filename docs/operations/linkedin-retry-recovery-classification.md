@@ -1,7 +1,7 @@
 # LinkedIn retry and recovery classification (US-021 / US-022)
 
 **Scope:** BL-008 — normative classification of LinkedIn publication outcomes (US-021: recoverable / non-recoverable / uncertain / blocked) plus the bounded retry, evidence-preservation, and safe manual-intervention policy (US-022: retry limits, append-only attempt/recovery evidence, class-specific confirmations, failed-state correction and cancellation).
-**Status:** US-021 policy defined; US-022 mechanics **implemented and unit-tested — not deployed, not operationally validated**. Implemented ≠ operationally validated.
+**Status:** US-021 policy defined; US-022 mechanics **operationally validated and operator-accepted**; **BL-008 closed** — see [CURRENT-STATE.md](../CURRENT-STATE.md).
 **Authority:** Canonical spec `openspec/specs/linkedin-retry-recovery-classification/` (after sync). Complements [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md) (US-018/US-019/US-020 contracts, unchanged) and [user-stories.md](../product/user-stories.md) US-021/US-022.
 
 ## Purpose and scope

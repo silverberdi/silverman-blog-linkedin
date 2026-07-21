@@ -624,6 +624,8 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** Invalid changes are detected before they reach the main branch.
 
+**Status:** **Open / deferred** — larger iteration (CI + deploy discipline); not addressed in BL-030.
+
 ### BL-030 — Maintain Current Project and Runtime Context
 
 **Business need:** Keep business, technical, and operational documentation aligned with reality.
@@ -637,6 +639,10 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 - Keep Cursor and repository guidance aligned.
 
 **Completion outcome:** Project context remains accurate, current, and trustworthy.
+
+**Status:** **Closed 2026-07-21** — US-071 + US-072 + US-073 Story accepted (docs/contract + depth-C audit + live RUNTIME-STATE refresh). **BL-029 remains open.**
+
+**SoT:** [project-runtime-context-maintenance.md](../operations/project-runtime-context-maintenance.md). Evidence: [us-071-us-073-context-maintenance-audit-2026-07-21.md](../operations/us-071-us-073-context-maintenance-audit-2026-07-21.md).
 
 ### BL-031 — Persist Editorial Calendar in Database
 

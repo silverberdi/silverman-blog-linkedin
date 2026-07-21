@@ -30,12 +30,12 @@ Terminology: [GLOSSARY.md](../GLOSSARY.md). Editorial policy: `content-strategy/
       ▼
   linkedin-posts/approved/
       │
-      │  manual publish (current production path)
+      │  manual publish (historical / adjacent path)
       ▼
   linkedin-posts/published/
 
-  Future boundary: guarded POST /publish-linkedin-due-variants
-  (implemented; not operationally validated — see CURRENT-STATE)
+  Guarded POST /publish-linkedin-due-variants
+  (implemented and operationally validated — see CURRENT-STATE)
 ```
 
 ## Step summary
@@ -59,7 +59,7 @@ Terminology: [GLOSSARY.md](../GLOSSARY.md). Editorial policy: `content-strategy/
 
 ## Manual publication boundary
 
-Phase 1 production expectation: reviewer publishes manually on LinkedIn. Worker LinkedIn API endpoints exist but require `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=true` and are not operationally validated at last baseline.
+Historical Phase 1 expectation was manual LinkedIn publish. Worker LinkedIn API endpoints exist, require `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED=true`, and are **operationally validated** — see [CURRENT-STATE.md](../CURRENT-STATE.md).
 
 Package `public_image_url` is link-preview metadata only — not LinkedIn media upload.
 

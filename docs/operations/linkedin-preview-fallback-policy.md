@@ -1,7 +1,7 @@
 # LinkedIn article preview fallback policy (US-025)
 
 **Scope:** BL-009 / US-025 — normative operator fallback policy for reacting to an incorrect or missing LinkedIn article preview detected for a Flow A campaign: decision procedures (pre-publish fallback and post-publish recovery), action classification (supported / approval-gated / forbidden), outcome vocabulary, evidence records, and blocked states.
-**Status:** policy **defined — not operationally validated, story not accepted**; BL-009 remains open. Policy defined ≠ deployed ≠ operationally validated ≠ accepted.
+**Status:** policy **operationally demonstrated and operator-accepted**; **BL-009 closed** — see [CURRENT-STATE.md](../CURRENT-STATE.md).
 **Authority:** Canonical spec `openspec/specs/linkedin-article-preview-fallback/` (after sync). Consumes [linkedin-preview-rendering-confirmation.md](linkedin-preview-rendering-confirmation.md) (US-024) and the US-023 verification procedure in [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md#article-preview-input-verification-us-023) unchanged.
 
 ## Purpose and boundaries
@@ -165,6 +165,5 @@ Blocked fallback attempts are recorded with the `fallback_blocked` label plus th
 
 ## Status language
 
-- This policy is **defined** — it is not deployed (nothing to deploy: docs + canonical procedure-spec only, no worker code), not operationally validated, and US-025 is **not accepted**.
-- US-025 acceptance requires an operator-demonstrated fallback decision with a completed evidence record on a real campaign — which transitively depends on the pending US-023 deploy + operational validation on `192.168.0.194` and a US-024 confirmation producing a triggering outcome.
-- BL-009 remains open until the US-023, US-024, and US-025 business outcomes are all demonstrated and accepted.
+- This policy was **defined** as docs + canonical procedure-spec (no worker code to deploy).
+- US-025 was **operationally demonstrated and operator-accepted**; **BL-009 closed** — see [CURRENT-STATE.md](../CURRENT-STATE.md).
