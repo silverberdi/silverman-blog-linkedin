@@ -1689,6 +1689,8 @@ As a business owner, I want to define blog traffic metrics, so that the content 
 
 ### US-054 — Define Business and Content Metrics: Story 2
 
+**Status note:** Outcome definition artifacts published (docs OpenSpec `define-business-outcome-metrics-us-054`): extended [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§6–8 / §11; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-054-business-outcome-metrics-doc-walk-2026-07-21.md](../operations/us-054-business-outcome-metrics-doc-walk-2026-07-21.md). **US-053 Story accepted, US-054 Story accepted, and BL-022 close remain operator gates** — acceptance-criteria checkboxes below stay unchecked until operator review.
+
 **Description**
 
 As a business owner, I want to track recruiter and executive conversations, so that the content program has measurable business and editorial outcomes.

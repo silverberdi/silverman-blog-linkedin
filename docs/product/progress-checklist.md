@@ -711,7 +711,7 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] **US-054**
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed
-    - [ ] Work started
+    - [x] Work started — OpenSpec `define-business-outcome-metrics-us-054` docs applied 2026-07-21; extended [business-and-content-metrics.md](../operations/business-and-content-metrics.md); log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-054-business-outcome-metrics-doc-walk-2026-07-21.md](../operations/us-054-business-outcome-metrics-doc-walk-2026-07-21.md). **US-053 Story accepted / US-054 Story accepted / BL-022 remain open** pending operator review.
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted

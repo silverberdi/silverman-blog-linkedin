@@ -465,7 +465,7 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** The content program has measurable business and editorial outcomes.
 
-**US-053 definition (docs):** [business-and-content-metrics.md](../operations/business-and-content-metrics.md) — blog traffic, LinkedIn reach/engagement, profile/audience growth (Story 1). US-054 outcome metrics and BL-023 automation remain separate. Story accepted / BL-022 close require operator review.
+**US-053 / US-054 definition (docs):** [business-and-content-metrics.md](../operations/business-and-content-metrics.md) — Story 1: blog traffic, LinkedIn reach/engagement, profile/audience growth; Story 2: recruiter/executive conversations, job/consulting opportunities, high-performing topics/formats. BL-023 automation remains separate. Story accepted (US-053 and US-054) / BL-022 close require operator review.
 
 ### BL-023 — Use Performance Feedback to Improve Future Content
 

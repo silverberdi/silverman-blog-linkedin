@@ -1,10 +1,10 @@
-# Business and content metrics — operator log template (US-053)
+# Business and content metrics — operator log template (US-053 / US-054)
 
-**Purpose:** Lightweight durable place to record period values for US-053 metrics without a worker DB or analytics API.  
-**Normative definitions:** [business-and-content-metrics.md](business-and-content-metrics.md).  
-**Usage:** Copy a period block into an operator-owned log (markdown under `docs/operations/` **only if** it contains no secrets, or a private spreadsheet). Do not commit credentials, cookies, or personal analytics tokens.
+**Purpose:** Lightweight durable place to record period values for US-053 traffic/reach/audience-growth metrics and US-054 outcome metrics (conversations, opportunities, high-performing topic/format notes) without a worker DB, analytics API, or CRM.
+**Normative definitions:** [business-and-content-metrics.md](business-and-content-metrics.md).
+**Usage:** Copy a period block into an operator-owned log (markdown under `docs/operations/` **only if** it contains no secrets, or a private spreadsheet). Do not commit credentials, cookies, personal analytics tokens, or third-party PII (use initials, company-only labels, or private tracker IDs).
 
-**Blocked-state vocabulary:** `not configured` | `unavailable` | `not applicable` | `zero (measured)` | `blocked by publication honesty` — see normative doc §7. Do not use numeric `0` for not configured / not applicable.
+**Blocked-state vocabulary:** `not configured` | `unavailable` | `not applicable` | `not applicable — none recorded` | `zero (measured)` | `blocked by publication honesty` — see normative doc §11. Do not use numeric `0` for not configured / not applicable / none recorded.
 
 ---
 
@@ -26,7 +26,7 @@
 | Live on LinkedIn | | |
 | Manual-post exception (if any) | Document why / where posted | |
 
-### Blog traffic
+### Blog traffic (US-053)
 
 | Metric | Value or state | Source | Notes |
 |--------|----------------|--------|-------|
@@ -35,13 +35,13 @@
 | Top posts by views | | | |
 | Referral / landing (if available) | | | |
 
-### LinkedIn reach and engagement (Live on LinkedIn or documented manual exception only)
+### LinkedIn reach and engagement (US-053 — Live on LinkedIn or documented manual exception only)
 
 | Post identity (URN / URL / campaign+variant) | Impressions/reach | Reactions | Comments | Shares/reposts | Engagement rate | State / notes |
 |----------------------------------------------|-------------------|-----------|----------|----------------|-----------------|---------------|
 | | | | | | | |
 
-### Profile visits and audience growth
+### Profile visits and audience growth (US-053)
 
 | Metric | Value or state | Source | Notes |
 |--------|----------------|--------|-------|
@@ -50,8 +50,38 @@
 | Follower count (prior period end) | | | |
 | Net follower change | | | Computed: end − prior |
 
+### Recruiter and executive conversations (US-054)
+
+**Period summary state** (pick one): `zero (measured)` | `not applicable — none recorded` | `unavailable` | other — see §11.
+
+| # | Channel (LinkedIn message / email / call / meeting / other) | Optional content/campaign attribution | Brief non-sensitive note |
+|---|------------------------------------------------------------|----------------------------------------|--------------------------|
+| | | | |
+
+**Conversation count (period):**
+
+### Job and consulting opportunities (US-054)
+
+**Period summary state** (pick one): `zero (measured)` | `not applicable — none recorded` | `unavailable` | other — see §11.
+
+| # | Type (job / consulting / other) | Stage (optional) | Optional content/campaign attribution | Brief non-sensitive note |
+|---|---------------------------------|------------------|----------------------------------------|--------------------------|
+| | | | | |
+
+**Opportunity count (period):**
+
+Stage labels (optional): `identified` | `exploring` | `interview` | `offer` | `closed-won` | `closed-lost` | `not tracked`.
+
+### High-performing topics and formats (US-054)
+
+Document the US-053 signal used (if any). Do **not** invent ranks from schedule / pending / package-complete.
+
+| Topic or format | Why high-performing (US-053 signal / outcome linkage / qualitative) | Signal used or blocked state | Notes |
+|-----------------|---------------------------------------------------------------------|------------------------------|-------|
+| | | | |
+
 ### Period review notes
 
 - What went well:
 - What to investigate next month:
-- Follow-ups for US-054 / BL-023 (do not invent ad-hoc automation here):
+- Follow-ups for BL-023 (do not invent ad-hoc automation here):
