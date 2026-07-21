@@ -5,6 +5,7 @@
 **Authority:** Complements [GLOSSARY.md](../GLOSSARY.md), [CURRENT-STATE.md](../CURRENT-STATE.md), [user-stories.md](../product/user-stories.md) US-058, and existing secret-safety norms (no secrets in HTTP responses/docs/commits; env-only keys; ADR-0001 HTTP-only).
 **OpenSpec:** capability `operational-secrets-permissions-review` (change `review-operational-secrets-permissions-us-058`).
 **Evidence template:** [operational-secrets-permissions-review-TEMPLATE.md](operational-secrets-permissions-review-TEMPLATE.md).
+**Ownership + cadence (US-059):** [operational-secrets-ownership-cadence.md](operational-secrets-ownership-cadence.md) — who owns secrets and how often to review/rotate (does not replace this permissions checklist).
 
 This document is the shared written meaning of US-058 for the system owner and operator. It does **not** change Flow A publish/package/schedule, Flow B discover/draft/gap-trigger/promote, n8n orchestration behavior, LinkedIn publish-due, OAuth lifecycle formalization (BL-025), or `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`.
 

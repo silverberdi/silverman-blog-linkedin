@@ -1752,7 +1752,7 @@ As a business owner, I want to feed insights into future planning, so that futur
 
 ### US-057 — Rotate and Review Operational Secrets: Story 1
 
-**Status note:** **Closed / waived** (operator decision 2026-07-21). Key rotation **not performed** at this time — deferred by system owner. Secure-storage verification and remaining BL-024 stories (**US-058**, **US-059**) stay open. **BL-024 remains open.**
+**Status note:** **Closed / waived** (operator decision 2026-07-21). Key rotation **not performed** at this time — deferred by system owner. Secure-storage verified via US-058. **BL-024 closed 2026-07-21** after US-058 + US-059 Story accepted.
 
 **Description**
 
@@ -1768,7 +1768,7 @@ As a system owner, I want to rotate keys that may have been exposed during testi
 
 ### US-058 — Rotate and Review Operational Secrets: Story 2
 
-**Status note:** **Story accepted** (operator-accepted 2026-07-21). Procedure + live permissions/secrets-absence review completed; n8n-imports live-key copies removed; deploy-key/`known_hosts` file layout fixed and GitHub deploy key registered/verified. Evidence: [operational-secrets-permissions-review.md](../operations/operational-secrets-permissions-review.md), [us-058-permissions-review-2026-07-21.md](../operations/us-058-permissions-review-2026-07-21.md). Independent of US-057 rotation (deferred) and US-059 ownership/cadence. **BL-024 remains open** until US-059 Story accepted.
+**Status note:** **Story accepted** (operator-accepted 2026-07-21). Procedure + live permissions/secrets-absence review completed; n8n-imports live-key copies removed; deploy-key/`known_hosts` file layout fixed and GitHub deploy key registered/verified. Evidence: [operational-secrets-permissions-review.md](../operations/operational-secrets-permissions-review.md), [us-058-permissions-review-2026-07-21.md](../operations/us-058-permissions-review-2026-07-21.md). Independent of US-057 rotation (deferred). **BL-024 closed 2026-07-21** after US-059 Story accepted.
 
 **Description**
 
@@ -1784,16 +1784,18 @@ As a system owner, I want to review permissions, so that operational secrets are
 
 ### US-059 — Rotate and Review Operational Secrets: Story 3
 
+**Status note:** **Story accepted** (operator-accepted 2026-07-21). Ownership + cadence procedure published at [operational-secrets-ownership-cadence.md](../operations/operational-secrets-ownership-cadence.md) (OpenSpec `define-operational-secrets-ownership-cadence-us-059`) matching operator-approved intervals (90/180/365 + on-suspicion). **BL-024 closed 2026-07-21.**
+
 **Description**
 
 As a system owner, I want to define ownership and rotation cadence, so that operational secrets are current, protected, and auditable.
 
 **Acceptance criteria**
 
-- [ ] Define ownership and rotation cadence.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Define ownership and rotation cadence.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ## BL-025 — Formalize LinkedIn Token Management
 

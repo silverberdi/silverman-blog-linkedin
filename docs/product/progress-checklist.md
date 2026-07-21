@@ -743,9 +743,9 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 ## P6 — Security and Administration
 
-- [ ] **BL-024 — Rotate and Review Operational Secrets**
+- [x] **BL-024 — Rotate and Review Operational Secrets**
   - Business outcome: Operational secrets are current, protected, and auditable.
-  - Status: **In progress** — US-057 closed/waived 2026-07-21; **US-058 Story accepted** 2026-07-21; US-059 remains open; BL-024 not closed.
+  - Status: **Closed 2026-07-21** — US-057 waived; US-058 + US-059 Story accepted.
   - [x] **US-057**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
@@ -760,16 +760,16 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Business outcome demonstrated — evidence [us-058-permissions-review-2026-07-21.md](../operations/us-058-permissions-review-2026-07-21.md)
     - [x] Acceptance criteria validated
     - [x] Story accepted — operator-accepted 2026-07-21
-  - [ ] **US-059**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+  - [x] **US-059**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — OpenSpec `define-operational-secrets-ownership-cadence-us-059`; [operational-secrets-ownership-cadence.md](../operations/operational-secrets-ownership-cadence.md)
+    - [x] Business outcome demonstrated — ownership + cadence table published (90/180/365 + on-suspicion)
+    - [x] Acceptance criteria validated
+    - [x] Story accepted — operator-accepted 2026-07-21 (approved cadence decisions)
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted 2026-07-21
+  - [x] Backlog item closed — 2026-07-21
 
 - [ ] **BL-025 — Formalize LinkedIn Token Management**
   - Business outcome: LinkedIn token management is secure, predictable, and recoverable.
