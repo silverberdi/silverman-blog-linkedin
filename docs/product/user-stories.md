@@ -1672,6 +1672,8 @@ As a content operator, I want existing Scheduled LinkedIn variants that are cade
 
 ### US-053 — Define Business and Content Metrics: Story 1
 
+**Status note:** Definition artifacts published (docs OpenSpec `define-business-and-content-metrics-us-053`): [business-and-content-metrics.md](../operations/business-and-content-metrics.md); log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-053-business-and-content-metrics-doc-walk-2026-07-21.md](../operations/us-053-business-and-content-metrics-doc-walk-2026-07-21.md). **Story accepted / BL-022 close remain operator gates** — acceptance-criteria checkboxes below stay unchecked until operator review.
+
 **Description**
 
 As a business owner, I want to define blog traffic metrics, so that the content program has measurable business and editorial outcomes.

@@ -17,6 +17,7 @@ This document is the operator source of truth for:
 
 - **BL-007** — `auto_queue_pending` WIP, publish-pending n8n workflow, deploy publish-pending scripts (see [bl-007-auto-queue-pending-handoff.md](../product/bl-007-auto-queue-pending-handoff.md) as future consumer only — **do not merge or run that WIP from this policy**).
 - Worker HTTP routes beyond policy scope, n8n LinkedIn publish workflow changes, and permanent LinkedIn enablement (`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`).
+- **BL-022 / US-053 business and content metrics** (blog traffic, LinkedIn reach/engagement, profile/audience growth) — Authority Manager **operational metric chips** (upcoming / pending / due soon / blocked / failed / recently published) are **triage counts**, not US-053 business outcomes. Normative metrics definition: [business-and-content-metrics.md](business-and-content-metrics.md).
 
 **Implemented elsewhere (US-017):** Correction, rejection/cancel-from-pending, defer, and `operator_supervision` metadata — see [linkedin-variant-supervision-mechanics.md](linkedin-variant-supervision-mechanics.md). `POST /cancel-linkedin-publication` now accepts `pending` (pre-queue) in addition to `queued` (post-queue); post-queue cancel semantics unchanged.
 
