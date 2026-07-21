@@ -1644,7 +1644,7 @@ As a content operator, I want existing Scheduled LinkedIn variants that are cade
 
 **Prerequisites:** US-088 shift-forward mechanics (reuse the same placement rules). US-087 SHOULD show conflicts before/during replan and clear them after success.
 
-**Status:** **Work started / implementation demonstrated on fixtures** (OpenSpec change `replan-already-scheduled-linkedin-cadence-conflicts-us-089`; pytest `tests/test_linkedin_cadence_replan.py` + Vitest `us089.replan-cadence-conflicts.test.tsx`). **Not Story accepted** (operator review / live conflict-set walkthrough pending). Does **not** close BL-021. Does **not** mark US-087 / US-088 accepted.
+**Status:** **Implemented and deployed 2026-07-20** on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-replan-already-scheduled-linkedin-cadence-conflicts-us-089`; git `e603b20`; `BUILD_REVISION=e603b200b4d9…`; live assets `index-DPqdVRPa.js` / `index-VJdhmMw8.css`; deploy verify OVERALL PASS; pytest `tests/test_linkedin_cadence_replan.py` + Vitest `us089.replan-cadence-conflicts.test.tsx`). **Not Story accepted** (operator review / live conflict-set walkthrough pending). Does **not** close BL-021. Does **not** mark US-087 / US-088 accepted.
 
 **Acceptance criteria**
 
