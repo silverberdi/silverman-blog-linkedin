@@ -1602,7 +1602,7 @@ As a content operator, I want Scheduled (and other not-yet-Live) LinkedIn items 
 
 **Prerequisites:** US-051 (cadence conflict definition ratified).
 
-**Status:** **Implemented** (OpenSpec `show-linkedin-console-cadence-conflict-warning-us-087`) — schedule-visibility additive cadence fields + Week/Month red indicator + EventModal explanation/next step; pytest + Vitest evidence. **Not Story accepted** (deploy + Visual DoD + operator walkthrough pending). Does not close BL-021; US-088/US-089 remain out of scope.
+**Status:** **Implemented and deployed 2026-07-20** on `192.168.0.194:8010` (OpenSpec archive `2026-07-20-show-linkedin-console-cadence-conflict-warning-us-087`; git `f97920a`; live assets `index-DW7TiD4B.js` / `index-VJdhmMw8.css`; deploy verify OVERALL PASS). **Not Story accepted** (Visual DoD + operator walkthrough pending). Does not close BL-021; US-088/US-089 remain out of scope.
 
 **Acceptance criteria**
 
