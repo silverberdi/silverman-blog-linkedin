@@ -635,26 +635,26 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 ## P5 — Editorial Strategy and Measurement
 
-- [ ] **BL-020 — Create the Editorial Content Backlog**
+- [x] **BL-020 — Create the Editorial Content Backlog**
   - Business outcome: Optional hand-curated topic queue exists; Flow B remains runnable without it.
-  - Status: **In progress** — US-049 + US-050 implemented locally (not deployed / not Story accepted); BL-020 remains open.
-  - [ ] **US-049**
+  - Status: **Closed 2026-07-21** — US-049 + US-050 Story accepted (operator-accepted). Live on `192.168.0.194:8010` (`BUILD_REVISION=be27655…`; OpenAPI `/editorial/content-backlog` + reorder).
+  - [x] **US-049**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started — OpenSpec `create-editorial-content-backlog-us-049`; store + `/editorial/content-backlog` HTTP + Authority Manager Content backlog modal
-    - [x] Business outcome demonstrated — local automated + console (operator Story acceptance pending)
-    - [x] Acceptance criteria validated — local pytest/Vitest (operator Story acceptance pending)
-    - [ ] Story accepted
-  - [ ] **US-050**
+    - [x] Business outcome demonstrated — operator-accepted 2026-07-21 on deployed worker/console
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-21
+    - [x] Story accepted — operator-accepted 2026-07-21
+  - [x] **US-050**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started — OpenSpec `add-editorial-content-backlog-dependencies-us-050`; deps + `queue_rank` + reorder + Content backlog UI
-    - [x] Business outcome demonstrated — local automated + console (operator Story acceptance pending)
-    - [x] Acceptance criteria validated — local pytest/Vitest (operator Story acceptance pending)
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+    - [x] Business outcome demonstrated — operator-accepted 2026-07-21 on deployed worker/console
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-21
+    - [x] Story accepted — operator-accepted 2026-07-21
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted 2026-07-21
+  - [x] Backlog item closed — 2026-07-21
 
 - [x] **BL-021 — Define Editorial Calendar and Publishing Cadence**
   - Business outcome: Publications follow an approved cadence; calendar/scheduler do not leave Scheduled times that US-020 cadence will refuse; console warns on residual conflicts.
@@ -699,45 +699,47 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated — operator-accepted 2026-07-20
   - [x] Backlog item closed — 2026-07-20
 
-- [ ] **BL-022 — Define Business and Content Metrics**
+- [x] **BL-022 — Define Business and Content Metrics**
   - Business outcome: The content program has measurable business and editorial outcomes.
-  - [ ] **US-053**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [x] Work started — OpenSpec `define-business-and-content-metrics-us-053` docs applied 2026-07-21; [business-and-content-metrics.md](../operations/business-and-content-metrics.md); log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-053-business-and-content-metrics-doc-walk-2026-07-21.md](../operations/us-053-business-and-content-metrics-doc-walk-2026-07-21.md). **Story accepted / BL-022 remain open** pending operator review.
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-054**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [x] Work started — OpenSpec `define-business-outcome-metrics-us-054` docs applied 2026-07-21; extended [business-and-content-metrics.md](../operations/business-and-content-metrics.md); log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-054-business-outcome-metrics-doc-walk-2026-07-21.md](../operations/us-054-business-outcome-metrics-doc-walk-2026-07-21.md). **US-053 Story accepted / US-054 Story accepted / BL-022 remain open** pending operator review.
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+  - Status: **Closed 2026-07-21** — US-053 + US-054 Story accepted (operator-accepted; docs/contract).
+  - [x] **US-053**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — OpenSpec `define-business-and-content-metrics-us-053` docs applied 2026-07-21; [business-and-content-metrics.md](../operations/business-and-content-metrics.md); log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-053-business-and-content-metrics-doc-walk-2026-07-21.md](../operations/us-053-business-and-content-metrics-doc-walk-2026-07-21.md).
+    - [x] Business outcome demonstrated — operator-accepted 2026-07-21 (definition/docs)
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-21
+    - [x] Story accepted — operator-accepted 2026-07-21
+  - [x] **US-054**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — OpenSpec `define-business-outcome-metrics-us-054` docs applied 2026-07-21; extended [business-and-content-metrics.md](../operations/business-and-content-metrics.md); log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-054-business-outcome-metrics-doc-walk-2026-07-21.md](../operations/us-054-business-outcome-metrics-doc-walk-2026-07-21.md).
+    - [x] Business outcome demonstrated — operator-accepted 2026-07-21 (definition/docs)
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-21
+    - [x] Story accepted — operator-accepted 2026-07-21
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted 2026-07-21
+  - [x] Backlog item closed — 2026-07-21
 
-- [ ] **BL-023 — Use Performance Feedback to Improve Future Content**
+- [x] **BL-023 — Use Performance Feedback to Improve Future Content**
   - Business outcome: Future editorial decisions are informed by evidence rather than intuition alone.
-  - [ ] **US-055**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [x] Work started — OpenSpec `collect-performance-feedback-consistently-us-055` docs applied 2026-07-21; [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§14–16; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-055-performance-feedback-collection-doc-walk-2026-07-21.md](../operations/us-055-performance-feedback-collection-doc-walk-2026-07-21.md). **US-055 Story accepted / BL-023 remain open** pending operator review. Does not mark US-053/US-054 Story accepted or close BL-022.
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-056**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [x] Work started — OpenSpec `feed-performance-insights-into-planning-us-056` docs applied 2026-07-21; [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§17–19; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-056-planning-feedback-doc-walk-2026-07-21.md](../operations/us-056-planning-feedback-doc-walk-2026-07-21.md). **US-056 Story accepted / BL-023 remain open** pending operator review. Does not mark US-053/US-054/US-055 Story accepted or close BL-022 / BL-020.
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+  - Status: **Closed 2026-07-21** — US-055 + US-056 Story accepted (operator-accepted; docs/contract).
+  - [x] **US-055**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — OpenSpec `collect-performance-feedback-consistently-us-055` docs applied 2026-07-21; [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§14–16; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-055-performance-feedback-collection-doc-walk-2026-07-21.md](../operations/us-055-performance-feedback-collection-doc-walk-2026-07-21.md).
+    - [x] Business outcome demonstrated — operator-accepted 2026-07-21 (procedure/docs)
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-21
+    - [x] Story accepted — operator-accepted 2026-07-21
+  - [x] **US-056**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — OpenSpec `feed-performance-insights-into-planning-us-056` docs applied 2026-07-21; [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§17–19; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-056-planning-feedback-doc-walk-2026-07-21.md](../operations/us-056-planning-feedback-doc-walk-2026-07-21.md).
+    - [x] Business outcome demonstrated — operator-accepted 2026-07-21 (procedure/docs)
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-21
+    - [x] Story accepted — operator-accepted 2026-07-21
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted 2026-07-21
+  - [x] Backlog item closed — 2026-07-21
 
 ## P6 — Security and Administration
 

@@ -7,7 +7,7 @@
 - **US-056 (BL-023 Story 2):** **feed insights** from recorded period evidence into future editorial planning; **reduce repetition** of low-performing content (documented criteria); keep **human oversight** over strategic changes — thin operator procedure, not an auto-planning engine.
 
 Includes intended sources, measurement period, tracking procedure, blocked/unavailable vocabulary (with US-054-specific none-recorded vs zero-measured guidance), supporting reuse of existing publication evidence as **eligibility context only**, the US-055 collection-consistency / comparison procedure (§§14–16), and the US-056 planning-feedback procedure (§§17–19). US-055 §§14–16 remain the source contract for collection consistency — US-056 reuses them as input only and does **not** redefine them.
-**Status:** Definition published (documentation/contract) for US-053 and US-054. US-055 collection procedure **published** (documentation/contract). US-056 planning-feedback procedure **published** (documentation/contract) in this same artifact. Analytics platforms, required auto-fetch workers, metrics dashboards, statistical recommendation engines, and auto-apply planning mutation remain **not** implemented. **US-053 Story accepted, US-054 Story accepted, US-055 Story accepted, US-056 Story accepted, BL-022 close, and BL-023 close require operator review beyond this docs change.** This document does **not** close BL-020 / US-049–US-050.
+**Status:** Definition published (documentation/contract) for US-053 and US-054. US-055 collection procedure **published** (documentation/contract). US-056 planning-feedback procedure **published** (documentation/contract) in this same artifact. **US-053, US-054, US-055, and US-056 Story accepted** (operator-accepted 2026-07-21). **BL-022 and BL-023 closed 2026-07-21.** Analytics platforms, required auto-fetch workers, metrics dashboards, statistical recommendation engines, and auto-apply planning mutation remain **not** implemented.
 **Authority:** Complements [GLOSSARY.md](../GLOSSARY.md), [CURRENT-STATE.md](../CURRENT-STATE.md), [user-stories.md](../product/user-stories.md) US-053 / US-054 / US-055 / US-056, and publication honesty in Silverman Authority Manager (US-083 **Live on LinkedIn** / **Published on blog**).
 **OpenSpec:** capability `business-and-content-metrics` (`define-business-and-content-metrics-us-053`; `define-business-outcome-metrics-us-054`; `collect-performance-feedback-consistently-us-055`; `feed-performance-insights-into-planning-us-056`).
 **Operator log template:** [business-and-content-metrics-log-TEMPLATE.md](business-and-content-metrics-log-TEMPLATE.md).
@@ -24,7 +24,7 @@ This document is the shared written meaning of BL-022 metrics, the BL-023 Story 
 | Manual-first tracking + US-055 consistent collection / theme-variant comparison / effective-format procedure + US-056 planning-feedback procedure + durable log template | Required auto-fetch worker, statistical comparison/recommendation engine, metrics dashboard, or auto-apply planning mutation of backlog / Flow B / strategy |
 | Eligibility context from campaign/calendar/Authority Manager honesty | A second publication pipeline that “produces” impressions or invents conversations |
 | US-053 / US-054 definitions, US-055 Story 1 procedure, **and** US-056 Story 2 planning-feedback procedure | CRM/ATS as system of record; ranks invented from schedule/pending/package-complete; metrics-log notes as automatic backlog mutation |
-| Definition / procedure published in CURRENT-STATE | Story accepted (US-053, US-054, US-055, or US-056) or BL-022 / BL-023 closed |
+| Definition / procedure published in CURRENT-STATE | Analytics platform or auto-planning engine (still out of scope) |
 
 **Operational metric chips are not business metrics.** Authority Manager at-a-glance counts (upcoming, pending, due soon, deferred, blocked, failed, recently published) are **triage for publication operations**. They answer “what needs attention in the console,” not “did the content program attract traffic, grow the audience, or produce professional outcomes.” See [GLOSSARY.md](../GLOSSARY.md) (**business and content metrics** vs **operational metric chips**).
 
@@ -263,8 +263,7 @@ Distinguish these classes — they are **not** interchangeable:
 - Mutating `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`, auto-publishing LinkedIn, or treating package/schedule as API-published.
 - Gating Flow A publish/package/schedule or Flow B discover/draft/gap-trigger/promote on metrics presence, freshness, collection completeness, or planning-insight / low-performing / planning-decision notes (including US-054 / US-055 / US-056 rows).
 - Redefining US-055 §§14–16 collection consistency / theme-variant comparison / effective-format identification (reuse as input only).
-- Closing **BL-020 / US-049–US-050** or marking them Story accepted.
-- Closing **BL-022** or **BL-023**, marking US-053 / US-054 / US-055 / US-056 Story accepted, or deploying by documentation alone.
+- Closing **BL-020 / US-049–US-050** or marking them Story accepted solely by this metrics documentation (BL-020 closed separately 2026-07-21 after US-049/US-050 operator acceptance).
 - Inventing a CRM/ATS as the system of record in this definition.
 - Inventing a second high-performing / effective-format / low-performing criteria table that contradicts §8 / §16 / §18.
 
@@ -276,9 +275,9 @@ Distinguish these classes — they are **not** interchangeable:
 - LinkedIn publication enablement guard unchanged.
 - Flow A / Flow B pipelines remain independent of metrics collection, collection completeness, and planning-insight notes.
 - Strategy docs, editorial content backlog, and Flow B discovery/draft/gap-trigger are **not** auto-mutated by this documentation change (human-oversight fail-closed).
-- BL-020 editorial backlog remains implemented-but-open (optional enrichment only; human-edited when applying approved planning decisions).
-- US-053 Story accepted, US-054 Story accepted, and BL-022 close remain separate operator gates from US-055 / US-056 procedure publish.
-- US-055 Story accepted, US-056 Story accepted, and BL-023 close remain separate operator gates from this documentation change.
+- BL-020 editorial backlog is Story accepted / closed (optional enrichment; human-edited when applying approved planning decisions).
+- US-053 / US-054 Story accepted and BL-022 closed (operator-accepted 2026-07-21).
+- US-055 / US-056 Story accepted and BL-023 closed (operator-accepted 2026-07-21).
 - US-055 §§14–16 collection procedure remains prerequisite/input and is not redefined by US-056.
 
 ---

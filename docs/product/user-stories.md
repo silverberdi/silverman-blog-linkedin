@@ -1521,7 +1521,7 @@ As a content operator, I want a detected next-week LinkedIn gap batch to start F
 
 ### US-049 — Create the Editorial Content Backlog: Story 1
 
-**Status:** Implemented locally (OpenSpec `create-editorial-content-backlog-us-049`); automated AC coverage via `tests/test_editorial_content_backlog.py` + Vitest `us049.content-backlog.test.tsx`. Authority Manager **Content backlog** modal rebuilt into worker static assets. **Not deployed. Not Story accepted. BL-020 remains open.** US-050 implemented locally in a separate change (also not Story accepted).
+**Status:** **Story accepted** (operator-accepted 2026-07-21). Implemented and deployed on `192.168.0.194:8010` (`BUILD_REVISION=be27655…`; OpenAPI `/editorial/content-backlog`). OpenSpec `create-editorial-content-backlog-us-049`. **BL-020 closed 2026-07-21.**
 
 **Description**
 
@@ -1529,16 +1529,16 @@ As a editorial manager, I want to capture topic, audience, objective, format, pr
 
 **Acceptance criteria**
 
-- [x] Capture topic, audience, objective, format, priority, status, and target date. *(automated: store + HTTP create/list/update)*
-- [x] Link blog topics to potential LinkedIn derivatives. *(automated: `linkedin_derivatives` planning notes; no package/publish)*
-- [x] MUST NOT be required before Flow B AI discovery (BL-017) or gap trigger (BL-019) can run. *(automated: import independence + empty-backlog discovery/gap-trigger regression)*
-- [x] The outcome is visible and understandable to the intended user. *(console Content backlog modal + authenticated JSON; operator walkthrough / Story accepted gate pending)*
-- [x] Failures or blocked states are clearly communicated. *(automated 401/422/503 + console plain-language errors; operator UX confirmation pending)*
-- [x] Existing completed work is not duplicated or unintentionally changed. *(no Flow A route changes; no gap-trigger default changes; no discovery seed wiring)*
+- [x] Capture topic, audience, objective, format, priority, status, and target date. *(automated: store + HTTP create/list/update; operator-accepted 2026-07-21)*
+- [x] Link blog topics to potential LinkedIn derivatives. *(automated: `linkedin_derivatives` planning notes; no package/publish; operator-accepted 2026-07-21)*
+- [x] MUST NOT be required before Flow B AI discovery (BL-017) or gap trigger (BL-019) can run. *(automated: import independence + empty-backlog discovery/gap-trigger regression; operator-accepted 2026-07-21)*
+- [x] The outcome is visible and understandable to the intended user. *(console Content backlog modal + authenticated JSON; operator-accepted 2026-07-21)*
+- [x] Failures or blocked states are clearly communicated. *(automated 401/422/503 + console plain-language errors; operator-accepted 2026-07-21)*
+- [x] Existing completed work is not duplicated or unintentionally changed. *(no Flow A route changes; no gap-trigger default changes; no discovery seed wiring; operator-accepted 2026-07-21)*
 
 ### US-050 — Create the Editorial Content Backlog: Story 2
 
-**Status:** Implemented locally (OpenSpec `add-editorial-content-backlog-dependencies-us-050`); automated AC coverage via `tests/test_editorial_content_backlog.py` + Vitest `us050.content-backlog.test.tsx`. Authority Manager Content backlog modal extended for dependencies + prioritize/reprioritize; static assets rebuilt. **Not deployed. Not Story accepted. BL-020 remains open.** Discovery seed/override not implemented.
+**Status:** **Story accepted** (operator-accepted 2026-07-21). Implemented and deployed on `192.168.0.194:8010` (`BUILD_REVISION=be27655…`; OpenAPI `/editorial/content-backlog/reorder`). OpenSpec `add-editorial-content-backlog-dependencies-us-050`. **BL-020 closed 2026-07-21.** Discovery seed/override remains out of scope.
 
 **Description**
 
@@ -1546,12 +1546,12 @@ As a editorial manager, I want to identify dependencies, so that the optional co
 
 **Acceptance criteria**
 
-- [x] Identify dependencies. *(automated: `depends_on_item_ids` persist + cycle/dangling/self rejection; console dependency multi-select)*
-- [x] Support prioritization and reprioritization. *(automated: `priority` + `queue_rank` + `PUT …/reorder`; console Earlier/Later + priority select)*
-- [x] MAY later seed or override AI discovery; MUST NOT block P4 Flow B. *(automated: Flow B modules do not import backlog; empty/unused deps/ranks non-blocking; no discovery seed routes)*
-- [x] The outcome is visible and understandable to the intended user. *(console dependency labels + queue rank + move controls; operator walkthrough / Story accepted gate pending)*
-- [x] Failures or blocked states are clearly communicated. *(automated 4xx cycle/dangling + console plain-language errors; operator UX confirmation pending)*
-- [x] Existing completed work is not duplicated or unintentionally changed. *(extends US-049; no Flow A route changes; no gap-trigger default changes; no discovery seed wiring)*
+- [x] Identify dependencies. *(automated: `depends_on_item_ids` persist + cycle/dangling/self rejection; console dependency multi-select; operator-accepted 2026-07-21)*
+- [x] Support prioritization and reprioritization. *(automated: `priority` + `queue_rank` + `PUT …/reorder`; console Earlier/Later + priority select; operator-accepted 2026-07-21)*
+- [x] MAY later seed or override AI discovery; MUST NOT block P4 Flow B. *(automated: Flow B modules do not import backlog; empty/unused deps/ranks non-blocking; no discovery seed routes; operator-accepted 2026-07-21)*
+- [x] The outcome is visible and understandable to the intended user. *(console dependency labels + queue rank + move controls; operator-accepted 2026-07-21)*
+- [x] Failures or blocked states are clearly communicated. *(automated 4xx cycle/dangling + console plain-language errors; operator-accepted 2026-07-21)*
+- [x] Existing completed work is not duplicated or unintentionally changed. *(extends US-049; no Flow A route changes; no gap-trigger default changes; no discovery seed wiring; operator-accepted 2026-07-21)*
 
 ## BL-021 — Define Editorial Calendar and Publishing Cadence
 
@@ -1672,7 +1672,7 @@ As a content operator, I want existing Scheduled LinkedIn variants that are cade
 
 ### US-053 — Define Business and Content Metrics: Story 1
 
-**Status note:** Definition artifacts published (docs OpenSpec `define-business-and-content-metrics-us-053`): [business-and-content-metrics.md](../operations/business-and-content-metrics.md); log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-053-business-and-content-metrics-doc-walk-2026-07-21.md](../operations/us-053-business-and-content-metrics-doc-walk-2026-07-21.md). **Story accepted / BL-022 close remain operator gates** — acceptance-criteria checkboxes below stay unchecked until operator review.
+**Status note:** **Story accepted** (operator-accepted 2026-07-21). Definition artifacts: [business-and-content-metrics.md](../operations/business-and-content-metrics.md); log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-053-business-and-content-metrics-doc-walk-2026-07-21.md](../operations/us-053-business-and-content-metrics-doc-walk-2026-07-21.md). **BL-022 closed 2026-07-21.**
 
 **Description**
 
@@ -1680,16 +1680,16 @@ As a business owner, I want to define blog traffic metrics, so that the content 
 
 **Acceptance criteria**
 
-- [ ] Define blog traffic metrics.
-- [ ] Define LinkedIn reach and engagement metrics.
-- [ ] Track profile visits and audience growth.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Define blog traffic metrics.
+- [x] Define LinkedIn reach and engagement metrics.
+- [x] Track profile visits and audience growth.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-054 — Define Business and Content Metrics: Story 2
 
-**Status note:** Outcome definition artifacts published (docs OpenSpec `define-business-outcome-metrics-us-054`): extended [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§6–8 / §11; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-054-business-outcome-metrics-doc-walk-2026-07-21.md](../operations/us-054-business-outcome-metrics-doc-walk-2026-07-21.md). **US-053 Story accepted, US-054 Story accepted, and BL-022 close remain operator gates** — acceptance-criteria checkboxes below stay unchecked until operator review.
+**Status note:** **Story accepted** (operator-accepted 2026-07-21). Outcome definition artifacts: extended [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§6–8 / §11; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-054-business-outcome-metrics-doc-walk-2026-07-21.md](../operations/us-054-business-outcome-metrics-doc-walk-2026-07-21.md). **BL-022 closed 2026-07-21.**
 
 **Description**
 
@@ -1697,12 +1697,12 @@ As a business owner, I want to track recruiter and executive conversations, so t
 
 **Acceptance criteria**
 
-- [ ] Track recruiter and executive conversations.
-- [ ] Track job and consulting opportunities.
-- [ ] Identify high-performing topics and formats.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Track recruiter and executive conversations.
+- [x] Track job and consulting opportunities.
+- [x] Identify high-performing topics and formats.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ## BL-023 — Use Performance Feedback to Improve Future Content
 
@@ -1712,7 +1712,7 @@ As a business owner, I want to track recruiter and executive conversations, so t
 
 ### US-055 — Use Performance Feedback to Improve Future Content: Story 1
 
-**Status note:** Collection procedure artifacts published (docs OpenSpec `collect-performance-feedback-consistently-us-055`): [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§14–16; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-055-performance-feedback-collection-doc-walk-2026-07-21.md](../operations/us-055-performance-feedback-collection-doc-walk-2026-07-21.md). **US-055 Story accepted / BL-023 close remain operator gates** — acceptance-criteria checkboxes below stay unchecked until operator review. Does **not** mark US-053 or US-054 Story accepted; does **not** close BL-022. **US-056** planning-feedback procedure is published separately (§§17–19) — still not Story accepted.
+**Status note:** **Story accepted** (operator-accepted 2026-07-21). Collection procedure: [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§14–16; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-055-performance-feedback-collection-doc-walk-2026-07-21.md](../operations/us-055-performance-feedback-collection-doc-walk-2026-07-21.md). **BL-023 closed 2026-07-21.**
 
 **Description**
 
@@ -1720,16 +1720,16 @@ As a business owner, I want to collect metrics consistently, so that future edit
 
 **Acceptance criteria**
 
-- [ ] Collect metrics consistently.
-- [ ] Compare themes and variants.
-- [ ] Identify effective formats.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Collect metrics consistently.
+- [x] Compare themes and variants.
+- [x] Identify effective formats.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ### US-056 — Use Performance Feedback to Improve Future Content: Story 2
 
-**Status note:** Planning-feedback procedure artifacts published (docs OpenSpec `feed-performance-insights-into-planning-us-056`): [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§17–19; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-056-planning-feedback-doc-walk-2026-07-21.md](../operations/us-056-planning-feedback-doc-walk-2026-07-21.md). **US-056 Story accepted / BL-023 close remain operator gates** — acceptance-criteria checkboxes below stay unchecked until operator review. Does **not** mark US-053 / US-054 / US-055 Story accepted; does **not** close BL-022 or BL-020.
+**Status note:** **Story accepted** (operator-accepted 2026-07-21). Planning-feedback procedure: [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§17–19; log template [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md); AC walk [us-056-planning-feedback-doc-walk-2026-07-21.md](../operations/us-056-planning-feedback-doc-walk-2026-07-21.md). **BL-023 closed 2026-07-21.**
 
 **Description**
 
@@ -1737,12 +1737,12 @@ As a business owner, I want to feed insights into future planning, so that futur
 
 **Acceptance criteria**
 
-- [ ] Feed insights into future planning.
-- [ ] Reduce repetition of low-performing content.
-- [ ] Keep human oversight over strategic changes.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Feed insights into future planning.
+- [x] Reduce repetition of low-performing content.
+- [x] Keep human oversight over strategic changes.
+- [x] The outcome is visible and understandable to the intended user.
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed.
 
 ## BL-024 — Rotate and Review Operational Secrets
 

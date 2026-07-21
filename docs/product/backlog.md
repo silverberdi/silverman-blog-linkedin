@@ -430,7 +430,7 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** Operators who want a hand-curated topic queue have one; Flow B remains runnable without it.
 
-### BL-021 — Define Editorial Calendar and Publishing Cadence
+**Status:** Closed 2026-07-21 after US-049–US-050 Story accepted (deployed worker OpenAPI `/editorial/content-backlog`).
 
 **Business need:** Establish a sustainable publishing rhythm for the blog and LinkedIn so the calendar does not promise send times that US-020 cadence will refuse. Interim console/worker density (max 2 publications per local day, US-040K) and the Flow B gap sensor (BL-019) MAY remain until this item supersedes or ratifies them.
 
@@ -465,7 +465,9 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** The content program has measurable business and editorial outcomes.
 
-**US-053 / US-054 definition (docs):** [business-and-content-metrics.md](../operations/business-and-content-metrics.md) — Story 1: blog traffic, LinkedIn reach/engagement, profile/audience growth; Story 2: recruiter/executive conversations, job/consulting opportunities, high-performing topics/formats. Story accepted (US-053 and US-054) / BL-022 close require operator review.
+**US-053 / US-054 definition (docs):** [business-and-content-metrics.md](../operations/business-and-content-metrics.md) — Story 1: blog traffic, LinkedIn reach/engagement, profile/audience growth; Story 2: recruiter/executive conversations, job/consulting opportunities, high-performing topics/formats.
+
+**Status:** Closed 2026-07-21 after US-053–US-054 Story accepted (docs/contract).
 
 ### BL-023 — Use Performance Feedback to Improve Future Content
 
@@ -482,9 +484,11 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** Future editorial decisions are informed by evidence rather than intuition alone.
 
-**US-055 collection procedure (docs):** [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§14–16 — consistent collection; theme/variant comparison; effective formats (reuses US-054 §8). Log template: [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md). Story accepted (US-055) / BL-023 close require operator review; does not mark US-053 / US-054 Story accepted or close BL-022.
+**US-055 collection procedure (docs):** [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§14–16 — consistent collection; theme/variant comparison; effective formats (reuses US-054 §8). Log template: [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md).
 
-**US-056 planning-feedback procedure (docs):** [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§17–19 — feed insights into future planning; reduce low-performing repetition (inverse/complement of §8 / §16); human oversight fail-closed (no auto-mutation of strategy / backlog / Flow B). Log template US-056 blocks: [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md). Story accepted (US-056) / BL-023 close require operator review; does not mark US-053 / US-054 / US-055 Story accepted or close BL-022.
+**US-056 planning-feedback procedure (docs):** [business-and-content-metrics.md](../operations/business-and-content-metrics.md) §§17–19 — feed insights into future planning; reduce low-performing repetition (inverse/complement of §8 / §16); human oversight fail-closed (no auto-mutation of strategy / backlog / Flow B). Log template US-056 blocks: [business-and-content-metrics-log-TEMPLATE.md](../operations/business-and-content-metrics-log-TEMPLATE.md).
+
+**Status:** Closed 2026-07-21 after US-055–US-056 Story accepted (docs/contract).
 
 
 ## P6 — Security and Administration
