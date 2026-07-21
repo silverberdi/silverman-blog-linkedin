@@ -161,7 +161,7 @@ Metadata and HTTP responses never include tokens, variant body text, or raw API 
 
 ## Publish-time sequence and cadence guard (US-020)
 
-**Shared cadence meaning (BL-021 / US-051):** Operator-facing ratification of this 72h same-campaign spacing rule, frequency assumptions, density/gap coexistence, and the “cadence conflict” definition for later console/scheduler stories lives in [linkedin-cadence-spacing-policy.md](../operations/linkedin-cadence-spacing-policy.md). That policy does **not** rewrite or weaken this guard; this section remains the publish-time enforcement contract.
+**Shared cadence meaning (BL-021 / US-051):** Operator-facing ratification of this 72h same-campaign spacing rule, frequency assumptions, density/gap coexistence, and the “cadence conflict” definition for later console/scheduler stories lives in [linkedin-cadence-spacing-policy.md](../operations/linkedin-cadence-spacing-policy.md). That policy does **not** rewrite or weaken this guard; this section remains the publish-time enforcement contract. Preferred publishing windows and shift-forward placement rules (BL-021 / US-052) live in [linkedin-publishing-windows-and-shift-forward-policy.md](../operations/linkedin-publishing-windows-and-shift-forward-policy.md) — placement guidance only; they do **not** change this 72h publish-time math.
 
 Every publish-due evaluation of a `queued` variant — plain publish-due, the combined `auto_queue_pending` flow, targeted requests, and the cross-campaign scan — enforces a per-campaign guard with two rules:
 

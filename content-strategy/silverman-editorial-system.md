@@ -280,6 +280,8 @@ A **derivative package** is one or more LinkedIn posts linked to a single source
 | Preferred days | Tuesday, Wednesday, Thursday | America/Bogota operator timezone |
 | Preferred windows | 08:00–10:00 or 16:00–18:00 | Adjust in scheduling child if API limits require |
 
+**Ops policy (US-052):** Operator-facing preferred windows + shift-forward when a candidate slot is cadence-infeasible: [linkedin-publishing-windows-and-shift-forward-policy.md](../docs/operations/linkedin-publishing-windows-and-shift-forward-policy.md). That policy adopts this table; it does not invent a second 72h constant.
+
 **Publish-time authority:** Schedule-intent stagger above is planning guidance for `scheduled_at` placement. At send time, the worker US-020 publish-time cadence guard (minimum **72 hours** between successful same-campaign `published` evidence) remains authoritative — see [linkedin-cadence-spacing-policy.md](../docs/operations/linkedin-cadence-spacing-policy.md) and [linkedin-publication-prerequisites.md](../docs/deployment/linkedin-publication-prerequisites.md#publish-time-sequence-and-cadence-guard-us-020). Do not treat this table as a second publish-time cadence engine.
 
 ### Audience sequencing (first publish order)

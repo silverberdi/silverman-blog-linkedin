@@ -41,7 +41,7 @@ Blog frequency is **strategy-level**, not an automated daily blog cadence engine
 - Blogs are paced to support LinkedIn filling (Flow A packaging of ready blogs; Flow B weekly gap fills bounded by `max_drafts_per_weekly_run`, default **2**).
 - US-051 does **not** require automating a blog cadence engine.
 
-Preferred publishing windows / clock guidance remain deferred to **US-052** (not defined as executable policy here).
+Preferred publishing windows / clock guidance and shift-forward reschedule rules are defined in the **US-052** operator policy: [linkedin-publishing-windows-and-shift-forward-policy.md](linkedin-publishing-windows-and-shift-forward-policy.md) (capability `linkedin-publishing-windows-and-shift-forward-policy`). That policy does **not** change US-020 spacing, cadence-conflict meaning, density/gap coexistence, or the 72h constant.
 
 ---
 
@@ -95,7 +95,7 @@ Blocked outcomes leave `publish_state` non-`published` without falsely claiming 
 
 - Console cadence-conflict warning UI (**US-087**).
 - Schedule-time shift-forward mechanics (**US-088**) or replan of already-Scheduled conflicts (**US-089**).
-- Full **US-052** publishing windows / rescheduling policy.
+- Full **US-052** publishing windows / shift-forward **implementation** (policy is sibling doc; console/schedule code remains US-087–US-089).
 - Any worker cadence math, env default, n8n, cron, OAuth, or enablement change.
 - A second cadence engine or disagreeing spacing constant.
 - Marking US-051 / BL-021 Story accepted or closing BL-021 by documentation alone.

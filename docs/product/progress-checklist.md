@@ -662,9 +662,9 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
   - [ ] **US-052** — Publishing windows + shift-forward reschedule policy
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — policy artifacts: [linkedin-publishing-windows-and-shift-forward-policy.md](../operations/linkedin-publishing-windows-and-shift-forward-policy.md); CURRENT-STATE pointer (OpenSpec `define-linkedin-publishing-windows-and-shift-forward-policy-us-052`)
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
