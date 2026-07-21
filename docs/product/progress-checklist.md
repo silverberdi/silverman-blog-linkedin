@@ -683,10 +683,10 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
   - [ ] **US-089** — Replan already-Scheduled cadence conflicts
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — implemented (OpenSpec change `replan-already-scheduled-linkedin-cadence-conflicts-us-089`; `POST /replan-linkedin-cadence-conflicts`; pytest `tests/test_linkedin_cadence_replan.py`; Vitest `us089.replan-cadence-conflicts.test.tsx`; console EventModal Preview vs Make real). **Not deployed / not Story accepted** by implementation alone. Does not close BL-021; does not mark US-087/US-088 accepted.
+    - [ ] Business outcome demonstrated — fixture criteria demonstrated; live conflict-set / operator walkthrough pending
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
   - [ ] All user stories completed

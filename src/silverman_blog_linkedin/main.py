@@ -164,6 +164,9 @@ from silverman_blog_linkedin.linkedin_publication_flow import (
     publish_linkedin_due_variants,
     queue_linkedin_publication,
 )
+from silverman_blog_linkedin.linkedin_cadence_replan import (
+    replan_linkedin_cadence_conflicts,
+)
 from silverman_blog_linkedin.linkedin_supervision_flow import (
     correct_linkedin_variant,
     defer_linkedin_variant,
@@ -679,6 +682,85 @@ class DeferLinkedInVariantRequest(BaseModel):
         if not stripped:
             raise ValueError("idempotency_key must not be empty or whitespace-only")
         return stripped
+
+    @field_validator("operator_timezone")
+    @classmethod
+    def validate_operator_timezone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class ReplanCadenceConflictTarget(BaseModel):
+    """Explicit replan target filter (US-089)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str
+    variant_id: str
+
+    @field_validator("campaign_id")
+    @classmethod
+    def validate_campaign_id(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("campaign_id must not be empty")
+        return stripped
+
+    @field_validator("variant_id")
+    @classmethod
+    def validate_variant_id(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("variant_id must not be empty")
+        return stripped
+
+
+class ReplanLinkedInCadenceConflictsRequest(BaseModel):
+    """US-089: replan cadence-infeasible pending/queued LinkedIn variants."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    dry_run: bool = True
+    campaign_id: str | None = None
+    targets: list[ReplanCadenceConflictTarget] | None = None
+    operator_timezone: str | None = None
+    actor: str | None = None
+    source: str | None = None
+    reason: str | None = None
+
+    @field_validator("campaign_id")
+    @classmethod
+    def validate_campaign_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @field_validator("actor")
+    @classmethod
+    def validate_actor(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @field_validator("source")
+    @classmethod
+    def validate_source(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
 
     @field_validator("operator_timezone")
     @classmethod
@@ -2387,6 +2469,39 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             result.campaign_id,
             result.variant,
             result.dry_run,
+        )
+        return result.to_dict()
+
+    @app.post("/replan-linkedin-cadence-conflicts")
+    def replan_linkedin_cadence_conflicts_endpoint(
+        body: ReplanLinkedInCadenceConflictsRequest,
+        _auth: None = Depends(require_api_key),
+    ) -> dict:
+        """US-089: shift cadence-conflicted pending/queued LinkedIn slots forward."""
+        targets_payload = None
+        if body.targets is not None:
+            targets_payload = [
+                {"campaign_id": t.campaign_id, "variant_id": t.variant_id}
+                for t in body.targets
+            ]
+        result = replan_linkedin_cadence_conflicts(
+            settings.base_path,
+            dry_run=body.dry_run,
+            campaign_id=body.campaign_id,
+            targets=targets_payload,
+            operator_timezone=body.operator_timezone,
+            actor=body.actor,
+            source=body.source,
+            reason=body.reason,
+            environ=os.environ,
+        )
+        logger.info(
+            "replan-linkedin-cadence-conflicts status=%s dry_run=%s "
+            "targets=%s metadata_written=%s",
+            result.status,
+            result.dry_run,
+            len(result.targets),
+            result.metadata_written,
         )
         return result.to_dict()
 

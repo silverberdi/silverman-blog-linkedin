@@ -1644,17 +1644,19 @@ As a content operator, I want existing Scheduled LinkedIn variants that are cade
 
 **Prerequisites:** US-088 shift-forward mechanics (reuse the same placement rules). US-087 SHOULD show conflicts before/during replan and clear them after success.
 
+**Status:** **Work started / implementation demonstrated on fixtures** (OpenSpec change `replan-already-scheduled-linkedin-cadence-conflicts-us-089`; pytest `tests/test_linkedin_cadence_replan.py` + Vitest `us089.replan-cadence-conflicts.test.tsx`). **Not Story accepted** (operator review / live conflict-set walkthrough pending). Does **not** close BL-021. Does **not** mark US-087 / US-088 accepted.
+
 **Acceptance criteria**
 
-- [ ] Provide an operator-safe, authenticated way to **replan** already-Scheduled (`pending`, and Waiting to send / `queued` if still cadence-tied to `scheduled_at_utc` / publish timing) variants that are cadence-infeasible at their current slot — preferably a worker HTTP endpoint or documented one-shot ops path that updates campaign schedule metadata and calendar SoT consistently.
-- [ ] Replan MUST use the same shift-forward + density rules as US-088; MUST NOT invent a second cadence engine.
-- [ ] After successful replan, affected items’ calendar slots move; cadence-conflict warnings clear when the new slot is feasible.
-- [ ] Dry-run / preview MUST be available (or default) so operators can see proposed moves before commit; real replan requires explicit confirmation semantics consistent with the console (preview ≠ Live).
-- [ ] Replan MUST NOT publish to LinkedIn API and MUST NOT bypass enablement.
-- [ ] Demonstrate on the live conflict set (or equivalent fixture): items that simulation marked delayed/blocked for cadence are shifted; non-conflicting Scheduled items are not needlessly moved.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Provide an operator-safe, authenticated way to **replan** already-Scheduled (`pending`, and Waiting to send / `queued` if still cadence-tied to `scheduled_at_utc` / publish timing) variants that are cadence-infeasible at their current slot — preferably a worker HTTP endpoint or documented one-shot ops path that updates campaign schedule metadata and calendar SoT consistently. — Demonstrated: `POST /replan-linkedin-cadence-conflicts` + ops curl in publishing-windows policy; console EventModal control.
+- [x] Replan MUST use the same shift-forward + density rules as US-088; MUST NOT invent a second cadence engine. — Demonstrated: reuses `find_feasible_slot_forward` / `CADENCE_MINIMUM_INTERVAL` / `project_cadence_conflict_at`.
+- [x] After successful replan, affected items’ calendar slots move; cadence-conflict warnings clear when the new slot is feasible. — Demonstrated: metadata update + Vitest refresh clears indicator when feasible.
+- [x] Dry-run / preview MUST be available (or default) so operators can see proposed moves before commit; real replan requires explicit confirmation semantics consistent with the console (preview ≠ Live). — Demonstrated: `dry_run` default true; Preview vs Make real.
+- [x] Replan MUST NOT publish to LinkedIn API and MUST NOT bypass enablement. — Demonstrated in pytest.
+- [x] Demonstrate on the live conflict set (or equivalent fixture): items that simulation marked delayed/blocked for cadence are shifted; non-conflicting Scheduled items are not needlessly moved. — Demonstrated on equivalent fixtures (live conflict-set walkthrough still open for Story accepted).
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: structured previous→proposed response + console toast / refresh.
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: `linkedin_schedule_no_feasible_slot` fail-closed.
+- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: no second engine; US-020/US-087/US-088 semantics preserved.
 
 ## BL-022 — Define Business and Content Metrics
 

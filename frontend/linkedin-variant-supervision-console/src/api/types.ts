@@ -5,6 +5,7 @@ export const PENDING_SUPERVISION_PATH =
 export const SCHEDULE_VISIBILITY_PATH = "/flow-a/schedule-visibility";
 export const CORRECT_PATH = "/correct-linkedin-variant";
 export const DEFER_PATH = "/defer-linkedin-variant";
+export const REPLAN_CADENCE_PATH = "/replan-linkedin-cadence-conflicts";
 export const CANCEL_PATH = "/cancel-linkedin-publication";
 export const REOPEN_PATH = "/reopen-linkedin-variant";
 export const PUBLISH_DUE_PATH = "/publish-linkedin-due-variants";
@@ -131,6 +132,42 @@ export interface DeferVariantRequest {
   source?: string | null;
   /** IANA timezone for US-040K local-day density (browser resolved). */
   operator_timezone?: string | null;
+}
+
+/** US-089: replan cadence-conflicted pending/queued LinkedIn variants. */
+export interface ReplanCadenceConflictTarget {
+  campaign_id: string;
+  variant_id: string;
+}
+
+export interface ReplanCadenceConflictsRequest {
+  dry_run?: boolean;
+  campaign_id?: string | null;
+  targets?: ReplanCadenceConflictTarget[] | null;
+  operator_timezone?: string | null;
+  actor?: string | null;
+  source?: string | null;
+  reason?: string | null;
+}
+
+export interface ReplanCadenceTargetResult {
+  campaign_id: string;
+  variant_id: string;
+  publish_state?: string | null;
+  previous_scheduled_at_utc?: string | null;
+  proposed_scheduled_at_utc?: string | null;
+  outcome: string;
+  errors: string[];
+}
+
+export interface ReplanCadenceConflictsResult {
+  status: "completed" | "failed" | string;
+  dry_run: boolean;
+  metadata_written: boolean;
+  targets: ReplanCadenceTargetResult[];
+  errors: string[];
+  warnings?: string[];
+  campaigns_written?: string[];
 }
 
 export interface CancelVariantRequest {

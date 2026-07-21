@@ -99,6 +99,7 @@ export function EventModal() {
   const [reopenSchedule, setReopenSchedule] = useState("");
   const [reopenReason, setReopenReason] = useState("");
   const [reopenDryRun, setReopenDryRun] = useState(dryRunDefault);
+  const [replanDryRun, setReplanDryRun] = useState(dryRunDefault);
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState("");
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
@@ -594,6 +595,62 @@ export function EventModal() {
     }
   }
 
+  async function submitReplanCadence() {
+    const campaignId = item.campaignId;
+    const variantId = item.variantId;
+    if (!campaignId || !variantId || !requireMutate("replan cadence conflicts")) {
+      return;
+    }
+    if (
+      !replanDryRun &&
+      !confirmRealMutation("replan cadence conflicts")
+    ) {
+      return;
+    }
+    setSubmitting(true);
+    setModalError("");
+    try {
+      const result = await client.replanCadenceConflicts({
+        dry_run: replanDryRun,
+        targets: [{ campaign_id: campaignId, variant_id: variantId }],
+        actor: CONSOLE_ACTOR,
+        source: CONSOLE_SOURCE,
+        operator_timezone: operatorTimezone() || null,
+        reason: "cadence_conflict_replan",
+      });
+      const moved = (result.targets || []).filter((t) => t.outcome === "moved");
+      const identity = `${campaignId} / ${variantId}`;
+      if (replanDryRun) {
+        const proposed =
+          moved[0]?.proposed_scheduled_at_utc ||
+          result.targets?.[0]?.proposed_scheduled_at_utc ||
+          "n/a";
+        pushToast({
+          kind: "info",
+          text: `Preview replan for ${identity}: → ${proposed} (not Live on LinkedIn; calendar unchanged).`,
+        });
+        return;
+      }
+      pushToast({
+        kind: "ok",
+        text: `Replan saved for ${identity} (${moved.length} moved). Not Live on LinkedIn.`,
+      });
+      setUnsavedEditDraft(false);
+      setUnsavedScheduleDraft(false);
+      await refreshAll({ preserveActionBanner: true });
+      setPanel("view");
+      closeScheduleEditor();
+      closeEventModal();
+    } catch (err) {
+      const apiErr = err as ApiError;
+      const text = apiErr?.message || String(err);
+      setModalError(text);
+      pushToast({ kind: "error", text });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   const label = publicationStateLabel(
     item.publicationState,
     item.linkedinApiPublished,
@@ -700,15 +757,46 @@ export function EventModal() {
                 <span className="mono">
                   {formatLocalDisplay(item.cadenceEarliestFeasibleAtUtc)}
                 </span>
-                . Use Postpone / reschedule to move this item, or wait for a
-                later replan capability.
+                . Use Postpone / reschedule, or Replan cadence conflicts below
+                to shift this item forward (preview first; real change is not
+                Live on LinkedIn).
               </p>
             ) : (
               <p className="meta" data-testid="event-modal-cadence-next-step">
-                Use Postpone / reschedule to move this item to a later time, or
-                wait for a later replan capability.
+                Use Postpone / reschedule, or Replan cadence conflicts below to
+                shift this item forward (preview first; real change is not Live
+                on LinkedIn).
               </p>
             )}
+            {item.campaignId && item.variantId ? (
+              <div
+                className="cadence-replan-actions"
+                data-testid="event-modal-cadence-replan"
+              >
+                <label className="dry-run-toggle">
+                  <input
+                    type="checkbox"
+                    data-testid="replan-dry-run"
+                    checked={replanDryRun}
+                    disabled={submitting || !canMutate}
+                    onChange={(e) => setReplanDryRun(e.target.checked)}
+                  />{" "}
+                  {PREVIEW_CHECKBOX_LABEL}
+                </label>
+                <button
+                  type="button"
+                  className="row-action"
+                  data-testid="row-replan-cadence"
+                  disabled={submitting || !canMutate}
+                  onClick={() => void submitReplanCadence()}
+                >
+                  {replanDryRun
+                    ? "Preview replan"
+                    : "Make real replan"}
+                </button>
+                <p className="meta">{dryRunModeBanner(replanDryRun)}</p>
+              </div>
+            ) : null}
           </div>
         ) : null}
         {isLiveOnLinkedIn && (item.linkedinPostUrn || lastPublishUrn) ? (

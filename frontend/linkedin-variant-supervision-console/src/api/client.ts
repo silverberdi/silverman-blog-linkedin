@@ -21,6 +21,7 @@ import {
   PENDING_SUPERVISION_PATH,
   PUBLISH_DUE_PATH,
   REOPEN_PATH,
+  REPLAN_CADENCE_PATH,
   SCHEDULE_VISIBILITY_PATH,
   UPDATE_CALENDAR_SCHEDULE_PATH,
   type CancelVariantRequest,
@@ -41,6 +42,8 @@ import {
   type PublishDueVariantRequest,
   type PublishDueVariantResult,
   type ReopenVariantRequest,
+  type ReplanCadenceConflictsRequest,
+  type ReplanCadenceConflictsResult,
   type ScheduleVisibilityResponse,
   type UpdateCalendarItemScheduleRequest,
 } from "./types";
@@ -120,6 +123,35 @@ export class SupervisionApiClient {
 
   async deferVariant(body: DeferVariantRequest): Promise<MutationResult> {
     return this.postMutation(DEFER_PATH, body);
+  }
+
+  /**
+   * US-089 replan cadence conflicts — schedule metadata only (not LinkedIn API publish).
+   */
+  async replanCadenceConflicts(
+    body: ReplanCadenceConflictsRequest,
+  ): Promise<ReplanCadenceConflictsResult> {
+    const headers = await this.prepareHeaders("mutate");
+    const result = await this.requestJson<ReplanCadenceConflictsResult>(
+      REPLAN_CADENCE_PATH,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    if (result.status === "failed") {
+      const codes = Array.isArray(result.errors) ? result.errors : [];
+      const fromTargets = (result.targets || []).flatMap((row) =>
+        Array.isArray(row.errors) ? row.errors : [],
+      );
+      throw businessFailureError(codes.length ? codes : fromTargets);
+    }
+    return result;
   }
 
   async cancelVariant(body: CancelVariantRequest): Promise<MutationResult> {
