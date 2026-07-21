@@ -15,4 +15,4 @@
 ## 3. Lifecycle
 
 - [x] 3.1 `git diff --check`; secrets audit; OpenSpec validate
-- [ ] 3.2 Impl / sync / archive commits
+- [x] 3.2 Impl / sync / archive commits
