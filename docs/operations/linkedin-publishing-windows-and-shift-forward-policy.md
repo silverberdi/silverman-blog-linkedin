@@ -1,11 +1,11 @@
 # LinkedIn publishing windows and shift-forward policy (US-052)
 
 **Scope:** BL-021 / US-052 — operator-facing preferred LinkedIn publishing windows (local-day / clock guidance), strategy-level audience balancing (variant packaging remains Flow A), shift-forward reschedule rules when a candidate slot is cadence-infeasible, residual US-087 warning obligation, and fail-closed “no feasible slot” bounds for US-088.
-**Status:** Policy defined (documentation). Console cadence-conflict warning (US-087), schedule-time shift-forward (US-088), and replan of already-Scheduled conflicts (US-089) are **not implemented** by this document. **US-052 / BL-021 Story accepted and backlog closure require operator review beyond this docs change.**
+**Status:** Policy defined (documentation). Console cadence-conflict warning (**US-087**) is **implemented** (see CURRENT-STATE; not Story accepted). Schedule-time shift-forward (**US-088**) **enforces** the finite scan and feasible-slot rules below in `schedule-linkedin-distribution` / `flow_b_spill_a` (see CURRENT-STATE; not Story accepted / deploy separate). Replan of already-Scheduled conflicts (**US-089**) is **not implemented** by this document. **US-052 / BL-021 Story accepted and backlog closure require operator review beyond this docs change.**
 **Authority:** Complements [linkedin-cadence-spacing-policy.md](linkedin-cadence-spacing-policy.md) (US-051 cadence conflict / spacing), [linkedin-publication-prerequisites.md](../deployment/linkedin-publication-prerequisites.md#publish-time-sequence-and-cadence-guard-us-020) (US-020 publish-time guard — authoritative at send), editorial [`#linkedin-distribution-strategy`](../../content-strategy/silverman-editorial-system.md#linkedin-distribution-strategy), [GLOSSARY.md](../GLOSSARY.md), [CURRENT-STATE.md](../CURRENT-STATE.md), and [user-stories.md](../product/user-stories.md) US-052.
-**OpenSpec:** `openspec/changes/define-linkedin-publishing-windows-and-shift-forward-policy-us-052` (capability `linkedin-publishing-windows-and-shift-forward-policy`).
+**OpenSpec:** `openspec/changes/define-linkedin-publishing-windows-and-shift-forward-policy-us-052` (capability `linkedin-publishing-windows-and-shift-forward-policy`). Executable schedule-time enforcement: OpenSpec change `schedule-linkedin-variants-with-cadence-aware-shift-forward-us-088` (US-088).
 
-This document is the shared written meaning of preferred LinkedIn publishing windows and shift-forward placement for calendar and scheduler implementers (especially **US-088**). It does **not** change worker publish-time cadence evaluation, schedule placement code, env defaults, n8n, LinkedIn publish-due cron, OAuth, or `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`.
+This document is the shared written meaning of preferred LinkedIn publishing windows and shift-forward placement for calendar and scheduler implementers. **US-088** implements schedule-time enforcement of these rules for new placements (preferred windows and the **28** operator-local-day horizon numbers below are **not** redefined by US-088). It does **not** change worker publish-time cadence evaluation, env defaults, n8n, LinkedIn publish-due cron, OAuth, or `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`.
 
 ---
 
@@ -74,9 +74,9 @@ Forward search MUST be **finite**. Infinite scan is forbidden. Silent infeasible
 |-------|---------|
 | **Horizon** | **28 operator-local days** measured from the original candidate’s operator-local calendar day. |
 | **Day counting** | Treat the original candidate’s local day as **day 0**. Search may consider slots on day 0 (after the candidate clock, within preferred windows / strategy rules) and on subsequent local days **1…28** inclusive. Do not search past local day **28** relative to day 0. |
-| **No slot within horizon** | Scheduling MUST **fail closed** with a structured, operator-visible error. Exact error code/shape is owned by **US-088**. |
+| **No slot within horizon** | Scheduling MUST **fail closed** with a structured, operator-visible error. Exact error code/shape is owned by **US-088** (`linkedin_schedule_no_feasible_slot`). |
 
-This docs change does **not** implement the scan. A later approved OpenSpec change MAY adjust the numeric horizon; until then, **28 local days** is the documented default bound.
+**US-088 enforcement:** Forward search is implemented in schedule-time placement (`linkedin_schedule_feasibility` + `schedule_linkedin_distribution` / spill-A). This policy document does **not** change the numeric horizon or preferred-window definitions; US-088 consumes them.
 
 ---
 
@@ -103,17 +103,18 @@ Operators MUST NOT treat a Scheduled (or proposed) time that is cadence-infeasib
 
 ---
 
-## 7. Non-goals (this change)
+## 7. Non-goals (this policy document)
 
-- Console cadence-conflict warning UI (**US-087**).
-- Schedule-time shift-forward code in `schedule-linkedin-distribution` / spill paths (**US-088**).
+- Console cadence-conflict warning UI (**US-087** — implemented separately).
 - Replan of already-Scheduled conflicts (**US-089**).
-- Worker cadence math, env defaults, n8n, LinkedIn publish-due cron, OAuth, or `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` changes.
+- Worker publish-time cadence math, env defaults, n8n, LinkedIn publish-due cron, OAuth, or `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` changes.
 - A second cadence engine or disagreeing 72h constant.
 - Weakening, duplicating, or reimplementing the US-020 / BL-007 publish-time cadence guard.
 - Moving audience packaging ownership out of Flow A.
 - Superseding US-040K density or BL-019 gap.
 - Marking US-052 / BL-021 Story accepted or closing BL-021 by documentation alone.
+
+**Note:** Executable schedule-time shift-forward for **new** placements is owned by **US-088** (not this policy-only change).
 
 ---
 

@@ -35,6 +35,7 @@ FLOW_B_SPILL_A_STRATEGY = "flow_b_spill_a"
 
 LINKEDIN_SCHEDULE_SPILL_DENSITY_EXHAUSTED = "linkedin_schedule_spill_density_exhausted"
 LINKEDIN_SCHEDULE_SPILL_CONTEXT_INVALID = "linkedin_schedule_spill_context_invalid"
+LINKEDIN_SCHEDULE_NO_FEASIBLE_SLOT = "linkedin_schedule_no_feasible_slot"
 
 _ISO_WEEK_RE = re.compile(r"^(\d{4})-W(\d{2})$")
 _DAY_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
@@ -272,6 +273,26 @@ def _ordered_variant_ids(variant_ids: list[str]) -> list[str]:
     return sorted(variant_ids, key=lambda variant_id: order_index.get(variant_id, 999))
 
 
+def _spill_day_clocks(
+    day: date,
+    *,
+    default_hour: int,
+    default_minute: int,
+) -> list[tuple[int, int]]:
+    """Clocks on a spill day: strategy default first, then US-052 windows."""
+    from silverman_blog_linkedin.linkedin_schedule_feasibility import (
+        PREFERRED_LOCAL_WEEKDAYS,
+        PREFERRED_WINDOW_CLOCKS,
+    )
+
+    clocks: list[tuple[int, int]] = [(default_hour, default_minute)]
+    if day.weekday() in PREFERRED_LOCAL_WEEKDAYS:
+        for pref in PREFERRED_WINDOW_CLOCKS:
+            if pref not in clocks:
+                clocks.append(pref)
+    return clocks
+
+
 def compute_spill_a_schedules(
     base_path: Path,
     *,
@@ -280,13 +301,24 @@ def compute_spill_a_schedules(
     empty_days: list[str],
     anchor_utc: str,
     campaign_id: str | None = None,
+    campaign: dict[str, Any] | None = None,
     operator_timezone: str | None = None,
     environ: dict[str, str] | None = None,
 ) -> tuple[dict[str, str] | None, str | None]:
-    """Assign ``scheduled_at_utc`` per variant under spill A + density max 2.
+    """Assign ``scheduled_at_utc`` under spill A + density + US-088 cadence.
+
+    Spill day priority (empty → week → forward) is preserved. Cadence/density
+    filter candidates; shift-forward advances within that order and the US-052
+    28 local-day horizon from each variant's first spill candidate day.
 
     Returns ``(schedules, error_code)``.
     """
+    from silverman_blog_linkedin.linkedin_schedule_feasibility import (
+        SHIFT_FORWARD_HORIZON_LOCAL_DAYS,
+        is_cadence_conflicted_at,
+        resolve_schedule_operator_timezone,
+    )
+
     candidates = build_spill_a_candidate_days(
         target_week=target_week,
         empty_days=empty_days,
@@ -296,9 +328,7 @@ def compute_spill_a_schedules(
 
     tz_name = operator_timezone or _operator_timezone_name()
     if not tz_name:
-        # Fall back to UTC only when settings/env unavailable — still fail closed
-        # if ZoneInfo invalid.
-        tz_name = "UTC"
+        tz_name = resolve_schedule_operator_timezone(environ=environ)
     try:
         tz = ZoneInfo(tz_name)
     except (ZoneInfoNotFoundError, ValueError, TypeError, KeyError):
@@ -317,10 +347,20 @@ def compute_spill_a_schedules(
     ceiling = _density_ceiling()
     planned: dict[str, int] = {}
     schedules: dict[str, str] = {}
+    campaign_for_cadence = campaign if isinstance(campaign, dict) else {}
+    saw_cadence_block = False
 
     for variant_id in _ordered_variant_ids(list(variant_ids)):
         placed = False
+        # Horizon origin = first spill-ordered candidate day for this variant.
+        horizon_origin_day = candidates[0]
+        horizon_end_day = horizon_origin_day + timedelta(
+            days=SHIFT_FORWARD_HORIZON_LOCAL_DAYS
+        )
+
         for day in candidates:
+            if day > horizon_end_day:
+                break
             day_key = day.isoformat()
             occupied = _occupancy_for_day(
                 base_path,
@@ -334,15 +374,36 @@ def compute_spill_a_schedules(
             )
             if occupied >= ceiling:
                 continue
-            local_dt = datetime(
-                day.year, day.month, day.day, hour, minute, 0, tzinfo=tz
-            )
-            scheduled = local_dt.astimezone(timezone.utc)
-            schedules[variant_id] = scheduled.strftime("%Y-%m-%dT%H:%M:%SZ")
-            planned[day_key] = planned.get(day_key, 0) + 1
-            placed = True
-            break
+
+            for clock_hour, clock_minute in _spill_day_clocks(
+                day, default_hour=hour, default_minute=minute
+            ):
+                local_dt = datetime(
+                    day.year,
+                    day.month,
+                    day.day,
+                    clock_hour,
+                    clock_minute,
+                    0,
+                    tzinfo=tz,
+                )
+                scheduled = local_dt.astimezone(timezone.utc)
+                if is_cadence_conflicted_at(
+                    campaign_for_cadence, evaluation_at=scheduled
+                ):
+                    saw_cadence_block = True
+                    continue
+                schedules[variant_id] = scheduled.strftime("%Y-%m-%dT%H:%M:%SZ")
+                planned[day_key] = planned.get(day_key, 0) + 1
+                placed = True
+                break
+            if placed:
+                break
+
         if not placed:
+            # Pure density exhaustion (no cadence involvement) keeps spill code.
+            if saw_cadence_block:
+                return None, LINKEDIN_SCHEDULE_NO_FEASIBLE_SLOT
             return None, LINKEDIN_SCHEDULE_SPILL_DENSITY_EXHAUSTED
 
     return schedules, None

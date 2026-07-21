@@ -1623,16 +1623,18 @@ As a content operator, I want distribution scheduling to place variants only on 
 
 **Prerequisites:** US-051; US-052 policy for shift-forward. Prefer after or with US-087 so residual edge conflicts stay visible.
 
+**Status:** **Implemented** (OpenSpec change `schedule-linkedin-variants-with-cadence-aware-shift-forward-us-088`; pytest coverage in `tests/test_linkedin_distribution_scheduling.py`). **Not Story accepted** (operator review / deploy pending). Does not close BL-021; US-089 remains out of scope. Does not call LinkedIn API publish or bypass `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`.
+
 **Acceptance criteria**
 
-- [ ] `schedule-linkedin-distribution` (and Flow B spill-A / related placement paths that set LinkedIn `scheduled_at_utc`) MUST evaluate same-campaign 72h cadence when choosing slots.
-- [ ] When a preferred slot is cadence-infeasible, the scheduler MUST **shift forward** to the next feasible slot that also respects US-040K density max 2/local day and existing strategy constraints (stagger / empty-day spill rules as applicable).
-- [ ] Scheduling MUST fail closed with a structured error if no feasible slot can be found within documented bounds (no infinite scan; no silent infeasible placement).
-- [ ] Scheduling MUST NOT call LinkedIn API publish and MUST NOT bypass `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`.
-- [ ] If an item is still cadence-conflicted after placement (should be rare), US-087 warning MUST still apply.
-- [ ] The outcome is visible and understandable to the intended user (schedule results / calendar times reflect shifted slots).
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed (US-020 publish-time guard remains authoritative at send time).
+- [x] `schedule-linkedin-distribution` (and Flow B spill-A / related placement paths that set LinkedIn `scheduled_at_utc`) MUST evaluate same-campaign 72h cadence when choosing slots.
+- [x] When a preferred slot is cadence-infeasible, the scheduler MUST **shift forward** to the next feasible slot that also respects US-040K density max 2/local day and existing strategy constraints (stagger / empty-day spill rules as applicable).
+- [x] Scheduling MUST fail closed with a structured error if no feasible slot can be found within documented bounds (no infinite scan; no silent infeasible placement).
+- [x] Scheduling MUST NOT call LinkedIn API publish and MUST NOT bypass `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`.
+- [x] If an item is still cadence-conflicted after placement (should be rare), US-087 warning MUST still apply.
+- [x] The outcome is visible and understandable to the intended user (schedule results / calendar times reflect shifted slots).
+- [x] Failures or blocked states are clearly communicated.
+- [x] Existing completed work is not duplicated or unintentionally changed (US-020 publish-time guard remains authoritative at send time).
 
 ### US-089 — Replan Already-Scheduled LinkedIn Variants That Conflict With Cadence
 

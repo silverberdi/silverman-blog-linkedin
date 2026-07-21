@@ -64,6 +64,7 @@ LINKEDIN_SCHEDULE_INVALID_ANCHOR = "linkedin_schedule_invalid_anchor"
 LINKEDIN_SCHEDULE_METADATA_WRITE_FAILED = "linkedin_schedule_metadata_write_failed"
 LINKEDIN_SCHEDULE_SPILL_DENSITY_EXHAUSTED = "linkedin_schedule_spill_density_exhausted"
 LINKEDIN_SCHEDULE_SPILL_CONTEXT_INVALID = "linkedin_schedule_spill_context_invalid"
+LINKEDIN_SCHEDULE_NO_FEASIBLE_SLOT = "linkedin_schedule_no_feasible_slot"
 
 # Bounded CAS retries for first-time schedule apply (US-034); mirrors claim CAS.
 SCHEDULE_CAS_MAX_ATTEMPTS = 3
@@ -269,6 +270,7 @@ def _resolve_anchor_utc(start_at_utc: str | None) -> tuple[str | None, str | Non
 def _compute_staggered_schedules(
     variant_ids: list[str], anchor_utc: str
 ) -> dict[str, str]:
+    """Legacy fixed-offset stagger (no cadence/density). Prefer cadence-aware path."""
     anchor = datetime.strptime(anchor_utc, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
     schedules: dict[str, str] = {}
     for variant_id in _ordered_variant_ids(variant_ids):
@@ -276,6 +278,29 @@ def _compute_staggered_schedules(
         scheduled = anchor + timedelta(days=day_offset)
         schedules[variant_id] = scheduled.strftime("%Y-%m-%dT%H:%M:%SZ")
     return schedules
+
+
+def _compute_staggered_schedules_with_shift_forward(
+    base_path: Path,
+    campaign: dict[str, Any],
+    *,
+    variant_ids: list[str],
+    anchor_utc: str,
+) -> tuple[dict[str, str] | None, str | None]:
+    """US-088: stagger placement with cadence + density shift-forward."""
+    from silverman_blog_linkedin.linkedin_schedule_feasibility import (
+        compute_staggered_schedules_cadence_aware,
+    )
+
+    return compute_staggered_schedules_cadence_aware(
+        base_path,
+        campaign,
+        variant_ids=variant_ids,
+        anchor_utc=anchor_utc,
+        variant_day_offsets=VARIANT_DAY_OFFSETS,
+        ordered_variant_ids=_ordered_variant_ids(variant_ids),
+        campaign_id=campaign.get("campaign_id"),
+    )
 
 
 def _verify_artifacts(
@@ -557,6 +582,7 @@ def schedule_linkedin_distribution(
             empty_days=provenance.empty_days,
             anchor_utc=anchor_utc,
             campaign_id=campaign.get("campaign_id"),
+            campaign=campaign,
         )
         if spill_error or schedule_times is None:
             return _failed_result(
@@ -566,7 +592,19 @@ def schedule_linkedin_distribution(
                 anchor_utc=anchor_utc,
             )
     else:
-        schedule_times = _compute_staggered_schedules(variant_ids, anchor_utc)
+        schedule_times, stagger_error = _compute_staggered_schedules_with_shift_forward(
+            base_path,
+            campaign,
+            variant_ids=variant_ids,
+            anchor_utc=anchor_utc,
+        )
+        if stagger_error or schedule_times is None:
+            return _failed_result(
+                campaign=campaign,
+                errors=[stagger_error or LINKEDIN_SCHEDULE_NO_FEASIBLE_SLOT],
+                strategy=resolved_strategy,
+                anchor_utc=anchor_utc,
+            )
     campaign_id_resolved = campaign["campaign_id"]
 
     for _cas_attempt in range(SCHEDULE_CAS_MAX_ATTEMPTS):

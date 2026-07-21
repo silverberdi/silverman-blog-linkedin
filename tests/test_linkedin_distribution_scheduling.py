@@ -40,6 +40,7 @@ from silverman_blog_linkedin.linkedin_distribution_schedule import (
     LINKEDIN_SCHEDULE_INVALID_CAMPAIGN_STATE,
     LINKEDIN_SCHEDULE_INVALID_STRATEGY,
     LINKEDIN_SCHEDULE_METADATA_MISMATCH,
+    LINKEDIN_SCHEDULE_NO_FEASIBLE_SLOT,
     LINKEDIN_SCHEDULE_PACKAGE_MISSING,
     LINKEDIN_SCHEDULE_SPILL_DENSITY_EXHAUSTED,
     LINKEDIN_SCHEDULE_VARIANT_METADATA_MISSING,
@@ -847,3 +848,303 @@ def test_explicit_stagger_override_for_flow_b_origin(editorial_base: Path):
         offset_days = VARIANT_DAY_OFFSETS[item["variant"]]
         expected = (anchor + timedelta(days=offset_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
         assert item["scheduled_at_utc"] == expected
+
+
+def _inject_published_sibling(
+    base: Path,
+    *,
+    published_at: str,
+    variant: str = "prior-published-sibling",
+) -> dict:
+    """Add same-campaign published evidence for US-088 cadence placement tests."""
+    campaign = read_campaign_metadata(base, CANONICAL_CAMPAIGN_ID)
+    assert campaign is not None
+    variants = list(campaign.get("variants") or [])
+    variants.append(
+        {
+            "variant": variant,
+            "audience": "senior practitioners",
+            "tone": "executive",
+            "source_public_url": PUBLIC_URL,
+            "source_relative_path": SOURCE_RELATIVE,
+            "campaign_id": CANONICAL_CAMPAIGN_ID,
+            "source_content_sha256": campaign["source_content_sha256"],
+            "derivative_content_sha256": "a" * 64,
+            "artifact_relative_path": f"{GENERATED_RELATIVE}/{CANONICAL_CAMPAIGN_ID}/{variant}.md",
+            "idempotency_key": f"prior-{variant}",
+            "generated_at": "2026-07-01T12:00:00Z",
+            "provider": "deepseek",
+            "model": "deepseek-chat",
+            "publish_state": "published",
+            "published_at": published_at,
+            "scheduled_at_utc": published_at,
+            "linkedin_post_urn": "urn:li:share:us088-cadence-fixture",
+        }
+    )
+    campaign["variants"] = variants
+    write_campaign_metadata(base, CANONICAL_CAMPAIGN_ID, campaign)
+    return campaign
+
+
+def test_us088_shift_forward_happy_path_cadence_infeasible_preferred(
+    editorial_base: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Preferred stagger slot shifts forward when same-campaign 72h cadence blocks it."""
+    monkeypatch.setenv("SILVERMAN_OPERATOR_TIMEZONE", "America/Bogota")
+    _derivatives_generated_campaign(editorial_base)
+    # Anchor 2026-07-07T14:00:00Z conflicts: published + 72h = 2026-07-09T12:00:00Z
+    _inject_published_sibling(editorial_base, published_at="2026-07-06T12:00:00Z")
+
+    with patch(
+        "silverman_blog_linkedin.linkedin_schedule_feasibility.evaluate_local_day_density"
+    ) as mock_density:
+        mock_density.return_value = type(
+            "R",
+            (),
+            {
+                "ok": True,
+                "others_on_day": 0,
+                "errors": [],
+                "target_local_day": None,
+                "resolved_timezone": "America/Bogota",
+            },
+        )()
+        result = schedule_linkedin_distribution(
+            editorial_base,
+            campaign_id=CANONICAL_CAMPAIGN_ID,
+            strategy=DEFAULT_STAGGER_STRATEGY,
+            start_at_utc=ANCHOR_UTC,
+        )
+
+    assert result.status == "completed"
+    by_variant = {
+        item["variant"]: item["scheduled_at_utc"] for item in result.variant_schedules
+    }
+    # Preferred ER slot 2026-07-07T14:00:00Z is cadence-infeasible; must shift forward.
+    assert by_variant["executive-recruiter"] != "2026-07-07T14:00:00Z"
+    er_dt = datetime.strptime(
+        by_variant["executive-recruiter"], "%Y-%m-%dT%H:%M:%SZ"
+    ).replace(tzinfo=timezone.utc)
+    earliest = datetime(2026, 7, 9, 12, 0, tzinfo=timezone.utc)
+    assert er_dt >= earliest
+
+    stored = read_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID)
+    assert stored is not None
+    stored_er = next(
+        v for v in stored["variants"] if v["variant"] == "executive-recruiter"
+    )
+    assert stored_er["scheduled_at_utc"] == by_variant["executive-recruiter"]
+    assert stored_er["publish_state"] == "pending"
+
+    # Stagger ≥3 local days between consecutive accepted variants.
+    ordered = [
+        by_variant["executive-recruiter"],
+        by_variant["engineering-leadership"],
+        by_variant["technical-architect"],
+        by_variant["short-provocative"],
+    ]
+    prev = None
+    for scheduled in ordered:
+        dt = datetime.strptime(scheduled, "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=timezone.utc
+        )
+        if prev is not None:
+            assert (dt.date() - prev.date()).days >= 3
+        prev = dt
+
+
+def test_us088_density_interaction_skips_full_local_days(
+    editorial_base: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Shift-forward skips operator-local days already at US-040K max 2."""
+    monkeypatch.setenv("SILVERMAN_OPERATOR_TIMEZONE", "UTC")
+    _derivatives_generated_campaign(editorial_base)
+    # No published evidence — density alone drives the skip.
+    full_days = {"2026-07-07", "2026-07-08", "2026-07-09"}
+
+    def _density_by_day(_base_path, *, target_utc, **_kwargs):
+        day = target_utc.astimezone(timezone.utc).strftime("%Y-%m-%d")
+        others = 2 if day in full_days else 0
+        return type(
+            "R",
+            (),
+            {
+                "ok": others < 2,
+                "others_on_day": others,
+                "errors": [],
+                "target_local_day": day,
+                "resolved_timezone": "UTC",
+            },
+        )()
+
+    with patch(
+        "silverman_blog_linkedin.linkedin_schedule_feasibility.evaluate_local_day_density",
+        side_effect=_density_by_day,
+    ):
+        result = schedule_linkedin_distribution(
+            editorial_base,
+            campaign_id=CANONICAL_CAMPAIGN_ID,
+            strategy=DEFAULT_STAGGER_STRATEGY,
+            start_at_utc=ANCHOR_UTC,
+        )
+
+    assert result.status == "completed"
+    by_variant = {
+        item["variant"]: item["scheduled_at_utc"] for item in result.variant_schedules
+    }
+    # Preferred ER day 2026-07-07 is density-full → must not keep that day.
+    assert not by_variant["executive-recruiter"].startswith("2026-07-07")
+    assert not by_variant["executive-recruiter"].startswith("2026-07-08")
+    assert not by_variant["executive-recruiter"].startswith("2026-07-09")
+
+
+def test_us088_fail_closed_horizon_no_feasible_slot(
+    editorial_base: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """No feasible slot within 28 local days → linkedin_schedule_no_feasible_slot."""
+    monkeypatch.setenv("SILVERMAN_OPERATOR_TIMEZONE", "UTC")
+    _derivatives_generated_campaign(editorial_base)
+    _inject_published_sibling(editorial_base, published_at="2026-07-06T12:00:00Z")
+
+    with patch(
+        "silverman_blog_linkedin.linkedin_schedule_feasibility.evaluate_local_day_density"
+    ) as mock_density:
+        mock_density.return_value = type(
+            "R",
+            (),
+            {
+                "ok": False,
+                "others_on_day": 2,
+                "errors": ["linkedin_supervision_local_day_density"],
+                "target_local_day": None,
+                "resolved_timezone": "UTC",
+            },
+        )()
+        result = schedule_linkedin_distribution(
+            editorial_base,
+            campaign_id=CANONICAL_CAMPAIGN_ID,
+            strategy=DEFAULT_STAGGER_STRATEGY,
+            start_at_utc=ANCHOR_UTC,
+        )
+
+    assert result.status == "failed"
+    assert LINKEDIN_SCHEDULE_NO_FEASIBLE_SLOT in result.errors
+    assert result.metadata_written is False
+    # Must not silently persist infeasible preferred times.
+    stored = read_campaign_metadata(editorial_base, CANONICAL_CAMPAIGN_ID)
+    assert stored is not None
+    assert stored["state"] == STATE_DERIVATIVES_GENERATED
+    for entry in stored.get("variants") or []:
+        if entry.get("variant") in VARIANT_DAY_OFFSETS:
+            assert not entry.get("scheduled_at_utc")
+
+
+def test_us088_non_mutation_no_linkedin_api_and_enablement_unchanged(
+    editorial_base: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Scheduling must not publish or force-enable LinkedIn publication."""
+    monkeypatch.setenv("SILVERMAN_OPERATOR_TIMEZONE", "America/Bogota")
+    monkeypatch.setenv("SILVERMAN_LINKEDIN_PUBLICATION_ENABLED", "false")
+    _derivatives_generated_campaign(editorial_base)
+    _inject_published_sibling(editorial_base, published_at="2026-07-06T12:00:00Z")
+
+    with patch(
+        "silverman_blog_linkedin.linkedin_schedule_feasibility.evaluate_local_day_density"
+    ) as mock_density:
+        mock_density.return_value = type(
+            "R",
+            (),
+            {
+                "ok": True,
+                "others_on_day": 0,
+                "errors": [],
+                "target_local_day": None,
+                "resolved_timezone": "America/Bogota",
+            },
+        )()
+        with patch("httpx.Client.post") as mock_post:
+            result = schedule_linkedin_distribution(
+                editorial_base,
+                campaign_id=CANONICAL_CAMPAIGN_ID,
+                strategy=DEFAULT_STAGGER_STRATEGY,
+                start_at_utc=ANCHOR_UTC,
+            )
+
+    assert result.status == "completed"
+    mock_post.assert_not_called()
+    import os
+
+    assert os.environ.get("SILVERMAN_LINKEDIN_PUBLICATION_ENABLED") == "false"
+    # Shared cadence constant (no second engine).
+    from silverman_blog_linkedin.linkedin_publication_flow import (
+        CADENCE_MINIMUM_INTERVAL as publish_interval,
+    )
+    from silverman_blog_linkedin.linkedin_schedule_feasibility import (
+        CADENCE_MINIMUM_INTERVAL as schedule_interval,
+    )
+
+    assert schedule_interval is publish_interval
+    assert schedule_interval.total_seconds() == 72 * 3600
+    for item in result.variant_schedules:
+        assert item["publish_state"] == "pending"
+
+
+def test_us088_spill_a_cadence_shift_preserves_empty_day_priority(
+    editorial_base: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Spill A keeps empty-day priority while shifting past cadence-blocked clocks."""
+    monkeypatch.setenv("SILVERMAN_OPERATOR_TIMEZONE", "UTC")
+    _derivatives_generated_campaign(editorial_base)
+    _write_flow_b_sidecar(
+        editorial_base,
+        target_week="2026-W28",
+        empty_days=["2026-07-07", "2026-07-09"],
+    )
+    # Blocks 14:00 on Jul 7 (anchor clock) but afternoon preferred window clears.
+    # published + 72h = 2026-07-07T15:00:00Z → 14:00 conflicts; 16:00 is feasible.
+    campaign = _inject_published_sibling(
+        editorial_base, published_at="2026-07-04T15:00:00Z"
+    )
+
+    with patch(
+        "silverman_blog_linkedin.flow_b_spill_schedule.evaluate_local_day_density"
+    ) as mock_density:
+        mock_density.return_value = type(
+            "R",
+            (),
+            {"ok": True, "others_on_day": 0, "errors": []},
+        )()
+        result = schedule_linkedin_distribution(
+            editorial_base,
+            campaign_id=CANONICAL_CAMPAIGN_ID,
+            strategy=FLOW_B_SPILL_A_STRATEGY,
+            start_at_utc=ANCHOR_UTC,
+        )
+
+    assert result.status == "completed"
+    assert result.strategy == FLOW_B_SPILL_A_STRATEGY
+    by_variant = {
+        item["variant"]: item["scheduled_at_utc"] for item in result.variant_schedules
+    }
+    # Empty-day priority: first placements still on first gap day 2026-07-07.
+    assert by_variant["executive-recruiter"].startswith("2026-07-07")
+    assert by_variant["engineering-leadership"].startswith("2026-07-07")
+    # Default 14:00 was cadence-infeasible; shifted clock on same empty day.
+    assert by_variant["executive-recruiter"] != "2026-07-07T14:00:00Z"
+    er_dt = datetime.strptime(
+        by_variant["executive-recruiter"], "%Y-%m-%dT%H:%M:%SZ"
+    ).replace(tzinfo=timezone.utc)
+    assert er_dt >= datetime(2026, 7, 7, 15, 0, tzinfo=timezone.utc)
+    # Second empty day still used (priority not inverted to week/forward first).
+    assert by_variant["technical-architect"].startswith("2026-07-09")
+    assert by_variant["short-provocative"].startswith("2026-07-09")
+    # Residual US-087 projection still available for a conflicted evaluation.
+    from silverman_blog_linkedin.linkedin_publication_flow import (
+        project_cadence_conflict_at,
+    )
+
+    projection = project_cadence_conflict_at(
+        campaign,
+        evaluation_at=datetime(2026, 7, 7, 14, 0, tzinfo=timezone.utc),
+    )
+    assert projection.cadence_conflict is True
