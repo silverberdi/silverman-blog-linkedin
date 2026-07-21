@@ -130,11 +130,13 @@ Treat each integration's enablement flag as authoritative — do not bypass guar
 
 ## Git discipline
 
+- **Branch-per-US (effective 2026-07-21):** Create/switch to a new branch for the owning user story before editing. **Do not commit product or application work directly on `main`.** Integrate to `main` only after **Story accepted** (prefer PR; required once BL-029 branch protection lands). See [docs/operations/branch-per-us-integration-policy.md](docs/operations/branch-per-us-integration-policy.md).
 - Stage explicit paths only; never commit unless user explicitly requests.
-- Three commit boundaries: (1) implementation, (2) spec sync, (3) archive — separate commits.
+- Three commit boundaries: (1) implementation, (2) spec sync, (3) archive — separate commits (on the US branch).
 - No amend unless user requests and conditions are met; never force-push main/master.
 - Do not push without explicit user approval.
 - Follow repository commit message style from recent `git log` when user requests a commit.
+- When reporting done, distinguish **branch complete / Story accepted** from **merged to `main`**.
 
 ## Deployment and live-operation discipline
 
@@ -167,10 +169,11 @@ Hyphenated commands only — see `.cursor/commands/opsx-*.md`:
 → /opsx-verify → explicit commit approval → implementation commit
 → /opsx-sync → sync review → separate sync commit
 → /opsx-archive → archive review → separate archive commit
-→ explicit push approval → explicit deploy approval → controlled validation
+→ explicit push approval → after **Story accepted**, PR/merge US branch to `main` → explicit deploy approval → controlled validation
 ```
 
 No apply on unapproved proposal. No sync before implementation commit. No archive before sync commit.
+No merge to `main` until Story accepted ([branch-per-us-integration-policy.md](docs/operations/branch-per-us-integration-policy.md)).
 Verification stale after any post-verify edit — re-run `/opsx-verify` before proceeding.
 
 ## Definition of done

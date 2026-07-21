@@ -48,4 +48,6 @@ Update rules when hierarchy or document roles change — not on every status bul
 ## 4. Related
 
 - Audit evidence: [us-071-us-073-context-maintenance-audit-2026-07-21.md](us-071-us-073-context-maintenance-audit-2026-07-21.md)
-- CI (deferred): BL-029 / US-069–070
+- CI + UAT + PR deploy promotion (open): BL-029 / US-069–070 / US-091–092
+- Branch-per-US (**US-105 Story accepted**): BL-038 — [branch-per-us-integration-policy.md](branch-per-us-integration-policy.md)
+- Platform roadmap (open; **immediate: BL-034**): BL-034–037 (UI/API split, Google login, X, analytics)

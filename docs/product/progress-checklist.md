@@ -875,17 +875,31 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item business outcome validated — operator-accepted 2026-07-21
   - [x] Backlog item closed — 2026-07-21
 
-- [ ] **BL-029 — Establish Continuous Integration**
-  - Business outcome: Invalid changes are detected before they reach the main branch.
-  - Status: **Open / deferred** (larger iteration; left open when BL-030 closed 2026-07-21).
-  - [ ] **US-069**
+- [ ] **BL-029 — Establish Continuous Integration and Controlled Deploy Promotion**
+  - Business outcome: Invalid changes are blocked before merge; production deploys only after a successful UAT path (PR→UAT, then PR→prod).
+  - Status: **Open** — stories expanded 2026-07-21 (US-069 / US-070 / US-091 / US-092); implementation not started.
+  - [ ] **US-069** — PR CI (tests + specs + YAML/JSON)
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed
     - [ ] Work started
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
-  - [ ] **US-070**
+  - [ ] **US-070** — PR hygiene (whitespace + secrets + merge block)
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-091** — UAT environment separate from prod
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-092** — Deploy UAT then prod via successive PRs
     - [ ] Story reviewed
     - [ ] Acceptance criteria agreed
     - [ ] Work started
@@ -937,3 +951,129 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] All user stories completed
   - [x] Backlog item business outcome validated
   - [x] Backlog item closed
+
+- [ ] **BL-034 — Separate Operator UI from Worker API**
+  - Business outcome: UI can be versioned/deployed separately from the API with UAT/prod pairing.
+  - Status: **Open — immediate priority** (operator 2026-07-21) — stories US-093 / US-094 / US-095; implementation not started.
+  - [ ] **US-093**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-094**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-095**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-035 — Google Login for Operator Console**
+  - Business outcome: Humans use Google login; automation auth stays distinct.
+  - Status: **Open** — stories added 2026-07-21 (US-096 / US-097 / US-098).
+  - [ ] **US-096**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-097**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-098**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-036 — Publish Distribution Assets to X**
+  - Business outcome: Guarded X distribution alongside LinkedIn; blog remains canonical.
+  - Status: **Open** — stories added 2026-07-21 (US-099 / US-100 / US-101).
+  - [ ] **US-099**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-100**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-101**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-037 — Implement Post Effectiveness Analytics**
+  - Business outcome: System-backed post effectiveness beyond manual BL-022/023 logs.
+  - Status: **Open** — stories added 2026-07-21 (US-102 / US-103 / US-104).
+  - [ ] **US-102**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-103**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-104**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [x] **BL-038 — Adopt Branch-Per-US Integration Discipline**
+  - Business outcome: New work on US branches; merge to `main` only after Story accepted.
+  - Status: **Closed 2026-07-21** — US-105 Story accepted (operator-accepted); integrate via PR.
+  - [x] **US-105**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started — policy + platform backlog docs on US-105 branch
+    - [x] Business outcome demonstrated — policy SoT + BL-029/034–037 product docs + Cursor/CONTEXT updates
+    - [x] Acceptance criteria validated — operator-accepted 2026-07-21
+    - [x] Story accepted — operator-accepted 2026-07-21; merge PR to `main`
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated — operator-accepted 2026-07-21
+  - [x] Backlog item closed — 2026-07-21

@@ -1992,41 +1992,73 @@ As a system owner, I want the full pytest suite green and free of the inherited 
 - [x] Failures or blocked states are clearly communicated.
 - [x] Existing completed work is not duplicated or unintentionally changed (BL-028 stays closed as the historical baseline; BL-029 remains separate).
 
-## BL-029 — Establish Continuous Integration
+## BL-029 — Establish Continuous Integration and Controlled Deploy Promotion
 
 **Priority:** P7
 
-**Business context:** Run repository validation automatically on proposed changes.
+**Business context:** After wipe/deploy mistakes, the system owner needs automated PR validation **and** a UAT→prod promotion path so production is never the first deploy target. Stories US-069 / US-070 cover CI gates; US-091 / US-092 cover UAT and PR-based deploy promotion. Implementation requires an approved OpenSpec change — this section is product intent only until then.
 
-### US-069 — Establish Continuous Integration: Story 1
+### US-069 — Establish Continuous Integration: Story 1 (PR validation)
 
 **Description**
 
-As a content operator, I want to run tests, so that invalid changes are detected before they reach the main branch.
+As a system owner, I want GitHub Actions to run tests and specification checks on pull requests, so that invalid changes are detected before they reach the protected integration branch.
 
 **Acceptance criteria**
 
-- [ ] Run tests.
-- [ ] Validate specifications.
-- [ ] Validate YAML and JSON.
+- [ ] Run the primary test suites on pull requests via GitHub Actions (pytest; Vitest when frontend scope applies).
+- [ ] Validate OpenSpec / specifications on pull requests.
+- [ ] Validate YAML and JSON used by the worker/deploy/n8n contracts on pull requests.
+- [ ] CI results are visible on the PR (pass/fail) without secret values in logs.
+- [ ] Failures or blocked states are clearly communicated on the PR check.
+- [ ] Existing completed work is not duplicated or unintentionally changed (BL-028/033 baselines remain historical; no LinkedIn enablement mutation).
+
+### US-070 — Establish Continuous Integration: Story 2 (hygiene + merge block)
+
+**Description**
+
+As a system owner, I want whitespace, consistency, and secrets scans on pull requests, so that invalid or secret-leaking changes cannot merge to the protected integration branch.
+
+**Acceptance criteria**
+
+- [ ] Check whitespace and repository consistency on pull requests.
+- [ ] Scan for secrets on pull requests (fail closed; never print secret values).
+- [ ] Block invalid changes from merging while required checks are red (branch protection / required status checks).
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
 
-### US-070 — Establish Continuous Integration: Story 2
+### US-091 — Establish a UAT Deploy Environment
 
 **Description**
 
-As a content operator, I want to check whitespace and repository consistency, so that invalid changes are detected before they reach the main branch.
+As a system owner, I want a dedicated UAT worker environment separate from production, so that builds can be deployed and smoke-checked before any production promote.
 
 **Acceptance criteria**
 
-- [ ] Check whitespace and repository consistency.
-- [ ] Scan for secrets.
-- [ ] Block invalid changes.
+- [ ] Document and stand up a UAT worker target distinct from production (own compose/service identity, port or host path, data/mount classes, and env/secret classes — not a silent overwrite of prod mounts).
+- [ ] UAT defaults fail closed for LinkedIn API publication (`SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` off unless an explicit UAT exception is documented and approved).
+- [ ] UAT health/smoke can confirm the deployed revision without writing secret values into docs or Actions logs.
+- [ ] Prod (`192.168.0.194` production worker path) remains untouched by UAT-only deploys.
 - [ ] The outcome is visible and understandable to the intended user.
 - [ ] Failures or blocked states are clearly communicated.
 - [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-092 — Deploy to UAT Then Prod via Pull Requests
+
+**Description**
+
+As a system owner, I want GitHub Actions to deploy to UAT through a pull request and promote to production only through a later pull request, so that production is never the first place a change is deployed.
+
+**Acceptance criteria**
+
+- [ ] Deploy (or deploy-trigger) to **UAT** is gated by a pull-request path (merge/approval + required CI green) — not an ad-hoc push straight to prod.
+- [ ] Deploy/promote to **prod** is gated by a **subsequent** pull-request path that requires prior successful UAT deploy/smoke (GitHub Environments and/or protected branches as documented).
+- [ ] Operator documentation describes the PR→UAT→PR→prod sequence, Environments/protections, and what evidence counts as UAT success.
+- [ ] Direct unreviewed deploy-to-prod from feature branches is blocked or explicitly out of policy.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated (including blocked promote when UAT did not succeed).
+- [ ] Existing completed work is not duplicated or unintentionally changed (no classic GitFlow mandate beyond the documented PR promotion discipline; no secret values in workflows/docs).
 
 ## BL-030 — Maintain Current Project and Runtime Context
 
@@ -2103,3 +2135,225 @@ As a system operator, I want the master editorial calendar stored in PostgreSQL 
 - [x] Operator-gated import from legacy `calendar.json` works when the DB is empty and refuses to clobber a non-empty DB. — Demonstrated: import path + cutover checklist refuse/clobber rules.
 - [x] Secrets (DB URL/password) never appear in HTTP responses or logs. — Demonstrated: env-only `SILVERMAN_CALENDAR_DATABASE_URL`; secrets audit practice retained.
 - [x] Existing completed work is not duplicated or unintentionally changed (HTTP paths stable; blog/LinkedIn Markdown remain files). — Demonstrated: n8n/console HTTP contracts stable; Markdown unchanged; wiped historical rows not falsely restored.
+
+## BL-034 — Separate Operator UI from Worker API
+
+**Priority:** P8 — **immediate / next** (operator 2026-07-21)
+
+**Business context:** Console today ships as static assets inside the worker. Operators need independent UI deployability while keeping UAT/prod pairing (BL-029).
+
+### US-093 — Separate Operator UI from Worker API: Story 1
+
+**Description**
+
+As a system owner, I want the operator UI deployed as a distinct artifact from the worker API, so that UI and API can version and roll out independently.
+
+**Acceptance criteria**
+
+- [ ] Publish a deployable UI artifact/service that is not solely “static files inside the API image” as the only supported production path.
+- [ ] Browser calls the worker API over HTTP using the typed client boundary (no filesystem SoT in the browser).
+- [ ] n8n continues to call the worker API only (ADR-0001); UI separation MUST NOT introduce n8n Execute Command.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-094 — Separate Operator UI from Worker API: Story 2
+
+**Description**
+
+As a system owner, I want UAT and prod each to pair their UI with the matching API, so that environment separation is preserved after the UI split.
+
+**Acceptance criteria**
+
+- [ ] UAT UI is configured to call the UAT API (not prod) by default.
+- [ ] Prod UI is configured to call the prod API (not UAT) by default.
+- [ ] Misconfiguration fails closed with a clear operator-visible error (no silent cross-environment writes).
+- [ ] Document topology updates in CURRENT-STATE / RUNTIME-STATE when live.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-095 — Separate Operator UI from Worker API: Story 3
+
+**Description**
+
+As a content operator, I want existing console capabilities to keep working after the UI/API split, so that day-to-day supervision is not regressed.
+
+**Acceptance criteria**
+
+- [ ] Core supervision capabilities remain available through the separated UI (schedule visibility and LinkedIn control-center actions already Story accepted under BL-032 remain reachable via API).
+- [ ] Auth handoff remains compatible with a future Google login path (BL-035) without rewriting business screens.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+## BL-035 — Google Login for Operator Console
+
+**Priority:** P8
+
+**Business context:** US-040D prepared boundaries; operators still need real Google login for humans while n8n keeps machine auth.
+
+### US-096 — Google Login for Operator Console: Story 1
+
+**Description**
+
+As a content operator, I want to sign in with Google, so that I can use the console without pasting a shared API key into the browser.
+
+**Acceptance criteria**
+
+- [ ] Provide Google / OIDC login for human operators on the console UI.
+- [ ] Unauthenticated human sessions cannot call protected mutation/read operator routes from the UI.
+- [ ] No Google client secrets or tokens appear in docs, HTTP responses, or CI logs.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-097 — Google Login for Operator Console: Story 2
+
+**Description**
+
+As a system owner, I want only allowlisted operators to access the console after Google login, so that a valid Google account alone is not sufficient.
+
+**Acceptance criteria**
+
+- [ ] Enforce an explicit operator allowlist (or equivalent authorization policy).
+- [ ] Reject non-allowlisted authenticated Google users with a clear blocked state.
+- [ ] Keep n8n/automation on machine credentials (API key or equivalent) — do not require interactive Google login for orchestration.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-098 — Google Login for Operator Console: Story 3
+
+**Description**
+
+As a system owner, I want Google login configuration separated for UAT and prod, so that auth clients and redirects cannot silently cross environments.
+
+**Acceptance criteria**
+
+- [ ] UAT and prod use distinct OAuth/OIDC client (or config) classes appropriate to each environment.
+- [ ] Document accepted exposure impact (LAN vs public callback) without contradicting BL-026 unless a new exposure decision is recorded.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+## BL-036 — Publish Distribution Assets to X
+
+**Priority:** P8
+
+**Business context:** Blog remains canonical (ADR-0002). X is an additional distribution channel beside LinkedIn.
+
+### US-099 — Publish Distribution Assets to X: Story 1
+
+**Description**
+
+As a content operator, I want X distribution assets derived from the canonical blog, so that X posts do not replace the blog as source of truth.
+
+**Acceptance criteria**
+
+- [ ] Define X posts as distribution assets (not canonical blog replacements).
+- [ ] Package/draft path for X is distinct from LinkedIn package paths and LinkedIn `publish_state`.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-100 — Publish Distribution Assets to X: Story 2
+
+**Description**
+
+As a content operator, I want guarded schedule and publish to X, so that external posts happen only when explicitly enabled and authorized.
+
+**Acceptance criteria**
+
+- [ ] Provide schedule and guarded publish capabilities for X with a fail-closed enablement flag (analogous discipline to `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`, distinct env name).
+- [ ] Dry-run / disabled modes MUST NOT create real X posts.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-101 — Publish Distribution Assets to X: Story 3
+
+**Description**
+
+As a content operator, I want durable X publication evidence and idempotent replay, so that retries do not create duplicate posts.
+
+**Acceptance criteria**
+
+- [ ] Persist success/failure evidence for X publishes (provider ids/timestamps/status — no secrets).
+- [ ] Replay of a successful publish is idempotent (no second external post).
+- [ ] Operator-facing status MUST NOT equate X Live with LinkedIn Live or blog Published.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+## BL-037 — Implement Post Effectiveness Analytics
+
+**Priority:** P8
+
+**Business context:** BL-022 / BL-023 defined manual metrics. Operators now need system-backed post effectiveness measurement.
+
+### US-102 — Implement Post Effectiveness Analytics: Story 1
+
+**Description**
+
+As a content operator, I want post-level metrics collected for eligible published posts, so that effectiveness is measurable beyond schedule metadata.
+
+**Acceptance criteria**
+
+- [ ] Collect or ingest metrics for eligible Live posts (LinkedIn; X when available; blog traffic when available) per US-053 vocabulary.
+- [ ] MUST NOT treat `distribution_scheduled`, pending, or package-complete as measured reach.
+- [ ] Persist metrics in an operator-trusted store (not only one-off markdown notes).
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated (blocked/unavailable ≠ measured zero).
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-103 — Implement Post Effectiveness Analytics: Story 2
+
+**Description**
+
+As a content operator, I want an operator-visible effectiveness view, so that I can compare posts without exporting raw files by hand.
+
+**Acceptance criteria**
+
+- [ ] Surface effectiveness signals in an operator-visible UI or read API suitable for the console.
+- [ ] Reuse US-053–US-056 definitions; do not invent a contradictory second metrics language.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-104 — Implement Post Effectiveness Analytics: Story 3
+
+**Description**
+
+As a content operator, I want analytics insights to inform planning without auto-changing editorial systems, so that human oversight remains fail-closed.
+
+**Acceptance criteria**
+
+- [ ] Support feeding recorded analytics into planning notes consistent with US-056.
+- [ ] MUST NOT auto-mutate editorial backlog, strategy docs, or Flow B discovery/draft/gap-trigger without explicit operator action.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+## BL-038 — Adopt Branch-Per-US Integration Discipline
+
+**Priority:** P8
+
+**Business context:** Effective 2026-07-21 — every change on a new branch; integrate to `main` only when the owning US is Story accepted. Complements BL-029 automation.
+
+### US-105 — Adopt Branch-Per-US Integration Discipline
+
+**Status note:** **Story accepted** (operator-accepted 2026-07-21). Policy + platform roadmap docs on branch `docs/us-105-branch-policy-and-platform-roadmap`. **BL-038 closed 2026-07-21** after merge to `main`. SoT: [branch-per-us-integration-policy.md](../operations/branch-per-us-integration-policy.md).
+
+**Description**
+
+As a system owner, I want all work on a user-story branch that merges to `main` only when that story is accepted, so that incomplete work cannot land on the integration branch by habit.
+
+**Acceptance criteria**
+
+- [x] Publish normative policy at [branch-per-us-integration-policy.md](../operations/branch-per-us-integration-policy.md).
+- [x] Update Cursor project/engineering rules and CONTEXT-AUTHORITY to require branch-first work and Story-accepted-before-`main`.
+- [x] Add open platform backlog BL-034–037 (UI split, Google login, X, analytics) with user stories and progress checklist entries.
+- [x] Expand BL-029 product stories for UAT + PR promotion if not already present on this branch.
+- [x] Demonstrate this documentation change itself lives on a US-105 branch (not direct `main` commits). — Branch: `docs/us-105-branch-policy-and-platform-roadmap`.
+- [x] The outcome is visible and understandable to the intended user. — Operator-accepted 2026-07-21.
+- [x] Existing completed work is not duplicated or unintentionally changed.

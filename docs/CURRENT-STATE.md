@@ -146,12 +146,20 @@ Evidence from real post `04-a-bounded-context-is-not-a-folder.md` (2026-07-10):
 - Flow B gap trigger remains **operator-gated** (US-082 Story accepted): `gap_trigger_enabled` default **false**; n8n gap-trigger export remains `active: false` until operator enables unattended weekly runs.
 - OAuth LinkedIn **refresh token not present** in production token store — reauth required when access expires (see [linkedin-token-management.md](operations/linkedin-token-management.md)).
 - Dairector content paths (out of scope).
-- **BL-029** Establish Continuous Integration (US-069 / US-070) — **open / deferred** (larger iteration; not in BL-030).
-- Closed hygiene and product items (US-058–063, BL-024–026, BL-028, BL-033, Flow A/B/console) are recorded in sections above / product progress — **do not** re-list as incomplete.
+- **BL-029** Continuous Integration and controlled deploy promotion (US-069 / US-070 / US-091 / US-092) — **open** (product stories expanded 2026-07-21; implementation not started).
+- **BL-034** Separate operator UI from worker API (US-093–095) — **open — immediate priority** (operator 2026-07-21).
+- **BL-035** Google login for operator console (US-096–098) — **open**.
+- **BL-036** Publish distribution assets to X (US-099–101) — **open**.
+- **BL-037** Implement post effectiveness analytics (US-102–104) — **open**.
+- Closed hygiene and product items (US-058–063, BL-024–026, BL-028, BL-030, BL-033, BL-038/US-105, Flow A/B/console) are recorded in sections above / product progress — **do not** re-list as incomplete.
 
 ## Project / runtime context maintenance (BL-030)
 
 - **BL-030 / US-071 + US-072 + US-073:** **procedure published and Story accepted** (operator-accepted 2026-07-21; docs OpenSpec `maintain-project-runtime-context-us-071-073`) — SoT [project-runtime-context-maintenance.md](operations/project-runtime-context-maintenance.md); depth-C audit + live RUNTIME-STATE refresh 2026-07-21; evidence [us-071-us-073-context-maintenance-audit-2026-07-21.md](operations/us-071-us-073-context-maintenance-audit-2026-07-21.md). **BL-030 closed 2026-07-21.** **BL-029 remains open.**
+
+## Branch-per-US integration (BL-038)
+
+- **BL-038 / US-105:** **procedure published and Story accepted** (operator-accepted 2026-07-21) — SoT [branch-per-us-integration-policy.md](operations/branch-per-us-integration-policy.md); platform roadmap BL-034–037 + BL-029 expansion documented on branch `docs/us-105-branch-policy-and-platform-roadmap`. **BL-038 closed 2026-07-21** upon merge to `main`. **BL-034 is immediate next.**
 
 ## Completion layers (qualified)
 

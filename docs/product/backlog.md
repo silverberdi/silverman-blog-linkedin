@@ -13,6 +13,9 @@ This backlog describes the outstanding business and operational capabilities req
 | P5 | Editorial Strategy and Measurement |
 | P6 | Security and Administration |
 | P7 | Technical Debt and Maintenance |
+| **P8 (next)** | **Platform evolution — immediate: BL-034 UI/API separation** |
+
+**Immediate priority (operator 2026-07-21):** **BL-034** (US-093 / US-094 / US-095) — separate operator UI from worker API. BL-029 (CI/UAT) remains open and **aligns** with US-094 environment pairing but is **not** a hard gate to start BL-034 design/implementation on its own US branch after US-105 integrates. BL-035–037 follow BL-034 unless reordered.
 
 ## P1 — Complete Flow A Operationally
 
@@ -609,22 +612,24 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Evidence:** [us-090-pytest-suite-debt-clearance-2026-07-21.md](../operations/us-090-pytest-suite-debt-clearance-2026-07-21.md).
 
-### BL-029 — Establish Continuous Integration
+### BL-029 — Establish Continuous Integration and Controlled Deploy Promotion
 
-**Business need:** Run repository validation automatically on proposed changes.
+**Business need:** Detect invalid changes before they reach production **and** enforce deploy discipline: validate on PR, deploy to a **UAT** environment first, then promote to **prod** only through a subsequent PR — so production is never the first place a change lands.
 
 **Expected outcomes:**
 
-- Run tests.
-- Validate specifications.
-- Validate YAML and JSON.
-- Check whitespace and repository consistency.
-- Scan for secrets.
-- Block invalid changes.
+- Run tests (pytest; Vitest when frontend changes apply) on pull requests via GitHub Actions.
+- Validate OpenSpec / specifications and YAML/JSON on pull requests.
+- Check whitespace and repository consistency; scan for secrets; block invalid merges.
+- Stand up a **UAT** worker environment separate from production (`192.168.0.194:8010` prod path), with its own config/mounts/secrets classes and fail-closed LinkedIn publication by default.
+- Configure GitHub Actions + branch/environment protections so deploy to **UAT happens via PR**, and deploy/promote to **prod happens via a later PR** (UAT must succeed before prod promotion is allowed).
+- Document the operator path (how to open PRs, which Environments, what “green” means) without embedding secret values.
 
-**Completion outcome:** Invalid changes are detected before they reach the main branch.
+**Completion outcome:** Invalid changes are blocked before merge, and production deploys only after a successful UAT path — never as the first deploy target.
 
-**Status:** **Open / deferred** — larger iteration (CI + deploy discipline); not addressed in BL-030.
+**Status:** **Open** — product stories expanded 2026-07-21 (US-069 / US-070 / US-091 / US-092); implementation not started (no `.github/workflows/` yet).
+
+**Out of scope until separately accepted:** Classic GitFlow as the only model; public console exposure; mutating `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` on prod as part of CI setup.
 
 ### BL-030 — Maintain Current Project and Runtime Context
 
@@ -659,3 +664,94 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 **Completion outcome:** Calendar schedule state survives editorial mount wipe and code sync; operators can plan and supervise from database-backed calendar reads.
 
 **Status:** Closed 2026-07-19 after US-041 Story accepted (cutover smoke previously recorded on `192.168.0.194:8010`; does not restore historically wiped calendar rows).
+
+## P8 — Platform evolution (UI, auth, channels, analytics)
+
+### BL-034 — Separate Operator UI from Worker API
+
+**Priority:** **Immediate / next** (operator 2026-07-21).
+
+**Business need:** Deploy and evolve the operator console independently from the worker API while preserving UAT/prod environment separation (BL-029).
+
+**Expected outcomes:**
+
+- Serve the operator UI as a deployable artifact/service distinct from the worker API process (UI no longer solely embedded static assets inside the API as the only production path).
+- Keep typed HTTP contracts: browser → API; n8n → API only (ADR-0001 unchanged).
+- Pair UI and API per environment (UAT UI talks to UAT API; prod UI talks to prod API) — no cross-environment defaults.
+- Preserve existing operator capabilities during migration; fail closed when API URL/auth is misconfigured.
+- Document topology in CURRENT-STATE / RUNTIME-STATE when live.
+
+**Completion outcome:** Operators use a UI layer that can be versioned and deployed separately from the API, with clear UAT vs prod pairing.
+
+**Status:** **Open — immediate priority** — product stories added 2026-07-21 (US-093 / US-094 / US-095); implementation not started. Start on a dedicated US branch after US-105 merges to `main` (or from this policy branch only if operator explicitly sequences otherwise).
+
+**Depends on / aligns with:** BL-029 UAT/prod pairing (**aligns**; full Actions/UAT stand-up may proceed in parallel). Does not replace Google login (BL-035).
+
+### BL-035 — Google Login for Operator Console
+
+**Business need:** Replace operator reliance on shared API-key paste in the browser with Google login for human operators, while keeping machine authentication for n8n/automation.
+
+**Expected outcomes:**
+
+- Add Google / OIDC login for human operators on the console UI.
+- Enforce an operator allowlist (or equivalent explicit authorization); unauthenticated humans cannot mutate.
+- Keep n8n / automation on API-key (or equivalent machine credential) — do not force Google interactive login on orchestration.
+- Work on UAT and prod with separate OAuth client/config classes; no secret values in docs or logs.
+- Build on US-040D readiness boundaries without rewriting calendar UX from scratch.
+
+**Completion outcome:** Human operators authenticate with Google; automation auth remains distinct and fail-closed.
+
+**Status:** **Open** — product stories added 2026-07-21 (US-096 / US-097 / US-098); implementation not started.
+
+**Depends on / aligns with:** BL-034 (preferred UI/API split) or documented interim same-origin path; BL-026 accepted exposure (public console remains a deliberate decision).
+
+### BL-036 — Publish Distribution Assets to X
+
+**Business need:** Extend the content program beyond LinkedIn with guarded publication to X (Twitter), without treating X as a substitute for the canonical blog post.
+
+**Expected outcomes:**
+
+- Define X posts as distribution assets derived from the canonical blog (ADR-0002 retained).
+- Support draft/package, schedule, and guarded API publish paths for X with enablement flag fail-closed.
+- Persist publication evidence and idempotency (no duplicate external posts on replay).
+- Keep LinkedIn `publish_state` / honesty vocabulary distinct from X status.
+- Document operator supervision boundaries (console later MAY surface X; not required to close packaging/publish core).
+
+**Completion outcome:** Operators can distribute approved content to X under the same honesty and guard discipline as LinkedIn.
+
+**Status:** **Open** — product stories added 2026-07-21 (US-099 / US-100 / US-101); implementation not started.
+
+### BL-037 — Implement Post Effectiveness Analytics
+
+**Business need:** Move from manual-first metrics logs (BL-022 / BL-023 definitions) to implemented collection and operator-visible effectiveness signals for published posts.
+
+**Expected outcomes:**
+
+- Collect or ingest post-level metrics for eligible published items (LinkedIn Live; X when BL-036 Live; blog traffic where available) without inventing reach from schedule/pending/package-complete.
+- Persist metrics in an operator-trusted store (not only ad-hoc markdown notes).
+- Surface effectiveness in an operator-visible view (console or dedicated read model) with blocked-state honesty when data is unavailable.
+- Reuse US-053–US-056 definitions; do not create a contradictory second metrics vocabulary.
+- MUST NOT auto-mutate editorial backlog or Flow B without explicit operator action (US-056 oversight retained).
+
+**Completion outcome:** Operators can measure post effectiveness from system-backed analytics, not only manual period logs.
+
+**Status:** **Open** — product stories added 2026-07-21 (US-102 / US-103 / US-104); implementation not started.
+
+**Depends on / aligns with:** BL-022 / BL-023 (definitions closed); LinkedIn/X Live honesty; optional UI surface via BL-034.
+
+### BL-038 — Adopt Branch-Per-US Integration Discipline
+
+**Business need:** Prevent direct-to-`main` drift and wipe-class mistakes by requiring feature branches and integrating to `main` only when the owning user story is Story accepted.
+
+**Expected outcomes:**
+
+- Document the branch-per-US policy as normative operator/engineering discipline.
+- Update Cursor rules and CONTEXT-AUTHORITY so agents follow branch-first + Story-accepted-before-main.
+- Record open platform roadmap items (BL-034–037) in product docs under this same documentation change where applicable.
+- Align with (do not replace) BL-029 CI/UAT automation when that lands.
+
+**Completion outcome:** New work lands on a US-owned branch and reaches `main` only after Story accepted.
+
+**Status:** **Closed 2026-07-21** — US-105 Story accepted (operator-accepted); merge to `main` via PR from `docs/us-105-branch-policy-and-platform-roadmap`.
+
+**SoT:** [branch-per-us-integration-policy.md](../operations/branch-per-us-integration-policy.md).

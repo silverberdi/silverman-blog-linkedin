@@ -19,6 +19,7 @@ HTTP worker for blog-to-LinkedIn automation. n8n orchestrates over HTTP only; wo
 
 - **n8n → worker HTTP only** — never n8n Execute Command (ADR-0001)
 - **OpenSpec before code** — no application changes without an approved change
+- **Branch-per-US** — new work on a feature branch; integrate to `main` only when the owning US is Story accepted ([branch-per-us-integration-policy.md](docs/operations/branch-per-us-integration-policy.md))
 - **No secrets** in HTTP responses or docs
 - **Qualified Flow A language** — never bare "Flow A complete"; see GLOSSARY completion layers (`flow_a_complete` = campaign lifecycle only)
 - **Blog handoff ≠ site published/live**; **LinkedIn implemented ≠ API validated**; **n8n imported ≠ unattended**

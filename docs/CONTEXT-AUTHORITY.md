@@ -49,15 +49,18 @@ When updating capabilities, topology, activation state, or completion criteria, 
 
 ## Engineering lifecycle
 
-1. **Propose** — `/opsx-propose <change-name>` creates proposal, design, specs, and tasks. Scope one coherent capability.
+**Branch-per-US (effective 2026-07-21):** All product and application changes MUST start on a **new git branch**. Integrate to **`main` only when the owning user story is Story accepted**. See [operations/branch-per-us-integration-policy.md](operations/branch-per-us-integration-policy.md) (BL-038 / US-105). This complements BL-029 CI/UAT automation and does not replace OpenSpec approval.
+
+1. **Propose** — `/opsx-propose <change-name>` creates proposal, design, specs, and tasks. Scope one coherent capability. Work on the owning US branch.
 2. **Review** — Human approval before implementation. Do not implement application code without an approved OpenSpec change.
 3. **Apply** — `/opsx-apply <change-name>` implements tasks from the change.
 4. **Verify** — `/opsx-verify <change-name>` runs strict validation, artifact/task checks, and change-required tests before commit.
-5. **Commit** — Approved implementation committed to git.
+5. **Commit** — Approved implementation committed on the **US branch** (not directly on `main`).
 6. **Sync** — `/opsx-sync <change-name>` merges delta specs into canonical `openspec/specs/`.
 7. **Archive** — `/opsx-archive <change-name>` finalizes the change after commit and sync.
+8. **Integrate** — After **Story accepted**, merge/PR the US branch into `main` (required PR once BL-029 protections land).
 
-**Approval gates:** proposal approval before apply; verification before commit; commit and sync before archive.
+**Approval gates:** proposal approval before apply; verification before commit; Story accepted before `main`; commit and sync before archive.
 
 **Staleness rule:** Any code or artifact modification after a successful `/opsx-verify` makes that verification stale. Re-run verify before commit, sync, or archive.
 
