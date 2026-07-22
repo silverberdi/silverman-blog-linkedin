@@ -1,6 +1,6 @@
 #!/bin/sh
-# Inject non-secret runtime config for the separated operator UI (US-093).
-# Env var *names* only in messages; never embed API keys or tokens.
+# Inject non-secret runtime config for the separated operator UI (US-093 / US-094).
+# apiBaseUrl + envLabel (uat|prod) — never embed API keys or tokens.
 set -eu
 
 escape_js_string() {

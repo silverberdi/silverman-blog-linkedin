@@ -1,13 +1,17 @@
 /**
- * Runtime non-secret operator UI configuration (US-093 / BL-034 Story 1).
+ * Runtime non-secret operator UI configuration (US-093 / US-094 / BL-034).
  *
  * Separated UI: config.js injects window.__SILVERMAN_OPERATOR_UI_CONFIG__ at
  * container start. Embedded worker console: deliveryMode=embedded (build-time)
- * and relative same-origin API paths remain valid.
+ * and relative same-origin API paths remain valid; pairing is not required.
  */
 
 export const OPERATOR_UI_API_BASE_URL_KEY = "SILVERMAN_OPERATOR_UI_API_BASE_URL";
 export const OPERATOR_UI_ENV_LABEL_KEY = "SILVERMAN_OPERATOR_UI_ENV_LABEL";
+
+/** Closed pairing vocabulary (US-094). */
+export const DEPLOYMENT_ENVIRONMENTS = ["uat", "prod"] as const;
+export type DeploymentEnvironment = (typeof DEPLOYMENT_ENVIRONMENTS)[number];
 
 export type OperatorUiDeliveryMode = "separated" | "embedded";
 
@@ -15,15 +19,15 @@ export interface OperatorUiRuntimeConfig {
   deliveryMode: OperatorUiDeliveryMode;
   /** Absolute worker origin, or empty for embedded same-origin mode. */
   apiBaseUrl: string;
-  /** Reserved for US-094 pairing display; unused for enforcement in US-093. */
-  envLabel: string;
+  /** Separated mode: required uat|prod. Embedded: empty. */
+  envLabel: DeploymentEnvironment | "";
 }
 
 export type OperatorUiConfigResult =
   | { ok: true; config: OperatorUiRuntimeConfig }
   | {
       ok: false;
-      reason: "missing" | "invalid";
+      reason: "missing" | "invalid" | "pairing";
       message: string;
       requiredKeys: string[];
     };
@@ -86,6 +90,22 @@ export function joinApiUrl(apiBaseUrl: string, path: string): string {
   return new URL(path, base).toString();
 }
 
+export function normalizeDeploymentEnvironment(
+  value: string,
+): DeploymentEnvironment | null {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "uat" || normalized === "prod") {
+    return normalized;
+  }
+  return null;
+}
+
+export function displayDeploymentEnvironment(
+  env: DeploymentEnvironment,
+): string {
+  return env === "uat" ? "UAT" : "Prod";
+}
+
 export function resolveOperatorUiConfig(
   deliveryMode: OperatorUiDeliveryMode = buildDeliveryMode(),
   windowConfig: Window["__SILVERMAN_OPERATOR_UI_CONFIG__"] | undefined = typeof window !==
@@ -108,7 +128,7 @@ export function resolveOperatorUiConfig(
     typeof windowConfig?.apiBaseUrl === "string"
       ? windowConfig.apiBaseUrl.trim()
       : "";
-  const envLabel =
+  const rawEnvLabel =
     typeof windowConfig?.envLabel === "string" ? windowConfig.envLabel.trim() : "";
 
   if (!rawBase) {
@@ -131,6 +151,30 @@ export function resolveOperatorUiConfig(
         `Operator UI is blocked: ${OPERATOR_UI_API_BASE_URL_KEY} must be a valid absolute ` +
         `http or https URL (no secrets). Relative or malformed values are rejected.`,
       requiredKeys: [OPERATOR_UI_API_BASE_URL_KEY],
+    };
+  }
+
+  if (!rawEnvLabel) {
+    return {
+      ok: false,
+      reason: "missing",
+      message:
+        `Operator UI is blocked: set ${OPERATOR_UI_ENV_LABEL_KEY} to uat or prod so this ` +
+        `console can pair with the matching worker API. Relative same-origin API calls ` +
+        `remain disabled in separated-UI mode.`,
+      requiredKeys: [OPERATOR_UI_ENV_LABEL_KEY],
+    };
+  }
+
+  const envLabel = normalizeDeploymentEnvironment(rawEnvLabel);
+  if (!envLabel) {
+    return {
+      ok: false,
+      reason: "invalid",
+      message:
+        `Operator UI is blocked: ${OPERATOR_UI_ENV_LABEL_KEY} must be uat or prod ` +
+        `(case-insensitive). Free-form labels are rejected.`,
+      requiredKeys: [OPERATOR_UI_ENV_LABEL_KEY],
     };
   }
 

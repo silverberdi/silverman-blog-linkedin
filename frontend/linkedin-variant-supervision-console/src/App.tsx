@@ -7,6 +7,7 @@ import {
   useSupervisionStore,
 } from "./models/store";
 import type { SupervisionApiClient } from "./api/client";
+import type { DeploymentEnvironment } from "./config/operatorUiConfig";
 
 function ConsoleBody() {
   const { activeView } = useSupervisionStore();
@@ -20,12 +21,15 @@ function ConsoleBody() {
 
 export default function App({
   client,
+  deploymentEnvironment,
 }: {
   client?: SupervisionApiClient;
+  /** Set when separated UI↔API pairing succeeds (US-094). */
+  deploymentEnvironment?: DeploymentEnvironment;
 } = {}) {
   return (
     <SupervisionStoreProvider client={client}>
-      <AppShell>
+      <AppShell deploymentEnvironment={deploymentEnvironment}>
         <ConsoleBody />
       </AppShell>
     </SupervisionStoreProvider>

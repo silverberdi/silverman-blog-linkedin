@@ -78,7 +78,7 @@ describe("operator UI API base URL config", () => {
     }
   });
 
-  it("separated mode accepts a valid absolute API base URL", () => {
+  it("separated mode accepts a valid absolute API base URL with env label", () => {
     const result = resolveOperatorUiConfig("separated", {
       apiBaseUrl: "http://192.168.0.194:8010",
       envLabel: "uat",
@@ -87,6 +87,16 @@ describe("operator UI API base URL config", () => {
     if (result.ok) {
       expect(result.config.apiBaseUrl).toBe("http://192.168.0.194:8010");
       expect(result.config.envLabel).toBe("uat");
+    }
+  });
+
+  it("separated mode fails closed when env label is missing (US-094)", () => {
+    const result = resolveOperatorUiConfig("separated", {
+      apiBaseUrl: "http://192.168.0.194:8010",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.requiredKeys).toContain("SILVERMAN_OPERATOR_UI_ENV_LABEL");
     }
   });
 });

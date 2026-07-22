@@ -22,6 +22,9 @@ services:
       SILVERMAN_CALENDAR_DATABASE_URL: ${SILVERMAN_CALENDAR_DATABASE_URL:-}
       # US-093: comma-separated absolute UI origins for browser CORS (no wildcard when unset).
       SILVERMAN_OPERATOR_UI_ORIGINS: ${SILVERMAN_OPERATOR_UI_ORIGINS:-}
+      # US-094: non-secret stack identity (uat|prod); advertised on GET /health when set.
+      # Prefer prod for the current single LAN authority stack until a UAT overlay is used.
+      SILVERMAN_DEPLOYMENT_ENVIRONMENT: ${SILVERMAN_DEPLOYMENT_ENVIRONMENT:-prod}
       PORT: "8000"
     volumes:
       # Editorial data MUST NOT share the code sync checkout (rsync --delete risk).
@@ -50,9 +53,10 @@ services:
       - default
       - local-ai-stack_backend
 
-  # US-093 / BL-034 Story 1: separated Silverman Authority Manager UI (static SPA).
+  # US-093 / US-094 / BL-034: separated Silverman Authority Manager UI (static SPA).
   # Supported production console path. Worker-embedded console remains compatibility only.
   # UI does not mount editorial data and is not an n8n orchestration target (ADR-0001).
+  # Pairing: SILVERMAN_OPERATOR_UI_ENV_LABEL must match worker SILVERMAN_DEPLOYMENT_ENVIRONMENT.
   silverman-operator-ui:
     build:
       context: ./frontend/linkedin-variant-supervision-console
@@ -64,8 +68,8 @@ services:
       - "${SILVERMAN_OPERATOR_UI_HOST_PORT:-8011}:80"
     environment:
       SILVERMAN_OPERATOR_UI_API_BASE_URL: ${SILVERMAN_OPERATOR_UI_API_BASE_URL:-http://192.168.0.194:8010}
-      # Reserved for US-094 pairing display — unused for enforcement in US-093.
-      SILVERMAN_OPERATOR_UI_ENV_LABEL: ${SILVERMAN_OPERATOR_UI_ENV_LABEL:-}
+      # US-094: required uat|prod in separated mode; injected into runtime config.js.
+      SILVERMAN_OPERATOR_UI_ENV_LABEL: ${SILVERMAN_OPERATOR_UI_ENV_LABEL:-prod}
     networks:
       - default
 

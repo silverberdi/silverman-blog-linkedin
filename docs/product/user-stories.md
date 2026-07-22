@@ -2112,7 +2112,7 @@ As a system operator, I want the master editorial calendar stored in PostgreSQL 
 
 ### US-093 — Separate Operator UI from Worker API: Story 1
 
-**Status:** **Implemented locally** on `feat/us-093-separate-operator-ui` (2026-07-21). ACs demonstrable via distinct UI Dockerfile/compose service, typed client `apiBaseUrl`, CORS allowlist, fail-closed config UI, Vitest + pytest. **Not Story accepted** (operator gate / deploy validation pending). US-094 / US-095 unchecked.
+**Status:** **Implemented locally** on `feat/us-093-separate-operator-ui` (2026-07-21). ACs demonstrable via distinct UI Dockerfile/compose service, typed client `apiBaseUrl`, CORS allowlist, fail-closed config UI, Vitest + pytest. **Not Story accepted** (operator gate / deploy validation pending). US-094 / US-095 implemented locally (see below); Story accepted gates remain open.
 
 **Description**
 
@@ -2129,7 +2129,7 @@ As a system owner, I want the operator UI deployed as a distinct artifact from t
 
 ### US-094 — Separate Operator UI from Worker API: Story 2
 
-**Status:** Not started (out of scope for US-093 change).
+**Status:** **Implemented locally** on `feat/us-094-pair-operator-ui-api-environments` (2026-07-21). ACs demonstrable via UAT/prod env overlays, worker `SILVERMAN_DEPLOYMENT_ENVIRONMENT` + `/health.deployment_environment`, separated-UI pairing gate + env badge, Vitest + pytest. **Not Story accepted** (operator gate / live deploy validation pending). US-095 implemented locally (see below); Story accepted gates remain open.
 
 **Description**
 
@@ -2137,16 +2137,16 @@ As a system owner, I want UAT and prod each to pair their UI with the matching A
 
 **Acceptance criteria**
 
-- [ ] UAT UI is configured to call the UAT API (not prod) by default.
-- [ ] Prod UI is configured to call the prod API (not UAT) by default.
-- [ ] Misconfiguration fails closed with a clear operator-visible error (no silent cross-environment writes).
-- [ ] Document topology updates in CURRENT-STATE / RUNTIME-STATE when live.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] UAT UI is configured to call the UAT API (not prod) by default. — Demonstrated: `deploy/server/env-overlays/uat.pairing.env.example` (`ENV_LABEL=uat`, UAT API base placeholder distinct from prod).
+- [x] Prod UI is configured to call the prod API (not UAT) by default. — Demonstrated: `prod.pairing.env.example` + compose/env.example defaults (`prod` → `http://192.168.0.194:8010`).
+- [x] Misconfiguration fails closed with a clear operator-visible error (no silent cross-environment writes). — Demonstrated: Vitest mismatch/missing/unreadable health → `ConfigBlockedScreen`; no authenticated client bootstrap when blocked.
+- [x] Document topology updates in CURRENT-STATE / RUNTIME-STATE when live. — Demonstrated: CURRENT-STATE + ubuntu deploy pairing model; RUNTIME-STATE unchanged until a live stack applies pairing (honest).
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: env badge when paired; pairing-specific blocked heading/copy (env var names only).
+- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: n8n exports / LinkedIn enablement / Flow business logic untouched; embedded mode skips pairing.
 
 ### US-095 — Separate Operator UI from Worker API: Story 3
 
-**Status:** Not started (out of scope for US-093 change beyond core HTTP path smoke).
+**Status:** **Implemented locally** on `feat/us-095-regress-separated-operator-ui` (2026-07-21). ACs demonstrable via focused Vitest matrix R1–R8 (`us095.separated-capability-regression.test.tsx`) plus US-093/US-094 hold suites. Optional LAN smoke not run. **Not Story accepted** (operator gate / deploy validation pending). US-096 unchecked.
 
 **Description**
 
@@ -2154,8 +2154,26 @@ As a content operator, I want existing console capabilities to keep working afte
 
 **Acceptance criteria**
 
-- [ ] Core supervision capabilities remain available through the separated UI (schedule visibility and LinkedIn control-center actions already Story accepted under BL-032 remain reachable via API).
-- [ ] Auth handoff remains compatible with a future Google login path (BL-035) without rewriting business screens.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed.
+- [x] Core supervision capabilities remain available through the separated UI (schedule visibility and LinkedIn control-center actions already Story accepted under BL-032 remain reachable via API). — Demonstrated: absolute `GET …/schedule-visibility` + `GET …/pending-supervision` + dry-run `POST …/defer-linkedin-variant` against `SILVERMAN_OPERATOR_UI_API_BASE_URL` (Vitest).
+- [x] Auth handoff remains compatible with a future Google login path (BL-035) without rewriting business screens. — Demonstrated: `MemoryBearerAuthProvider` sign-in / `canMutate` / clear-session on separated client; injectable `AuthProvider` boundary preserved; no Google/OIDC.
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: paired env badge + empty week state + month calendar load on separated client (Vitest R8).
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: US-093 config + US-094 pairing `ConfigBlockedScreen` holds remain green (env var names only).
+- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: no n8n Execute Command; publication enablement untouched; embedded console retained; US-093 packaging / US-094 pairing not redesigned.
+
+### US-096 — Separate Operator UI from Worker API: Story 4
+
+**Status:** Not started. Depends on US-093 / US-094 (separated UI + pairing). Prefer after US-095 regression on the separated path, or include equivalent smoke before decommissioning the embedded console.
+
+**Description**
+
+As a system owner, I want the operator UI and the worker API to be independent projects/artifacts—API with no UI surface, UI with no API internals except the configured HTTP pointer to consume the API—so that deploy, versioning, and ownership match real-world frontend/backend separation.
+
+**Acceptance criteria**
+
+- [ ] The worker API image/process does **not** ship operator-console static assets and does **not** serve the former embedded console routes (including `GET /flow-a/console/linkedin-variant-supervision` and its asset paths). Old console URLs fail closed with a clear operator-visible outcome (not a silent partial UI).
+- [ ] The worker build/deploy path does **not** require embedding the SPA (`build:embedded`, copying console assets into `src/.../static/`, or equivalent). API builds succeed without a frontend production build step.
+- [ ] The operator UI artifact remains a distinct project/service: it consumes the worker **only** via configured HTTP (`SILVERMAN_OPERATOR_UI_API_BASE_URL` + pairing as applicable). It MUST NOT embed worker Python, editorial/data mounts, API business logic, or secret material belonging to the API.
+- [ ] Supported production topology is exclusively separated UI → API over HTTP (ADR-0001: n8n → worker only; UI is never an n8n target). Docs (CURRENT-STATE / ubuntu deploy / RUNTIME-STATE when live) no longer present the embedded worker console as a supported or compatibility production path.
+- [ ] The outcome is visible and understandable to the intended user (operators use `:8011`; API container is API-only).
+- [ ] Failures or blocked states are clearly communicated (including decommissioned-route messaging and existing separated-UI config/pairing blocks).
+- [ ] Existing completed work is not duplicated or unintentionally changed (Flow A/B, LinkedIn publication enablement, n8n HTTP contracts, and US-094 pairing semantics preserved except for intentional removal of the embedded compatibility path).

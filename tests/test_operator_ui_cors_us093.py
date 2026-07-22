@@ -65,6 +65,27 @@ def test_cors_allowlisted_origin_receives_aca_origin(tmp_path: Path):
     assert response.headers.get("access-control-allow-origin") == origin
 
 
+def test_cors_allowlisted_origin_can_read_health_with_deployment_environment(
+    tmp_path: Path,
+):
+    """US-094: pairing GET /health from UI origin stays CORS-covered (no wildcard)."""
+    settings = make_settings(tmp_path)
+    settings = type(settings)(
+        base_path=settings.base_path,
+        api_key=settings.api_key,
+        port=settings.port,
+        operator_ui_origins=("http://192.168.0.194:8011",),
+        deployment_environment="prod",
+    )
+    client = TestClient(create_app(settings))
+    origin = "http://192.168.0.194:8011"
+    response = client.get("/health", headers={"Origin": origin})
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == origin
+    assert response.json()["deployment_environment"] == "prod"
+    assert settings.api_key not in response.text
+
+
 def test_cors_empty_allowlist_does_not_advertise_foreign_origin(tmp_path: Path):
     client = TestClient(create_app(make_settings(tmp_path)))
     origin = "http://192.168.0.194:8011"

@@ -14,6 +14,10 @@ ENV_BASE_PATH = "SILVERMAN_BLOG_LINKEDIN_BASE_PATH"
 ENV_API_KEY = "SILVERMAN_BLOG_LINKEDIN_API_KEY"
 ENV_PORT = "PORT"
 ENV_OPERATOR_UI_ORIGINS = "SILVERMAN_OPERATOR_UI_ORIGINS"
+ENV_DEPLOYMENT_ENVIRONMENT = "SILVERMAN_DEPLOYMENT_ENVIRONMENT"
+
+# Closed vocabulary for UI↔API pairing (US-094). No lan/dev tokens.
+DEPLOYMENT_ENVIRONMENTS = frozenset({"uat", "prod"})
 
 
 class ConfigurationError(ValueError):
@@ -27,6 +31,8 @@ class Settings:
     port: int
     # Comma-separated absolute UI origins for CORS (US-093). Empty = no CORS wildcard.
     operator_ui_origins: tuple[str, ...] = ()
+    # Non-secret stack identity for separated UI pairing (US-094). None when unset.
+    deployment_environment: str | None = None
 
 
 def _parse_operator_ui_origins(raw: str) -> tuple[str, ...]:
@@ -59,6 +65,20 @@ def _parse_operator_ui_origins(raw: str) -> tuple[str, ...]:
     return tuple(origins)
 
 
+def _parse_deployment_environment(raw: str) -> str | None:
+    """Parse closed-set deployment environment; empty → unset; invalid → fail closed."""
+    value = raw.strip().lower()
+    if not value:
+        return None
+    if value not in DEPLOYMENT_ENVIRONMENTS:
+        allowed = ", ".join(sorted(DEPLOYMENT_ENVIRONMENTS))
+        raise ConfigurationError(
+            f"{ENV_DEPLOYMENT_ENVIRONMENT} must be one of {{{allowed}}} "
+            f"(case-insensitive); got {raw.strip()!r}"
+        )
+    return value
+
+
 def load_settings(environ: dict[str, str] | None = None) -> Settings:
     """Load and validate settings from environment variables."""
     env = os.environ if environ is None else environ
@@ -88,10 +108,14 @@ def load_settings(environ: dict[str, str] | None = None) -> Settings:
     operator_ui_origins = _parse_operator_ui_origins(
         env.get(ENV_OPERATOR_UI_ORIGINS, "")
     )
+    deployment_environment = _parse_deployment_environment(
+        env.get(ENV_DEPLOYMENT_ENVIRONMENT, "")
+    )
 
     return Settings(
         base_path=base_path,
         api_key=api_key,
         port=port,
         operator_ui_origins=operator_ui_origins,
+        deployment_environment=deployment_environment,
     )

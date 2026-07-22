@@ -9,13 +9,24 @@ import { ToastHost } from "./ToastHost";
 import { ViewSwitcher } from "./ViewSwitcher";
 import { countActiveFilters } from "../models/supervision";
 import { useSupervisionStore } from "../models/store";
+import {
+  displayDeploymentEnvironment,
+  type DeploymentEnvironment,
+} from "../config/operatorUiConfig";
 
 /**
  * App shell: quiet session + enablement chip (US-040H), dry-run default,
  * Week | Month views, operational count strip. Filters live in a header
  * modal (US-040L) — no permanent FOCUS/Filters dock.
  */
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  deploymentEnvironment,
+}: {
+  children: ReactNode;
+  /** US-094: active paired environment when separated UI pairing succeeds. */
+  deploymentEnvironment?: DeploymentEnvironment;
+}) {
   const {
     snapshot,
     scheduleSnapshot,
@@ -71,6 +82,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="brand-lockup">
           <p className="eyebrow">Flow A operations</p>
           <h1>LinkedIn supervision</h1>
+          {deploymentEnvironment ? (
+            <span
+              className={`env-badge env-${deploymentEnvironment}`}
+              data-testid="deployment-environment-badge"
+              title={`Paired with ${deploymentEnvironment} worker API`}
+            >
+              {displayDeploymentEnvironment(deploymentEnvironment)}
+            </span>
+          ) : null}
         </div>
 
         <section

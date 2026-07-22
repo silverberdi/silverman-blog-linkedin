@@ -34,6 +34,7 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 | DeepSeek API quota | `unknown` |
 | ComfyUI / Comfy Cloud availability right now | `unknown` |
 | n8n workflow `active` flags right now | `unknown` this probe (not re-exported) — see last known notes in CURRENT-STATE |
+| US-094 UI↔API environment pairing on live LAN | `not applied` — repo implements pairing; live `.env` / `/health.deployment_environment` not re-probed for this change |
 
 ## Operator notes
 

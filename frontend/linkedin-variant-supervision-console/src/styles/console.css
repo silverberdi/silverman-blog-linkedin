@@ -130,6 +130,42 @@ h3,
   font-weight: 800;
 }
 
+.brand-lockup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+}
+
+.brand-lockup .eyebrow {
+  flex: 1 0 100%;
+}
+
+.env-badge {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 0.18rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.env-badge.env-uat {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  color: var(--accent);
+}
+
+.env-badge.env-prod {
+  border-color: color-mix(in srgb, #6fbf8a 50%, var(--line));
+  color: #6fbf8a;
+}
+
 .eyebrow {
   margin: 0 0 0.16rem;
   color: var(--accent);

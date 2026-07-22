@@ -64,7 +64,9 @@ Key endpoints include `GET /health`, read-only `GET /flow-a/operational-status`,
 | Public blog host path | `/home/silverman/silverberdi.github.io` |
 | Deploy guide | [ubuntu-server-worker-deployment.md](deployment/ubuntu-server-worker-deployment.md) |
 
-**US-093 note:** Supported production console path is the separated UI service on `:8011` configured with `SILVERMAN_OPERATOR_UI_API_BASE_URL` pointing at the worker. Worker-embedded `GET /flow-a/console/linkedin-variant-supervision` remains an optional compatibility path. **US-094** UAT/prod environment pairing is **not** done in this change (env label hook reserved only).
+**US-093 / US-094 / US-095 note:** Supported production console path is the separated UI service on `:8011` with `SILVERMAN_OPERATOR_UI_API_BASE_URL` pointing at the matching worker and `SILVERMAN_OPERATOR_UI_ENV_LABEL` / worker `SILVERMAN_DEPLOYMENT_ENVIRONMENT` agreeing as `uat` or `prod` (fail-closed on mismatch). Per-environment overlays live under `deploy/server/env-overlays/`. Prefer labeling the current single LAN stack `prod` until a second UAT stack exists. Worker-embedded `GET /flow-a/console/linkedin-variant-supervision` remains an optional compatibility path (no pairing enforcement; US-096 not started). Pairing config is **implemented** in repo; live LAN `.env` application is tracked in RUNTIME-STATE when an operator deploys it (not claimed live solely by this doc update).
+
+**US-095 regression evidence (local, 2026-07-21):** Focused Vitest `frontend/linkedin-variant-supervision-console/src/test/us095.separated-capability-regression.test.tsx` proves separated-mode absolute-base schedule visibility + pending-supervision reads, dry-run `deferVariant` mutation, US-040D sign-in/`canMutate`/clear-session (injectable `AuthProvider`; no Google/OIDC), paired empty-state chrome (env badge), and US-093/US-094 fail-closed holds. Optional LAN smoke (`:8011` → `:8010`) **not run**. Does **not** claim public console exposure beyond BL-026 or Story accepted.
 
 ## Operationally validated
 

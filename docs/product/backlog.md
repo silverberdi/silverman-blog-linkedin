@@ -674,10 +674,11 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 - Keep typed HTTP contracts: browser → API; n8n → API only (ADR-0001 unchanged).
 - Pair UI and API per environment (UAT UI talks to UAT API; prod UI talks to prod API) — no cross-environment defaults (US-094).
 - Preserve existing operator capabilities during migration; fail closed when API URL/auth is misconfigured.
+- **Hard independence (US-096):** API artifact has no operator UI surface; UI artifact has no API internals except the configured HTTP base URL (and pairing) to consume the API—real-world frontend/backend split.
 - Document topology in CURRENT-STATE / RUNTIME-STATE when live.
 
-**Completion outcome:** Operators use a UI layer that can be versioned and deployed separately from the API, with clear UAT vs prod pairing.
+**Completion outcome:** Operators use a UI layer that can be versioned and deployed separately from the API, with clear UAT vs prod pairing, and with UI/API packaged as independent projects (no embedded console leftover in the API).
 
-**Status:** **Open** — US-093 implementation on `feat/us-093-separate-operator-ui` (local evidence); US-094 / US-095 not done. BL-034 remains open until remaining stories are Story accepted.
+**Status:** **Open** — US-093 / US-094 / US-095 implemented locally; **US-096** added (hard UI/API project independence / decommission embedded console). BL-034 remains open until remaining stories are Story accepted.
 
-**Depends on / aligns with:** BL-029 UAT/prod pairing (**aligns**). Does not replace Google login (BL-035).
+**Depends on / aligns with:** BL-029 UAT/prod pairing (**aligns**). Does not replace Google login (BL-035). US-096 depends on US-093/US-094; prefer US-095 (or equivalent regression) before removing the embedded compatibility path.

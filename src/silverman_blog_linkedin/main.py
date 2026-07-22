@@ -1477,6 +1477,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
     else:
         logger.info("Operator UI CORS origins: (none — same-origin / no wildcard)")
+    if settings.deployment_environment:
+        logger.info(
+            "Deployment environment: %s",
+            settings.deployment_environment,
+        )
+    else:
+        logger.info("Deployment environment: (unset — not advertised on /health)")
 
     @app.get("/health")
     def health() -> dict:
@@ -1485,7 +1492,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         validation = validate_folders(settings.base_path)
         status = "healthy" if validation.folders_ready else "degraded"
         store_info = calendar_store_ready()
-        return {
+        payload: dict = {
             "status": status,
             "service": SERVICE_NAME,
             "version": __version__,
@@ -1497,6 +1504,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
             **store_info,
         }
+        # US-094: advertise only when configured; never invent a fake identity.
+        if settings.deployment_environment:
+            payload["deployment_environment"] = settings.deployment_environment
+        return payload
 
     @app.post("/process-ready")
     def process_ready(_auth: None = Depends(require_api_key)) -> dict:

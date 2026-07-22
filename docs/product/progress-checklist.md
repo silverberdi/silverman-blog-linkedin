@@ -939,8 +939,8 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] Backlog item closed
 
 - [ ] **BL-034 — Separate Operator UI from Worker API**
-  - Business outcome: UI can be versioned/deployed separately from the API with UAT/prod pairing.
-  - Status: **Open** — US-093 implemented locally on `feat/us-093-separate-operator-ui` (2026-07-21); US-094 / US-095 not started; BL-034 not closed.
+  - Business outcome: UI can be versioned/deployed separately from the API with UAT/prod pairing and hard UI/API project independence.
+  - Status: **Open** — US-093/US-094/US-095 implemented locally on `feat/us-095-regress-separated-operator-ui` (2026-07-21); **US-096** not started; BL-034 not closed.
   - [ ] **US-093**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
@@ -949,15 +949,22 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Acceptance criteria validated *(local evidence; not live LAN deploy)*
     - [ ] Story accepted
   - [ ] **US-094**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
-    - [ ] Acceptance criteria validated
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated *(local: UAT/prod overlays, worker env + health field, UI pairing gate + badge, Vitest + pytest; RUNTIME-STATE deferred until live apply)*
+    - [x] Acceptance criteria validated *(local evidence; not live LAN deploy / Story accepted)*
     - [ ] Story accepted
   - [ ] **US-095**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated *(local: Vitest R1–R8 absolute-base schedule/pending/dry-run defer + US-040D auth + US-093/094 fail-closed holds; optional LAN smoke not run)*
+    - [x] Acceptance criteria validated *(local Vitest evidence; not Story accepted / not public exposure beyond BL-026)*
+    - [ ] Story accepted
+  - [ ] **US-096**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
     - [ ] Work started
     - [ ] Business outcome demonstrated
     - [ ] Acceptance criteria validated
