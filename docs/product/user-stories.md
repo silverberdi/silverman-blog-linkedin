@@ -2162,7 +2162,7 @@ As a content operator, I want existing console capabilities to keep working afte
 
 ### US-096 — Separate Operator UI from Worker API: Story 4
 
-**Status:** **Implemented locally** on `feat/us-096-decommission-embedded-operator-ui` (OpenSpec `decommission-embedded-operator-ui-us-096`). Worker API-only + exclusive `:8011` topology demonstrated via pytest/Vitest + docs. **LAN redeploy of decommissioned worker not yet evidenced.** **Not Story accepted.**
+**Status:** **Implemented and LAN-deployed** on `feat/us-096-decommission-embedded-operator-ui` (2026-07-22, `BUILD_REVISION=c34cb9f…`; OpenSpec archive `2026-07-22-decommission-embedded-operator-ui-us-096`). Worker API-only + exclusive `:8011` topology demonstrated via pytest/Vitest + docs + live 410 probes. **Not Story accepted.**
 
 **Description**
 
@@ -2174,6 +2174,6 @@ As a system owner, I want the operator UI and the worker API to be independent p
 - [x] The worker build/deploy path does **not** require embedding the SPA (`build:embedded`, copying console assets into `src/.../static/`, or equivalent). API builds succeed without a frontend production build step. — Demonstrated: root `Dockerfile` API-only comments + assertion test; `build:embedded` retired from frontend package.
 - [x] The operator UI artifact remains a distinct project/service: it consumes the worker **only** via configured HTTP (`SILVERMAN_OPERATOR_UI_API_BASE_URL` + pairing as applicable). It MUST NOT embed worker Python, editorial/data mounts, API business logic, or secret material belonging to the API. — Demonstrated: separated Dockerfile/compose retained; US-093/094 fail-closed holds; no API secrets in UI.
 - [x] Supported production topology is exclusively separated UI → API over HTTP (ADR-0001: n8n → worker only; UI is never an n8n target). Docs (CURRENT-STATE / ubuntu deploy / RUNTIME-STATE when live) no longer present the embedded worker console as a supported or compatibility production path. — Demonstrated: CURRENT-STATE + ubuntu deploy updated; RUNTIME-STATE live snapshot unchanged until post-deploy probe (no false live claim).
-- [x] The outcome is visible and understandable to the intended user (operators use `:8011`; API container is API-only). — Demonstrated: decommission HTML names LAN `:8011` / example URL; docs exclusive topology. **Pending:** operator LAN confirmation after worker redeploy.
+- [x] The outcome is visible and understandable to the intended user (operators use `:8011`; API container is API-only). — Demonstrated: decommission HTML names LAN `:8011` / example URL; docs exclusive topology; **live LAN** former console URLs return 410 and UI `:8011` HTTP 200 (`BUILD_REVISION=c34cb9f…`).
 - [x] Failures or blocked states are clearly communicated (including decommissioned-route messaging and existing separated-UI config/pairing blocks). — Demonstrated: 410 decommission responses + US-093/094 `ConfigBlockedScreen` holds.
 - [x] Existing completed work is not duplicated or unintentionally changed (Flow A/B, LinkedIn publication enablement, n8n HTTP contracts, and US-094 pairing semantics preserved except for intentional removal of the embedded compatibility path). — Demonstrated: no `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` mutation; US-093/094/095 Vitest holds for separated path; n8n Execute Command not introduced.

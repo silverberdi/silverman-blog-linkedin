@@ -679,6 +679,6 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** Operators use a UI layer that can be versioned and deployed separately from the API, with clear UAT vs prod pairing, and with UI/API packaged as independent projects (no embedded console leftover in the API).
 
-**Status:** **Open** — US-093 / US-094 / US-095 implemented and LAN-deployed; **US-096** implemented locally (hard UI/API independence / embedded console decommissioned in repo; LAN redeploy pending). BL-034 remains open until stories are Story accepted.
+**Status:** **Open** — US-093 / US-094 / US-095 / US-096 implemented and LAN-deployed (hard UI/API independence / embedded console decommissioned live with 410). BL-034 remains open until stories are Story accepted.
 
 **Depends on / aligns with:** BL-029 UAT/prod pairing (**aligns**). Does not replace Google login (BL-035). US-096 depends on US-093/US-094; prefer US-095 (or equivalent regression) before removing the embedded compatibility path.

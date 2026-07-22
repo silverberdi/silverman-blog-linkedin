@@ -940,7 +940,7 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 - [ ] **BL-034 — Separate Operator UI from Worker API**
   - Business outcome: UI can be versioned/deployed separately from the API with UAT/prod pairing and hard UI/API project independence.
-  - Status: **Open** — US-093/US-094/US-095 implemented and LAN-deployed; **US-096** implemented locally on `feat/us-096-decommission-embedded-operator-ui` (API-only worker + exclusive `:8011`; LAN redeploy of decommission pending); BL-034 not closed; Stories **not** accepted.
+  - Status: **Open** — US-093/US-094/US-095/US-096 implemented and LAN-deployed on `feat/us-096-decommission-embedded-operator-ui` (`BUILD_REVISION=c34cb9f…`, 2026-07-22; archive `2026-07-22-decommission-embedded-operator-ui-us-096`); BL-034 not closed; Stories **not** accepted.
   - [ ] **US-093**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
@@ -966,8 +966,8 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated *(local: worker 410 decommission routes; no console static tree; Dockerfile/API build independent of frontend embed; separated UI HTTP-only + US-093/094/095 holds; docs exclusive topology. LAN redeploy of API-only worker still pending)*
-    - [ ] Acceptance criteria validated *(await operator/LAN confirmation of 410 on former `:8010/.../console/...` and healthy `:8011`)*
+    - [x] Business outcome demonstrated *(local + LAN: worker 410 decommission routes; no console static tree in image; Dockerfile/API build independent of frontend embed; separated UI HTTP-only + US-093/094/095 holds; docs exclusive topology; live `:8011` config.js prod pairing)*
+    - [x] Acceptance criteria validated *(local pytest/Vitest + LAN deploy verify OVERALL PASS + live 410/UI probes; not Story accepted)*
     - [ ] Story accepted
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated
