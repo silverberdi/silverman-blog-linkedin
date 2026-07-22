@@ -39,7 +39,7 @@ Docs and examples MUST name the variable and use placeholders only—no secrets.
 
 In separated-UI mode, the operator UI SHALL require `SILVERMAN_OPERATOR_UI_ENV_LABEL` (injected via the existing runtime non-secret config path) to be `uat` or `prod`. Missing, empty, or invalid labels MUST fail closed with an operator-visible blocked state that names the required configuration key(s) without revealing secrets.
 
-Embedded worker-console compatibility mode MUST NOT require this label for same-origin operation.
+After US-096 there is no supported worker-embedded console compatibility mode that skips this label requirement.
 
 #### Scenario: Valid UI env label accepted
 

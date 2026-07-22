@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Operator-facing console for Flow A LinkedIn variants (BL-015 / US-038–US-040 Stories 1–3 + US-040A–US-040F historical context; BL-032 / US-083 control-center foundation for honest status and action availability): authenticated `GET /flow-a/linkedin-variants/pending-supervision` for pending-supervision detail; authenticated `GET /flow-a/schedule-visibility` for blog + LinkedIn calendar placement; shared ScheduleEditor mutations (US-017 defer + editorial-calendar schedule-update); same-origin React + TypeScript + Vite console at `GET /flow-a/console/linkedin-variant-supervision` with calendar-first Week (default) and Month (secondary) operator views, EventModal + toasts (US-040H), operator-local primary clock and local-day Week/Month placement (US-040I), shared filters, dark responsive UX, typed injectable-auth API client with explicit session states and `canMutate` gating, shared normalized frontend model, and secrets-safe frontend source and built assets. US-040G supersedes list-as-first-class operator chrome for future UX while preserving US-040A–US-040F historical requirements except where explicitly superseded. Public URL hosting and live Google/OIDC activation remain deferred pending a separate security change; LinkedIn API publish-now from the console (US-086), cancel-queued (US-085), and postpone/reschedule redesign (US-084) remain out of scope for US-083. BL-015 is closed as pre-send supervision; successor control-center work continues under BL-032.
+Operator-facing console for Flow A LinkedIn variants (BL-015 / US-038–US-040 Stories 1–3 + US-040A–US-040F historical context; BL-032 / US-083 control-center foundation for honest status and action availability): authenticated `GET /flow-a/linkedin-variants/pending-supervision` for pending-supervision detail; authenticated `GET /flow-a/schedule-visibility` for blog + LinkedIn calendar placement; shared ScheduleEditor mutations (US-017 defer + editorial-calendar schedule-update); exclusive separated React + TypeScript + Vite operator UI (BL-034 / US-093 + US-096; former worker-embedded console URLs fail closed) with calendar-first Week (default) and Month (secondary) operator views, EventModal + toasts (US-040H), operator-local primary clock and local-day Week/Month placement (US-040I), shared filters, dark responsive UX, typed injectable-auth API client with explicit session states and `canMutate` gating, shared normalized frontend model, and secrets-safe frontend source and built assets. US-040G supersedes list-as-first-class operator chrome for future UX while preserving US-040A–US-040F historical requirements except where explicitly superseded. Public URL hosting and live Google/OIDC activation remain deferred pending a separate security change; LinkedIn API publish-now from the console (US-086), cancel-queued (US-085), and postpone/reschedule redesign (US-084) remain out of scope for US-083. BL-015 is closed as pre-send supervision; successor control-center work continues under BL-032.
 
 ## Requirements
 
@@ -61,13 +61,13 @@ The supervision console MUST obtain pending-variant, calendar-alignment, and blo
 
 The worker MUST expose the thin authenticated read-only aggregation endpoint `GET /flow-a/linkedin-variants/pending-supervision` that returns the required per-variant fields without mutating campaign metadata, calendar files, or LinkedIn publication state.
 
-The system MUST provide a supported production path that serves the operator console as a deployable UI artifact or service distinct from the FastAPI worker API process (BL-034 / US-093). The console MAY continue to be reachable at `GET /flow-a/console/linkedin-variant-supervision` as an optional compatibility path served by the worker, or via a documented compatible replacement / redirect that preserves understandable operator access. Same-origin static delivery inside the worker image MUST NOT be the only supported production path.
+The system MUST provide the operator console exclusively as a deployable UI artifact or service distinct from the FastAPI worker API process (BL-034 / US-093 + US-096). The worker API MUST NOT serve the former embedded console SPA at `GET /flow-a/console/linkedin-variant-supervision` (or its asset paths) as a supported or compatibility production path. Requests to those former console URLs MUST fail closed with a clear operator-visible decommission outcome (not a silent partial UI).
 
 The pending-supervision GET MUST NOT call LinkedIn, DeepSeek, ComfyUI, or Git, and MUST NOT invoke US-017 mutation routes (`POST /correct-linkedin-variant`, `POST /defer-linkedin-variant`, `POST /cancel-linkedin-publication`) on the server.
 
 The console page MAY call authenticated US-017 mutation routes for edit, defer, and cancel (US-039 + US-040).
 
-When the console runs as the separated UI, browser calls MUST use the typed API client with a configured absolute worker API base URL. The client MUST NOT introduce a filesystem source of truth in the browser.
+Browser calls from the operator UI MUST use the typed API client with a configured absolute worker API base URL. The client MUST NOT introduce a filesystem source of truth in the browser.
 
 #### Scenario: Authenticated read returns pending rows
 
@@ -89,20 +89,20 @@ When the console runs as the separated UI, browser calls MUST use the typed API 
 - **WHEN** an operator uses the separated operator UI configured with a valid worker API base URL
 - **THEN** the console loads pending-supervision (and related console data) through authenticated worker HTTP via the typed client and does not read editorial mounts from the browser
 
-#### Scenario: Compatibility console path remains understandable when retained
+#### Scenario: Former embedded console URL fails closed
 
-- **WHEN** the deployment retains `GET /flow-a/console/linkedin-variant-supervision` (or a documented compatible replacement)
-- **THEN** an operator can still open an understandable console entry URL without inspecting raw mount files
+- **WHEN** a client requests `GET /flow-a/console/linkedin-variant-supervision` (or a former console asset path under that prefix) on the worker API
+- **THEN** the worker does not return the Vite SPA shell or console static assets and instead returns a clear operator-visible decommission outcome
 
 ### Requirement: Static console HTML MUST NOT embed secrets or secret-like placeholders
 
-Frontend source for the supervision console and the built static assets served for `GET /flow-a/console/linkedin-variant-supervision` (including `index.html` and bundled JavaScript/CSS) MUST NOT contain API keys, bearer tokens, OAuth tokens, or placeholders that look like real secrets (including but not limited to `CHANGE_ME`, `sk-` prefixed samples, `Bearer ` token samples, or hardcoded `X-API-Key` values).
+Frontend source for the supervision console and the built static assets of the separated operator UI artifact (including `index.html` and bundled JavaScript/CSS) MUST NOT contain API keys, bearer tokens, OAuth tokens, or placeholders that look like real secrets (including but not limited to `CHANGE_ME`, `sk-` prefixed samples, `Bearer ` token samples, or hardcoded `X-API-Key` values).
 
 Operators MUST supply credentials at runtime through the typed API-client auth boundary (browser prompt or local-only in-memory configuration). Credentials MUST NOT be persisted in browser storage as part of US-040A. Documentation examples MUST use clearly non-secret wording (for example “your API key”) without embedding fake credential strings that resemble production secrets.
 
-#### Scenario: Static HTML secrets audit passes
+#### Scenario: Separated UI built assets secrets audit passes
 
-- **WHEN** the committed or built console assets served for the supervision console route are scanned for API keys, bearer tokens, and secret-like placeholders such as `CHANGE_ME`
+- **WHEN** the committed frontend source or built separated-UI console assets are scanned for API keys, bearer tokens, and secret-like placeholders such as `CHANGE_ME`
 - **THEN** no such values are present in those assets
 
 #### Scenario: Frontend source secrets audit passes
@@ -130,25 +130,28 @@ The stack change MUST be treated as console-layer modernization only. It MUST NO
 
 The modernized console MUST produce static build artifacts (`index.html` and associated assets) from the approved React + TypeScript + Vite toolchain.
 
-For BL-034 / US-093, the supported production delivery path MUST include serving those artifacts from a deployable UI artifact or service that is distinct from the FastAPI worker API process. Production deployment of the operator console MUST NOT require that the only supported path is embedding and serving those assets solely from the worker HTTP process.
-
-The worker MAY continue to expose the operator console at `GET /flow-a/console/linkedin-variant-supervision`, or provide a documented compatible replacement or redirect, as an optional compatibility path during migration. Compatibility retention MUST NOT be documented as the only supported production path after US-093.
+For BL-034 / US-096, those artifacts MUST be served exclusively from the separated operator UI artifact or service (distinct from the FastAPI worker API process). The worker API image/process MUST NOT ship operator-console static assets and MUST NOT require embedding the SPA (`build:embedded`, copying console assets into `src/.../static/`, or equivalent) for a successful API build.
 
 #### Scenario: Separated UI serves the Vite-built SPA shell
 
 - **WHEN** an operator opens the separated operator UI service URL
 - **THEN** the UI returns the Vite-built console shell HTML that loads its static assets and consumes worker HTTP APIs through the typed client
 
-#### Scenario: Worker-embedded console is not the only supported path
+#### Scenario: Worker API build does not require frontend embed
 
-- **WHEN** an operator reviews US-093 production deployment guidance
-- **THEN** the guidance documents a UI artifact/service distinct from the worker API as a supported production path and does not state that worker-embedded static files are the only supported production path
+- **WHEN** an operator builds the worker API image or package after US-096
+- **THEN** the build succeeds without a frontend production embed step and without copying console SPA assets into the worker package static tree
+
+#### Scenario: Worker does not ship console static assets
+
+- **WHEN** an operator inspects the worker API image or installed package after US-096
+- **THEN** operator-console SPA assets for the former embedded path are not present as a served or shipped UI surface
 
 ### Requirement: Typed client supports configurable worker API base URL
 
-The supervision console typed HTTP client (`SupervisionApiClient` or equivalent boundary) MUST accept a configurable absolute worker API base URL for separated-UI deployments and MUST join that base URL with existing root-relative worker route paths for all console reads and mutations.
+The supervision console typed HTTP client (`SupervisionApiClient` or equivalent boundary) MUST accept a configurable absolute worker API base URL for the separated operator UI and MUST join that base URL with existing root-relative worker route paths for all console reads and mutations.
 
-Same-origin relative requests remain acceptable only for an explicitly retained worker-embedded compatibility mode. Separated-UI mode MUST NOT silently use relative paths when the API base URL is missing or invalid (fail closed per operator-ui-deployment).
+Separated-UI mode MUST NOT silently use relative paths when the API base URL is missing or invalid (fail closed per operator-ui-deployment). Worker-embedded same-origin relative API mode MUST NOT remain a supported production delivery mode after US-096.
 
 Business screen components MUST continue to call the worker only through this typed client boundary so future Google/OIDC auth (BL-035) can replace the auth provider without rewriting business screens.
 
@@ -159,7 +162,7 @@ Business screen components MUST continue to call the worker only through this ty
 
 #### Scenario: Business screens stay behind the typed client
 
-- **WHEN** a console business screen performs a supervision read or mutation after US-093
+- **WHEN** a console business screen performs a supervision read or mutation after US-096
 - **THEN** the call goes through the typed client boundary rather than ad-hoc fetch URLs or filesystem access
 
 ### Requirement: Separated console shows environment identity and pairing blocks
@@ -168,7 +171,7 @@ When the console runs as the separated operator UI, it MUST display the active p
 
 When environment label configuration is missing/invalid or UI↔API pairing fails (including mismatched or unreadable API `deployment_environment`), the console MUST show a clear operator-visible blocked state and MUST NOT proceed with authenticated supervision reads or mutations. Messages MUST name relevant configuration keys without including API keys, bearer tokens, or other secrets.
 
-Embedded compatibility mode is not required to enforce pairing.
+There is no supported embedded worker-console mode that skips pairing after US-096.
 
 #### Scenario: Paired console shows environment badge
 
@@ -1988,19 +1991,35 @@ The console MUST guide the operator back to authentication and, after successful
 
 ### Requirement: Same-origin default and documented CORS readiness
 
-Browser calls from the supervision console to worker APIs MUST use same-origin relative paths by default while the console is served by the worker.
+Browser calls from the supervision console to worker APIs MUST use the typed client with a configured absolute worker API base URL on the supported separated UI path (BL-034 / US-096). Worker-served same-origin relative console delivery MUST NOT remain the default or supported production path.
 
-If a future architecture serves the console from a distinct origin, the project MUST document an explicit CORS allowlist strategy that can be restricted for public exposure (allowed origins, methods, and headers; no wildcard-with-credentials). US-040D MUST NOT enable permissive public CORS as part of readiness.
+Cross-origin browser calls from the separated UI origin to the worker MUST continue to rely on the documented worker CORS allowlist (`SILVERMAN_OPERATOR_UI_ORIGINS` or equivalent). US-040D MUST NOT enable permissive public CORS as part of auth readiness; public exposure remains a separate security change (BL-026 / BL-035).
 
-#### Scenario: Console API calls are same-origin by default
+#### Scenario: Separated console API calls use absolute worker base URL
 
-- **WHEN** the built console calls pending-supervision, schedule-visibility, or mutation endpoints
-- **THEN** those calls use same-origin relative URLs under the worker host that serves the console
+- **WHEN** the built separated console calls pending-supervision, schedule-visibility, or mutation endpoints with a valid absolute API base URL
+- **THEN** those calls target that worker origin and do not assume the UI origin is the API host
 
 #### Scenario: Public CORS activation is not implied by readiness
 
 - **WHEN** US-040D auth readiness is implemented
 - **THEN** documentation states that any cross-origin CORS policy for public exposure requires a separate security change and is not activated by this slice
+
+### Requirement: Former embedded console routes fail closed with operator-visible messaging
+
+After US-096, the worker MUST NOT return the operator-console SPA shell or its hashed static assets for former embedded console URLs, including `GET /flow-a/console/linkedin-variant-supervision` and asset paths under that prefix.
+
+The worker MUST respond with a clear operator-visible decommission outcome (HTML and/or structured error body) that does not include secrets and that directs operators to the supported separated operator UI on the LAN UI port (default `8011`) without inventing public internet hosting.
+
+#### Scenario: Console index path is decommissioned
+
+- **WHEN** a client requests `GET /flow-a/console/linkedin-variant-supervision` on the worker API after US-096
+- **THEN** the response is not the Vite console `index.html` SPA and clearly communicates that the embedded console is decommissioned
+
+#### Scenario: Former console asset path is decommissioned
+
+- **WHEN** a client requests a former path under `/flow-a/console/linkedin-variant-supervision/assets/` on the worker API after US-096
+- **THEN** the worker does not serve console JavaScript/CSS assets and returns a clear fail-closed outcome
 
 ### Requirement: Public URL and Google authentication activation remain deferred
 
