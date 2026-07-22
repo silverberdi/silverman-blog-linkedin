@@ -4,7 +4,8 @@
  * Proves schedule visibility, pending-supervision, dry-run defer, and US-040D
  * auth session gating use absolute SILVERMAN_OPERATOR_UI_API_BASE_URL with no
  * relative same-origin fallback when separated config is valid. Does not
- * implement Google/OIDC (BL-035) or remove the embedded console (US-096).
+ * implement Google/OIDC (BL-035). After US-096, holds must not depend on the
+ * worker serving the former embedded console SPA.
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";

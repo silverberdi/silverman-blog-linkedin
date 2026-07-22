@@ -1,8 +1,11 @@
-# LinkedIn variant supervision console (US-040A–US-040D)
+# LinkedIn variant supervision console (Silverman Authority Manager)
 
 React + TypeScript + Vite frontend for Flow A LinkedIn variant supervision.
-Production build emits static assets served by the existing Python worker — no
-separate frontend server.
+
+**Production delivery (US-096 / BL-034):** separated UI image/service only
+(`frontend/.../Dockerfile`, compose `silverman-operator-ui` on LAN `:8011`).
+The worker API does **not** embed or serve this SPA. Browser → worker HTTP only
+via `SILVERMAN_OPERATOR_UI_API_BASE_URL` + US-094 pairing.
 
 ## Production dependencies
 
@@ -20,21 +23,22 @@ helpers (`src/models/dateHelpers.ts`). No production calendar library was added.
 
 ```bash
 npm ci
-npm run build   # writes into src/silverman_blog_linkedin/static/linkedin-variant-supervision-console/
+npm run build   # writes to frontend/.../dist/ for the UI image
 npm test
-npm run dev     # local Vite dev server (same-origin relative API paths in production)
+npm run dev     # local Vite; proxy APIs to worker (see vite.config.ts)
 ```
 
-## Build before deploy
-
-The Docker image copies `src/` and does **not** run Node. Before `docker build` / deploy:
+## Build the separated UI image
 
 ```bash
 cd frontend/linkedin-variant-supervision-console
 npm ci && npm run build
+# or: docker build -t silverman-operator-ui:local .
 ```
 
-Operator URL (unchanged): `GET /flow-a/console/linkedin-variant-supervision`
+Worker API image builds do **not** require this step (US-096).
+
+Operator URL: `http://192.168.0.194:8011` (or configured UI host port).
 
 ## Auth (US-040D readiness)
 
@@ -55,17 +59,11 @@ cannot execute edit/defer/cancel/calendar schedule-update.
 
 Credentials are never embedded in source, built assets, logs, or browser storage APIs.
 
-## Same-origin default and CORS (documented only)
+## Cross-origin CORS
 
-**Default (current and preferred for any future public URL):** the worker serves the
-SPA and APIs on one origin. Console calls use **relative same-origin paths** only
-(e.g. `/flow-a/linkedin-variants/pending-supervision`). Prefer terminating TLS at a
-reverse proxy that serves console + API together.
-
-**If a future architecture serves the SPA from a distinct origin**, CORS MUST be an
-explicit allowlist of console origins, restricted methods/headers, and MUST NOT use
-`*` with credentials. That policy lands only in a **separate security / public-exposure
-OpenSpec change** — US-040D does **not** enable permissive CORS middleware.
+Separated UI origin → worker uses the worker CORS allowlist
+(`SILVERMAN_OPERATOR_UI_ORIGINS`). Public exposure remains a separate security change
+(BL-026 / BL-035). US-040D does **not** enable permissive `*` CORS.
 
 ## Public URL and Google authentication (deferred)
 
@@ -79,14 +77,4 @@ Local operations continue to use worker API-key auth through the injectable prov
 
 ## Scope
 
-- **In (US-040A):** list parity (Stories 1–3), typed client, shared model, console route
-- **In (US-040B):** dual first-class List + Month calendar, schedule-visibility GET client,
-  filters with discoverable critical failures, dark theme, UTC + local times, mobile agenda
-- **In (US-040C):** shared ScheduleEditor mutations (LinkedIn defer + blog calendar schedule-update)
-- **In (US-040D):** auth-session UI, mutation gating, OIDC/cookie swap readiness, CORS docs;
-  public URL + Google **not activated**
-- **In (US-040E):** at-a-glance counts, actionable visual priority, concise labels + expandable
-  diagnostics, affordance grouping, destructive-action safety, keyboard/touch a11y polish,
-  dark-theme state consistency, operational first screen (no marketing landing)
-- **Out:** public URL / Google activation, Flow B, BFF/DB/user-management,
-  LinkedIn API publish from the console, closing BL-015 from implementation alone
+See OpenSpec `linkedin-variant-supervision-console` and BL-034 operator-ui-deployment.

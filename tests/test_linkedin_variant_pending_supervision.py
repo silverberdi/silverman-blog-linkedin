@@ -14,11 +14,7 @@ from silverman_blog_linkedin.linkedin_variant_pending_supervision import (
     CALENDAR_FILE_NOT_FOUND,
     CAMPAIGN_FILE_INVALID,
     DRAFT_ARTIFACT_MISSING,
-    console_assets_dir,
-    console_build_dir,
-    console_html_path,
     get_pending_linkedin_variant_supervision,
-    load_console_static_texts,
 )
 from silverman_blog_linkedin.main import create_app
 from tests.conftest import auth_header, make_settings, write_and_seed_calendar
@@ -30,6 +26,13 @@ CONSOLE_ASSETS_PREFIX = "/flow-a/console/linkedin-variant-supervision/assets"
 CORRECT_PATH = "/correct-linkedin-variant"
 DEFER_PATH = "/defer-linkedin-variant"
 CANCEL_PATH = "/cancel-linkedin-publication"
+
+FRONTEND_SRC = (
+    Path(__file__).resolve().parents[1]
+    / "frontend"
+    / "linkedin-variant-supervision-console"
+    / "src"
+)
 
 # Patterns that must never appear in console source or built static assets.
 _SECRET_LIKE_PATTERNS = (
@@ -47,10 +50,23 @@ _BROWSER_STORAGE_PATTERNS = (
 )
 
 
+def _frontend_source_texts() -> list[tuple[Path, str]]:
+    """Load separated-UI frontend source for contract and secrets audits."""
+    assert FRONTEND_SRC.is_dir()
+    texts: list[tuple[Path, str]] = []
+    for src_path in sorted(FRONTEND_SRC.rglob("*")):
+        if not src_path.is_file():
+            continue
+        if src_path.suffix.lower() not in {".ts", ".tsx", ".css", ".html"}:
+            continue
+        texts.append((src_path, src_path.read_text(encoding="utf-8")))
+    return texts
+
+
 def _console_bundle_text() -> str:
-    """Concatenate built console HTML/JS/CSS for contract assertions."""
-    parts = [text for _, text in load_console_static_texts()]
-    assert parts, "Vite console build artifacts missing; run npm run build"
+    """Concatenate separated-UI frontend source for contract assertions (US-096)."""
+    parts = [text for _, text in _frontend_source_texts()]
+    assert parts, "frontend console source missing"
     return "\n".join(parts)
 
 
@@ -552,29 +568,26 @@ def test_http_pending_supervision_auth_and_payload(supervision_base: Path):
     assert "sk-" not in body_text
 
 
-def test_console_html_served_at_fixed_path_without_auth(
+def test_former_embedded_console_path_fails_closed(
     supervision_base: Path,
 ):
+    """US-096: worker no longer serves the Vite SPA at the former console URL."""
     client = TestClient(create_app(make_settings(supervision_base)))
     response = client.get(CONSOLE_PATH)
-    assert response.status_code == 200
+    assert response.status_code == 410
     assert "text/html" in response.headers["content-type"]
     body = response.text
-    assert "LinkedIn variant supervision" in body
-    assert "US-040" in body
-    assert CONSOLE_ASSETS_PREFIX in body
-    assert "/assets/" in body
+    assert "decommissioned" in body.lower()
+    assert "8011" in body
+    assert 'id="root"' not in body
+    assert CONSOLE_ASSETS_PREFIX not in body
+    assert "/assets/index-" not in body
 
-    # Same-origin hashed assets must resolve (no path traversal outside build dir).
-    asset_refs = re.findall(
-        rf'{re.escape(CONSOLE_ASSETS_PREFIX)}/[^"\']+',
-        body,
-    )
-    assert asset_refs, "expected Vite asset URLs under the console assets prefix"
-    for href in asset_refs:
-        asset_resp = client.get(href)
-        assert asset_resp.status_code == 200, href
+    asset = client.get(f"{CONSOLE_ASSETS_PREFIX}/index-deadbeef.js")
+    assert asset.status_code == 410
+    assert "decommissioned" in asset.text.lower()
 
+    # Separated UI source still wires pending/mutation contracts.
     bundle = _console_bundle_text()
     assert PENDING_API in bundle
     assert CORRECT_PATH in bundle
@@ -591,12 +604,9 @@ def test_console_html_served_at_fixed_path_without_auth(
     assert "integration_failures" in bundle
     assert "Cancel remains US-040" not in bundle
     assert "actions not available" not in bundle.lower()
-    # Assets must not escape the build directory via .. traversal.
-    traversal = client.get(f"{CONSOLE_ASSETS_PREFIX}/../index.html")
-    assert traversal.status_code in {404, 400, 403}
 
 
-def test_console_action_contract_wiring_in_static_html():
+def test_console_action_contract_wiring_in_frontend_source():
     """Story 3 + US-040C: edit/cancel + shared schedule editor → US-017 / calendar APIs."""
     bundle = _console_bundle_text()
     assert CORRECT_PATH in bundle
@@ -608,11 +618,14 @@ def test_console_action_contract_wiring_in_static_html():
     assert "cancel-dry-run" in bundle
     assert "draft_content" in bundle
     assert "new_scheduled_at_utc" in bundle
-    # US-083+ preview/real copy (Vite static bundle) — not legacy dry-run strings.
+    # US-083+ preview/real copy (frontend source) — not legacy dry-run strings.
     assert "Preview only (dry-run)" in bundle
     assert "No lasting change was made" in bundle or "Schedule was not saved" in bundle
     assert "Saved:" in bundle or "Make real change" in bundle
-    assert "Schedule edit does not call LinkedIn publication API" in bundle
+    assert "Schedule edit does not call LinkedIn publication API" in bundle or (
+        "not call LinkedIn publication API" in bundle
+        and "does not publish blog content" in bundle
+    )
     assert "not strategy-driven auto-queue eligible" in bundle or (
         "not auto-queue eligible" in bundle
     )
@@ -636,9 +649,14 @@ def test_console_action_contract_wiring_in_static_html():
         / "linkedin_variant_supervision_console.html"
     )
     assert not legacy.exists()
-    assert console_html_path().is_file()
-    assert console_assets_dir().is_dir()
-    assert console_build_dir().is_dir()
+    worker_static = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "silverman_blog_linkedin"
+        / "static"
+        / "linkedin-variant-supervision-console"
+    )
+    assert not worker_static.exists()
 
 
 def test_real_cancel_via_existing_endpoint_removes_pending_row(
@@ -754,11 +772,9 @@ def test_cancel_not_allowed_and_auth_failure_codes_surface(
     assert "Unauthorized (401)" in bundle
 
 
-def test_static_html_secrets_audit_fails_on_secret_like_patterns():
-    texts = load_console_static_texts()
-    assert texts, "Vite console build artifacts missing; run npm run build"
-    path = console_html_path()
-    assert path.is_file()
+def test_frontend_source_secrets_audit_fails_on_secret_like_patterns():
+    texts = _frontend_source_texts()
+    assert texts, "frontend console source missing"
     for asset_path, content in texts:
         for pattern in _SECRET_LIKE_PATTERNS:
             match = pattern.search(content)
@@ -770,27 +786,6 @@ def test_static_html_secrets_audit_fails_on_secret_like_patterns():
             match = pattern.search(content)
             assert match is None, (
                 f"browser storage API {pattern.pattern!r} found in {asset_path}"
-            )
-
-    # Frontend source audit (excluding node_modules / built output).
-    frontend_root = (
-        Path(__file__).resolve().parents[1]
-        / "frontend"
-        / "linkedin-variant-supervision-console"
-        / "src"
-    )
-    assert frontend_root.is_dir()
-    for src_path in sorted(frontend_root.rglob("*")):
-        if not src_path.is_file():
-            continue
-        if src_path.suffix.lower() not in {".ts", ".tsx", ".css", ".html"}:
-            continue
-        content = src_path.read_text(encoding="utf-8")
-        for pattern in _SECRET_LIKE_PATTERNS:
-            match = pattern.search(content)
-            assert match is None, (
-                f"secret-like pattern {pattern.pattern!r} found in {src_path}: "
-                f"{match.group(0)!r}"
             )
 
 

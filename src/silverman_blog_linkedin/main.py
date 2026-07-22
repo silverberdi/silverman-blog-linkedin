@@ -10,10 +10,10 @@ import re
 from typing import Literal
 from urllib.parse import urlparse
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from starlette.responses import Response
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator, model_validator
 
 from silverman_blog_linkedin import SERVICE_NAME, __version__
@@ -159,9 +159,11 @@ from silverman_blog_linkedin.flow_a_schedule_visibility import (
     get_flow_a_schedule_visibility,
 )
 from silverman_blog_linkedin.linkedin_variant_pending_supervision import (
-    console_assets_dir,
+    DECOMMISSIONED_CONSOLE_ASSETS_PREFIX,
+    DECOMMISSIONED_CONSOLE_PATH,
+    decommissioned_console_html,
+    decommissioned_console_json,
     get_pending_linkedin_variant_supervision,
-    load_console_html,
 )
 from silverman_blog_linkedin.file_reader import (
     derive_filename,
@@ -2851,38 +2853,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         return result.to_dict()
 
+    def _decommissioned_console_response(request: Request) -> Response:
+        """US-096: former embedded console URLs fail closed (prefer 410 + HTML)."""
+        accept = (request.headers.get("accept") or "").lower()
+        if "application/json" in accept and "text/html" not in accept:
+            return JSONResponse(
+                content=decommissioned_console_json(),
+                status_code=410,
+            )
+        return HTMLResponse(
+            content=decommissioned_console_html(),
+            status_code=410,
+        )
+
+    @app.get(DECOMMISSIONED_CONSOLE_PATH, response_class=HTMLResponse)
+    @app.get(f"{DECOMMISSIONED_CONSOLE_PATH}/", response_class=HTMLResponse)
+    def flow_a_console_linkedin_variant_supervision_decommissioned(
+        request: Request,
+    ) -> Response:
+        """Former worker-embedded console index — decommissioned (US-096)."""
+        return _decommissioned_console_response(request)
+
     @app.get(
-        "/flow-a/console/linkedin-variant-supervision",
+        f"{DECOMMISSIONED_CONSOLE_ASSETS_PREFIX}/{{asset_path:path}}",
         response_class=HTMLResponse,
     )
-    def flow_a_console_linkedin_variant_supervision() -> HTMLResponse:
-        """Optional compatibility path for the worker-embedded console (US-093).
-
-        Supported production path is the separated operator UI service (LAN :8011).
-        This route remains available so operators and tests are not big-bang broken.
-        """
-        try:
-            html_doc = load_console_html()
-        except OSError as exc:
-            logger.error(
-                "flow-a/console/linkedin-variant-supervision failed to load "
-                "static asset: %s",
-                exc,
-            )
-            raise HTTPException(
-                status_code=500,
-                detail="supervision console asset unavailable",
-            ) from None
-        return HTMLResponse(content=html_doc, status_code=200)
-
-    _console_assets = console_assets_dir()
-    if _console_assets.is_dir():
-        # Same-origin hashed Vite assets; confined to the build assets directory.
-        app.mount(
-            "/flow-a/console/linkedin-variant-supervision/assets",
-            StaticFiles(directory=str(_console_assets)),
-            name="linkedin_variant_supervision_console_assets",
-        )
+    def flow_a_console_linkedin_variant_supervision_assets_decommissioned(
+        request: Request,
+        asset_path: str,
+    ) -> Response:
+        """Former worker-embedded console assets — decommissioned (US-096)."""
+        _ = asset_path
+        return _decommissioned_console_response(request)
 
     @app.get("/flow-a/incomplete-campaign-recovery/{campaign_id}")
     def flow_a_incomplete_campaign_recovery_inspect(

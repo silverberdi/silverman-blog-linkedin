@@ -49,15 +49,7 @@ async function bootstrap(): Promise<void> {
 
   const { config } = configResult;
 
-  // Embedded compatibility: same-origin worker; pairing enforcement not required.
-  if (config.deliveryMode === "embedded") {
-    renderApp("");
-    return;
-  }
-
-  // Separated mode: narrow envLabel to a proven DeploymentEnvironment before pairing.
-  // resolveOperatorUiConfig already rejects empty/invalid labels; this is TypeScript
-  // narrowing + defensive fail-closed if the empty union member somehow remains.
+  // Separated mode only (US-096): narrow envLabel before pairing.
   const envLabel = config.envLabel;
   if (envLabel !== "uat" && envLabel !== "prod") {
     renderBlocked({

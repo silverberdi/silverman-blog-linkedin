@@ -575,41 +575,53 @@ def get_pending_linkedin_variant_supervision(
     )
 
 
-def console_build_dir() -> Path:
-    """Return the Vite production build directory for the supervision console."""
+# Former embedded console paths (US-096): fail closed; no SPA surface on the worker.
+DECOMMISSIONED_CONSOLE_PATH = "/flow-a/console/linkedin-variant-supervision"
+DECOMMISSIONED_CONSOLE_ASSETS_PREFIX = (
+    "/flow-a/console/linkedin-variant-supervision/assets"
+)
+OPERATOR_UI_LAN_PORT = 8011
+DEFAULT_OPERATOR_UI_EXAMPLE_URL = "http://192.168.0.194:8011"
+
+
+def decommissioned_console_message() -> str:
+    """Operator-visible decommission copy (no secrets)."""
     return (
-        Path(__file__).resolve().parent
-        / "static"
-        / "linkedin-variant-supervision-console"
+        "The embedded operator console on this worker API has been decommissioned "
+        "(US-096 / BL-034). Use the separated Silverman Authority Manager on LAN "
+        f"port {OPERATOR_UI_LAN_PORT} (for example {DEFAULT_OPERATOR_UI_EXAMPLE_URL}). "
+        "This API process is API-only and does not ship or serve the console SPA."
     )
 
 
-def console_html_path() -> Path:
-    """Return the Vite-built console index.html path."""
-    return console_build_dir() / "index.html"
+def decommissioned_console_html() -> str:
+    """Small HTML body for former console index/asset URLs (410 Gone)."""
+    message = decommissioned_console_message()
+    example = DEFAULT_OPERATOR_UI_EXAMPLE_URL
+    return (
+        "<!DOCTYPE html>\n"
+        '<html lang="en">\n'
+        "<head>\n"
+        '  <meta charset="utf-8"/>\n'
+        "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>\n"
+        "  <title>Embedded operator console decommissioned</title>\n"
+        "</head>\n"
+        "<body>\n"
+        "  <h1>Embedded operator console decommissioned</h1>\n"
+        f"  <p>{message}</p>\n"
+        f'  <p>Supported console: <a href="{example}">{example}</a> '
+        f"(LAN :{OPERATOR_UI_LAN_PORT}).</p>\n"
+        "</body>\n"
+        "</html>\n"
+    )
 
 
-def console_assets_dir() -> Path:
-    """Return the Vite-built hashed assets directory."""
-    return console_build_dir() / "assets"
-
-
-def load_console_html() -> str:
-    """Load Vite-built supervision console HTML from the package static assets."""
-    path = console_html_path()
-    return path.read_text(encoding="utf-8")
-
-
-def load_console_static_texts() -> list[tuple[Path, str]]:
-    """Load index.html plus built JS/CSS for audits and contract checks."""
-    root = console_build_dir()
-    if not root.is_dir():
-        return []
-    texts: list[tuple[Path, str]] = []
-    for path in sorted(root.rglob("*")):
-        if not path.is_file():
-            continue
-        if path.suffix.lower() not in {".html", ".js", ".css", ".map"}:
-            continue
-        texts.append((path, path.read_text(encoding="utf-8")))
-    return texts
+def decommissioned_console_json() -> dict[str, object]:
+    """Structured fail-closed payload for non-browser clients."""
+    return {
+        "status": "gone",
+        "error": "embedded_operator_console_decommissioned",
+        "message": decommissioned_console_message(),
+        "supported_console_lan_port": OPERATOR_UI_LAN_PORT,
+        "supported_console_example_url": DEFAULT_OPERATOR_UI_EXAMPLE_URL,
+    }

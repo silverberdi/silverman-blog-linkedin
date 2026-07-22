@@ -1,9 +1,8 @@
 /**
- * Runtime non-secret operator UI configuration (US-093 / US-094 / BL-034).
+ * Runtime non-secret operator UI configuration (US-093 / US-094 / US-096 / BL-034).
  *
- * Separated UI: config.js injects window.__SILVERMAN_OPERATOR_UI_CONFIG__ at
- * container start. Embedded worker console: deliveryMode=embedded (build-time)
- * and relative same-origin API paths remain valid; pairing is not required.
+ * Separated UI only: config.js injects window.__SILVERMAN_OPERATOR_UI_CONFIG__ at
+ * container start. Worker-embedded deliveryMode=embedded is decommissioned (US-096).
  */
 
 export const OPERATOR_UI_API_BASE_URL_KEY = "SILVERMAN_OPERATOR_UI_API_BASE_URL";
@@ -13,14 +12,15 @@ export const OPERATOR_UI_ENV_LABEL_KEY = "SILVERMAN_OPERATOR_UI_ENV_LABEL";
 export const DEPLOYMENT_ENVIRONMENTS = ["uat", "prod"] as const;
 export type DeploymentEnvironment = (typeof DEPLOYMENT_ENVIRONMENTS)[number];
 
-export type OperatorUiDeliveryMode = "separated" | "embedded";
+/** Supported production delivery after US-096 (embedded retired). */
+export type OperatorUiDeliveryMode = "separated";
 
 export interface OperatorUiRuntimeConfig {
   deliveryMode: OperatorUiDeliveryMode;
-  /** Absolute worker origin, or empty for embedded same-origin mode. */
+  /** Absolute worker origin required for separated UI. */
   apiBaseUrl: string;
-  /** Separated mode: required uat|prod. Embedded: empty. */
-  envLabel: DeploymentEnvironment | "";
+  /** Required uat|prod for UI↔API pairing. */
+  envLabel: DeploymentEnvironment;
 }
 
 export type OperatorUiConfigResult =
@@ -42,10 +42,9 @@ declare global {
   }
 }
 
-/** Build-time delivery mode: standalone image = separated; worker static = embedded. */
+/** Build-time delivery mode: separated UI image only (US-096). */
 export function buildDeliveryMode(): OperatorUiDeliveryMode {
-  const raw = import.meta.env.VITE_OPERATOR_UI_DELIVERY;
-  return raw === "embedded" ? "embedded" : "separated";
+  return "separated";
 }
 
 export function isValidAbsoluteHttpUrl(value: string): boolean {
@@ -79,8 +78,9 @@ export function normalizeApiBaseUrl(value: string): string {
 }
 
 /**
- * Join a root-relative worker path (may include query) with an optional API base.
- * Empty base ⇒ return path unchanged (embedded same-origin compatibility).
+ * Join a root-relative worker path (may include query) with an API base.
+ * Empty base is only for injectable unit tests; production config always fails
+ * closed without an absolute base (resolveOperatorUiConfig).
  */
 export function joinApiUrl(apiBaseUrl: string, path: string): string {
   if (!apiBaseUrl) {
@@ -107,23 +107,12 @@ export function displayDeploymentEnvironment(
 }
 
 export function resolveOperatorUiConfig(
-  deliveryMode: OperatorUiDeliveryMode = buildDeliveryMode(),
+  _deliveryMode: OperatorUiDeliveryMode = buildDeliveryMode(),
   windowConfig: Window["__SILVERMAN_OPERATOR_UI_CONFIG__"] | undefined = typeof window !==
   "undefined"
     ? window.__SILVERMAN_OPERATOR_UI_CONFIG__
     : undefined,
 ): OperatorUiConfigResult {
-  if (deliveryMode === "embedded") {
-    return {
-      ok: true,
-      config: {
-        deliveryMode: "embedded",
-        apiBaseUrl: "",
-        envLabel: "",
-      },
-    };
-  }
-
   const rawBase =
     typeof windowConfig?.apiBaseUrl === "string"
       ? windowConfig.apiBaseUrl.trim()
@@ -138,7 +127,7 @@ export function resolveOperatorUiConfig(
       message:
         `Operator UI is blocked: set ${OPERATOR_UI_API_BASE_URL_KEY} to an absolute worker ` +
         `http(s) URL (for example http://192.168.0.194:8010). Relative same-origin API ` +
-        `calls are disabled in separated-UI mode.`,
+        `calls are disabled after US-096 (embedded worker console decommissioned).`,
       requiredKeys: [OPERATOR_UI_API_BASE_URL_KEY],
     };
   }
@@ -161,7 +150,7 @@ export function resolveOperatorUiConfig(
       message:
         `Operator UI is blocked: set ${OPERATOR_UI_ENV_LABEL_KEY} to uat or prod so this ` +
         `console can pair with the matching worker API. Relative same-origin API calls ` +
-        `remain disabled in separated-UI mode.`,
+        `remain disabled after US-096.`,
       requiredKeys: [OPERATOR_UI_ENV_LABEL_KEY],
     };
   }

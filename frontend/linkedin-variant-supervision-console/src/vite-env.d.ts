@@ -1,7 +1,8 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_OPERATOR_UI_DELIVERY?: "separated" | "embedded";
+  /** Historical; ignored after US-096 (separated delivery only). */
+  readonly VITE_OPERATOR_UI_DELIVERY?: string;
   readonly VITE_WORKER_PROXY?: string;
 }
 

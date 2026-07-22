@@ -80,12 +80,14 @@ describe("US-094 environment pairing config", () => {
     }
   });
 
-  it("embedded mode does not require env label", () => {
-    const result = resolveOperatorUiConfig("embedded", undefined);
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.config.envLabel).toBe("");
-      expect(result.config.deliveryMode).toBe("embedded");
+  it("does not support embedded delivery that skips env label (US-096)", () => {
+    // Embedded mode is retired; missing env label always fails closed in separated mode.
+    const result = resolveOperatorUiConfig("separated", {
+      apiBaseUrl: "http://192.168.0.194:8010",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.requiredKeys).toContain(OPERATOR_UI_ENV_LABEL_KEY);
     }
   });
 });

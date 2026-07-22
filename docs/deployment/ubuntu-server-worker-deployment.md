@@ -25,9 +25,9 @@ For local development on Mac, use `docker-compose.example.yml` instead.
 | n8n `worker_base_url` | `http://192.168.0.194:8010` (ADR-0001 — n8n → worker HTTP only; UI is not an n8n target) |
 | Operator UI URL | `http://192.168.0.194:8011` (browser client; calls worker API via configured base URL) |
 
-## Separated operator UI (US-093 / US-094)
+## Separated operator UI (US-093 / US-094 / US-096)
 
-Supported production path for Silverman Authority Manager is the **`silverman-operator-ui`** compose service (nginx + Vite SPA on host port **8011** by default). The worker on **8010** remains the HTTP API source of truth.
+Supported production path for Silverman Authority Manager is **exclusively** the **`silverman-operator-ui`** compose service (nginx + Vite SPA on host port **8011** by default). The worker on **8010** is the HTTP API source of truth and is **API-only** for operator console purposes after US-096.
 
 | Concern | Guidance |
 |---------|----------|
@@ -37,7 +37,8 @@ Supported production path for Silverman Authority Manager is the **`silverman-op
 | Per-environment defaults | Use `deploy/server/env-overlays/uat.pairing.env.example` (UAT UI → UAT API placeholders) and `prod.pairing.env.example` (prod UI → prod API). Overlays ≠ live second UAT stack / full BL-029 stand-up. |
 | Current LAN stack | Prefer `prod` for `192.168.0.194` until a second UAT stack exists. Labels are stack identity, not public internet exposure. |
 | n8n | Continues `worker_base_url` → `:8010` HTTP Request only (**ADR-0001**). Do not orchestrate through the UI. |
-| Compatibility | Worker `GET /flow-a/console/linkedin-variant-supervision` may remain as optional embedded fallback (pairing enforcement **not** required there); it is **not** the only supported production path |
+| Decommissioned console URLs (US-096) | Former worker bookmarks `GET /flow-a/console/linkedin-variant-supervision` (and `/assets/…`) **fail closed** (410 + clear messaging). Use `http://192.168.0.194:8011`. Not supported / not compatibility. |
+| Worker image build | API image does **not** require `npm run build:embedded` or copying SPA assets into the worker package. |
 
 Build the UI image from `frontend/linkedin-variant-supervision-console/` (see package `Dockerfile`). Compose builds it when `frontend/` is present in the deploy directory (deploy-worker sync includes that tree). Runtime `config.js` injects `apiBaseUrl` + `envLabel` at container start (not baked into hashed JS).
 

@@ -1,4 +1,4 @@
-"""US-093 operator UI CORS allowlist and console compatibility route."""
+"""US-093 operator UI CORS allowlist; US-096 console decommission hold."""
 
 from __future__ import annotations
 
@@ -99,15 +99,12 @@ def test_cors_empty_allowlist_does_not_advertise_foreign_origin(tmp_path: Path):
     assert acao is None
 
 
-def test_console_compatibility_route_still_served(tmp_path: Path):
-    """Embedded console remains an optional compatibility path (US-093)."""
-    from silverman_blog_linkedin.linkedin_variant_pending_supervision import (
-        console_html_path,
-    )
-
-    if not console_html_path().is_file():
-        pytest.skip("embedded console assets not built")
+def test_former_embedded_console_route_decommissioned(tmp_path: Path):
+    """US-096: former worker console URL fails closed (not SPA)."""
     client = TestClient(create_app(make_settings(tmp_path)))
     response = client.get("/flow-a/console/linkedin-variant-supervision")
-    assert response.status_code == 200
-    assert "text/html" in response.headers["content-type"]
+    assert response.status_code == 410
+    assert "decommissioned" in response.text.lower()
+    assert 'id="root"' not in response.text
+    assert "sk-" not in response.text
+    assert "Bearer " not in response.text

@@ -53,9 +53,10 @@ services:
       - default
       - local-ai-stack_backend
 
-  # US-093 / US-094 / BL-034: separated Silverman Authority Manager UI (static SPA).
-  # Supported production console path. Worker-embedded console remains compatibility only.
-  # UI does not mount editorial data and is not an n8n orchestration target (ADR-0001).
+  # US-093 / US-094 / US-096 / BL-034: exclusive supported Silverman Authority Manager
+  # console (static SPA on :8011). Worker on :8010 is API-only — former embedded
+  # console routes are decommissioned (fail closed). UI does not mount editorial data
+  # and is not an n8n orchestration target (ADR-0001).
   # Pairing: SILVERMAN_OPERATOR_UI_ENV_LABEL must match worker SILVERMAN_DEPLOYMENT_ENVIRONMENT.
   silverman-operator-ui:
     build:

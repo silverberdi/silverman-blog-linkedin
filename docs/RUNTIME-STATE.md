@@ -44,3 +44,4 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 - Prefer CURRENT-STATE for Story accepted / BL closed narrative. This file is the **live** lean snapshot.
 - Repo n8n exports stay `active: false`; server workflows may be active.
 - Historical 2026-07-21 BL-030 snapshot superseded by this 2026-07-22 redeploy evidence.
+- US-096 embedded-console decommission is implemented in repo but **not** reflected in this live snapshot until the next worker redeploy confirms former `:8010/.../console/...` URLs return 410 and the API image has no console SPA surface.

@@ -60,7 +60,7 @@ export class SupervisionApiClient {
   constructor(
     private readonly auth: AuthProvider = defaultAuthProvider,
     private readonly fetchImpl: typeof fetch = fetch.bind(globalThis),
-    /** Absolute worker origin for separated UI; empty = embedded same-origin. */
+    /** Absolute worker origin for separated UI (required in production). */
     private readonly apiBaseUrl: string = "",
   ) {}
 

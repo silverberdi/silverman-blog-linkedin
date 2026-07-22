@@ -27,7 +27,7 @@ describe("operator UI API base URL config", () => {
     );
   });
 
-  it("keeps relative paths when apiBaseUrl is empty (embedded mode)", () => {
+  it("returns relative paths when apiBaseUrl is empty (test injectable only)", () => {
     expect(joinApiUrl("", SCHEDULE_VISIBILITY_PATH)).toBe(
       SCHEDULE_VISIBILITY_PATH,
     );
@@ -48,12 +48,15 @@ describe("operator UI API base URL config", () => {
     );
   });
 
-  it("embedded delivery ignores missing window config", () => {
-    const result = resolveOperatorUiConfig("embedded", undefined);
+  it("always resolves as separated delivery (embedded retired US-096)", () => {
+    const result = resolveOperatorUiConfig("separated", {
+      apiBaseUrl: "http://192.168.0.194:8010",
+      envLabel: "prod",
+    });
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.config.apiBaseUrl).toBe("");
-      expect(result.config.deliveryMode).toBe("embedded");
+      expect(result.config.deliveryMode).toBe("separated");
+      expect(result.config.apiBaseUrl).toBe("http://192.168.0.194:8010");
     }
   });
 
@@ -155,7 +158,7 @@ describe("SupervisionApiClient apiBaseUrl", () => {
     );
   });
 
-  it("keeps auth-gated relative calls when apiBaseUrl is empty", async () => {
+  it("keeps auth-gated calls when apiBaseUrl is empty (injectable unit test)", async () => {
     const auth = new MemoryBearerAuthProvider();
     auth.setTokenForTests("key");
     const fetchImpl = vi.fn(

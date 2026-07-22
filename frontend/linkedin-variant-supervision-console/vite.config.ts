@@ -7,15 +7,9 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
- * Delivery modes (US-093):
- * - separated (default `build`): SPA base `/` → UI image dist/
- * - embedded (`build:embedded`): worker-served path under FastAPI static/
+ * Delivery (US-096): separated UI image only (`base: '/'` → dist/).
+ * Worker-embedded build (`build:embedded`) is retired.
  */
-const EMBEDDED_BASE = "/flow-a/console/linkedin-variant-supervision/";
-const delivery =
-  process.env.VITE_OPERATOR_UI_DELIVERY === "embedded" ? "embedded" : "separated";
-const isEmbedded = delivery === "embedded";
-
 const proxyTarget = process.env.VITE_WORKER_PROXY || "http://192.168.0.194:8010";
 
 const sharedProxy = {
@@ -33,19 +27,14 @@ const sharedProxy = {
 
 export default defineConfig({
   plugins: [react()],
-  base: isEmbedded ? EMBEDDED_BASE : "/",
+  base: "/",
   // Prefer process env (npm scripts / Vitest test.env) over define baking.
   server: {
     // Local UX preview: SPA on Vite, APIs proxied to the LAN worker.
     proxy: sharedProxy,
   },
   build: {
-    outDir: isEmbedded
-      ? path.resolve(
-          __dirname,
-          "../../src/silverman_blog_linkedin/static/linkedin-variant-supervision-console",
-        )
-      : path.resolve(__dirname, "dist"),
+    outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,
     sourcemap: false,
   },
@@ -54,9 +43,9 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     css: true,
     globals: true,
-    // Vitest runs against embedded-compatible relative client by default.
+    // Vitest defaults to separated delivery semantics (US-096).
     env: {
-      VITE_OPERATOR_UI_DELIVERY: "embedded",
+      VITE_OPERATOR_UI_DELIVERY: "separated",
     },
   },
 } satisfies UserConfig);
