@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Focused capability-regression / smoke evidence that day-to-day operator supervision remains available on the supported separated operator UI → worker API path after US-093 separation and US-094 environment pairing (BL-034 / US-095). Verifies absolute-base reads, representative gated mutations, US-040D auth session gating, and fail-closed config/pairing holds—without redesigning packaging/pairing, implementing Google/OIDC, or claiming public exposure beyond BL-026.
+Focused capability-regression / smoke evidence that day-to-day operator supervision remains available on the supported separated operator UI → worker API path after US-093 separation and US-094 environment pairing (BL-034 / US-095). Verifies absolute-base reads, representative gated mutations, US-040D auth session gating (including Google sign-in / allowlist deny / anonymous non-mutate holds when US-097 is enabled), and fail-closed config/pairing holds—without redesigning packaging/pairing, claiming US-098 JWT cutover, or claiming public exposure beyond BL-026 / US-099.
 
 ## Requirements
 
@@ -16,7 +16,7 @@ The minimum matrix MUST cover all of the following:
 2. Schedule visibility read via the typed client against the configured absolute worker origin.
 3. Pending-supervision / LinkedIn control-center read (BL-032 Story-accepted path) via the typed client against the configured absolute worker origin.
 4. At least one representative authenticated mutation already Story accepted under BL-032, preferring a dry-run-safe or clearly gated action (for example postpone/defer with `dry_run: true`), issued against the configured absolute worker origin—without inventing new endpoints.
-5. US-040D auth session gating on the separated UI: sign-in, `canMutate`, and clear session, without implementing Google/OIDC.
+5. US-040D auth session gating on the separated UI: sign-in, `canMutate`, and clear session. When Google (OIDC) auth is enabled (US-097), the matrix MUST cover Google sign-in / allowlist deny / anonymous non-mutate holds without requiring worker API-key paste for the Google sign-in step. Transitional provider-based tests MAY remain for non-Google fixtures.
 6. Retention of US-093 configuration fail-closed and US-094 pairing fail-closed operator-visible blocked states.
 7. Confirmation that ADR-0001 remains intact (n8n → worker HTTP only) and that this program does not mutate `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` or rewrite Flow/LinkedIn business contracts.
 
@@ -37,10 +37,10 @@ Evidence MUST be collectible via automated tests and/or controlled local/LAN smo
 - **WHEN** an authenticated separated-UI session with `canMutate` true issues a representative BL-032 mutation with dry-run enabled (for example defer/postpone with `dry_run: true`)
 - **THEN** the request is sent to the configured absolute worker origin using the existing mutation route and does not introduce a new endpoint
 
-#### Scenario: Auth session gating works without Google
+#### Scenario: Auth session gating works with Google when enabled
 
-- **WHEN** an operator signs in via the existing US-040D Bearer/session boundary on the separated UI and later clears the session
-- **THEN** `canMutate` becomes true only while authenticated for mutations and returns to a non-mutating state after clear session, without requiring Google/OIDC
+- **WHEN** Google (OIDC) auth is enabled and an allowlisted operator signs in via the AuthProvider boundary on the separated UI and later clears the session
+- **THEN** `canMutate` becomes true only while authenticated for mutations and returns to a non-mutating state after clear session, without requiring worker API-key paste for the Google sign-in step
 
 #### Scenario: Config and pairing blocks remain visible
 
@@ -54,7 +54,9 @@ Evidence MUST be collectible via automated tests and/or controlled local/LAN smo
 
 ### Requirement: Separated-UI regression preserves non-goals
 
-The US-095 regression program MUST NOT implement BL-035 Google/OIDC login, MUST NOT stand up full BL-029 CI/UAT beyond what the matrix needs, MUST NOT introduce n8n Execute Command, MUST NOT mutate `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`, and MUST NOT redesign US-093 packaging or US-094 pairing semantics (verify hold only).
+The US-095 regression program MUST NOT stand up full BL-029 CI/UAT beyond what the matrix needs, MUST NOT introduce n8n Execute Command, MUST NOT mutate `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`, and MUST NOT redesign US-093 packaging or US-094 pairing semantics (verify hold only).
+
+Google/OIDC console identity (BL-035 / US-097) is owned by a separate OpenSpec change; the US-095 matrix MUST remain compatible with Google auth when enabled and MUST NOT claim US-098 JWT cutover or US-099 public tunnel topology.
 
 US-096 hard decommission of the embedded worker console is intentionally out of scope for the US-095 program itself; after US-096 lands, regression holds for the separated path MUST remain applicable and MUST NOT depend on restoring the embedded console.
 
@@ -72,3 +74,8 @@ US-096 hard decommission of the embedded worker console is intentionally out of 
 
 - **WHEN** US-095 changes are reviewed for publication guards
 - **THEN** `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` is not mutated as part of the regression program
+
+#### Scenario: US-095 does not claim US-098 or US-099
+
+- **WHEN** Google identity tests are added under US-097 and regression holds are updated
+- **THEN** evidence does not claim operator JWT-only console→API (US-098) or Cloudflare front-only public topology (US-099)
