@@ -6,6 +6,7 @@ import { defaultAuthProvider } from "./api/auth";
 import { ConfigBlockedScreen } from "./components/ConfigBlockedScreen";
 import { validateApiEnvironmentPairing } from "./config/environmentPairing";
 import {
+  OPERATOR_UI_ENV_LABEL_KEY,
   resolveOperatorUiConfig,
   type DeploymentEnvironment,
 } from "./config/operatorUiConfig";
@@ -54,10 +55,25 @@ async function bootstrap(): Promise<void> {
     return;
   }
 
-  // Separated mode: env label already validated; confirm API advertises the same.
+  // Separated mode: narrow envLabel to a proven DeploymentEnvironment before pairing.
+  // resolveOperatorUiConfig already rejects empty/invalid labels; this is TypeScript
+  // narrowing + defensive fail-closed if the empty union member somehow remains.
+  const envLabel = config.envLabel;
+  if (envLabel !== "uat" && envLabel !== "prod") {
+    renderBlocked({
+      ok: false,
+      reason: "invalid",
+      message:
+        `Operator UI is blocked: ${OPERATOR_UI_ENV_LABEL_KEY} must be uat or prod. ` +
+        `Separated bootstrap cannot proceed without a proven deployment environment.`,
+      requiredKeys: [OPERATOR_UI_ENV_LABEL_KEY],
+    });
+    return;
+  }
+
   const pairing = await validateApiEnvironmentPairing(
     config.apiBaseUrl,
-    config.envLabel,
+    envLabel,
   );
   if (!pairing.ok) {
     renderBlocked(pairing);
