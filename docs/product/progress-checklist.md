@@ -940,27 +940,27 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 - [ ] **BL-034 — Separate Operator UI from Worker API**
   - Business outcome: UI can be versioned/deployed separately from the API with UAT/prod pairing and hard UI/API project independence.
-  - Status: **Open** — US-093/US-094/US-095 implemented locally on `feat/us-095-regress-separated-operator-ui` (2026-07-21); **US-096** not started; BL-034 not closed.
+  - Status: **Open** — US-093/US-094/US-095 implemented and LAN-deployed on `feat/us-095-regress-separated-operator-ui` (`BUILD_REVISION=a16fda8…`, 2026-07-22); **US-096** not started; BL-034 not closed; Stories **not** accepted.
   - [ ] **US-093**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated *(local: UI Dockerfile/compose `:8011`, typed `apiBaseUrl`, CORS allowlist, fail-closed config UI, Vitest + pytest; n8n exports unchanged)*
-    - [x] Acceptance criteria validated *(local evidence; not live LAN deploy)*
+    - [x] Business outcome demonstrated *(local + LAN: UI Dockerfile/compose `:8011`, typed `apiBaseUrl`, CORS allowlist export, fail-closed config UI, Vitest + pytest; n8n exports unchanged; live UI HTTP 200)*
+    - [x] Acceptance criteria validated *(local + LAN deploy evidence; not Story accepted)*
     - [ ] Story accepted
   - [ ] **US-094**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated *(local: UAT/prod overlays, worker env + health field, UI pairing gate + badge, Vitest + pytest; RUNTIME-STATE deferred until live apply)*
-    - [x] Acceptance criteria validated *(local evidence; not live LAN deploy / Story accepted)*
+    - [x] Business outcome demonstrated *(local + LAN: UAT/prod overlays, worker `/health.deployment_environment=prod`, UI `config.js` envLabel `prod`, pairing gate + badge, Vitest + pytest)*
+    - [x] Acceptance criteria validated *(local + LAN pairing evidence; not Story accepted)*
     - [ ] Story accepted
   - [ ] **US-095**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated *(local: Vitest R1–R8 absolute-base schedule/pending/dry-run defer + US-040D auth + US-093/094 fail-closed holds; optional LAN smoke not run)*
-    - [x] Acceptance criteria validated *(local Vitest evidence; not Story accepted / not public exposure beyond BL-026)*
+    - [x] Business outcome demonstrated *(local Vitest R1–R8 + LAN deploy unblock after envLabel narrowing; optional full operator smoke still open)*
+    - [x] Acceptance criteria validated *(local Vitest + deploy verify OVERALL PASS; not Story accepted / not public exposure beyond BL-026)*
     - [ ] Story accepted
   - [ ] **US-096**
     - [x] Story reviewed

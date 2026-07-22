@@ -2112,7 +2112,7 @@ As a system operator, I want the master editorial calendar stored in PostgreSQL 
 
 ### US-093 — Separate Operator UI from Worker API: Story 1
 
-**Status:** **Implemented locally** on `feat/us-093-separate-operator-ui` (2026-07-21). ACs demonstrable via distinct UI Dockerfile/compose service, typed client `apiBaseUrl`, CORS allowlist, fail-closed config UI, Vitest + pytest. **Not Story accepted** (operator gate / deploy validation pending). US-094 / US-095 implemented locally (see below); Story accepted gates remain open.
+**Status:** **Implemented and LAN-deployed** on `feat/us-095-regress-separated-operator-ui` (2026-07-22, `BUILD_REVISION=a16fda8…`). ACs demonstrable via distinct UI Dockerfile/compose service, typed client `apiBaseUrl`, CORS allowlist, fail-closed config UI, Vitest + pytest, live `:8011`. **Not Story accepted** (operator gate pending). US-094 / US-095 also LAN-deployed (see below); Story accepted gates remain open.
 
 **Description**
 
@@ -2129,7 +2129,7 @@ As a system owner, I want the operator UI deployed as a distinct artifact from t
 
 ### US-094 — Separate Operator UI from Worker API: Story 2
 
-**Status:** **Implemented locally** on `feat/us-094-pair-operator-ui-api-environments` (2026-07-21). ACs demonstrable via UAT/prod env overlays, worker `SILVERMAN_DEPLOYMENT_ENVIRONMENT` + `/health.deployment_environment`, separated-UI pairing gate + env badge, Vitest + pytest. **Not Story accepted** (operator gate / live deploy validation pending). US-095 implemented locally (see below); Story accepted gates remain open.
+**Status:** **Implemented and LAN-deployed** on `feat/us-095-regress-separated-operator-ui` (2026-07-22, `BUILD_REVISION=a16fda8…`). ACs demonstrable via UAT/prod env overlays, worker `SILVERMAN_DEPLOYMENT_ENVIRONMENT` + live `/health.deployment_environment=prod`, separated-UI pairing gate + env badge, Vitest + pytest, live `config.js` `envLabel=prod`. **Not Story accepted** (operator gate pending). US-095 also LAN-deployed (see below); Story accepted gates remain open.
 
 **Description**
 
@@ -2146,7 +2146,7 @@ As a system owner, I want UAT and prod each to pair their UI with the matching A
 
 ### US-095 — Separate Operator UI from Worker API: Story 3
 
-**Status:** **Implemented locally** on `feat/us-095-regress-separated-operator-ui` (2026-07-21). ACs demonstrable via focused Vitest matrix R1–R8 (`us095.separated-capability-regression.test.tsx`) plus US-093/US-094 hold suites. Optional LAN smoke not run. **Not Story accepted** (operator gate / deploy validation pending). US-096 unchecked.
+**Status:** **Implemented and LAN-deployed** on `feat/us-095-regress-separated-operator-ui` (2026-07-22, `BUILD_REVISION=a16fda8…` after envLabel narrowing fix). ACs demonstrable via focused Vitest matrix R1–R8 (`us095.separated-capability-regression.test.tsx`) plus US-093/US-094 hold suites; separated UI live on `:8011`. **Not Story accepted** (operator gate pending). US-096 unchecked.
 
 **Description**
 
