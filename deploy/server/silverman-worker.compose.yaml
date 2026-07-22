@@ -71,6 +71,8 @@ services:
       SILVERMAN_OPERATOR_UI_API_BASE_URL: ${SILVERMAN_OPERATOR_UI_API_BASE_URL:-http://192.168.0.194:8010}
       # US-094: required uat|prod in separated mode; injected into runtime config.js.
       SILVERMAN_OPERATOR_UI_ENV_LABEL: ${SILVERMAN_OPERATOR_UI_ENV_LABEL:-prod}
+      # US-097: non-secret Google OIDC enablement flag for config.js (secrets stay on worker).
+      SILVERMAN_OPERATOR_GOOGLE_AUTH_ENABLED: ${SILVERMAN_OPERATOR_GOOGLE_AUTH_ENABLED:-false}
     networks:
       - default
 

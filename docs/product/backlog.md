@@ -13,6 +13,7 @@ This backlog describes the outstanding business and operational capabilities req
 | P5 | Editorial Strategy and Measurement |
 | P6 | Security and Administration |
 | P7 | Technical Debt and Maintenance |
+| P8 | Platform evolution (UI/API split, Google operator auth, …) |
 
 ## P1 — Complete Flow A Operationally
 
@@ -664,7 +665,7 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 ### BL-034 — Separate Operator UI from Worker API
 
-**Priority:** **Immediate / next** (operator 2026-07-21).
+**Priority:** **Immediate / next** (operator 2026-07-21). Remaining Story accepted gates for US-093–US-095; Google auth activation is **BL-035**.
 
 **Business need:** Deploy and evolve the operator console independently from the worker API while preserving UAT/prod environment separation (BL-029).
 
@@ -679,6 +680,33 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** Operators use a UI layer that can be versioned and deployed separately from the API, with clear UAT vs prod pairing, and with UI/API packaged as independent projects (no embedded console leftover in the API).
 
-**Status:** **Open** — US-093 / US-094 / US-095 / US-096 implemented and LAN-deployed (hard UI/API independence / embedded console decommissioned live with 410). BL-034 remains open until stories are Story accepted.
+**Status:** **Open** — US-093 / US-094 / US-095 implemented and LAN-deployed (Story accepted pending). **US-096 Story accepted** 2026-07-22 (operator verified API `:8010` no longer serves the console UI; exclusive path `:8011`). BL-034 remains open until US-093 / US-094 / US-095 are Story accepted.
 
-**Depends on / aligns with:** BL-029 UAT/prod pairing (**aligns**). Does not replace Google login (BL-035). US-096 depends on US-093/US-094; prefer US-095 (or equivalent regression) before removing the embedded compatibility path.
+**Depends on / aligns with:** BL-029 UAT/prod pairing (**aligns**). Does not replace Google login (**BL-035** / US-097–US-099). US-096 depends on US-093/US-094; prefer US-095 (or equivalent regression) before removing the embedded compatibility path.
+
+### BL-035 — Authenticate the Operator Console With Google
+
+**Priority:** **Immediate / next** (operator 2026-07-22) after BL-034 separated UI path.
+
+**Business need:** Expose Silverman Authority Manager on the public internet via a Cloudflare Tunnel **front-only** topology while keeping the worker API private, and replace browser API-key paste with Google-authenticated operator access limited to approved emails.
+
+**Expected outcomes:**
+
+- Operators sign in with Google (OIDC); only allowlisted accounts may use the console: `silverio.bernal@gmail.com` and `ltmoralesp84@gmail.com` (fail closed for everyone else).
+- The public console path does **not** require (and MUST NOT ship) the worker API key in the browser; console→API auth uses an operator JWT or equivalent secure session credential the worker validates.
+- **Only the operator UI** is published through Cloudflare Tunnel (or equivalent public ingress). The worker API remains **not** internet-exposed (LAN / private network only). The browser reaches worker capabilities without a public API hostname (private UI→API hop such as same-origin reverse proxy / internal Docker network / equivalent).
+- n8n and other machine clients continue to call the worker with the existing API-key HTTP auth (ADR-0001 unchanged); UI is never an n8n target.
+- Preserve US-040D injectable auth boundary and separated-UI contracts (BL-034); do not rewrite Flow/LinkedIn business screens for auth.
+- Document live topology in CURRENT-STATE / RUNTIME-STATE / ubuntu deploy when activated; no secrets in docs or HTTP responses.
+
+**Completion outcome:** Approved operators open the public console URL, sign in with Google, and supervise via the private API path without pasting a worker API key; unapproved Google accounts and unauthenticated callers are blocked; the worker API is not publicly reachable.
+
+**Status:** **Open** — US-097 implemented (not Story accepted); US-098 / US-099 not implemented. Product stories drafted 2026-07-22.
+
+**Depends on / aligns with:** BL-034 separated UI (US-093–US-096). Extends US-040D readiness into activation. Aligns with BL-026 least-privilege exposure (API stays private). Does **not** establish full BL-029 CI/UAT. Does **not** mutate `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`. Does **not** introduce n8n Execute Command.
+
+**Apply order (OpenSpec):**
+
+```text
+US-097 → US-098 → US-099
+```

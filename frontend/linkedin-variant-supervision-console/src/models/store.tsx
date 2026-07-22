@@ -173,10 +173,13 @@ function emptyBanner(): BannerState {
   return { kind: "", text: "" };
 }
 
-function sessionBannerFromState(state: SessionState): BannerState {
+function sessionBannerFromState(
+  state: SessionState,
+  googleAuthEnabled = false,
+): BannerState {
   return {
     kind: sessionBannerKind(state),
-    text: sessionBannerText(state),
+    text: sessionBannerText(state, { googleAuthEnabled }),
   };
 }
 
@@ -237,10 +240,13 @@ export function SupervisionStoreProvider({
   children,
   client = apiClient,
   initialSessionState,
+  googleAuthEnabled = false,
 }: {
   children: ReactNode;
   client?: SupervisionApiClient;
   initialSessionState?: SessionState;
+  /** When true, session banners use Google OIDC copy (US-097). */
+  googleAuthEnabled?: boolean;
 }) {
   const [snapshot, setSnapshot] = useState<SupervisionSnapshot | null>(null);
   const [scheduleSnapshot, setScheduleSnapshot] =
@@ -331,21 +337,36 @@ export function SupervisionStoreProvider({
   const signIn = useCallback(async () => {
     const ok = await client.signIn();
     bumpAuth();
-    if (ok) {
+    const identity = client.getIdentityState();
+    if (ok || identity === "authenticated") {
       setSessionState("authenticated");
       setStatusBanner({
         kind: "ok",
-        text: "Signed in. Refresh to reload pending and schedule data. Unsaved schedule drafts remain available.",
+        text: googleAuthEnabled
+          ? "Signed in with Google. Refresh to reload pending and schedule data. Unsaved schedule drafts remain available."
+          : "Signed in. Refresh to reload pending and schedule data. Unsaved schedule drafts remain available.",
       });
-    } else {
-      setSessionState("anonymous");
+      return true;
+    }
+    if (identity === "forbidden") {
+      setSessionState("forbidden");
       setStatusBanner({
         kind: "warn",
-        text: "Sign-in cancelled or empty credential. Still not authenticated.",
+        text:
+          "Google sign-in denied: this Google account is not on the operator allowlist. " +
+          "Mutating console capabilities remain blocked.",
       });
+      return false;
     }
-    return ok;
-  }, [client, bumpAuth]);
+    setSessionState("anonymous");
+    setStatusBanner({
+      kind: "warn",
+      text: googleAuthEnabled
+        ? "Redirecting to Google sign-in, or sign-in was cancelled. Still not authenticated."
+        : "Sign-in cancelled or empty credential. Still not authenticated.",
+    });
+    return false;
+  }, [client, bumpAuth, googleAuthEnabled]);
 
   const setActiveView = useCallback((view: ConsoleView) => {
     setActiveViewState(view);
@@ -727,8 +748,8 @@ export function SupervisionStoreProvider({
   );
 
   const sessionBanner = useMemo(
-    () => sessionBannerFromState(sessionState),
-    [sessionState],
+    () => sessionBannerFromState(sessionState, googleAuthEnabled),
+    [sessionState, googleAuthEnabled],
   );
 
   const value = useMemo(

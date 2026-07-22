@@ -7,6 +7,7 @@ import html
 import logging
 import os
 import re
+import secrets
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -19,6 +20,20 @@ from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator, mod
 from silverman_blog_linkedin import SERVICE_NAME, __version__
 from silverman_blog_linkedin.auth import require_api_key
 from silverman_blog_linkedin.blog_publish_flow import publish_blog_post
+from silverman_blog_linkedin.operator_google_auth import (
+    OIDC_PENDING_COOKIE,
+    OPERATOR_SESSION_COOKIE,
+    HttpxGoogleTokenExchanger,
+    build_google_authorize_url,
+    build_ui_auth_redirect,
+    create_oidc_pending_cookie_value,
+    create_operator_session_cookie_value,
+    email_from_userinfo,
+    generate_pkce_pair,
+    is_allowlisted_email,
+    parse_oidc_pending_cookie,
+    parse_operator_session_cookie,
+)
 from silverman_blog_linkedin.campaign_lifecycle import (
     CampaignLifecycleError,
     validate_campaign_id,
@@ -1459,15 +1474,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title=SERVICE_NAME, version=__version__)
     app.state.settings = settings
 
-    # US-093: CORS only when explicit UI origins are configured (no wildcard default).
+    # US-093 / US-097: CORS only when explicit UI origins are configured (no wildcard).
+    # Credentials enabled so browser console can send HttpOnly operator session cookies.
     if settings.operator_ui_origins:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=list(settings.operator_ui_origins),
-            allow_credentials=False,
+            allow_credentials=True,
             allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
             allow_headers=["Authorization", "Content-Type", "Accept"],
         )
+
+    # Injectable Google token exchanger for tests (US-097).
+    app.state.google_token_exchanger = HttpxGoogleTokenExchanger()
 
     logger.info("API key configured: yes")
     logger.info("Base path: %s", settings.base_path)
@@ -1486,6 +1505,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
     else:
         logger.info("Deployment environment: (unset — not advertised on /health)")
+    if settings.operator_google_auth_enabled:
+        logger.info(
+            "Operator Google auth: enabled configured=%s",
+            settings.operator_google_auth_configured,
+        )
+    else:
+        logger.info("Operator Google auth: disabled")
 
     @app.get("/health")
     def health() -> dict:
@@ -1510,6 +1536,179 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if settings.deployment_environment:
             payload["deployment_environment"] = settings.deployment_environment
         return payload
+
+    def _google_auth_not_ready_response() -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": (
+                    "Google operator authentication is enabled but not fully "
+                    "configured. Set the required SILVERMAN_OPERATOR_GOOGLE_* "
+                    "and session/redirect env vars on the worker (secrets only)."
+                ),
+                "error_code": "operator_google_auth_not_configured",
+            },
+        )
+
+    @app.get("/auth/google/status")
+    def operator_google_auth_status() -> dict:
+        """Non-secret Google auth readiness for the separated UI (US-097)."""
+        return {
+            "enabled": settings.operator_google_auth_enabled,
+            "configured": settings.operator_google_auth_configured,
+        }
+
+    @app.get("/auth/me")
+    def operator_auth_me(request: Request) -> dict:
+        """Return allowlisted operator session identity when cookie is valid."""
+        session = parse_operator_session_cookie(
+            request.cookies.get(OPERATOR_SESSION_COOKIE),
+            settings.operator_session_secret,
+        )
+        if session is None:
+            return {
+                "authenticated": False,
+                "email": None,
+                "can_mutate": False,
+            }
+        return {
+            "authenticated": True,
+            "email": session.email,
+            "can_mutate": True,
+        }
+
+    @app.post("/auth/logout")
+    def operator_auth_logout() -> Response:
+        response = JSONResponse(content={"ok": True})
+        response.delete_cookie(OPERATOR_SESSION_COOKIE, path="/")
+        response.delete_cookie(OIDC_PENDING_COOKIE, path="/")
+        return response
+
+    @app.get("/auth/google/start")
+    def operator_google_auth_start() -> Response:
+        """Begin Google OIDC authorization-code + PKCE (US-097)."""
+        if not settings.operator_google_auth_enabled:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "detail": "Google operator authentication is not enabled.",
+                    "error_code": "operator_google_auth_disabled",
+                },
+            )
+        if not settings.operator_google_auth_configured:
+            return _google_auth_not_ready_response()
+
+        state = secrets.token_urlsafe(24)
+        code_verifier, code_challenge = generate_pkce_pair()
+        authorize_url = build_google_authorize_url(
+            client_id=settings.operator_google_client_id,
+            redirect_uri=settings.operator_google_redirect_uri,
+            state=state,
+            code_challenge=code_challenge,
+        )
+        pending = create_oidc_pending_cookie_value(
+            state=state,
+            code_verifier=code_verifier,
+            secret=settings.operator_session_secret,
+        )
+        response = RedirectResponse(url=authorize_url, status_code=302)
+        response.set_cookie(
+            key=OIDC_PENDING_COOKIE,
+            value=pending,
+            httponly=True,
+            samesite="lax",
+            secure=settings.operator_google_redirect_uri.startswith("https://"),
+            max_age=600,
+            path="/",
+        )
+        return response
+
+    @app.get("/auth/google/callback")
+    def operator_google_auth_callback(
+        request: Request,
+        code: str | None = None,
+        state: str | None = None,
+        error: str | None = None,
+    ) -> Response:
+        """Complete Google OIDC; enforce allowlist; mint session or deny (US-097)."""
+        if not settings.operator_google_auth_enabled:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "detail": "Google operator authentication is not enabled.",
+                    "error_code": "operator_google_auth_disabled",
+                },
+            )
+        if not settings.operator_google_auth_configured:
+            return _google_auth_not_ready_response()
+
+        success_redirect = settings.operator_ui_success_redirect
+        secure_cookie = settings.operator_google_redirect_uri.startswith("https://")
+
+        def _deny_redirect(auth_result: str) -> Response:
+            response = RedirectResponse(
+                url=build_ui_auth_redirect(success_redirect, auth_result),
+                status_code=302,
+            )
+            response.delete_cookie(OIDC_PENDING_COOKIE, path="/")
+            # Never leave a mutable session on deny paths.
+            response.delete_cookie(OPERATOR_SESSION_COOKIE, path="/")
+            return response
+
+        if error:
+            logger.info("Google OIDC callback error from IdP (no secret logged)")
+            return _deny_redirect("error")
+
+        pending = parse_oidc_pending_cookie(
+            request.cookies.get(OIDC_PENDING_COOKIE),
+            settings.operator_session_secret,
+        )
+        if pending is None or not state or not code:
+            return _deny_redirect("error")
+        expected_state, code_verifier = pending
+        if not secrets.compare_digest(expected_state, state):
+            return _deny_redirect("error")
+
+        exchanger = getattr(
+            request.app.state, "google_token_exchanger", HttpxGoogleTokenExchanger()
+        )
+        try:
+            userinfo = exchanger.exchange(
+                code=code,
+                code_verifier=code_verifier,
+                client_id=settings.operator_google_client_id,
+                client_secret=settings.operator_google_client_secret,
+                redirect_uri=settings.operator_google_redirect_uri,
+            )
+        except ValueError:
+            return _deny_redirect("error")
+
+        email = email_from_userinfo(userinfo)
+        if email is None:
+            return _deny_redirect("error")
+
+        if not is_allowlisted_email(email):
+            logger.info("Google OIDC identity denied by allowlist")
+            return _deny_redirect("forbidden")
+
+        session_value = create_operator_session_cookie_value(
+            email, settings.operator_session_secret
+        )
+        response = RedirectResponse(
+            url=build_ui_auth_redirect(success_redirect, "ok"),
+            status_code=302,
+        )
+        response.delete_cookie(OIDC_PENDING_COOKIE, path="/")
+        response.set_cookie(
+            key=OPERATOR_SESSION_COOKIE,
+            value=session_value,
+            httponly=True,
+            samesite="lax",
+            secure=secure_cookie,
+            max_age=int(12 * 60 * 60),
+            path="/",
+        )
+        return response
 
     @app.post("/process-ready")
     def process_ready(_auth: None = Depends(require_api_key)) -> dict:

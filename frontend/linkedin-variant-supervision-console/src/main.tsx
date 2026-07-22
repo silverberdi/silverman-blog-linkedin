@@ -2,7 +2,12 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { SupervisionApiClient } from "./api/client";
-import { defaultAuthProvider } from "./api/auth";
+import {
+  createAuthProviderForConfig,
+  GoogleOidcAuthProvider,
+  type AuthProvider,
+} from "./api/auth";
+import type { SessionState } from "./api/session";
 import { ConfigBlockedScreen } from "./components/ConfigBlockedScreen";
 import { validateApiEnvironmentPairing } from "./config/environmentPairing";
 import {
@@ -26,16 +31,26 @@ function renderBlocked(
 
 function renderApp(
   apiBaseUrl: string,
-  deploymentEnvironment?: DeploymentEnvironment,
+  auth: AuthProvider,
+  options: {
+    deploymentEnvironment?: DeploymentEnvironment;
+    initialSessionState?: SessionState;
+    googleAuthEnabled?: boolean;
+  } = {},
 ): void {
   const client = new SupervisionApiClient(
-    defaultAuthProvider,
+    auth,
     fetch.bind(globalThis),
     apiBaseUrl,
   );
   createRoot(rootEl).render(
     <StrictMode>
-      <App client={client} deploymentEnvironment={deploymentEnvironment} />
+      <App
+        client={client}
+        deploymentEnvironment={options.deploymentEnvironment}
+        initialSessionState={options.initialSessionState}
+        googleAuthEnabled={options.googleAuthEnabled}
+      />
     </StrictMode>,
   );
 }
@@ -72,7 +87,39 @@ async function bootstrap(): Promise<void> {
     return;
   }
 
-  renderApp(config.apiBaseUrl, pairing.environment);
+  const auth = createAuthProviderForConfig({
+    googleAuthEnabled: config.googleAuthEnabled,
+    apiBaseUrl: config.apiBaseUrl,
+  });
+
+  let initialSessionState: SessionState | undefined;
+  if (auth instanceof GoogleOidcAuthProvider) {
+    const restored = await auth.restoreSession();
+    initialSessionState = restored;
+    const configError = auth.getConfigError();
+    if (configError) {
+      renderBlocked({
+        ok: false,
+        reason: "invalid",
+        message: configError,
+        requiredKeys: [
+          "SILVERMAN_OPERATOR_GOOGLE_AUTH_ENABLED",
+          "SILVERMAN_OPERATOR_GOOGLE_CLIENT_ID",
+          "SILVERMAN_OPERATOR_GOOGLE_CLIENT_SECRET",
+          "SILVERMAN_OPERATOR_GOOGLE_REDIRECT_URI",
+          "SILVERMAN_OPERATOR_SESSION_SECRET",
+          "SILVERMAN_OPERATOR_UI_SUCCESS_REDIRECT",
+        ],
+      });
+      return;
+    }
+  }
+
+  renderApp(config.apiBaseUrl, auth, {
+    deploymentEnvironment: pairing.environment,
+    initialSessionState,
+    googleAuthEnabled: config.googleAuthEnabled,
+  });
 }
 
 void bootstrap();

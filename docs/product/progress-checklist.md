@@ -940,7 +940,7 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 - [ ] **BL-034 — Separate Operator UI from Worker API**
   - Business outcome: UI can be versioned/deployed separately from the API with UAT/prod pairing and hard UI/API project independence.
-  - Status: **Open** — US-093/US-094/US-095/US-096 implemented and LAN-deployed on `feat/us-096-decommission-embedded-operator-ui` (`BUILD_REVISION=c34cb9f…`, 2026-07-22; archive `2026-07-22-decommission-embedded-operator-ui-us-096`); BL-034 not closed; Stories **not** accepted.
+  - Status: **Open** — US-093/US-094/US-095 implemented and LAN-deployed (Story accepted gates pending); **US-096 Story accepted** 2026-07-22 (operator verified API `:8010` no longer serves console UI; archive `2026-07-22-decommission-embedded-operator-ui-us-096`, `BUILD_REVISION=c34cb9f…`). BL-034 not closed until remaining stories accepted.
   - [ ] **US-093**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
@@ -962,12 +962,40 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [x] Business outcome demonstrated *(local Vitest R1–R8 + LAN deploy unblock after envLabel narrowing; optional full operator smoke still open)*
     - [x] Acceptance criteria validated *(local Vitest + deploy verify OVERALL PASS; not Story accepted / not public exposure beyond BL-026)*
     - [ ] Story accepted
-  - [ ] **US-096**
+  - [x] **US-096**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
     - [x] Business outcome demonstrated *(local + LAN: worker 410 decommission routes; no console static tree in image; Dockerfile/API build independent of frontend embed; separated UI HTTP-only + US-093/094/095 holds; docs exclusive topology; live `:8011` config.js prod pairing)*
-    - [x] Acceptance criteria validated *(local pytest/Vitest + LAN deploy verify OVERALL PASS + live 410/UI probes; not Story accepted)*
+    - [x] Acceptance criteria validated *(local pytest/Vitest + LAN deploy verify + operator verified API URL no longer serves UI, 2026-07-22)*
+    - [x] Story accepted — operator-accepted 2026-07-22
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed
+
+- [ ] **BL-035 — Authenticate the Operator Console With Google**
+  - Business outcome: Allowlisted operators sign in with Google on a Cloudflare-exposed UI; worker API stays private; browser no longer uses the worker API key (operator JWT/session instead); n8n keeps API-key HTTP auth.
+  - Status: **Open** — US-097 implemented (code/tests/docs; not Story accepted). US-098 / US-099 deferred. Depends on BL-034 separated UI.
+  - [ ] **US-097**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated *(local Vitest + pytest for Google OIDC / allowlist / dual-accept / secrets hygiene; not live Google enablement)*
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-098**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-099**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
     - [ ] Story accepted
   - [ ] All user stories completed
   - [ ] Backlog item business outcome validated

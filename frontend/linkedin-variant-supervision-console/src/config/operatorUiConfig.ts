@@ -21,6 +21,11 @@ export interface OperatorUiRuntimeConfig {
   apiBaseUrl: string;
   /** Required uat|prod for UI↔API pairing. */
   envLabel: DeploymentEnvironment;
+  /**
+   * When true, default AuthProvider is Google OIDC (US-097).
+   * Non-secret flag only — never embed client secrets here.
+   */
+  googleAuthEnabled: boolean;
 }
 
 export type OperatorUiConfigResult =
@@ -38,6 +43,7 @@ declare global {
       deliveryMode?: string;
       apiBaseUrl?: string;
       envLabel?: string;
+      googleAuthEnabled?: boolean | string;
     };
   }
 }
@@ -106,6 +112,19 @@ export function displayDeploymentEnvironment(
   return env === "uat" ? "UAT" : "Prod";
 }
 
+export function parseGoogleAuthEnabledFlag(
+  value: boolean | string | undefined,
+): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value !== "string") {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
+}
+
 export function resolveOperatorUiConfig(
   _deliveryMode: OperatorUiDeliveryMode = buildDeliveryMode(),
   windowConfig: Window["__SILVERMAN_OPERATOR_UI_CONFIG__"] | undefined = typeof window !==
@@ -119,6 +138,9 @@ export function resolveOperatorUiConfig(
       : "";
   const rawEnvLabel =
     typeof windowConfig?.envLabel === "string" ? windowConfig.envLabel.trim() : "";
+  const googleAuthEnabled = parseGoogleAuthEnabledFlag(
+    windowConfig?.googleAuthEnabled,
+  );
 
   if (!rawBase) {
     return {
@@ -173,6 +195,7 @@ export function resolveOperatorUiConfig(
       deliveryMode: "separated",
       apiBaseUrl: normalizeApiBaseUrl(rawBase),
       envLabel,
+      googleAuthEnabled,
     },
   };
 }

@@ -905,7 +905,7 @@ As a system owner, I want the Flow A supervision console architecture to be read
 - [x] Design the API request layer so a later Google/OIDC bearer token or secure session cookie can replace the current auth header without changing calendar components.
 - [x] Prevent unauthenticated or read-only sessions from executing schedule mutations.
 - [x] Handle mobile session expiry gracefully by preserving visible context and guiding the operator back to authentication without losing unsaved edits.
-- [x] Document that public deployment and Google authentication activation are out of scope for this BL and require a separate security change before internet exposure.
+- [x] Document that public deployment and Google authentication activation are out of scope for this BL and require a separate security change before internet exposure. — Activation home is **BL-035** (US-097–US-099).
 - [x] The outcome is visible and understandable to the intended user.
 - [x] Failures or blocked states are clearly communicated.
 - [x] Existing completed work is not duplicated or unintentionally changed.
@@ -2146,7 +2146,7 @@ As a system owner, I want UAT and prod each to pair their UI with the matching A
 
 ### US-095 — Separate Operator UI from Worker API: Story 3
 
-**Status:** **Implemented and LAN-deployed** on `feat/us-095-regress-separated-operator-ui` (2026-07-22, `BUILD_REVISION=a16fda8…` after envLabel narrowing fix). ACs demonstrable via focused Vitest matrix R1–R8 (`us095.separated-capability-regression.test.tsx`) plus US-093/US-094 hold suites; separated UI live on `:8011`. **Not Story accepted** (operator gate pending). US-096 unchecked.
+**Status:** **Implemented and LAN-deployed** on `feat/us-095-regress-separated-operator-ui` (2026-07-22, `BUILD_REVISION=a16fda8…` after envLabel narrowing fix). ACs demonstrable via focused Vitest matrix R1–R8 (`us095.separated-capability-regression.test.tsx`) plus US-093/US-094 hold suites; separated UI live on `:8011`. **Not Story accepted** (operator gate pending). US-096 is Story accepted separately.
 
 **Description**
 
@@ -2162,7 +2162,7 @@ As a content operator, I want existing console capabilities to keep working afte
 
 ### US-096 — Separate Operator UI from Worker API: Story 4
 
-**Status:** **Implemented and LAN-deployed** on `feat/us-096-decommission-embedded-operator-ui` (2026-07-22, `BUILD_REVISION=c34cb9f…`; OpenSpec archive `2026-07-22-decommission-embedded-operator-ui-us-096`). Worker API-only + exclusive `:8011` topology demonstrated via pytest/Vitest + docs + live 410 probes. **Not Story accepted.**
+**Status:** **Story accepted** (operator-accepted 2026-07-22). Implemented and LAN-deployed on `feat/us-096-decommission-embedded-operator-ui` (`BUILD_REVISION=c34cb9f…`; OpenSpec archive `2026-07-22-decommission-embedded-operator-ui-us-096`). Operator verified former console URLs on the API (`:8010`) no longer serve the UI (fail-closed / decommissioned); exclusive console path remains separated UI on `:8011`. BL-034 remains open until US-093 / US-094 / US-095 Story accepted.
 
 **Description**
 
@@ -2177,3 +2177,67 @@ As a system owner, I want the operator UI and the worker API to be independent p
 - [x] The outcome is visible and understandable to the intended user (operators use `:8011`; API container is API-only). — Demonstrated: decommission HTML names LAN `:8011` / example URL; docs exclusive topology; **live LAN** former console URLs return 410 and UI `:8011` HTTP 200 (`BUILD_REVISION=c34cb9f…`).
 - [x] Failures or blocked states are clearly communicated (including decommissioned-route messaging and existing separated-UI config/pairing blocks). — Demonstrated: 410 decommission responses + US-093/094 `ConfigBlockedScreen` holds.
 - [x] Existing completed work is not duplicated or unintentionally changed (Flow A/B, LinkedIn publication enablement, n8n HTTP contracts, and US-094 pairing semantics preserved except for intentional removal of the embedded compatibility path). — Demonstrated: no `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` mutation; US-093/094/095 Vitest holds for separated path; n8n Execute Command not introduced.
+
+## BL-035 — Authenticate the Operator Console With Google
+
+**Priority:** P8 — immediate / next (operator 2026-07-22)
+
+**Business context:** BL-034 separated Authority Manager onto `:8011` with US-040D injectable auth still using worker API-key paste. Public front exposure via Cloudflare Tunnel requires Google login, an email allowlist, operator JWT/session instead of browser API keys, and a topology where **only the UI** is internet-reachable.
+
+**Apply order:** US-097 → US-098 → US-099.
+
+### US-097 — Authenticate the Operator Console With Google: Story 1
+
+**Status:** **Implemented** (code/tests/docs on `feat/us-097-authenticate-operator-console-google`; OpenSpec change `authenticate-operator-console-google-us-097`). ACs demonstrable via Vitest `us097.google-auth.test.tsx` + pytest `test_operator_google_oidc_us097.py`. **Not Story accepted** (operator gate pending). Live Google enablement on LAN deploy is a separate env/deploy step. US-098 / US-099 remain deferred.
+
+**Description**
+
+As a system owner, I want operators to sign into Silverman Authority Manager with Google and only allowlisted emails to succeed, so that a publicly reachable console is not open to arbitrary Google accounts.
+
+**Acceptance criteria**
+
+- [x] Operators can start a Google (OIDC) sign-in from the separated operator UI and complete authentication without pasting a worker API key for that sign-in step. — Demonstrated: `GoogleOidcAuthProvider.signIn()` redirects to `/auth/google/start` (no `window.prompt`); Vitest US-097.
+- [x] Access is allowlisted to exactly these Google accounts (fail closed for any other authenticated Google identity): `silverio.bernal@gmail.com` and `ltmoralesp84@gmail.com`. — Demonstrated: server allowlist + pytest exact-set / deny cases.
+- [x] Non-allowlisted Google accounts receive a clear operator-visible denied/forbidden outcome (no silent empty console that looks authenticated). — Demonstrated: callback `?auth=forbidden` + session banner; Vitest forbidden hold.
+- [x] Unauthenticated visitors cannot reach mutating console capabilities; anonymous/blocked states remain understandable (aligned with US-040D session-state vocabulary). — Demonstrated: `canMutate` false for anonymous/forbidden; US-040D vocabulary retained.
+- [x] Google client configuration uses env/secrets only (no client secrets, refresh tokens, or API keys in frontend source, rendered HTML, logs, or docs). — Demonstrated: env examples placeholders; secrets audit Vitest; worker responses omit secrets.
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: Google session banners + Sign in affordance.
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: forbidden / misconfigured / anonymous messaging; `/auth/google/status` fail-closed when enabled but incomplete.
+- [x] Existing completed work is not duplicated or unintentionally changed (no Flow/LinkedIn business-screen rewrite; no n8n Execute Command; no `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` mutation; BL-034 separated UI preserved). — Demonstrated: AuthProvider seam only; US-093/094/095 Vitest holds green; dual-accept keeps API-key path.
+### US-098 — Authenticate the Operator Console With Google: Story 2
+
+**Status:** **Drafted** (2026-07-22). Not implemented. Not Story accepted. Depends on US-097 identity/allowlist behavior.
+
+**Description**
+
+As a system owner, I want the console to authenticate to the worker with an operator JWT (or equivalent secure session credential) instead of the worker API key in the browser, so that public UI use does not expose the machine credential used by n8n and automation.
+
+**Acceptance criteria**
+
+- [ ] On the Google-authenticated console path, browser calls that exercise worker capabilities do **not** send the worker API key; they send an operator JWT or equivalent secure session credential issued/validated for the signed-in allowlisted identity.
+- [ ] The worker rejects console requests that lack a valid operator credential (expired, tampered, wrong issuer/audience, or email not allowlisted) with a clear auth failure — fail closed.
+- [ ] Machine clients (n8n → worker HTTP) continue to use existing API-key auth (ADR-0001); enabling Google console auth MUST NOT break that path or make the UI an n8n target.
+- [ ] Business screens keep using the typed client / injectable `AuthProvider` boundary (US-040D / BL-034); Google/JWT replaces the paste-API-key provider without rewriting calendar/control-center components.
+- [ ] Operator sign-out / session clear returns the UI to a non-mutating unauthenticated state and stops sending the operator credential.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated (including expired session guidance without losing unsaved-edit context where US-040D already requires it).
+- [ ] Existing completed work is not duplicated or unintentionally changed (publication enablement untouched; no n8n Execute Command; US-094 pairing semantics preserved unless an explicit documented auth-topology adjustment is required).
+
+### US-099 — Authenticate the Operator Console With Google: Story 3
+
+**Status:** **Drafted** (2026-07-22). Not implemented. Not Story accepted. Depends on US-097 / US-098.
+
+**Description**
+
+As a system owner, I want only the operator frontend exposed through Cloudflare Tunnel while the worker API stays private, so that internet attackers cannot reach the API hostname even if they obtain a browser session cookie/JWT scoped to the UI.
+
+**Acceptance criteria**
+
+- [ ] Supported public topology publishes **only** the operator UI via Cloudflare Tunnel (or equivalent); the worker API is **not** published on the public internet (remains LAN / private-network only).
+- [ ] The internet-facing console does not require operators to configure a publicly routable worker API base URL in the browser; UI→API use a private hop (same-origin reverse proxy, internal Docker DNS, or equivalent) so the API hostname is not internet-exposed.
+- [ ] CORS / origin allowlisting and tunnel hostname configuration match the public UI origin; permissive `*` CORS MUST NOT be introduced for this exposure.
+- [ ] Docs (CURRENT-STATE, ubuntu deploy, RUNTIME-STATE when live) describe front-only public exposure + private API + Google allowlist at a topology level without embedding secrets.
+- [ ] Unauthenticated or non-allowlisted access via the public UI URL fails closed with clear messaging; bookmarking or probing the private API from the public internet is out of supported exposure (API not published).
+- [ ] The outcome is visible and understandable to the intended user (operators use the Cloudflare UI URL + Google sign-in).
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed (ADR-0001 n8n→worker on private API retained; no LinkedIn publication-flag mutation; BL-026 least-privilege intent preserved; BL-034 UI/API split retained).

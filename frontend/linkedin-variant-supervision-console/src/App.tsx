@@ -22,13 +22,21 @@ function ConsoleBody() {
 export default function App({
   client,
   deploymentEnvironment,
+  initialSessionState,
+  googleAuthEnabled = false,
 }: {
   client?: SupervisionApiClient;
   /** Set when separated UI↔API pairing succeeds (US-094). */
   deploymentEnvironment?: DeploymentEnvironment;
+  initialSessionState?: import("./api/session").SessionState;
+  googleAuthEnabled?: boolean;
 } = {}) {
   return (
-    <SupervisionStoreProvider client={client}>
+    <SupervisionStoreProvider
+      client={client}
+      initialSessionState={initialSessionState}
+      googleAuthEnabled={googleAuthEnabled}
+    >
       <AppShell deploymentEnvironment={deploymentEnvironment}>
         <ConsoleBody />
       </AppShell>

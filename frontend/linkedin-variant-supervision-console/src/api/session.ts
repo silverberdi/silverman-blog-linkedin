@@ -20,20 +20,28 @@ export interface SessionCapabilities {
 }
 
 /** Operator copy for each session state (qualified language; no LinkedIn API published claim). */
-export function sessionBannerText(state: SessionState): string {
+export function sessionBannerText(
+  state: SessionState,
+  options?: { googleAuthEnabled?: boolean },
+): string {
+  const google = Boolean(options?.googleAuthEnabled);
   switch (state) {
     case "anonymous":
-      return (
-        "Not authenticated. Sign in with your worker API key for this browser " +
-        "session to load pending / queued supervision data. Pending, cancelled, " +
-        "flow_a_complete, and blog handoff are not LinkedIn API published."
-      );
+      return google
+        ? "Not authenticated. Sign in with Google to load pending / queued " +
+            "supervision data. Only allowlisted Google accounts may authenticate. " +
+            "Pending, cancelled, flow_a_complete, and blog handoff are not LinkedIn API published."
+        : "Not authenticated. Sign in with your worker API key for this browser " +
+          "session to load pending / queued supervision data. Pending, cancelled, " +
+          "flow_a_complete, and blog handoff are not LinkedIn API published.";
     case "authenticated":
-      return (
-        "Authenticated for this browser session. Mutations use worker HTTP only " +
-        "(ADR-0001). Pending, queued, cancelled, flow_a_complete, and blog " +
-        "handoff are not LinkedIn API published."
-      );
+      return google
+        ? "Authenticated with an allowlisted Google identity for this browser " +
+          "session. Mutations use worker HTTP only (ADR-0001). Pending, queued, " +
+          "cancelled, flow_a_complete, and blog handoff are not LinkedIn API published."
+        : "Authenticated for this browser session. Mutations use worker HTTP only " +
+          "(ADR-0001). Pending, queued, cancelled, flow_a_complete, and blog " +
+          "handoff are not LinkedIn API published.";
     case "expired":
       return (
         "Session expired (unauthorized). Visible list/calendar context may be " +
@@ -41,11 +49,13 @@ export function sessionBannerText(state: SessionState): string {
         "memory — they are not discarded by expiry alone."
       );
     case "forbidden":
-      return (
-        "Forbidden (not authorized for this action). Your credential was " +
-        "accepted for identity but the worker rejected authorization. This is " +
-        "not a successful schedule or content change."
-      );
+      return google
+        ? "Forbidden: your Google account authenticated at Google but is not on " +
+          "the operator allowlist. This console will not grant a mutable session. " +
+          "This is not an authenticated supervision session."
+        : "Forbidden (not authorized for this action). Your credential was " +
+          "accepted for identity but the worker rejected authorization. This is " +
+          "not a successful schedule or content change.";
     case "service_unavailable":
       return (
         "Service unavailable: the worker did not respond successfully " +

@@ -1,9 +1,9 @@
 /**
- * Injectable auth header / credentials provider (US-040D readiness).
+ * Injectable auth header / credentials provider (US-040D readiness / US-097).
  *
- * Local ops: in-memory API key via prompt only — never browser storage APIs.
- * Future: swap for OIDC bearer or secure session cookie without changing
- * list, month calendar, or schedule-editor business components.
+ * Local ops fallback: MemoryBearerAuthProvider (API-key prompt) for tests /
+ * explicit non-Google local use.
+ * Google path: GoogleOidcAuthProvider — OIDC redirect, no API-key paste.
  */
 
 export interface AuthProvider {
@@ -14,7 +14,7 @@ export interface AuthProvider {
    * providers use "include" with empty or minimal auth headers.
    */
   getCredentialsMode(): RequestCredentials;
-  /** Clear any held credential (memory only). */
+  /** Clear any held credential (memory only; cookie providers also logout). */
   clear(): void;
   /** True when a credential / signed-in session is currently held. */
   hasCredential(): boolean;
@@ -23,16 +23,22 @@ export interface AuthProvider {
   /** Provider-level mutation capability (MemoryBearer: same as canRead). */
   canMutate(): boolean;
   /**
-   * Explicit sign-in / re-auth entry (prompt or future OIDC redirect).
-   * Returns true when a usable credential is held afterward.
+   * Explicit sign-in / re-auth entry (prompt or Google OIDC redirect).
+   * Returns true when a usable allowlisted credential is held afterward.
+   * May return false when cancelled, forbidden, or redirecting away.
    */
   signIn(): Promise<boolean>;
+  /**
+   * US-040D / US-097 identity vocabulary hint for the store.
+   * forbidden = Google identity present at IdP but not allowlisted.
+   */
+  getIdentityState(): "anonymous" | "authenticated" | "forbidden";
 }
 
 export type PromptFn = (message: string) => string | null;
 
 /**
- * Memory-only Bearer token provider matching worker `require_api_key` semantics.
+ * Memory-only Bearer token provider matching worker API-key semantics.
  * Credential held ⇒ canRead and canMutate both true; none ⇒ both false.
  */
 export class MemoryBearerAuthProvider implements AuthProvider {
@@ -54,6 +60,10 @@ export class MemoryBearerAuthProvider implements AuthProvider {
 
   canMutate(): boolean {
     return this.hasCredential();
+  }
+
+  getIdentityState(): "anonymous" | "authenticated" | "forbidden" {
+    return this.hasCredential() ? "authenticated" : "anonymous";
   }
 
   clear(): void {
@@ -112,6 +122,10 @@ export class ReadOnlyBearerAuthProvider implements AuthProvider {
     return false;
   }
 
+  getIdentityState(): "anonymous" | "authenticated" | "forbidden" {
+    return this.hasCredential() ? "authenticated" : "anonymous";
+  }
+
   clear(): void {
     this.token = null;
   }
@@ -150,28 +164,38 @@ export class ReadOnlyBearerAuthProvider implements AuthProvider {
 export class CookieSessionAuthProvider implements AuthProvider {
   private signedIn = false;
   private mutable = true;
+  private forbidden = false;
 
   getCredentialsMode(): RequestCredentials {
     return "include";
   }
 
   hasCredential(): boolean {
-    return this.signedIn;
+    return this.signedIn && !this.forbidden;
   }
 
   canRead(): boolean {
-    return this.signedIn;
+    return this.hasCredential();
   }
 
   canMutate(): boolean {
-    return this.signedIn && this.mutable;
+    return this.signedIn && this.mutable && !this.forbidden;
+  }
+
+  getIdentityState(): "anonymous" | "authenticated" | "forbidden" {
+    if (this.forbidden) {
+      return "forbidden";
+    }
+    return this.signedIn ? "authenticated" : "anonymous";
   }
 
   clear(): void {
     this.signedIn = false;
+    this.forbidden = false;
   }
 
   async signIn(): Promise<boolean> {
+    this.forbidden = false;
     this.signedIn = true;
     return true;
   }
@@ -185,7 +209,200 @@ export class CookieSessionAuthProvider implements AuthProvider {
   setSignedInForTests(signedIn: boolean, mutable = true): void {
     this.signedIn = signedIn;
     this.mutable = mutable;
+    this.forbidden = false;
   }
+
+  /** Test helper: non-allowlisted deny state. */
+  setForbiddenForTests(forbidden: boolean): void {
+    this.forbidden = forbidden;
+    if (forbidden) {
+      this.signedIn = false;
+    }
+  }
+}
+
+export type FetchLike = (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) => Promise<Response>;
+
+export type NavigateFn = (url: string) => void;
+
+/**
+ * Google OIDC AuthProvider for the separated UI (US-097).
+ * Sign-in redirects to worker `/auth/google/start` — no worker API-key paste.
+ * Session rides HttpOnly cookie via credentials: "include".
+ */
+export class GoogleOidcAuthProvider implements AuthProvider {
+  private identity: "anonymous" | "authenticated" | "forbidden" = "anonymous";
+  private email: string | null = null;
+  private configError: string | null = null;
+
+  constructor(
+    private readonly apiBaseUrl: string,
+    private readonly fetchFn: FetchLike = fetch.bind(globalThis),
+    private readonly navigate: NavigateFn = (url) => {
+      window.location.assign(url);
+    },
+  ) {}
+
+  getCredentialsMode(): RequestCredentials {
+    return "include";
+  }
+
+  hasCredential(): boolean {
+    return this.identity === "authenticated";
+  }
+
+  canRead(): boolean {
+    return this.hasCredential();
+  }
+
+  canMutate(): boolean {
+    return this.identity === "authenticated";
+  }
+
+  getIdentityState(): "anonymous" | "authenticated" | "forbidden" {
+    return this.identity;
+  }
+
+  getConfigError(): string | null {
+    return this.configError;
+  }
+
+  getEmail(): string | null {
+    return this.email;
+  }
+
+  clear(): void {
+    this.identity = "anonymous";
+    this.email = null;
+    void this.fetchFn(joinAuthUrl(this.apiBaseUrl, "/auth/logout"), {
+      method: "POST",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    }).catch(() => {
+      // Best-effort logout; local state already cleared.
+    });
+  }
+
+  /**
+   * Restore session from URL auth outcome + /auth/me.
+   * Call once at bootstrap before rendering the console.
+   */
+  async restoreSession(
+    search: string = typeof window !== "undefined" ? window.location.search : "",
+  ): Promise<"anonymous" | "authenticated" | "forbidden"> {
+    const params = new URLSearchParams(
+      search.startsWith("?") ? search.slice(1) : search,
+    );
+    const authOutcome = params.get("auth");
+    if (authOutcome === "forbidden") {
+      this.identity = "forbidden";
+      this.email = null;
+      this.stripAuthQuery();
+      return "forbidden";
+    }
+    if (authOutcome === "error") {
+      this.identity = "anonymous";
+      this.email = null;
+      this.stripAuthQuery();
+      return "anonymous";
+    }
+    if (authOutcome === "ok") {
+      this.stripAuthQuery();
+    }
+
+    try {
+      const statusRes = await this.fetchFn(
+        joinAuthUrl(this.apiBaseUrl, "/auth/google/status"),
+        { method: "GET", credentials: "include", headers: { Accept: "application/json" } },
+      );
+      if (statusRes.ok) {
+        const status = (await statusRes.json()) as {
+          enabled?: boolean;
+          configured?: boolean;
+        };
+        if (status.enabled && !status.configured) {
+          this.configError =
+            "Google operator authentication is enabled but not fully configured " +
+            "on the worker. Required env vars are missing or invalid (fail closed).";
+          this.identity = "anonymous";
+          return "anonymous";
+        }
+      }
+    } catch {
+      // Status probe is best-effort; /auth/me still decides session.
+    }
+
+    try {
+      const meRes = await this.fetchFn(joinAuthUrl(this.apiBaseUrl, "/auth/me"), {
+        method: "GET",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+      if (!meRes.ok) {
+        this.identity = "anonymous";
+        this.email = null;
+        return "anonymous";
+      }
+      const me = (await meRes.json()) as {
+        authenticated?: boolean;
+        email?: string | null;
+      };
+      if (me.authenticated && typeof me.email === "string") {
+        this.identity = "authenticated";
+        this.email = me.email;
+        return "authenticated";
+      }
+    } catch {
+      this.identity = "anonymous";
+      this.email = null;
+      return "anonymous";
+    }
+
+    this.identity = "anonymous";
+    this.email = null;
+    return "anonymous";
+  }
+
+  async signIn(): Promise<boolean> {
+    // No API-key prompt — navigate to worker OIDC start.
+    this.configError = null;
+    this.navigate(joinAuthUrl(this.apiBaseUrl, "/auth/google/start"));
+    return false;
+  }
+
+  async getRequestHeaders(): Promise<Record<string, string>> {
+    return {};
+  }
+
+  /** Test helper: set identity without redirect. */
+  setIdentityForTests(
+    identity: "anonymous" | "authenticated" | "forbidden",
+    email: string | null = null,
+  ): void {
+    this.identity = identity;
+    this.email = email;
+  }
+
+  private stripAuthQuery(): void {
+    if (typeof window === "undefined" || !window.history?.replaceState) {
+      return;
+    }
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("auth")) {
+      return;
+    }
+    url.searchParams.delete("auth");
+    const next = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState({}, "", next);
+  }
+}
+
+function joinAuthUrl(apiBaseUrl: string, path: string): string {
+  const base = apiBaseUrl.endsWith("/") ? apiBaseUrl : `${apiBaseUrl}/`;
+  return new URL(path.replace(/^\//, ""), base).toString();
 }
 
 function defaultPrompt(message: string): string | null {
@@ -195,5 +412,20 @@ function defaultPrompt(message: string): string | null {
   return window.prompt(message, "");
 }
 
-/** Default singleton used by the console; replaceable for OIDC later. */
+/** Default singleton used when Google auth is not enabled (tests / local fallback). */
 export const defaultAuthProvider = new MemoryBearerAuthProvider();
+
+/** Choose AuthProvider for separated UI bootstrap (US-097). */
+export function createAuthProviderForConfig(options: {
+  googleAuthEnabled: boolean;
+  apiBaseUrl: string;
+  fetchFn?: FetchLike;
+}): AuthProvider {
+  if (options.googleAuthEnabled) {
+    return new GoogleOidcAuthProvider(
+      options.apiBaseUrl,
+      options.fetchFn ?? fetch.bind(globalThis),
+    );
+  }
+  return defaultAuthProvider;
+}

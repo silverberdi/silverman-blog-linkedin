@@ -89,6 +89,10 @@ export class SupervisionApiClient {
     return this.auth.hasCredential();
   }
 
+  getIdentityState(): "anonymous" | "authenticated" | "forbidden" {
+    return this.auth.getIdentityState();
+  }
+
   async signIn(): Promise<boolean> {
     return this.auth.signIn();
   }
