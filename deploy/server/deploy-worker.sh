@@ -104,9 +104,17 @@ else
       "${SOURCE_ROOT}/content-strategy" \
       "${TARGET_DIR}/"
 
+    mkdir -p "${TARGET_DIR}/frontend"
+    rsync -a --delete "${RSYNC_EXCLUDES[@]}" \
+      --exclude 'node_modules/' \
+      --exclude 'dist/' \
+      "${SOURCE_ROOT}/frontend/linkedin-variant-supervision-console/" \
+      "${TARGET_DIR}/frontend/linkedin-variant-supervision-console/"
+
     rsync -a \
       "${DEPLOY_SERVER_DIR}/silverman-worker.compose.yaml" \
       "${DEPLOY_SERVER_DIR}/silverman-worker.env.example" \
+      "${DEPLOY_SERVER_DIR}/silverman-operator-ui.env.example" \
       "${DEPLOY_SERVER_DIR}/deploy-worker.sh" \
       "${DEPLOY_SERVER_DIR}/smoke-worker.sh" \
       "${DEPLOY_SERVER_DIR}/verify-worker-deploy.sh" \
@@ -125,8 +133,15 @@ else
     cp -R "${SOURCE_ROOT}/src" "${TARGET_DIR}/src"
     cp -R "${SOURCE_ROOT}/prompts" "${TARGET_DIR}/prompts"
     cp -R "${SOURCE_ROOT}/content-strategy" "${TARGET_DIR}/content-strategy"
+    mkdir -p "${TARGET_DIR}/frontend"
+    rm -rf "${TARGET_DIR}/frontend/linkedin-variant-supervision-console"
+    cp -R "${SOURCE_ROOT}/frontend/linkedin-variant-supervision-console" \
+      "${TARGET_DIR}/frontend/linkedin-variant-supervision-console"
+    rm -rf "${TARGET_DIR}/frontend/linkedin-variant-supervision-console/node_modules" \
+      "${TARGET_DIR}/frontend/linkedin-variant-supervision-console/dist"
     cp "${DEPLOY_SERVER_DIR}/silverman-worker.compose.yaml" \
       "${DEPLOY_SERVER_DIR}/silverman-worker.env.example" \
+      "${DEPLOY_SERVER_DIR}/silverman-operator-ui.env.example" \
       "${DEPLOY_SERVER_DIR}/deploy-worker.sh" \
       "${DEPLOY_SERVER_DIR}/smoke-worker.sh" \
       "${DEPLOY_SERVER_DIR}/verify-worker-deploy.sh" \

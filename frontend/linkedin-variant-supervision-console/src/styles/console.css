@@ -269,6 +269,22 @@ h3,
   border-color: rgba(94, 224, 160, 0.42);
 }
 
+.config-blocked-panel {
+  margin: 1.5rem auto;
+  max-width: 40rem;
+  padding: 0 1.25rem 2rem;
+}
+
+.config-blocked-detail {
+  color: var(--muted);
+  margin-top: 1rem;
+}
+
+.config-blocked-detail code {
+  color: var(--accent);
+  font-size: 0.95em;
+}
+
 .banner.info {
   color: var(--muted);
 }

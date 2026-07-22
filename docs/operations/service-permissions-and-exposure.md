@@ -14,8 +14,9 @@ Does **not** expose Authority Manager publicly, activate Google/OIDC, mutate `SI
 | Surface | Accepted now | Notes |
 |---------|--------------|-------|
 | Worker HTTP `:8010` | **LAN only** (`192.168.0.194`) | API-key on non-callback routes |
+| Operator UI `:8011` | **LAN only** (`192.168.0.194`) | US-093 separated Authority Manager SPA; browser client → worker API; **not** public console exposure |
 | n8n `:5678` | **LAN only** | Not internet-public for silverman ops |
-| Authority Manager / console | **LAN only** | Public URL + Google auth = **future** (out of scope) |
+| Authority Manager / console | **LAN only** | Via `:8011` (supported) or worker-embedded compatibility route; public URL + Google auth = **future** (out of scope) |
 | LinkedIn OAuth callback | **Exception:** public Cloudflare hostname → worker callback path **only** for LinkedIn reauth | Not a general “public API”; other worker routes stay LAN |
 | Comfy Cloud / DeepSeek | **Outbound API clients** (keys in `.env`) | No inbound ComfyUI port required on this host |
 | Public blog checkout mount | Worker mount to Pages checkout | Public site is the blog; not the worker control plane |
@@ -40,6 +41,7 @@ Does **not** expose Authority Manager publicly, activate Google/OIDC, mutate `SI
 Review listening sockets relevant to silverman ops on the deploy host:
 
 - Worker host port `8010`
+- Operator UI host port `8011` (US-093 separated console; LAN only — do **not** claim public console exposure)
 - n8n host port `5678` (and note if bound to LAN IP vs `0.0.0.0`)
 - Do **not** require hardening every Avatares/`local-ai-stack` port in this story; record adjacency only if clearly silverman-related
 
@@ -47,7 +49,7 @@ Review listening sockets relevant to silverman ops on the deploy host:
 
 - Worker: Bearer `SILVERMAN_BLOG_LINKEDIN_API_KEY` on protected routes; OAuth **callback** is the intentional public exception path
 - n8n: LAN UI; credentials not in git exports (placeholders) — see US-058
-- Console: same-origin / LAN; not internet-public in this change
+- Console: LAN (`:8011` separated UI or worker-embedded compatibility); not internet-public in this inventory
 
 ### Least privilege (services)
 

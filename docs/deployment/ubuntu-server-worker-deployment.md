@@ -14,14 +14,30 @@ For local development on Mac, use `docker-compose.example.yml` instead.
 |--------|-------|
 | Compose project | Isolated — `deploy/server/silverman-worker.compose.yaml` only |
 | Deployment directory | `/home/silverman/silverman-blog-linkedin-worker` |
-| Host port | `8010` → container `8000` |
+| Worker host port | `8010` → container `8000` |
+| Operator UI host port | `8011` → container `80` (US-093; override via `SILVERMAN_OPERATOR_UI_HOST_PORT`) |
 | Editorial mount (host) | `/home/silverman/silverman-blog-linkedin-worker/data/silverman-blog-linkedin` (must **not** be the code-sync checkout) |
 | Editorial mount (container) | `/data/silverman-blog-linkedin` |
 | Calendar SoT | PostgreSQL DB **`silverman_linkedin_db`** via `SILVERMAN_CALENDAR_DATABASE_URL` (ADR-0004); see [silverman-linkedin-db-calendar-cutover.md](../operations/silverman-linkedin-db-calendar-cutover.md) |
 | Public blog repo mount (host) | `/home/silverman/silverberdi.github.io` (override via `SILVERMAN_PUBLIC_BLOG_REPO_PATH`) |
 | Public blog repo mount (container) | `/public-blog` (`SILVERMAN_GITHUB_PAGES_REPO_PATH`) |
 | Site URL | `https://silverman.pro` (override via `SILVERMAN_SITE_URL`) |
-| n8n `worker_base_url` | `http://192.168.0.194:8010` |
+| n8n `worker_base_url` | `http://192.168.0.194:8010` (ADR-0001 — n8n → worker HTTP only; UI is not an n8n target) |
+| Operator UI URL | `http://192.168.0.194:8011` (browser client; calls worker API via configured base URL) |
+
+## Separated operator UI (US-093)
+
+Supported production path for Silverman Authority Manager is the **`silverman-operator-ui`** compose service (nginx + Vite SPA on host port **8011** by default). The worker on **8010** remains the HTTP API source of truth.
+
+| Concern | Guidance |
+|---------|----------|
+| UI → API | Set `SILVERMAN_OPERATOR_UI_API_BASE_URL=http://192.168.0.194:8010` (placeholder; no secrets) |
+| Worker CORS | Set `SILVERMAN_OPERATOR_UI_ORIGINS=http://192.168.0.194:8011` on the worker (comma-separated; empty = no wildcard CORS) |
+| n8n | Continues `worker_base_url` → `:8010` HTTP Request only (**ADR-0001**). Do not orchestrate through the UI. |
+| Compatibility | Worker `GET /flow-a/console/linkedin-variant-supervision` may remain as optional embedded fallback; it is **not** the only supported production path after US-093 |
+| US-094 | Env label hook `SILVERMAN_OPERATOR_UI_ENV_LABEL` is reserved; UAT/prod pairing enforcement is **out of scope** for US-093 |
+
+Build the UI image from `frontend/linkedin-variant-supervision-console/` (see package `Dockerfile`). Compose builds it when `frontend/` is present in the deploy directory (deploy-worker sync includes that tree).
 
 ## Prerequisites
 
@@ -52,6 +68,7 @@ Edit `.env` on the server and set:
 - Optional (Flow A publish): `SILVERMAN_PUBLIC_BLOG_REPO_PATH` — host path to the `silverberdi.github.io` checkout (default `/home/silverman/silverberdi.github.io`); used by compose to mount `/public-blog`
 - Optional (Git publication): `SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED` (default `false`), `SILVERMAN_BLOG_GIT_PUBLICATION_BRANCH` (default `main`), `SILVERMAN_BLOG_GIT_PUBLICATION_REMOTE` (default `origin`), `SILVERMAN_BLOG_GIT_COMMIT_MESSAGE_TEMPLATE` — guarded commit/push after blog handoff when the request includes `git_publication: true`; see [blog-publishing-bridge.md](../workflows/blog-publishing-bridge.md)
 - Optional: `SILVERMAN_SITE_URL` — canonical public site URL (default `https://silverman.pro`)
+- Optional (US-093 separated operator UI): `SILVERMAN_OPERATOR_UI_API_BASE_URL` (placeholder e.g. `http://192.168.0.194:8010`), `SILVERMAN_OPERATOR_UI_ORIGINS` (placeholder e.g. `http://192.168.0.194:8011`), `SILVERMAN_OPERATOR_UI_HOST_PORT` (default `8011`). See also `silverman-operator-ui.env.example`. **ADR-0001:** n8n continues to call the worker on `:8010` only — do not point n8n at the UI. US-094 UAT/prod pairing is **not** claimed complete by these vars.
 
 ### 1a. Prepare public GitHub Pages repo checkout (Flow A publish)
 

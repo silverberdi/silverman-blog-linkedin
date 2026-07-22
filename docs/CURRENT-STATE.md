@@ -58,10 +58,13 @@ Key endpoints include `GET /health`, read-only `GET /flow-a/operational-status`,
 | Item | Value |
 |------|-------|
 | Server | `192.168.0.194` |
-| Worker port | `8010` |
+| Worker API port | `8010` (HTTP API source of truth; n8n → worker only per ADR-0001) |
+| Operator UI port | `8011` (US-093 separated Silverman Authority Manager SPA; client only — not an n8n target) |
 | Editorial host path | `/home/silverman/silverman-blog-linkedin-worker/data/silverman-blog-linkedin` (durable; **not** compartido — historical compartido path superseded) |
 | Public blog host path | `/home/silverman/silverberdi.github.io` |
 | Deploy guide | [ubuntu-server-worker-deployment.md](deployment/ubuntu-server-worker-deployment.md) |
+
+**US-093 note:** Supported production console path is the separated UI service on `:8011` configured with `SILVERMAN_OPERATOR_UI_API_BASE_URL` pointing at the worker. Worker-embedded `GET /flow-a/console/linkedin-variant-supervision` remains an optional compatibility path. **US-094** UAT/prod environment pairing is **not** done in this change (env label hook reserved only).
 
 ## Operationally validated
 

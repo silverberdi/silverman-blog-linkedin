@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && VITE_OPERATOR_UI_DELIVERY=separated vite build",
+    "build:embedded": "tsc -b && VITE_OPERATOR_UI_DELIVERY=embedded vite build",
     "preview": "vite preview",
     "test": "TZ=America/Chicago vitest run",
     "test:watch": "TZ=America/Chicago vitest"

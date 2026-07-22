@@ -1,8 +1,10 @@
 FROM python:3.11-slim
 
-# Before building this image, rebuild console static assets so COPY src includes them:
-#   cd frontend/linkedin-variant-supervision-console && npm ci && npm run build
-# The runtime image has no Node — worker serves prebuilt Vite artifacts only.
+# Before building this image, rebuild embedded console static assets so COPY src includes them:
+#   cd frontend/linkedin-variant-supervision-console && npm ci && npm run build:embedded
+# The runtime image has no Node — worker may serve prebuilt Vite artifacts as a
+# compatibility path only. Supported production console path is the separated
+# operator UI image (see frontend/.../Dockerfile, compose silverman-operator-ui).
 
 ARG BUILD_REVISION=unknown
 ENV BUILD_REVISION=${BUILD_REVISION}

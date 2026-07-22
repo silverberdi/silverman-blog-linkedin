@@ -2103,3 +2103,59 @@ As a system operator, I want the master editorial calendar stored in PostgreSQL 
 - [x] Operator-gated import from legacy `calendar.json` works when the DB is empty and refuses to clobber a non-empty DB. — Demonstrated: import path + cutover checklist refuse/clobber rules.
 - [x] Secrets (DB URL/password) never appear in HTTP responses or logs. — Demonstrated: env-only `SILVERMAN_CALENDAR_DATABASE_URL`; secrets audit practice retained.
 - [x] Existing completed work is not duplicated or unintentionally changed (HTTP paths stable; blog/LinkedIn Markdown remain files). — Demonstrated: n8n/console HTTP contracts stable; Markdown unchanged; wiped historical rows not falsely restored.
+
+## BL-034 — Separate Operator UI from Worker API
+
+**Priority:** P8 — immediate / next (operator 2026-07-21)
+
+**Business context:** Console historically shipped as static assets inside the worker. Operators need independent UI deployability while keeping typed HTTP to the worker API (ADR-0001).
+
+### US-093 — Separate Operator UI from Worker API: Story 1
+
+**Status:** **Implemented locally** on `feat/us-093-separate-operator-ui` (2026-07-21). ACs demonstrable via distinct UI Dockerfile/compose service, typed client `apiBaseUrl`, CORS allowlist, fail-closed config UI, Vitest + pytest. **Not Story accepted** (operator gate / deploy validation pending). US-094 / US-095 unchecked.
+
+**Description**
+
+As a system owner, I want the operator UI deployed as a distinct artifact from the worker API, so that UI and API can version and roll out independently.
+
+**Acceptance criteria**
+
+- [x] Publish a deployable UI artifact/service that is not solely “static files inside the API image” as the only supported production path. — Demonstrated: `frontend/.../Dockerfile` + compose `silverman-operator-ui` on `:8011`.
+- [x] Browser calls the worker API over HTTP using the typed client boundary (no filesystem SoT in the browser). — Demonstrated: `SupervisionApiClient` + `SILVERMAN_OPERATOR_UI_API_BASE_URL` / Vitest join coverage.
+- [x] n8n continues to call the worker API only (ADR-0001); UI separation MUST NOT introduce n8n Execute Command. — Demonstrated: workflow exports unchanged; docs reaffirm n8n → `:8010` only.
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: dual-service topology in CURRENT-STATE + ubuntu deploy doc; UI serves SPA shell.
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: `ConfigBlockedScreen` when API base URL missing/invalid (Vitest).
+- [x] Existing completed work is not duplicated or unintentionally changed. — Demonstrated: Flow A/B / LinkedIn / n8n contracts untouched; embedded console retained as compatibility; publication enablement not mutated.
+
+### US-094 — Separate Operator UI from Worker API: Story 2
+
+**Status:** Not started (out of scope for US-093 change).
+
+**Description**
+
+As a system owner, I want UAT and prod each to pair their UI with the matching API, so that environment separation is preserved after the UI split.
+
+**Acceptance criteria**
+
+- [ ] UAT UI is configured to call the UAT API (not prod) by default.
+- [ ] Prod UI is configured to call the prod API (not UAT) by default.
+- [ ] Misconfiguration fails closed with a clear operator-visible error (no silent cross-environment writes).
+- [ ] Document topology updates in CURRENT-STATE / RUNTIME-STATE when live.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Existing completed work is not duplicated or unintentionally changed.
+
+### US-095 — Separate Operator UI from Worker API: Story 3
+
+**Status:** Not started (out of scope for US-093 change beyond core HTTP path smoke).
+
+**Description**
+
+As a content operator, I want existing console capabilities to keep working after the UI/API split, so that day-to-day supervision is not regressed.
+
+**Acceptance criteria**
+
+- [ ] Core supervision capabilities remain available through the separated UI (schedule visibility and LinkedIn control-center actions already Story accepted under BL-032 remain reachable via API).
+- [ ] Auth handoff remains compatible with a future Google login path (BL-035) without rewriting business screens.
+- [ ] The outcome is visible and understandable to the intended user.
+- [ ] Failures or blocked states are clearly communicated.
+- [ ] Existing completed work is not duplicated or unintentionally changed.

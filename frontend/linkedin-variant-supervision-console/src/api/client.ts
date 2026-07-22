@@ -1,5 +1,6 @@
 import type { AuthProvider } from "./auth";
 import { defaultAuthProvider } from "./auth";
+import { joinApiUrl } from "../config/operatorUiConfig";
 import {
   authMissingError,
   businessFailureError,
@@ -59,7 +60,14 @@ export class SupervisionApiClient {
   constructor(
     private readonly auth: AuthProvider = defaultAuthProvider,
     private readonly fetchImpl: typeof fetch = fetch.bind(globalThis),
+    /** Absolute worker origin for separated UI; empty = embedded same-origin. */
+    private readonly apiBaseUrl: string = "",
   ) {}
+
+  /** Resolved absolute or relative URL for a root-relative worker path. */
+  resolveUrl(path: string): string {
+    return joinApiUrl(this.apiBaseUrl, path);
+  }
 
   clearAuth(): void {
     this.auth.clear();
@@ -388,7 +396,9 @@ export class SupervisionApiClient {
     let response: Response;
     try {
       response = await this.fetchImpl(
-        `${PENDING_APPROVAL_DRAFTS_PATH}/${encodeURIComponent(draftId)}/image`,
+        this.resolveUrl(
+          `${PENDING_APPROVAL_DRAFTS_PATH}/${encodeURIComponent(draftId)}/image`,
+        ),
         {
           method: "GET",
           headers: {
@@ -530,7 +540,7 @@ export class SupervisionApiClient {
     const credentials = this.auth.getCredentialsMode();
     let response: Response;
     try {
-      response = await this.fetchImpl(path, {
+      response = await this.fetchImpl(this.resolveUrl(path), {
         ...init,
         credentials,
       });

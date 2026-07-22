@@ -659,3 +659,25 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 **Completion outcome:** Calendar schedule state survives editorial mount wipe and code sync; operators can plan and supervise from database-backed calendar reads.
 
 **Status:** Closed 2026-07-19 after US-041 Story accepted (cutover smoke previously recorded on `192.168.0.194:8010`; does not restore historically wiped calendar rows).
+
+## P8 — Platform evolution
+
+### BL-034 — Separate Operator UI from Worker API
+
+**Priority:** **Immediate / next** (operator 2026-07-21).
+
+**Business need:** Deploy and evolve the operator console independently from the worker API while preserving UAT/prod environment separation (BL-029).
+
+**Expected outcomes:**
+
+- Serve the operator UI as a deployable artifact/service distinct from the worker API process (UI no longer solely embedded static assets inside the API as the only production path).
+- Keep typed HTTP contracts: browser → API; n8n → API only (ADR-0001 unchanged).
+- Pair UI and API per environment (UAT UI talks to UAT API; prod UI talks to prod API) — no cross-environment defaults (US-094).
+- Preserve existing operator capabilities during migration; fail closed when API URL/auth is misconfigured.
+- Document topology in CURRENT-STATE / RUNTIME-STATE when live.
+
+**Completion outcome:** Operators use a UI layer that can be versioned and deployed separately from the API, with clear UAT vs prod pairing.
+
+**Status:** **Open** — US-093 implementation on `feat/us-093-separate-operator-ui` (local evidence); US-094 / US-095 not done. BL-034 remains open until remaining stories are Story accepted.
+
+**Depends on / aligns with:** BL-029 UAT/prod pairing (**aligns**). Does not replace Google login (BL-035).

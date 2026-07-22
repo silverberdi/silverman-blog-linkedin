@@ -937,3 +937,31 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [x] All user stories completed
   - [x] Backlog item business outcome validated
   - [x] Backlog item closed
+
+- [ ] **BL-034 — Separate Operator UI from Worker API**
+  - Business outcome: UI can be versioned/deployed separately from the API with UAT/prod pairing.
+  - Status: **Open** — US-093 implemented locally on `feat/us-093-separate-operator-ui` (2026-07-21); US-094 / US-095 not started; BL-034 not closed.
+  - [ ] **US-093**
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated *(local: UI Dockerfile/compose `:8011`, typed `apiBaseUrl`, CORS allowlist, fail-closed config UI, Vitest + pytest; n8n exports unchanged)*
+    - [x] Acceptance criteria validated *(local evidence; not live LAN deploy)*
+    - [ ] Story accepted
+  - [ ] **US-094**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] **US-095**
+    - [ ] Story reviewed
+    - [ ] Acceptance criteria agreed
+    - [ ] Work started
+    - [ ] Business outcome demonstrated
+    - [ ] Acceptance criteria validated
+    - [ ] Story accepted
+  - [ ] All user stories completed
+  - [ ] Backlog item business outcome validated
+  - [ ] Backlog item closed

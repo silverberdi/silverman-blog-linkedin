@@ -11,6 +11,7 @@ from typing import Literal
 from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator, model_validator
@@ -1456,9 +1457,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title=SERVICE_NAME, version=__version__)
     app.state.settings = settings
 
+    # US-093: CORS only when explicit UI origins are configured (no wildcard default).
+    if settings.operator_ui_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=list(settings.operator_ui_origins),
+            allow_credentials=False,
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type", "Accept"],
+        )
+
     logger.info("API key configured: yes")
     logger.info("Base path: %s", settings.base_path)
     logger.info("Listening port: %s", settings.port)
+    if settings.operator_ui_origins:
+        logger.info(
+            "Operator UI CORS origins: %s",
+            ",".join(settings.operator_ui_origins),
+        )
+    else:
+        logger.info("Operator UI CORS origins: (none — same-origin / no wildcard)")
 
     @app.get("/health")
     def health() -> dict:
@@ -2827,6 +2845,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response_class=HTMLResponse,
     )
     def flow_a_console_linkedin_variant_supervision() -> HTMLResponse:
+        """Optional compatibility path for the worker-embedded console (US-093).
+
+        Supported production path is the separated operator UI service (LAN :8011).
+        This route remains available so operators and tests are not big-bang broken.
+        """
         try:
             html_doc = load_console_html()
         except OSError as exc:
