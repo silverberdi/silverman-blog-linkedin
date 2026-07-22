@@ -1,4 +1,4 @@
-"""API key and operator session authentication for processing endpoints."""
+"""API key and operator JWT authentication for processing endpoints."""
 
 from __future__ import annotations
 
@@ -26,11 +26,18 @@ def _api_key_valid(
 
 
 def _operator_session_valid(request: Request, settings: Settings) -> bool:
-    """US-097 dual-accept: allowlisted Google identity session cookie."""
+    """US-098: allowlisted Google identity operator JWT (HttpOnly cookie)."""
     if not settings.operator_session_secret:
         return False
+    if not settings.operator_jwt_issuer or not settings.operator_jwt_audience:
+        return False
     raw = request.cookies.get(OPERATOR_SESSION_COOKIE)
-    session = parse_operator_session_cookie(raw, settings.operator_session_secret)
+    session = parse_operator_session_cookie(
+        raw,
+        settings.operator_session_secret,
+        issuer=settings.operator_jwt_issuer,
+        audience=settings.operator_jwt_audience,
+    )
     return session is not None
 
 
@@ -40,11 +47,11 @@ def require_api_key(
         HTTPAuthorizationCredentials | None, Depends(_bearer)
     ] = None,
 ) -> None:
-    """Validate Bearer API key **or** allowlisted operator session (US-097).
+    """Validate Bearer API key **or** allowlisted operator JWT (US-098).
 
     n8n and machine clients continue to use the worker API key (ADR-0001).
-    Browser console after Google sign-in may use the HttpOnly session cookie.
-    Formal JWT-only console→API cutover remains US-098.
+    Browser console on the Google path uses the HttpOnly operator JWT cookie
+    (credentials: include) — not the worker API key.
     """
     settings: Settings = request.app.state.settings
 

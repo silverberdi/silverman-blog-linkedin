@@ -33,6 +33,7 @@ from silverman_blog_linkedin.operator_google_auth import (
     is_allowlisted_email,
     parse_oidc_pending_cookie,
     parse_operator_session_cookie,
+    subject_from_userinfo,
 )
 from silverman_blog_linkedin.campaign_lifecycle import (
     CampaignLifecycleError,
@@ -1560,10 +1561,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/auth/me")
     def operator_auth_me(request: Request) -> dict:
-        """Return allowlisted operator session identity when cookie is valid."""
+        """Return allowlisted operator JWT identity when cookie is valid (US-098)."""
         session = parse_operator_session_cookie(
             request.cookies.get(OPERATOR_SESSION_COOKIE),
             settings.operator_session_secret,
+            issuer=settings.operator_jwt_issuer,
+            audience=settings.operator_jwt_audience,
         )
         if session is None:
             return {
@@ -1630,7 +1633,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         state: str | None = None,
         error: str | None = None,
     ) -> Response:
-        """Complete Google OIDC; enforce allowlist; mint session or deny (US-097)."""
+        """Complete Google OIDC; enforce allowlist; mint operator JWT or deny (US-098)."""
         if not settings.operator_google_auth_enabled:
             return JSONResponse(
                 status_code=404,
@@ -1692,7 +1695,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return _deny_redirect("forbidden")
 
         session_value = create_operator_session_cookie_value(
-            email, settings.operator_session_secret
+            email,
+            settings.operator_session_secret,
+            sub=subject_from_userinfo(userinfo, email),
+            issuer=settings.operator_jwt_issuer,
+            audience=settings.operator_jwt_audience,
         )
         response = RedirectResponse(
             url=build_ui_auth_redirect(success_redirect, "ok"),

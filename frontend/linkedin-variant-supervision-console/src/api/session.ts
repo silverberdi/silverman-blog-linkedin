@@ -36,17 +36,19 @@ export function sessionBannerText(
           "flow_a_complete, and blog handoff are not LinkedIn API published.";
     case "authenticated":
       return google
-        ? "Authenticated with an allowlisted Google identity for this browser " +
-          "session. Mutations use worker HTTP only (ADR-0001). Pending, queued, " +
-          "cancelled, flow_a_complete, and blog handoff are not LinkedIn API published."
+        ? "Authenticated with an allowlisted Google identity and operator " +
+          "session credential for this browser session. Mutations use worker " +
+          "HTTP only (ADR-0001). Pending, queued, cancelled, flow_a_complete, " +
+          "and blog handoff are not LinkedIn API published."
         : "Authenticated for this browser session. Mutations use worker HTTP only " +
           "(ADR-0001). Pending, queued, cancelled, flow_a_complete, and blog " +
           "handoff are not LinkedIn API published.";
     case "expired":
       return (
-        "Session expired (unauthorized). Visible list/calendar context may be " +
-        "stale. Sign in again to continue. Unsaved schedule drafts are kept in " +
-        "memory — they are not discarded by expiry alone."
+        "Session expired (unauthorized). Re-authenticate to continue — your " +
+        "operator credential is no longer accepted. Visible list/calendar " +
+        "context may be stale. Unsaved schedule drafts are kept in memory — " +
+        "they are not discarded by expiry alone."
       );
     case "forbidden":
       return google

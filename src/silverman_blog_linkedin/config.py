@@ -7,6 +7,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
+from silverman_blog_linkedin.operator_google_auth import (
+    DEFAULT_OPERATOR_JWT_AUDIENCE,
+    DEFAULT_OPERATOR_JWT_ISSUER,
+)
+
 DEFAULT_BASE_PATH = "./data/silverman-blog-linkedin"
 DEFAULT_PORT = 8000
 
@@ -22,6 +27,8 @@ ENV_OPERATOR_GOOGLE_CLIENT_ID = "SILVERMAN_OPERATOR_GOOGLE_CLIENT_ID"
 ENV_OPERATOR_GOOGLE_CLIENT_SECRET = "SILVERMAN_OPERATOR_GOOGLE_CLIENT_SECRET"
 ENV_OPERATOR_GOOGLE_REDIRECT_URI = "SILVERMAN_OPERATOR_GOOGLE_REDIRECT_URI"
 ENV_OPERATOR_SESSION_SECRET = "SILVERMAN_OPERATOR_SESSION_SECRET"
+ENV_OPERATOR_JWT_ISSUER = "SILVERMAN_OPERATOR_JWT_ISSUER"
+ENV_OPERATOR_JWT_AUDIENCE = "SILVERMAN_OPERATOR_JWT_AUDIENCE"
 ENV_OPERATOR_UI_SUCCESS_REDIRECT = "SILVERMAN_OPERATOR_UI_SUCCESS_REDIRECT"
 
 # Closed vocabulary for UI↔API pairing (US-094). No lan/dev tokens.
@@ -47,11 +54,13 @@ class Settings:
     operator_google_client_secret: str = ""
     operator_google_redirect_uri: str = ""
     operator_session_secret: str = ""
+    operator_jwt_issuer: str = DEFAULT_OPERATOR_JWT_ISSUER
+    operator_jwt_audience: str = DEFAULT_OPERATOR_JWT_AUDIENCE
     operator_ui_success_redirect: str = ""
 
     @property
     def operator_google_auth_configured(self) -> bool:
-        """True when enablement flag is on and all required Google/session env is set."""
+        """True when enablement flag is on and all required Google/JWT env is set."""
         if not self.operator_google_auth_enabled:
             return False
         return bool(
@@ -59,6 +68,8 @@ class Settings:
             and self.operator_google_client_secret
             and self.operator_google_redirect_uri
             and self.operator_session_secret
+            and self.operator_jwt_issuer
+            and self.operator_jwt_audience
             and self.operator_ui_success_redirect
         )
 
@@ -174,12 +185,18 @@ def load_settings(environ: dict[str, str] | None = None) -> Settings:
         ENV_OPERATOR_GOOGLE_REDIRECT_URI,
     )
     session_secret = env.get(ENV_OPERATOR_SESSION_SECRET, "").strip()
+    jwt_issuer = (
+        env.get(ENV_OPERATOR_JWT_ISSUER, "").strip() or DEFAULT_OPERATOR_JWT_ISSUER
+    )
+    jwt_audience = (
+        env.get(ENV_OPERATOR_JWT_AUDIENCE, "").strip() or DEFAULT_OPERATOR_JWT_AUDIENCE
+    )
     ui_success_redirect = _parse_absolute_http_url(
         env.get(ENV_OPERATOR_UI_SUCCESS_REDIRECT, ""),
         ENV_OPERATOR_UI_SUCCESS_REDIRECT,
     )
     # When enabled but incomplete, worker still loads; OIDC start/callback and UI
-    # status fail closed with clear messaging (US-097). Do not open anonymous console.
+    # status fail closed with clear messaging (US-097/US-098). Do not open anonymous console.
 
     return Settings(
         base_path=base_path,
@@ -192,5 +209,7 @@ def load_settings(environ: dict[str, str] | None = None) -> Settings:
         operator_google_client_secret=google_client_secret,
         operator_google_redirect_uri=google_redirect_uri,
         operator_session_secret=session_secret,
+        operator_jwt_issuer=jwt_issuer,
+        operator_jwt_audience=jwt_audience,
         operator_ui_success_redirect=ui_success_redirect,
     )

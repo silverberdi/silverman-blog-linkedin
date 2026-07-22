@@ -1,9 +1,11 @@
 /**
- * Injectable auth header / credentials provider (US-040D readiness / US-097).
+ * Injectable auth header / credentials provider (US-040D / US-097 / US-098).
  *
  * Local ops fallback: MemoryBearerAuthProvider (API-key prompt) for tests /
- * explicit non-Google local use.
- * Google path: GoogleOidcAuthProvider — OIDC redirect, no API-key paste.
+ * explicit Google-disabled local use only — NOT the default when Google auth
+ * is enabled.
+ * Google path: GoogleOidcAuthProvider — OIDC redirect, operator JWT via
+ * HttpOnly cookie (credentials: "include"), never the worker API key.
  */
 
 export interface AuthProvider {
@@ -229,9 +231,10 @@ export type FetchLike = (
 export type NavigateFn = (url: string) => void;
 
 /**
- * Google OIDC AuthProvider for the separated UI (US-097).
+ * Google OIDC AuthProvider for the separated UI (US-097 / US-098).
  * Sign-in redirects to worker `/auth/google/start` — no worker API-key paste.
- * Session rides HttpOnly cookie via credentials: "include".
+ * Console→API uses HttpOnly operator JWT cookie via credentials: "include"
+ * and never puts the worker API key in Authorization headers.
  */
 export class GoogleOidcAuthProvider implements AuthProvider {
   private identity: "anonymous" | "authenticated" | "forbidden" = "anonymous";
@@ -374,6 +377,7 @@ export class GoogleOidcAuthProvider implements AuthProvider {
   }
 
   async getRequestHeaders(): Promise<Record<string, string>> {
+    // US-098: operator JWT is HttpOnly cookie only — never Authorization API key.
     return {};
   }
 
@@ -415,7 +419,10 @@ function defaultPrompt(message: string): string | null {
 /** Default singleton used when Google auth is not enabled (tests / local fallback). */
 export const defaultAuthProvider = new MemoryBearerAuthProvider();
 
-/** Choose AuthProvider for separated UI bootstrap (US-097). */
+/** Choose AuthProvider for separated UI bootstrap (US-097 / US-098).
+ * Google enabled → GoogleOidcAuthProvider (JWT cookie). MemoryBearer is
+ * Google-disabled local / test fallback only.
+ */
 export function createAuthProviderForConfig(options: {
   googleAuthEnabled: boolean;
   apiBaseUrl: string;

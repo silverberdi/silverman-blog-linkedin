@@ -701,7 +701,7 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** Approved operators open the public console URL, sign in with Google, and supervise via the private API path without pasting a worker API key; unapproved Google accounts and unauthenticated callers are blocked; the worker API is not publicly reachable.
 
-**Status:** **Open** — US-097 implemented (not Story accepted); US-098 / US-099 not implemented. Product stories drafted 2026-07-22.
+**Status:** **Open** — US-097 and US-098 implemented (not Story accepted); US-099 not implemented. Product stories drafted 2026-07-22.
 
 **Depends on / aligns with:** BL-034 separated UI (US-093–US-096). Extends US-040D readiness into activation. Aligns with BL-026 least-privilege exposure (API stays private). Does **not** establish full BL-029 CI/UAT. Does **not** mutate `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`. Does **not** introduce n8n Execute Command.
 

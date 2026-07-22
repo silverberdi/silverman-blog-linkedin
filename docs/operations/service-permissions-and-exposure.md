@@ -5,7 +5,7 @@
 **Authority:** Complements [operational-secrets-permissions-review.md](operational-secrets-permissions-review.md) (US-058 secrets), [GLOSSARY.md](../GLOSSARY.md), [CURRENT-STATE.md](../CURRENT-STATE.md).
 **OpenSpec:** capability `service-permissions-and-exposure` (change `review-service-permissions-exposure-us-062-063`).
 
-Does **not** expose Authority Manager publicly (US-099 deferred), mutate `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`, or redesign `local-ai-stack`. Google identity/allowlist on the **LAN** separated UI is activated under **BL-035 / US-097** when configured; that is **not** public console exposure.
+Does **not** expose Authority Manager publicly (US-099 deferred), mutate `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`, or redesign `local-ai-stack`. Google identity/allowlist (US-097) and operator JWT console→API (US-098) on the **LAN** separated UI may be active when configured; that is **not** public console exposure.
 
 ---
 
@@ -16,7 +16,7 @@ Does **not** expose Authority Manager publicly (US-099 deferred), mutate `SILVER
 | Worker HTTP `:8010` | **LAN only** (`192.168.0.194`) | API-key on non-callback routes |
 | Operator UI `:8011` | **LAN only** (`192.168.0.194`) | US-093 separated Authority Manager SPA; browser client → worker API; **not** public console exposure |
 | n8n `:5678` | **LAN only** | Not internet-public for silverman ops |
-| Authority Manager / console | **LAN only** | Via `:8011` (supported; worker-embedded console decommissioned US-096). Google OIDC identity/allowlist may be active on LAN under **US-097**; **public** URL / Cloudflare front-only = **US-099** (deferred) |
+| Authority Manager / console | **LAN only** | Via `:8011` (supported; worker-embedded console decommissioned US-096). Google OIDC identity/allowlist (US-097) and operator JWT console→API (US-098) may be active on LAN; **public** URL / Cloudflare front-only = **US-099** (deferred) |
 | LinkedIn OAuth callback | **Exception:** public Cloudflare hostname → worker callback path **only** for LinkedIn reauth | Not a general “public API”; other worker routes stay LAN |
 | Comfy Cloud / DeepSeek | **Outbound API clients** (keys in `.env`) | No inbound ComfyUI port required on this host |
 | Public blog checkout mount | Worker mount to Pages checkout | Public site is the blog; not the worker control plane |
@@ -48,9 +48,9 @@ Review listening sockets relevant to silverman ops on the deploy host:
 ### Authentication
 
 - Worker: Bearer `SILVERMAN_BLOG_LINKEDIN_API_KEY` on protected routes (n8n / machine clients, ADR-0001); OAuth **callback** is the intentional public exception path for LinkedIn reauth
-- Worker (US-097): when Google operator auth is enabled, dual-accept allowlisted HttpOnly operator session **or** API key for browser console routes; Google client secret / session signing stay in worker env only
+- Worker (US-097 / US-098): when Google operator auth is enabled, protected routes accept **either** machine API-key Bearer **or** allowlisted operator JWT (HttpOnly `silverman_operator_session` cookie with `iss`/`aud`/`exp`). Google-path browser console MUST NOT send the worker API key; Google client secret / JWT signing stay in worker env only
 - n8n: LAN UI; credentials not in git exports (placeholders) — see US-058
-- Console: LAN `:8011` separated UI only (embedded worker console decommissioned); Google OIDC identity may be enabled on LAN (US-097); not internet-public until US-099
+- Console: LAN `:8011` separated UI only (embedded worker console decommissioned); Google OIDC identity (US-097) + operator JWT console→API (US-098) may be enabled on LAN; not internet-public until US-099
 
 ### Least privilege (services)
 
@@ -77,7 +77,7 @@ Ratify US-058: real values only in server `.env` / secrets mounts; never commit;
 
 ### Document accepted exposure
 
-Section 1 is the normative inventory. **Public** console exposure requires **US-099** (separate OpenSpec). Google LAN identity/allowlist is **US-097** (BL-035 Story 1) and does not by itself make Authority Manager internet-public.
+Section 1 is the normative inventory. **Public** console exposure requires **US-099** (separate OpenSpec). Google LAN identity/allowlist is **US-097** and operator JWT console→API is **US-098** (BL-035 Stories 1–2); neither by itself makes Authority Manager internet-public.
 
 ---
 

@@ -189,7 +189,7 @@ def test_non_allowlisted_callback_forbidden_without_session(tmp_path: Path):
     assert me.json()["authenticated"] is False
 
 
-def test_dual_accept_operator_session_or_api_key(tmp_path: Path):
+def test_dual_accept_operator_jwt_or_api_key(tmp_path: Path):
     create_full_layout(tmp_path)
     settings = _google_settings(tmp_path)
     client = TestClient(create_app(settings))
@@ -198,7 +198,7 @@ def test_dual_accept_operator_session_or_api_key(tmp_path: Path):
     keyed = client.post("/process-ready", headers=auth_header(settings.api_key))
     assert keyed.status_code == 200
 
-    # Operator session cookie path (US-097 bridge).
+    # Operator JWT cookie path (US-098 console credential).
     cookie_value = create_operator_session_cookie_value(
         ALLOWLISTED_B, SESSION_SECRET
     )

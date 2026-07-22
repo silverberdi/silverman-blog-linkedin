@@ -2188,7 +2188,7 @@ As a system owner, I want the operator UI and the worker API to be independent p
 
 ### US-097 — Authenticate the Operator Console With Google: Story 1
 
-**Status:** **Implemented** (code/tests/docs on `feat/us-097-authenticate-operator-console-google`; OpenSpec change `authenticate-operator-console-google-us-097`). ACs demonstrable via Vitest `us097.google-auth.test.tsx` + pytest `test_operator_google_oidc_us097.py`. **Not Story accepted** (operator gate pending). Live Google enablement on LAN deploy is a separate env/deploy step. US-098 / US-099 remain deferred.
+**Status:** **Implemented** (code/tests/docs on `feat/us-097-authenticate-operator-console-google`; OpenSpec change `authenticate-operator-console-google-us-097`). ACs demonstrable via Vitest `us097.google-auth.test.tsx` + pytest `test_operator_google_oidc_us097.py`. **Not Story accepted** (operator gate pending). Live Google enablement on LAN deploy is a separate env/deploy step. US-098 is implemented separately (not Story accepted); US-099 remains deferred.
 
 **Description**
 
@@ -2206,7 +2206,7 @@ As a system owner, I want operators to sign into Silverman Authority Manager wit
 - [x] Existing completed work is not duplicated or unintentionally changed (no Flow/LinkedIn business-screen rewrite; no n8n Execute Command; no `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` mutation; BL-034 separated UI preserved). — Demonstrated: AuthProvider seam only; US-093/094/095 Vitest holds green; dual-accept keeps API-key path.
 ### US-098 — Authenticate the Operator Console With Google: Story 2
 
-**Status:** **Drafted** (2026-07-22). Not implemented. Not Story accepted. Depends on US-097 identity/allowlist behavior.
+**Status:** **Implemented** (code/tests/docs on OpenSpec change `replace-operator-console-api-key-with-jwt-us-098`). ACs demonstrable via Vitest `us098.operator-jwt.test.tsx` + pytest `test_operator_jwt_us098.py`. **Not Story accepted** (operator gate pending). **Not US-099**. Depends on US-097 identity/allowlist behavior.
 
 **Description**
 
@@ -2214,14 +2214,14 @@ As a system owner, I want the console to authenticate to the worker with an oper
 
 **Acceptance criteria**
 
-- [ ] On the Google-authenticated console path, browser calls that exercise worker capabilities do **not** send the worker API key; they send an operator JWT or equivalent secure session credential issued/validated for the signed-in allowlisted identity.
-- [ ] The worker rejects console requests that lack a valid operator credential (expired, tampered, wrong issuer/audience, or email not allowlisted) with a clear auth failure — fail closed.
-- [ ] Machine clients (n8n → worker HTTP) continue to use existing API-key auth (ADR-0001); enabling Google console auth MUST NOT break that path or make the UI an n8n target.
-- [ ] Business screens keep using the typed client / injectable `AuthProvider` boundary (US-040D / BL-034); Google/JWT replaces the paste-API-key provider without rewriting calendar/control-center components.
-- [ ] Operator sign-out / session clear returns the UI to a non-mutating unauthenticated state and stops sending the operator credential.
-- [ ] The outcome is visible and understandable to the intended user.
-- [ ] Failures or blocked states are clearly communicated (including expired session guidance without losing unsaved-edit context where US-040D already requires it).
-- [ ] Existing completed work is not duplicated or unintentionally changed (publication enablement untouched; no n8n Execute Command; US-094 pairing semantics preserved unless an explicit documented auth-topology adjustment is required).
+- [x] On the Google-authenticated console path, browser calls that exercise worker capabilities do **not** send the worker API key; they send an operator JWT or equivalent secure session credential issued/validated for the signed-in allowlisted identity. — Demonstrated: HttpOnly operator JWT cookie + `credentials: "include"`; Vitest US-098 / pytest mint+validate.
+- [x] The worker rejects console requests that lack a valid operator credential (expired, tampered, wrong issuer/audience, or email not allowlisted) with a clear auth failure — fail closed. — Demonstrated: pytest `test_operator_jwt_us098.py`.
+- [x] Machine clients (n8n → worker HTTP) continue to use existing API-key auth (ADR-0001); enabling Google console auth MUST NOT break that path or make the UI an n8n target. — Demonstrated: pytest API-key hold with Google enabled.
+- [x] Business screens keep using the typed client / injectable `AuthProvider` boundary (US-040D / BL-034); Google/JWT replaces the paste-API-key provider without rewriting calendar/control-center components. — Demonstrated: AuthProvider seam only; MemoryBearer not default when Google enabled.
+- [x] Operator sign-out / session clear returns the UI to a non-mutating unauthenticated state and stops sending the operator credential. — Demonstrated: `/auth/logout` + Vitest clear-session.
+- [x] The outcome is visible and understandable to the intended user. — Demonstrated: session banner vocabulary (authenticated / expired / anonymous).
+- [x] Failures or blocked states are clearly communicated (including expired session guidance without losing unsaved-edit context where US-040D already requires it). — Demonstrated: expired-session banner hold + ScheduleEditor US-040D messaging.
+- [x] Existing completed work is not duplicated or unintentionally changed (publication enablement untouched; no n8n Execute Command; US-094 pairing semantics preserved unless an explicit documented auth-topology adjustment is required). — Demonstrated: US-093/094/095/097 Vitest holds green; no publication-flag mutation.
 
 ### US-099 — Authenticate the Operator Console With Google: Story 3
 

@@ -1,9 +1,9 @@
-"""Operator Google OIDC identity + allowlist (US-097 / BL-035 Story 1).
+"""Operator Google OIDC identity + allowlist + operator JWT session (US-097/US-098).
 
 Server-side authorization-code + PKCE exchange, fail-closed email allowlist,
-and HMAC-signed HttpOnly session cookies for the separated operator UI.
+and HMAC-signed JWT HttpOnly cookies for the separated operator UI console path.
 
-Does not implement US-098 JWT-only console→API cutover or US-099 public tunnel.
+Does not implement US-099 public tunnel topology.
 """
 
 from __future__ import annotations
@@ -38,6 +38,10 @@ GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/userinfo"
 OPERATOR_SESSION_COOKIE = "silverman_operator_session"
 OIDC_PENDING_COOKIE = "silverman_oidc_pending"
 
+# Fixed JWT issuer/audience defaults (US-098). Overridable via env on Settings.
+DEFAULT_OPERATOR_JWT_ISSUER = "silverman-blog-linkedin-worker"
+DEFAULT_OPERATOR_JWT_AUDIENCE = "silverman-operator-console"
+
 SESSION_TTL = timedelta(hours=12)
 OIDC_PENDING_TTL = timedelta(minutes=10)
 
@@ -59,6 +63,7 @@ class TokenExchanger(Protocol):
 class OperatorSession:
     email: str
     expires_at: datetime
+    sub: str = ""
 
     @property
     def is_expired(self) -> bool:
@@ -88,6 +93,7 @@ def _sign(payload: bytes, secret: str) -> str:
 
 
 def _seal(data: dict[str, Any], secret: str) -> str:
+    """Opaque HMAC seal for OIDC pending state (not the operator JWT)."""
     payload = _b64url_encode(
         json.dumps(data, separators=(",", ":"), sort_keys=True).encode("utf-8")
     )
@@ -111,21 +117,69 @@ def _unseal(token: str, secret: str) -> dict[str, Any] | None:
     return data
 
 
+def _encode_operator_jwt(claims: dict[str, Any], secret: str) -> str:
+    """Compact JWT (HS256) for operator console session cookie (US-098)."""
+    header = {"alg": "HS256", "typ": "JWT"}
+    header_b64 = _b64url_encode(
+        json.dumps(header, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    )
+    payload_b64 = _b64url_encode(
+        json.dumps(claims, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    )
+    signing_input = f"{header_b64}.{payload_b64}"
+    signature = _sign(signing_input.encode("ascii"), secret)
+    return f"{signing_input}.{signature}"
+
+
+def _decode_operator_jwt(token: str, secret: str) -> dict[str, Any] | None:
+    parts = token.split(".")
+    if len(parts) != 3:
+        return None
+    header_b64, payload_b64, signature = parts
+    signing_input = f"{header_b64}.{payload_b64}"
+    expected = _sign(signing_input.encode("ascii"), secret)
+    if not hmac.compare_digest(signature, expected):
+        return None
+    try:
+        header = json.loads(_b64url_decode(header_b64))
+        payload = json.loads(_b64url_decode(payload_b64))
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(header, dict) or not isinstance(payload, dict):
+        return None
+    if header.get("alg") != "HS256":
+        return None
+    return payload
+
+
 def create_operator_session_cookie_value(
     email: str,
     secret: str,
     *,
+    sub: str | None = None,
+    issuer: str = DEFAULT_OPERATOR_JWT_ISSUER,
+    audience: str = DEFAULT_OPERATOR_JWT_AUDIENCE,
     now: datetime | None = None,
     ttl: timedelta = SESSION_TTL,
 ) -> str:
-    """Seal allowlisted operator identity into an opaque cookie value."""
+    """Mint allowlisted operator JWT into an HttpOnly cookie value (US-098)."""
     if not is_allowlisted_email(email):
         raise ValueError("refusing to mint session for non-allowlisted email")
+    if not secret or not issuer.strip() or not audience.strip():
+        raise ValueError("refusing to mint operator JWT with incomplete config")
     instant = now or datetime.now(timezone.utc)
     expires = instant + ttl
-    return _seal(
+    normalized = normalize_email(email)
+    subject = (sub or normalized).strip()
+    if not subject:
+        raise ValueError("refusing to mint operator JWT without subject")
+    return _encode_operator_jwt(
         {
-            "email": normalize_email(email),
+            "email": normalized,
+            "sub": subject,
+            "iss": issuer.strip(),
+            "aud": audience.strip(),
+            "iat": int(instant.timestamp()),
             "exp": int(expires.timestamp()),
         },
         secret,
@@ -136,21 +190,41 @@ def parse_operator_session_cookie(
     token: str | None,
     secret: str,
     *,
+    issuer: str = DEFAULT_OPERATOR_JWT_ISSUER,
+    audience: str = DEFAULT_OPERATOR_JWT_AUDIENCE,
     now: datetime | None = None,
 ) -> OperatorSession | None:
-    if not token or not secret:
+    """Validate operator JWT: signature, exp, iss, aud, allowlist (fail closed)."""
+    if not token or not secret or not issuer.strip() or not audience.strip():
         return None
-    data = _unseal(token, secret)
+    data = _decode_operator_jwt(token, secret)
     if data is None:
         return None
     email = data.get("email")
+    sub = data.get("sub")
     exp = data.get("exp")
-    if not isinstance(email, str) or not isinstance(exp, int):
+    iat = data.get("iat")
+    token_iss = data.get("iss")
+    token_aud = data.get("aud")
+    if (
+        not isinstance(email, str)
+        or not isinstance(sub, str)
+        or not isinstance(exp, int)
+        or not isinstance(iat, int)
+        or not isinstance(token_iss, str)
+        or not isinstance(token_aud, str)
+    ):
+        return None
+    if token_iss != issuer.strip() or token_aud != audience.strip():
         return None
     if not is_allowlisted_email(email):
         return None
     expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
-    session = OperatorSession(email=normalize_email(email), expires_at=expires_at)
+    session = OperatorSession(
+        email=normalize_email(email),
+        expires_at=expires_at,
+        sub=sub.strip(),
+    )
     instant = now or datetime.now(timezone.utc)
     if session.expires_at <= instant:
         return None
@@ -301,6 +375,14 @@ def email_from_userinfo(userinfo: dict[str, Any]) -> str | None:
     verified = userinfo.get("email_verified")
     if verified is False or verified == "false":
         return None
+    return normalize_email(email)
+
+
+def subject_from_userinfo(userinfo: dict[str, Any], email: str) -> str:
+    """Prefer Google `sub`; fall back to normalized email for JWT subject."""
+    sub = userinfo.get("sub")
+    if isinstance(sub, str) and sub.strip():
+        return sub.strip()
     return normalize_email(email)
 
 
