@@ -110,6 +110,9 @@ The response MUST include:
 - Per-folder validation results
 - Aggregate folder readiness indicator
 - Version or service identifier when appropriate
+- Non-secret `deployment_environment` with value `uat` or `prod` when `SILVERMAN_DEPLOYMENT_ENVIRONMENT` is configured for operator UI↔API pairing (US-094)
+
+When `SILVERMAN_DEPLOYMENT_ENVIRONMENT` is unset, the health response MUST NOT invent a fake environment identity; pairing-capable separated-UI deploys MUST set the variable so the UI can validate agreement.
 
 #### Scenario: Healthy editorial layout
 
@@ -130,6 +133,11 @@ The response MUST include:
 
 - **WHEN** a client sends `GET /health`
 - **THEN** the worker MUST NOT mutate editorial files, call OpenAI, perform content generation, or depend on n8n
+
+#### Scenario: Health advertises deployment environment when configured
+
+- **WHEN** `SILVERMAN_DEPLOYMENT_ENVIRONMENT` is set to `uat` or `prod` and a client sends `GET /health`
+- **THEN** the JSON response includes `deployment_environment` with that normalized value and does not include secret values
 
 ### Requirement: Docker packaging
 

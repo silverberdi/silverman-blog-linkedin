@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Packaging, configuration, and LAN deployment of Silverman Authority Manager as a deployable UI artifact/service distinct from the FastAPI worker API (BL-034 / US-093). Covers absolute worker API base URL configuration, fail-closed misconfig behavior, worker CORS allowlist for UI origins, ADR-0001 n8n→worker HTTP-only preservation, and topology documentation pointers. US-094 UAT/prod pairing enforcement is out of scope (config hooks MAY be reserved).
+Packaging, configuration, and LAN deployment of Silverman Authority Manager as a deployable UI artifact/service distinct from the FastAPI worker API (BL-034 / US-093 + US-094 + US-095). Covers absolute worker API base URL configuration, fail-closed misconfig behavior, worker CORS allowlist for UI origins, UAT/prod UI↔API environment pairing (env label + health agreement), focused capability-regression evidence for the separated production path, ADR-0001 n8n→worker HTTP-only preservation, and topology documentation pointers.
 
 ## Requirements
 
@@ -30,23 +30,25 @@ The separated operator UI SHALL resolve the worker API base URL from deploy-time
 
 Configuration examples and docs MUST use non-secret placeholders only (for example `http://192.168.0.194:8010`) and MUST NOT embed API keys, bearer tokens, or secret-like placeholders.
 
-The design MAY reserve an optional non-secret environment label field for later US-094 pairing. US-093 MUST NOT claim UAT/prod pairing enforcement is complete.
+In separated-UI mode the UI MUST also resolve a required non-secret environment label from `SILVERMAN_OPERATOR_UI_ENV_LABEL` with closed values `uat` or `prod`, and MUST enforce UI↔API environment pairing per capability `operator-ui-api-environment-pairing`. US-093 packaging and base-URL injection remain in force; the former “reserved label / pairing not done” outcome is superseded by US-094.
 
 #### Scenario: Configured base URL is used for API calls
 
 - **WHEN** the separated UI is started with a valid absolute `SILVERMAN_OPERATOR_UI_API_BASE_URL` (or equivalent documented config key)
 - **THEN** the typed API client prefixes worker route paths with that base URL for browser HTTP calls
 
-#### Scenario: Reserved pairing hook does not imply US-094 done
+#### Scenario: Environment label is required for separated-UI pairing
 
-- **WHEN** optional environment-label config is present or absent
-- **THEN** the system does not assert UAT↔API or prod↔API pairing validation as a US-093 completed outcome
+- **WHEN** the separated UI runs in supported production mode
+- **THEN** `SILVERMAN_OPERATOR_UI_ENV_LABEL` MUST be present as `uat` or `prod` and pairing validation against the worker MUST be applied before authenticated supervision or mutation traffic
 
 ### Requirement: Missing or invalid UI API configuration fails closed
 
 When the operator console runs in separated-UI mode, the UI MUST fail closed if the worker API base URL configuration is missing, empty, or not a valid absolute `http`/`https` URL. The operator MUST see a clear blocked or configuration-error state that names the required configuration key(s) without revealing secret values.
 
 In that blocked state the UI MUST NOT silently fall back to same-origin relative API calls that would target the UI static server instead of the worker API.
+
+The UI MUST likewise fail closed for missing/invalid environment label or failed UI↔API environment pairing (see `operator-ui-api-environment-pairing`), without silent cross-environment writes.
 
 #### Scenario: Missing API base URL blocks the console
 
@@ -57,6 +59,11 @@ In that blocked state the UI MUST NOT silently fall back to same-origin relative
 
 - **WHEN** the configured API base URL is not a valid absolute `http` or `https` URL
 - **THEN** the UI presents a clear blocked/configuration error and does not proceed with worker API calls
+
+#### Scenario: Environment pairing failure blocks the console
+
+- **WHEN** separated-UI environment label and API `deployment_environment` disagree or pairing identity cannot be read
+- **THEN** the UI presents a clear blocked/pairing error and does not issue authenticated supervision or mutation requests
 
 ### Requirement: Worker allows browser calls from configured UI origins
 
@@ -85,9 +92,39 @@ UI separation MUST NOT introduce n8n Execute Command nodes or n8n direct filesys
 
 ### Requirement: Topology documentation for separated UI
 
-Operator-facing deployment documentation and CURRENT-STATE topology pointers SHALL briefly describe the separated UI service alongside the worker API (including the intended LAN ports or equivalent), state that the worker remains the HTTP API source of truth, and state that the UI is a client only. Documentation MUST NOT claim US-094 pairing is complete and MUST NOT claim public console exposure beyond BL-026 accepted exposure.
+Operator-facing deployment documentation and CURRENT-STATE topology pointers SHALL briefly describe the separated UI service alongside the worker API (including the intended LAN ports or equivalent), state that the worker remains the HTTP API source of truth, and state that the UI is a client only.
+
+Documentation SHALL describe UAT vs prod UI↔API pairing (env var names and default overlays) per US-094. Documentation MUST NOT claim public console exposure beyond BL-026 accepted exposure and MUST NOT claim full BL-029 CI/UAT stand-up is complete merely because pairing defaults exist.
+
+RUNTIME-STATE SHALL be updated when live deployment flags or topology for pairing change on a running stack.
 
 #### Scenario: CURRENT-STATE points to UI + API topology
 
-- **WHEN** an operator reads CURRENT-STATE runtime topology after US-093 docs updates
-- **THEN** the document (or a linked operator deploy doc) identifies both the worker API endpoint and the separated operator UI endpoint as distinct services on the LAN topology
+- **WHEN** an operator reads CURRENT-STATE runtime topology after US-094 docs updates
+- **THEN** the document (or a linked operator deploy doc) identifies both the worker API endpoint and the separated operator UI endpoint as distinct services and describes UAT/prod pairing configuration by env var name
+
+#### Scenario: RUNTIME-STATE updated when pairing goes live
+
+- **WHEN** an operator applies pairing configuration on a live deployed stack
+- **THEN** RUNTIME-STATE (or the linked live-ops note) records the non-secret environment identity in effect without secret values
+
+### Requirement: Separated production path includes capability-regression evidence
+
+The supported production path for Silverman Authority Manager as a separated UI artifact MUST be backed by focused capability-regression evidence (US-095) showing that schedule visibility, BL-032 control-center reads, at least one representative gated/dry-run mutation, and US-040D auth session gating remain available when the UI calls the worker via the configured absolute `SILVERMAN_OPERATOR_UI_API_BASE_URL` (with pairing labels applied where required).
+
+US-093 packaging (distinct UI artifact, runtime base URL injection, CORS allowlist) and US-094 pairing enforcement remain in force; this requirement does not redesign them. Evidence MAY be automated tests and/or controlled local/LAN smoke and MUST NOT claim public console exposure beyond BL-026.
+
+#### Scenario: Regression evidence required for separated path claim
+
+- **WHEN** docs or checklists claim day-to-day supervision remains available on the separated UI production path after US-095
+- **THEN** they cite focused regression evidence covering absolute-base reads, a representative gated/dry-run mutation, auth session gating, and existing config/pairing fail-closed holds
+
+#### Scenario: No relative fallback in separated mode during regression
+
+- **WHEN** separated-UI mode has a valid absolute API base URL under regression
+- **THEN** typed client calls continue to use that absolute origin and do not silently fall back to UI same-origin relative API paths
+
+#### Scenario: US-093 packaging not redesigned by US-095
+
+- **WHEN** US-095 regression work is applied
+- **THEN** the distinct UI artifact/service model and runtime API base URL injection from US-093 remain the packaging approach (verify hold; no packaging redesign required)
