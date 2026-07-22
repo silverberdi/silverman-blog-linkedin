@@ -16,7 +16,7 @@ The minimum matrix MUST cover all of the following:
 2. Schedule visibility read via the typed client against the configured absolute worker origin.
 3. Pending-supervision / LinkedIn control-center read (BL-032 Story-accepted path) via the typed client against the configured absolute worker origin.
 4. At least one representative authenticated mutation already Story accepted under BL-032, preferring a dry-run-safe or clearly gated action (for example postpone/defer with `dry_run: true`), issued against the configured absolute worker origin—without inventing new endpoints.
-5. US-040D auth session gating on the separated UI: sign-in, `canMutate`, and clear session. When Google (OIDC) auth is enabled (US-097), the matrix MUST cover Google sign-in / allowlist deny / anonymous non-mutate holds without requiring worker API-key paste for the Google sign-in step. Transitional provider-based tests MAY remain for non-Google fixtures.
+5. US-040D auth session gating on the separated UI: sign-in, `canMutate`, and clear session. When Google (OIDC) auth is enabled (US-097/US-098), the matrix MUST cover Google sign-in / allowlist deny / anonymous non-mutate holds without requiring worker API-key paste, and MUST cover Google-path console→API using operator JWT/session (not worker API key) plus clear-session stopping the credential.
 6. Retention of US-093 configuration fail-closed and US-094 pairing fail-closed operator-visible blocked states.
 7. Confirmation that ADR-0001 remains intact (n8n → worker HTTP only) and that this program does not mutate `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` or rewrite Flow/LinkedIn business contracts.
 
@@ -42,6 +42,11 @@ Evidence MUST be collectible via automated tests and/or controlled local/LAN smo
 - **WHEN** Google (OIDC) auth is enabled and an allowlisted operator signs in via the AuthProvider boundary on the separated UI and later clears the session
 - **THEN** `canMutate` becomes true only while authenticated for mutations and returns to a non-mutating state after clear session, without requiring worker API-key paste for the Google sign-in step
 
+#### Scenario: Google path uses operator JWT not worker API key
+
+- **WHEN** Google auth is enabled and an allowlisted session exercises a typed-client worker call
+- **THEN** the call authenticates with the operator JWT/session credential and does not send the worker API key
+
 #### Scenario: Config and pairing blocks remain visible
 
 - **WHEN** separated-UI API base URL configuration is invalid or UI↔API environment pairing fails
@@ -56,7 +61,7 @@ Evidence MUST be collectible via automated tests and/or controlled local/LAN smo
 
 The US-095 regression program MUST NOT stand up full BL-029 CI/UAT beyond what the matrix needs, MUST NOT introduce n8n Execute Command, MUST NOT mutate `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`, and MUST NOT redesign US-093 packaging or US-094 pairing semantics (verify hold only).
 
-Google/OIDC console identity (BL-035 / US-097) is owned by a separate OpenSpec change; the US-095 matrix MUST remain compatible with Google auth when enabled and MUST NOT claim US-098 JWT cutover or US-099 public tunnel topology.
+Google/OIDC console identity and operator JWT console→API auth (BL-035 / US-097/US-098) are owned by their OpenSpec changes; the US-095 matrix MUST remain compatible with those holds when enabled and MUST NOT claim US-099 public tunnel topology or Story accepted solely from regression updates.
 
 US-096 hard decommission of the embedded worker console is intentionally out of scope for the US-095 program itself; after US-096 lands, regression holds for the separated path MUST remain applicable and MUST NOT depend on restoring the embedded console.
 
@@ -75,7 +80,7 @@ US-096 hard decommission of the embedded worker console is intentionally out of 
 - **WHEN** US-095 changes are reviewed for publication guards
 - **THEN** `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` is not mutated as part of the regression program
 
-#### Scenario: US-095 does not claim US-098 or US-099
+#### Scenario: Regression does not claim US-099 or Story accepted
 
-- **WHEN** Google identity tests are added under US-097 and regression holds are updated
-- **THEN** evidence does not claim operator JWT-only console→API (US-098) or Cloudflare front-only public topology (US-099)
+- **WHEN** Google identity and operator JWT holds are present under US-097/US-098 and regression holds are updated
+- **THEN** evidence does not claim Cloudflare front-only public topology (US-099) and does not mark Story accepted solely from those holds
