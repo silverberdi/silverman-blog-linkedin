@@ -2041,15 +2041,15 @@ The worker MUST respond with a clear operator-visible decommission outcome (HTML
 
 US-040D readiness documentation historically deferred public deployment and Google/OIDC activation. Under BL-035:
 
-- **US-097** activates Google (OIDC) identity and email allowlist on the separated operator UI (LAN).
+- **US-097** activates Google (OIDC) identity and email allowlist on the separated operator UI (LAN and, when US-099 is active, public UI URL).
 - **US-098** activates operator JWT/session console→API auth (no worker API key on the Google browser path).
-- **Public URL hosting / Cloudflare Tunnel front-only exposure (US-099)** remains out of scope and MUST NOT be activated by US-097 or US-098.
-- US-097/US-098 MUST NOT introduce a general user-management product, MUST NOT use n8n Execute Command, and MUST NOT use browser filesystem writes as the auth source of truth.
+- **US-099** activates public URL hosting / Cloudflare Tunnel front-only exposure of the operator UI with private worker API and private UI→API hop.
+- US-097/US-098/US-099 MUST NOT introduce a general user-management product, MUST NOT use n8n Execute Command, and MUST NOT use browser filesystem writes as the auth source of truth.
 
-#### Scenario: Public URL activation remains deferred after US-098
+#### Scenario: Public URL activation is in scope for US-099
 
-- **WHEN** US-098 operator JWT console→API activation is complete
-- **THEN** CURRENT-STATE or equivalent operator documentation records that public URL hosting / Cloudflare front-only topology is not activated and remains US-099
+- **WHEN** an implementer inspects the US-099 change scope
+- **THEN** front-only Cloudflare Tunnel (or equivalent) public UI exposure with private API and private UI→API hop is required, and the worker API is not published on the public internet
 
 #### Scenario: Google identity activation is in scope for US-097
 
@@ -2060,6 +2060,11 @@ US-040D readiness documentation historically deferred public deployment and Goog
 
 - **WHEN** an implementer inspects the US-098 change scope
 - **THEN** Google-path browser→worker calls must use operator JWT/session credentials (not the worker API key), and the worker must fail closed on invalid operator credentials
+
+#### Scenario: Public console uses private-hop API base
+
+- **WHEN** US-099 front-only topology is active and the separated UI typed client issues worker capability calls
+- **THEN** those calls use a same-origin or otherwise private API base and do not require a publicly routable worker API hostname in the browser
 
 ### Requirement: Unauthenticated and forbidden Google states block mutations
 
