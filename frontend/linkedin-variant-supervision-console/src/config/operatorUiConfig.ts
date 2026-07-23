@@ -1,8 +1,12 @@
 /**
- * Runtime non-secret operator UI configuration (US-093 / US-094 / US-096 / BL-034).
+ * Runtime non-secret operator UI configuration (US-093 / US-094 / US-096 / US-099 / BL-034).
  *
  * Separated UI only: config.js injects window.__SILVERMAN_OPERATOR_UI_CONFIG__ at
  * container start. Worker-embedded deliveryMode=embedded is decommissioned (US-096).
+ *
+ * US-099 front-only public topology: set apiBaseUrl to `/` or `same-origin` so the
+ * browser uses a same-origin private hop (nginx proxies typed-client + /auth/* to
+ * the private worker). Absolute LAN worker origins remain valid for non-tunnel use.
  */
 
 export const OPERATOR_UI_API_BASE_URL_KEY = "SILVERMAN_OPERATOR_UI_API_BASE_URL";
@@ -17,7 +21,10 @@ export type OperatorUiDeliveryMode = "separated";
 
 export interface OperatorUiRuntimeConfig {
   deliveryMode: OperatorUiDeliveryMode;
-  /** Absolute worker origin required for separated UI. */
+  /**
+   * Absolute worker origin, or empty string for same-origin private hop (US-099).
+   * Empty means relative typed-client paths on the UI origin (proxied privately).
+   */
   apiBaseUrl: string;
   /** Required uat|prod for UI↔API pairing. */
   envLabel: DeploymentEnvironment;
@@ -74,10 +81,23 @@ export function isValidAbsoluteHttpUrl(value: string): boolean {
 }
 
 /**
+ * US-099 same-origin private hop: `/` or `same-origin` (case-insensitive).
+ * Empty remains "missing" so misconfigured LAN stacks still fail closed.
+ */
+export function isSameOriginApiBase(value: string): boolean {
+  const trimmed = value.trim().toLowerCase();
+  return trimmed === "/" || trimmed === "same-origin";
+}
+
+/**
  * Normalize API base to origin form without a trailing slash (except root).
  * Paths on the worker are root-absolute (`/flow-a/...`).
+ * Same-origin private hop normalizes to empty string for relative joins.
  */
 export function normalizeApiBaseUrl(value: string): string {
+  if (isSameOriginApiBase(value)) {
+    return "";
+  }
   const url = new URL(value.trim());
   // Drop any accidental path so route joins stay root-absolute on the worker.
   return url.origin;
@@ -85,12 +105,12 @@ export function normalizeApiBaseUrl(value: string): string {
 
 /**
  * Join a root-relative worker path (may include query) with an API base.
- * Empty base is only for injectable unit tests; production config always fails
- * closed without an absolute base (resolveOperatorUiConfig).
+ * Empty base = same-origin private hop (US-099) or injectable unit tests —
+ * returns the root-relative path so the browser stays on the UI origin.
  */
 export function joinApiUrl(apiBaseUrl: string, path: string): string {
   if (!apiBaseUrl) {
-    return path;
+    return path.startsWith("/") ? path : `/${path}`;
   }
   const base = apiBaseUrl.endsWith("/") ? apiBaseUrl : `${apiBaseUrl}/`;
   return new URL(path, base).toString();
@@ -148,19 +168,20 @@ export function resolveOperatorUiConfig(
       reason: "missing",
       message:
         `Operator UI is blocked: set ${OPERATOR_UI_API_BASE_URL_KEY} to an absolute worker ` +
-        `http(s) URL (for example http://192.168.0.194:8010). Relative same-origin API ` +
-        `calls are disabled after US-096 (embedded worker console decommissioned).`,
+        `http(s) URL (for example http://192.168.0.194:8010), or to / (same-origin private ` +
+        `hop for US-099 front-only public UI). Empty values are rejected.`,
       requiredKeys: [OPERATOR_UI_API_BASE_URL_KEY],
     };
   }
 
-  if (!isValidAbsoluteHttpUrl(rawBase)) {
+  const sameOriginHop = isSameOriginApiBase(rawBase);
+  if (!sameOriginHop && !isValidAbsoluteHttpUrl(rawBase)) {
     return {
       ok: false,
       reason: "invalid",
       message:
         `Operator UI is blocked: ${OPERATOR_UI_API_BASE_URL_KEY} must be a valid absolute ` +
-        `http or https URL (no secrets). Relative or malformed values are rejected.`,
+        `http or https URL, or / (same-origin private hop). Malformed values are rejected.`,
       requiredKeys: [OPERATOR_UI_API_BASE_URL_KEY],
     };
   }
@@ -171,8 +192,7 @@ export function resolveOperatorUiConfig(
       reason: "missing",
       message:
         `Operator UI is blocked: set ${OPERATOR_UI_ENV_LABEL_KEY} to uat or prod so this ` +
-        `console can pair with the matching worker API. Relative same-origin API calls ` +
-        `remain disabled after US-096.`,
+        `console can pair with the matching worker API.`,
       requiredKeys: [OPERATOR_UI_ENV_LABEL_KEY],
     };
   }
@@ -193,7 +213,7 @@ export function resolveOperatorUiConfig(
     ok: true,
     config: {
       deliveryMode: "separated",
-      apiBaseUrl: normalizeApiBaseUrl(rawBase),
+      apiBaseUrl: sameOriginHop ? "" : normalizeApiBaseUrl(rawBase),
       envLabel,
       googleAuthEnabled,
     },

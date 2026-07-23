@@ -405,6 +405,10 @@ export class GoogleOidcAuthProvider implements AuthProvider {
 }
 
 function joinAuthUrl(apiBaseUrl: string, path: string): string {
+  // Same-origin private hop (US-099): empty base → root-relative auth paths.
+  if (!apiBaseUrl) {
+    return path.startsWith("/") ? path : `/${path}`;
+  }
   const base = apiBaseUrl.endsWith("/") ? apiBaseUrl : `${apiBaseUrl}/`;
   return new URL(path.replace(/^\//, ""), base).toString();
 }

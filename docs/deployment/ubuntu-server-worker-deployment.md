@@ -23,21 +23,23 @@ For local development on Mac, use `docker-compose.example.yml` instead.
 | Public blog repo mount (container) | `/public-blog` (`SILVERMAN_GITHUB_PAGES_REPO_PATH`) |
 | Site URL | `https://silverman.pro` (override via `SILVERMAN_SITE_URL`) |
 | n8n `worker_base_url` | `http://192.168.0.194:8010` (ADR-0001 — n8n → worker HTTP only; UI is not an n8n target) |
-| Operator UI URL | `http://192.168.0.194:8011` (browser client; calls worker API via configured base URL) |
+| Operator UI URL | `http://192.168.0.194:8011` (browser client; same-origin private hop by default, or absolute private worker base) |
 
-## Separated operator UI (US-093 / US-094 / US-096)
+## Separated operator UI (US-093 / US-094 / US-096 / US-099)
 
 Supported production path for Silverman Authority Manager is **exclusively** the **`silverman-operator-ui`** compose service (nginx + Vite SPA on host port **8011** by default). The worker on **8010** is the HTTP API source of truth and is **API-only** for operator console purposes after US-096.
 
 | Concern | Guidance |
 |---------|----------|
-| UI → API | Set `SILVERMAN_OPERATOR_UI_API_BASE_URL` to the matching worker origin (placeholder; no secrets) |
-| Worker CORS | Set `SILVERMAN_OPERATOR_UI_ORIGINS` to the UI origin on the worker (comma-separated; empty = no wildcard CORS) |
-| Environment pairing (US-094) | Closed vocabulary `uat` \| `prod`. Set `SILVERMAN_OPERATOR_UI_ENV_LABEL` on the UI and `SILVERMAN_DEPLOYMENT_ENVIRONMENT` on the worker to the **same** token. Separated UI fetches `GET {apiBaseUrl}/health` and fails closed if `deployment_environment` is missing or disagrees. |
-| Per-environment defaults | Use `deploy/server/env-overlays/uat.pairing.env.example` (UAT UI → UAT API placeholders) and `prod.pairing.env.example` (prod UI → prod API). Overlays ≠ live second UAT stack / full BL-029 stand-up. |
-| Current LAN stack | Prefer `prod` for `192.168.0.194` until a second UAT stack exists. Labels are stack identity, not public internet exposure. |
+| UI → API (preferred) | Set `SILVERMAN_OPERATOR_UI_API_BASE_URL=/` (same-origin private hop). UI nginx proxies typed-client routes and `/auth/*` to `SILVERMAN_OPERATOR_UI_WORKER_UPSTREAM` (default `silverman-blog-linkedin-worker:8000`). Browser never needs a public worker API hostname. |
+| UI → API (absolute LAN) | Absolute private worker origin remains supported; then set CORS allowlist to the UI origin. |
+| Worker CORS | Set `SILVERMAN_OPERATOR_UI_ORIGINS` to exact UI origin(s) when residual cross-origin remains (comma-separated; empty = no wildcard CORS; never `*`). For US-099 include the exact public UI origin. |
+| Environment pairing (US-094) | Closed vocabulary `uat` \| `prod`. Set `SILVERMAN_OPERATOR_UI_ENV_LABEL` on the UI and `SILVERMAN_DEPLOYMENT_ENVIRONMENT` on the worker to the **same** token. Separated UI fetches `GET {apiBaseUrl}/health` (same-origin `/health` under private hop) and fails closed if `deployment_environment` is missing or disagrees. |
+| Per-environment defaults | Use `deploy/server/env-overlays/uat.pairing.env.example` and `prod.pairing.env.example`. Front-only public UI: `front-only.public-ui.env.example` + `cloudflared.operator-ui.example.yml` (placeholders only — no tunnel tokens). Overlays ≠ live second UAT stack / full BL-029 stand-up. |
+| US-099 front-only public | Cloudflare Tunnel (or equivalent) hostname → UI `:8011` **only**. Do **not** publish worker `:8010` as a public Authority Manager API hostname. Google redirect URI = `https://<public-ui>/auth/google/callback` (proxied). Cookie SameSite=Lax + Secure on HTTPS — no JWT claim changes. Update RUNTIME-STATE when the tunnel is actually live. |
+| Current LAN stack | Prefer `prod` for `192.168.0.194` until a second UAT stack exists. Labels are stack identity, not by themselves public internet exposure. |
 | n8n | Continues `worker_base_url` → `:8010` HTTP Request only (**ADR-0001**). Do not orchestrate through the UI. |
-| Decommissioned console URLs (US-096) | Former worker bookmarks `GET /flow-a/console/linkedin-variant-supervision` (and `/assets/…`) **fail closed** (410 + clear messaging). Use `http://192.168.0.194:8011`. Not supported / not compatibility. |
+| Decommissioned console URLs (US-096) | Former worker bookmarks `GET /flow-a/console/linkedin-variant-supervision` (and `/assets/…`) **fail closed** (410 + clear messaging). Use `http://192.168.0.194:8011` or the public UI hostname when US-099 is live. Not supported / not compatibility. |
 | Worker image build | API image does **not** require `npm run build:embedded` or copying SPA assets into the worker package. |
 
 Build the UI image from `frontend/linkedin-variant-supervision-console/` (see package `Dockerfile`). Compose builds it when `frontend/` is present in the deploy directory (deploy-worker sync includes that tree). Runtime `config.js` injects `apiBaseUrl` + `envLabel` at container start (not baked into hashed JS).
@@ -71,7 +73,7 @@ Edit `.env` on the server and set:
 - Optional (Flow A publish): `SILVERMAN_PUBLIC_BLOG_REPO_PATH` — host path to the `silverberdi.github.io` checkout (default `/home/silverman/silverberdi.github.io`); used by compose to mount `/public-blog`
 - Optional (Git publication): `SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED` (default `false`), `SILVERMAN_BLOG_GIT_PUBLICATION_BRANCH` (default `main`), `SILVERMAN_BLOG_GIT_PUBLICATION_REMOTE` (default `origin`), `SILVERMAN_BLOG_GIT_COMMIT_MESSAGE_TEMPLATE` — guarded commit/push after blog handoff when the request includes `git_publication: true`; see [blog-publishing-bridge.md](../workflows/blog-publishing-bridge.md)
 - Optional: `SILVERMAN_SITE_URL` — canonical public site URL (default `https://silverman.pro`)
-- Optional (US-093 / US-094 separated operator UI): `SILVERMAN_OPERATOR_UI_API_BASE_URL`, `SILVERMAN_OPERATOR_UI_ORIGINS`, `SILVERMAN_OPERATOR_UI_HOST_PORT` (default `8011`), `SILVERMAN_OPERATOR_UI_ENV_LABEL` (`uat`|`prod`), and worker `SILVERMAN_DEPLOYMENT_ENVIRONMENT` (same closed set; advertised on `GET /health`). Prefer matching `prod` defaults for the current LAN stack; see `env-overlays/{uat,prod}.pairing.env.example` and `silverman-operator-ui.env.example`. **ADR-0001:** n8n continues to call the worker on `:8010` only — do not point n8n at the UI. Overlays do **not** claim public console exposure or full BL-029 UAT stand-up.
+- Optional (US-093 / US-094 / US-099 separated operator UI): `SILVERMAN_OPERATOR_UI_API_BASE_URL` (`/` for same-origin private hop, or absolute private worker origin), `SILVERMAN_OPERATOR_UI_WORKER_UPSTREAM`, `SILVERMAN_OPERATOR_UI_ORIGINS`, `SILVERMAN_OPERATOR_UI_HOST_PORT` (default `8011`), `SILVERMAN_OPERATOR_UI_ENV_LABEL` (`uat`|`prod`), and worker `SILVERMAN_DEPLOYMENT_ENVIRONMENT` (same closed set; advertised on `GET /health`). Prefer matching `prod` defaults for the current LAN stack; see `env-overlays/{uat,prod}.pairing.env.example`, `front-only.public-ui.env.example`, `cloudflared.operator-ui.example.yml`, and `silverman-operator-ui.env.example`. **ADR-0001:** n8n continues to call the worker on `:8010` only — do not point n8n at the UI. Overlays do **not** claim live tunnel activation or full BL-029 UAT stand-up.
 
 ### 1a. Prepare public GitHub Pages repo checkout (Flow A publish)
 

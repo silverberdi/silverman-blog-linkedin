@@ -12,8 +12,11 @@ ENV VITE_OPERATOR_UI_DELIVERY=separated
 RUN npm run build
 
 FROM nginx:1.27-alpine
+# gettext provides envsubst for US-099 private-hop upstream injection.
+RUN apk add --no-cache gettext
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY docker/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh \
     && printf '%s\n' \

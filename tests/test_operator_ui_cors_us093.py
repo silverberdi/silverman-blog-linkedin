@@ -99,6 +99,45 @@ def test_cors_empty_allowlist_does_not_advertise_foreign_origin(tmp_path: Path):
     assert acao is None
 
 
+def test_cors_public_ui_origin_allowlisted_no_wildcard(tmp_path: Path):
+    """US-099: exact public UI origin allowed; wildcard remains forbidden."""
+    public_origin = "https://authority.example.silverman.pro"
+    settings = make_settings(tmp_path)
+    settings = type(settings)(
+        base_path=settings.base_path,
+        api_key=settings.api_key,
+        port=settings.port,
+        operator_ui_origins=(public_origin,),
+    )
+    client = TestClient(create_app(settings))
+    response = client.get("/health", headers={"Origin": public_origin})
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == public_origin
+    assert response.headers.get("access-control-allow-origin") != "*"
+
+    foreign = client.get(
+        "/health", headers={"Origin": "https://evil.example"}
+    )
+    assert foreign.status_code == 200
+    assert foreign.headers.get("access-control-allow-origin") != "https://evil.example"
+    assert foreign.headers.get("access-control-allow-origin") != "*"
+
+
+def test_load_settings_accepts_https_public_ui_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("SILVERMAN_BLOG_LINKEDIN_BASE_PATH", str(tmp_path))
+    monkeypatch.setenv("SILVERMAN_BLOG_LINKEDIN_API_KEY", "test-key")
+    monkeypatch.setenv(
+        ENV_OPERATOR_UI_ORIGINS,
+        "https://authority.example.silverman.pro",
+    )
+    settings = load_settings()
+    assert settings.operator_ui_origins == (
+        "https://authority.example.silverman.pro",
+    )
+
+
 def test_former_embedded_console_route_decommissioned(tmp_path: Path):
     """US-096: former worker console URL fails closed (not SPA)."""
     client = TestClient(create_app(make_settings(tmp_path)))

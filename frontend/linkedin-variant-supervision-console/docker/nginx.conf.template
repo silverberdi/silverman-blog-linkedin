@@ -1,0 +1,102 @@
+# Separated operator UI (US-093+) with same-origin private UI→API hop (US-099).
+# SILVERMAN_OPERATOR_UI_WORKER_UPSTREAM_HOSTPORT is substituted at container start
+# (Docker DNS / LAN host:port — never a public Authority Manager API hostname).
+# Browser sets SILVERMAN_OPERATOR_UI_API_BASE_URL=/ so typed-client + /auth/* stay same-origin.
+
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Runtime-injected non-secret config — never long-cache.
+    location = /config.js {
+        add_header Cache-Control "no-store";
+        try_files $uri =404;
+    }
+
+    # --- Private hop: proxy console API + Google auth to the private worker ---
+    # Prefer same-origin so cookies remain SameSite=Lax + Secure on HTTPS
+    # (no JWT iss/aud/exp/allowlist changes — US-098 hold).
+
+    location /auth/ {
+        proxy_pass http://${SILVERMAN_OPERATOR_UI_WORKER_UPSTREAM_HOSTPORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Cookie $http_cookie;
+        proxy_pass_header Set-Cookie;
+    }
+
+    location = /health {
+        proxy_pass http://${SILVERMAN_OPERATOR_UI_WORKER_UPSTREAM_HOSTPORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Cookie $http_cookie;
+    }
+
+    location /flow-a/ {
+        proxy_pass http://${SILVERMAN_OPERATOR_UI_WORKER_UPSTREAM_HOSTPORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Cookie $http_cookie;
+        proxy_pass_header Set-Cookie;
+    }
+
+    location /flow-b/ {
+        proxy_pass http://${SILVERMAN_OPERATOR_UI_WORKER_UPSTREAM_HOSTPORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Cookie $http_cookie;
+        proxy_pass_header Set-Cookie;
+    }
+
+    location /editorial/ {
+        proxy_pass http://${SILVERMAN_OPERATOR_UI_WORKER_UPSTREAM_HOSTPORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Cookie $http_cookie;
+        proxy_pass_header Set-Cookie;
+    }
+
+    location /editorial-calendar/ {
+        proxy_pass http://${SILVERMAN_OPERATOR_UI_WORKER_UPSTREAM_HOSTPORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Cookie $http_cookie;
+        proxy_pass_header Set-Cookie;
+    }
+
+    # Root-level typed-client mutation paths (BL-032 / supervision console).
+    location ~ ^/(correct-linkedin-variant|defer-linkedin-variant|replan-linkedin-cadence-conflicts|cancel-linkedin-publication|reopen-linkedin-variant|publish-linkedin-due-variants)$ {
+        proxy_pass http://${SILVERMAN_OPERATOR_UI_WORKER_UPSTREAM_HOSTPORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Cookie $http_cookie;
+        proxy_pass_header Set-Cookie;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

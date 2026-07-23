@@ -24,6 +24,7 @@ Update after deploys, activation changes, smoke tests, external-integration vali
 | UI↔API pairing (live) | **Applied** — UI `prod` + API `deployment_environment=prod` | `/health` + `config.js` |
 | Former embedded console | **Decommissioned** — `GET /flow-a/console/linkedin-variant-supervision` (+ `/assets/…`) → **HTTP 410** HTML naming `:8011`; no SPA; static tree absent in worker image | Live curl + `docker exec` probe |
 | CORS allowlist (deploy export) | `SILVERMAN_OPERATOR_UI_ORIGINS=http://192.168.0.194:8011` | Deploy command env (compose export; not necessarily persisted in host `.env`) |
+| US-099 front-only Cloudflare UI tunnel | **Not live** — implemented in repo (private hop + UI-only tunnel examples); public UI hostname not activated on this stack | Repo docs/examples; no live public UI probe |
 | `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` | `true` (assumed unchanged; **not mutated** by this deploy) | Prior RUNTIME-STATE / deploy non-goal |
 | `SILVERMAN_BLOG_GIT_PUBLICATION_ENABLED` | `true` (assumed unchanged) | Prior RUNTIME-STATE |
 | `SILVERMAN_BLOG_LIVE_SITE_CONFIRMATION_ENABLED` | `true` (assumed unchanged) | Prior RUNTIME-STATE |

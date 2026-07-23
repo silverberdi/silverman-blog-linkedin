@@ -1,0 +1,26 @@
+# Cloudflare Tunnel — Authority Manager UI only (US-099)
+#
+# Publish ONLY the separated operator UI. Do NOT add a public hostname for the
+# worker API (:8010). LinkedIn OAuth callback (api.silverman.pro) is a separate
+# accepted BL-026 exception and is not configured here.
+#
+# Placeholders only — NEVER commit real tunnel tokens or credentials.
+# Install/run cloudflared on the deploy host (or as a compose sidecar) using the
+# connector token from Cloudflare Zero Trust (secret store / host env only).
+#
+# Typical public path:
+#   https://authority.example.silverman.pro  →  http://127.0.0.1:8011
+#   (UI nginx same-origin private hop → Docker DNS worker :8000)
+#
+# After live activation, update docs/RUNTIME-STATE.md with non-secret topology
+# (public UI hostname, private API, private hop) — no tokens.
+
+tunnel: CHANGE_ME_TUNNEL_UUID
+credentials-file: /path/to/CHANGE_ME_TUNNEL_CREDENTIALS.json
+
+ingress:
+  # Public UI hostname → local separated operator UI only
+  - hostname: authority.example.silverman.pro
+    service: http://127.0.0.1:8011
+  # Catch-all: do not expose other local services
+  - service: http_status:404

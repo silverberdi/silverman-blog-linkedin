@@ -975,7 +975,7 @@ Use this checklist to track business progress. Mark items only when the stated b
 
 - [ ] **BL-035 — Authenticate the Operator Console With Google**
   - Business outcome: Allowlisted operators sign in with Google on a Cloudflare-exposed UI; worker API stays private; browser no longer uses the worker API key (operator JWT/session instead); n8n keeps API-key HTTP auth.
-  - Status: **Open** — US-097 and US-098 implemented (code/tests/docs; not Story accepted). US-099 deferred. Depends on BL-034 separated UI.
+  - Status: **Open** — US-097, US-098, and US-099 implemented (code/tests/docs; not Story accepted). Live US-099 tunnel hostname not activated. Depends on BL-034 separated UI.
   - [ ] **US-097**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
@@ -991,10 +991,10 @@ Use this checklist to track business progress. Mark items only when the stated b
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
   - [ ] **US-099**
-    - [ ] Story reviewed
-    - [ ] Acceptance criteria agreed
-    - [ ] Work started
-    - [ ] Business outcome demonstrated
+    - [x] Story reviewed
+    - [x] Acceptance criteria agreed
+    - [x] Work started
+    - [x] Business outcome demonstrated *(local Vitest + pytest for same-origin private hop / public-origin CORS / fail-closed auth vocabulary; tunnel examples UI-only; not live tunnel; not Story accepted)*
     - [ ] Acceptance criteria validated
     - [ ] Story accepted
   - [ ] All user stories completed

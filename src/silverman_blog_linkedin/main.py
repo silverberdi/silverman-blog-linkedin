@@ -1615,6 +1615,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             secret=settings.operator_session_secret,
         )
         response = RedirectResponse(url=authorize_url, status_code=302)
+        # US-099 same-origin private hop: Prefer SameSite=Lax + Secure on HTTPS.
+        # No JWT iss/aud/exp/allowlist changes for public topology.
         response.set_cookie(
             key=OIDC_PENDING_COOKIE,
             value=pending,
@@ -1706,6 +1708,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             status_code=302,
         )
         response.delete_cookie(OIDC_PENDING_COOKIE, path="/")
+        # US-099: SameSite=Lax + Secure on HTTPS remains correct for same-origin hop.
         response.set_cookie(
             key=OPERATOR_SESSION_COOKIE,
             value=session_value,

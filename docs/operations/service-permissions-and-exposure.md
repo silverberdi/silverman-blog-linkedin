@@ -5,19 +5,19 @@
 **Authority:** Complements [operational-secrets-permissions-review.md](operational-secrets-permissions-review.md) (US-058 secrets), [GLOSSARY.md](../GLOSSARY.md), [CURRENT-STATE.md](../CURRENT-STATE.md).
 **OpenSpec:** capability `service-permissions-and-exposure` (change `review-service-permissions-exposure-us-062-063`).
 
-Does **not** expose Authority Manager publicly (US-099 deferred), mutate `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`, or redesign `local-ai-stack`. Google identity/allowlist (US-097) and operator JWT console→API (US-098) on the **LAN** separated UI may be active when configured; that is **not** public console exposure.
+Does **not** mutate `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` or redesign `local-ai-stack`. Google identity/allowlist (US-097) and operator JWT console→API (US-098) apply on LAN and on the public UI URL when US-099 is active. **US-099** front-only public Authority Manager UI (Cloudflare Tunnel or equivalent → separated UI only, private worker API, private UI→API hop) is **implemented in repo**; live tunnel hostname activation is operator-owned (record in RUNTIME-STATE when live). Publishing the worker API on the public internet remains **out of accepted exposure**.
 
 ---
 
-## 1. Accepted exposure (operator policy 2026-07-21)
+## 1. Accepted exposure (operator policy 2026-07-21; US-099-aligned)
 
 | Surface | Accepted now | Notes |
 |---------|--------------|-------|
-| Worker HTTP `:8010` | **LAN only** (`192.168.0.194`) | API-key on non-callback routes |
-| Operator UI `:8011` | **LAN only** (`192.168.0.194`) | US-093 separated Authority Manager SPA; browser client → worker API; **not** public console exposure |
+| Worker HTTP `:8010` | **LAN / private-network only** (`192.168.0.194`) | API-key on non-callback routes; **not** an accepted public Authority Manager API hostname |
+| Operator UI `:8011` | **LAN** + **optional public front-only** under US-099 | Separated Authority Manager SPA; same-origin private hop to private worker; **not** an n8n target |
 | n8n `:5678` | **LAN only** | Not internet-public for silverman ops |
-| Authority Manager / console | **LAN only** | Via `:8011` (supported; worker-embedded console decommissioned US-096). Google OIDC identity/allowlist (US-097) and operator JWT console→API (US-098) may be active on LAN; **public** URL / Cloudflare front-only = **US-099** (deferred) |
-| LinkedIn OAuth callback | **Exception:** public Cloudflare hostname → worker callback path **only** for LinkedIn reauth | Not a general “public API”; other worker routes stay LAN |
+| Authority Manager / console | **LAN** always; **public UI-only** when US-099 tunnel is live | Via `:8011` / public UI hostname → UI service only. Google OIDC (US-097) + operator JWT (US-098) apply. Worker API stays private |
+| LinkedIn OAuth callback | **Exception:** public Cloudflare hostname → worker callback path **only** for LinkedIn reauth | Distinct from Authority Manager UI tunnel; not a general “public API” |
 | Comfy Cloud / DeepSeek | **Outbound API clients** (keys in `.env`) | No inbound ComfyUI port required on this host |
 | Public blog checkout mount | Worker mount to Pages checkout | Public site is the blog; not the worker control plane |
 | Secrets | Per **US-058** (`.env` `600`, `secrets/` `700`, files `600`) | Ratified here — do not duplicate full US-058 checklist |
@@ -40,8 +40,8 @@ Does **not** expose Authority Manager publicly (US-099 deferred), mutate `SILVER
 
 Review listening sockets relevant to silverman ops on the deploy host:
 
-- Worker host port `8010`
-- Operator UI host port `8011` (US-093 separated console; LAN only — do **not** claim public console exposure)
+- Worker host port `8010` (LAN / private — do **not** publish as public Authority Manager API)
+- Operator UI host port `8011` (US-093 separated console; may be Cloudflare front-only under US-099 — UI only)
 - n8n host port `5678` (and note if bound to LAN IP vs `0.0.0.0`)
 - Do **not** require hardening every Avatares/`local-ai-stack` port in this story; record adjacency only if clearly silverman-related
 
@@ -50,7 +50,7 @@ Review listening sockets relevant to silverman ops on the deploy host:
 - Worker: Bearer `SILVERMAN_BLOG_LINKEDIN_API_KEY` on protected routes (n8n / machine clients, ADR-0001); OAuth **callback** is the intentional public exception path for LinkedIn reauth
 - Worker (US-097 / US-098): when Google operator auth is enabled, protected routes accept **either** machine API-key Bearer **or** allowlisted operator JWT (HttpOnly `silverman_operator_session` cookie with `iss`/`aud`/`exp`). Google-path browser console MUST NOT send the worker API key; Google client secret / JWT signing stay in worker env only
 - n8n: LAN UI; credentials not in git exports (placeholders) — see US-058
-- Console: LAN `:8011` separated UI only (embedded worker console decommissioned); Google OIDC identity (US-097) + operator JWT console→API (US-098) may be enabled on LAN; not internet-public until US-099
+- Console: separated UI only (embedded worker console decommissioned); Google OIDC (US-097) + operator JWT (US-098); public UI URL via tunnel only when US-099 is live — worker API stays private
 
 ### Least privilege (services)
 
@@ -77,7 +77,7 @@ Ratify US-058: real values only in server `.env` / secrets mounts; never commit;
 
 ### Document accepted exposure
 
-Section 1 is the normative inventory. **Public** console exposure requires **US-099** (separate OpenSpec). Google LAN identity/allowlist is **US-097** and operator JWT console→API is **US-098** (BL-035 Stories 1–2); neither by itself makes Authority Manager internet-public.
+Section 1 is the normative inventory. **Public** Authority Manager exposure is **front-only UI** under **US-099** (worker API stays private). Google identity/allowlist is **US-097** and operator JWT console→API is **US-098** (BL-035 Stories 1–2).
 
 ---
 

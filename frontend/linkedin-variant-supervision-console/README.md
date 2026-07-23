@@ -2,10 +2,12 @@
 
 React + TypeScript + Vite frontend for Flow A LinkedIn variant supervision.
 
-**Production delivery (US-096 / BL-034):** separated UI image/service only
+**Production delivery (US-096 / US-099 / BL-034):** separated UI image/service only
 (`frontend/.../Dockerfile`, compose `silverman-operator-ui` on LAN `:8011`).
-The worker API does **not** embed or serve this SPA. Browser → worker HTTP only
-via `SILVERMAN_OPERATOR_UI_API_BASE_URL` + US-094 pairing.
+The worker API does **not** embed or serve this SPA. Browser → worker HTTP uses
+`SILVERMAN_OPERATOR_UI_API_BASE_URL` (`/` = same-origin private hop via nginx) +
+US-094 pairing. Cloudflare Tunnel may publish the **UI only** (US-099); the worker
+API stays private.
 
 ## Production dependencies
 
@@ -61,19 +63,15 @@ Credentials are never embedded in source, built assets, logs, or browser storage
 
 ## Cross-origin CORS
 
-Separated UI origin → worker uses the worker CORS allowlist
-(`SILVERMAN_OPERATOR_UI_ORIGINS`). Public exposure remains a separate security change
-(BL-026 / BL-035). US-040D does **not** enable permissive `*` CORS.
+When the browser uses an absolute worker origin, CORS relies on
+`SILVERMAN_OPERATOR_UI_ORIGINS` (exact origins; never `*`). Prefer US-099
+same-origin private hop (`apiBaseUrl=/`) so console API calls need no CORS.
 
-## Public URL and Google authentication (deferred)
+## Public URL and Google authentication (BL-035)
 
-**Out of scope for US-040D / this BL slice:**
-
-- Activating public URL hosting / internet exposure of the console
-- Live Google OAuth / OIDC identity-provider integration
-
-Both require a **separate approved security OpenSpec change** before internet exposure.
-Local operations continue to use worker API-key auth through the injectable provider.
+- **US-097 / US-098:** Google OIDC allowlist + operator JWT cookie on the separated UI.
+- **US-099:** Front-only Cloudflare Tunnel (or equivalent) to the UI; private worker API;
+  same-origin private hop. Live tunnel activation is an operator deploy step.
 
 ## Scope
 

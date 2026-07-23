@@ -18,8 +18,8 @@ export function ConfigBlockedScreen({
       : "Configuration required";
   const detail =
     result.reason === "pairing"
-      ? "Authenticated supervision and mutation calls are disabled until UI and API environments agree. Relative same-origin API fallback stays off in separated-UI mode."
-      : "The console will not call relative same-origin API paths while this block is active.";
+      ? "Authenticated supervision and mutation calls are disabled until UI and API environments agree."
+      : "The console will not call the worker API while this block is active.";
 
   return (
     <main

@@ -2225,7 +2225,7 @@ As a system owner, I want the console to authenticate to the worker with an oper
 
 ### US-099 — Authenticate the Operator Console With Google: Story 3
 
-**Status:** **Drafted** (2026-07-22). Not implemented. Not Story accepted. Depends on US-097 / US-098.
+**Status:** **Implemented** (code/tests/docs on `feat/us-099-expose-operator-ui-cloudflare-tunnel`; OpenSpec change `expose-operator-ui-cloudflare-tunnel-front-only-us-099`). ACs demonstrable via Vitest `us099.front-only-private-hop.test.tsx` + pytest CORS public-origin hold + deploy topology examples. **Not Story accepted** (operator gate pending). **Live Cloudflare tunnel hostname not activated** (RUNTIME-STATE records not-live). Depends on US-097 / US-098.
 
 **Description**
 
@@ -2233,11 +2233,11 @@ As a system owner, I want only the operator frontend exposed through Cloudflare 
 
 **Acceptance criteria**
 
-- [ ] Supported public topology publishes **only** the operator UI via Cloudflare Tunnel (or equivalent); the worker API is **not** published on the public internet (remains LAN / private-network only).
-- [ ] The internet-facing console does not require operators to configure a publicly routable worker API base URL in the browser; UI→API use a private hop (same-origin reverse proxy, internal Docker DNS, or equivalent) so the API hostname is not internet-exposed.
-- [ ] CORS / origin allowlisting and tunnel hostname configuration match the public UI origin; permissive `*` CORS MUST NOT be introduced for this exposure.
-- [ ] Docs (CURRENT-STATE, ubuntu deploy, RUNTIME-STATE when live) describe front-only public exposure + private API + Google allowlist at a topology level without embedding secrets.
-- [ ] Unauthenticated or non-allowlisted access via the public UI URL fails closed with clear messaging; bookmarking or probing the private API from the public internet is out of supported exposure (API not published).
-- [ ] The outcome is visible and understandable to the intended user (operators use the Cloudflare UI URL + Google sign-in).
-- [ ] Failures or blocked states are clearly communicated.
-- [ ] Existing completed work is not duplicated or unintentionally changed (ADR-0001 n8n→worker on private API retained; no LinkedIn publication-flag mutation; BL-026 least-privilege intent preserved; BL-034 UI/API split retained).
+- [x] Supported public topology publishes **only** the operator UI via Cloudflare Tunnel (or equivalent); the worker API is **not** published on the public internet (remains LAN / private-network only). — Demonstrated: `cloudflared.operator-ui.example.yml` UI-only ingress; compose/docs forbid public worker API; CURRENT-STATE / exposure inventory.
+- [x] The internet-facing console does not require operators to configure a publicly routable worker API base URL in the browser; UI→API use a private hop (same-origin reverse proxy, internal Docker DNS, or equivalent) so the API hostname is not internet-exposed. — Demonstrated: `SILVERMAN_OPERATOR_UI_API_BASE_URL=/` + nginx private hop; Vitest same-origin holds.
+- [x] CORS / origin allowlisting and tunnel hostname configuration match the public UI origin; permissive `*` CORS MUST NOT be introduced for this exposure. — Demonstrated: pytest public-origin allowlist + wildcard reject; env examples exact origin only.
+- [x] Docs (CURRENT-STATE, ubuntu deploy, RUNTIME-STATE when live) describe front-only public exposure + private API + Google allowlist at a topology level without embedding secrets. — Demonstrated: CURRENT-STATE US-099 note; ubuntu deploy; RUNTIME-STATE records tunnel **not live**; placeholders only.
+- [x] Unauthenticated or non-allowlisted access via the public UI URL fails closed with clear messaging; bookmarking or probing the private API from the public internet is out of supported exposure (API not published). — Demonstrated: Vitest anonymous/forbidden holds; exposure docs (API not published).
+- [x] The outcome is visible and understandable to the intended user (operators use the Cloudflare UI URL + Google sign-in). — Demonstrated: Google path via proxied `/auth/google/*`; front-only overlay examples.
+- [x] Failures or blocked states are clearly communicated. — Demonstrated: US-097/US-098 vocabulary retained on same-origin hop; config fail-closed messaging.
+- [x] Existing completed work is not duplicated or unintentionally changed (ADR-0001 n8n→worker on private API retained; no LinkedIn publication-flag mutation; BL-026 least-privilege intent preserved; BL-034 UI/API split retained). — Demonstrated: n8n still private `:8010`; no publication-flag mutation; UI/API split + private hop.

@@ -53,10 +53,13 @@ services:
       - default
       - local-ai-stack_backend
 
-  # US-093 / US-094 / US-096 / BL-034: exclusive supported Silverman Authority Manager
+  # US-093 / US-094 / US-096 / US-099 / BL-034: exclusive supported Silverman Authority Manager
   # console (static SPA on :8011). Worker on :8010 is API-only — former embedded
   # console routes are decommissioned (fail closed). UI does not mount editorial data
   # and is not an n8n orchestration target (ADR-0001).
+  # US-099: default same-origin private hop (apiBaseUrl=/); nginx proxies typed-client
+  # + /auth/* to the private worker over Docker DNS. Cloudflare Tunnel (or equivalent)
+  # may publish THIS UI service only — never publish the worker API as a public hostname.
   # Pairing: SILVERMAN_OPERATOR_UI_ENV_LABEL must match worker SILVERMAN_DEPLOYMENT_ENVIRONMENT.
   silverman-operator-ui:
     build:
@@ -65,10 +68,16 @@ services:
     image: silverman-operator-ui:local
     container_name: silverman-operator-ui
     restart: unless-stopped
+    depends_on:
+      - silverman-blog-linkedin-worker
     ports:
       - "${SILVERMAN_OPERATOR_UI_HOST_PORT:-8011}:80"
     environment:
-      SILVERMAN_OPERATOR_UI_API_BASE_URL: ${SILVERMAN_OPERATOR_UI_API_BASE_URL:-http://192.168.0.194:8010}
+      # Same-origin private hop (US-099). Absolute LAN worker URL remains supported
+      # when intentionally set (then browser talks cross-origin and CORS must allowlist).
+      SILVERMAN_OPERATOR_UI_API_BASE_URL: ${SILVERMAN_OPERATOR_UI_API_BASE_URL:-/}
+      # Private worker upstream host:port for nginx proxy (compose DNS; not public).
+      SILVERMAN_OPERATOR_UI_WORKER_UPSTREAM: ${SILVERMAN_OPERATOR_UI_WORKER_UPSTREAM:-silverman-blog-linkedin-worker:8000}
       # US-094: required uat|prod in separated mode; injected into runtime config.js.
       SILVERMAN_OPERATOR_UI_ENV_LABEL: ${SILVERMAN_OPERATOR_UI_ENV_LABEL:-prod}
       # US-097: non-secret Google OIDC enablement flag for config.js (secrets stay on worker).

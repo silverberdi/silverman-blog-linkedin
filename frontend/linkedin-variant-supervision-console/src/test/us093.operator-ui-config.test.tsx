@@ -27,13 +27,13 @@ describe("operator UI API base URL config", () => {
     );
   });
 
-  it("returns relative paths when apiBaseUrl is empty (test injectable only)", () => {
+  it("returns relative paths when apiBaseUrl is empty (same-origin private hop / tests)", () => {
     expect(joinApiUrl("", SCHEDULE_VISIBILITY_PATH)).toBe(
       SCHEDULE_VISIBILITY_PATH,
     );
   });
 
-  it("accepts only absolute http(s) URLs", () => {
+  it("accepts only absolute http(s) URLs (same-origin uses isSameOriginApiBase)", () => {
     expect(isValidAbsoluteHttpUrl("http://192.168.0.194:8010")).toBe(true);
     expect(isValidAbsoluteHttpUrl("https://api.example.local")).toBe(true);
     expect(isValidAbsoluteHttpUrl("")).toBe(false);
