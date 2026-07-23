@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from silverman_blog_linkedin.config import Settings
 from silverman_blog_linkedin.main import create_app
 from silverman_blog_linkedin.operator_google_auth import (
+    GOOGLE_USERINFO_URL,
     OPERATOR_GOOGLE_EMAIL_ALLOWLIST,
     OPERATOR_SESSION_COOKIE,
     create_operator_session_cookie_value,
@@ -25,6 +26,11 @@ ALLOWLISTED_B = "ltmoralesp84@gmail.com"
 NON_ALLOWLISTED = "intruder@gmail.com"
 SESSION_SECRET = "test-operator-session-secret-us097"
 CLIENT_SECRET = "test-google-client-secret-us097"
+
+
+def test_google_userinfo_url_uses_v1_path() -> None:
+    """Live Google OIDC userinfo is /v1/userinfo; bare /userinfo returns HTTP 404."""
+    assert GOOGLE_USERINFO_URL == "https://openidconnect.googleapis.com/v1/userinfo"
 
 
 class FakeExchanger:

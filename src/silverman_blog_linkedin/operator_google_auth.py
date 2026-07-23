@@ -33,7 +33,7 @@ OPERATOR_GOOGLE_EMAIL_ALLOWLIST: frozenset[str] = frozenset(
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
-GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/userinfo"
+GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 
 OPERATOR_SESSION_COOKIE = "silverman_operator_session"
 OIDC_PENDING_COOKIE = "silverman_oidc_pending"
