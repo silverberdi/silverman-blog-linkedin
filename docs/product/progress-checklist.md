@@ -973,30 +973,30 @@ Use this checklist to track business progress. Mark items only when the stated b
   - [ ] Backlog item business outcome validated
   - [ ] Backlog item closed
 
-- [ ] **BL-035 — Authenticate the Operator Console With Google**
+- [x] **BL-035 — Authenticate the Operator Console With Google**
   - Business outcome: Allowlisted operators sign in with Google on a Cloudflare-exposed UI; worker API stays private; browser no longer uses the worker API key (operator JWT/session instead); n8n keeps API-key HTTP auth.
-  - Status: **Open** — US-097, US-098, and US-099 implemented (code/tests/docs; not Story accepted). Live US-099 tunnel hostname not activated. Depends on BL-034 separated UI.
-  - [ ] **US-097**
+  - Status: **Closed** — US-097 / US-098 / US-099 Story accepted 2026-07-23 (operator). Live public UI `https://authority.silverman.pro`; private API + private hop. UI polish (esp. mobile) deferred as follow-up outside this BL.
+  - [x] **US-097**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated *(local Vitest + pytest for Google OIDC / allowlist / dual-accept / secrets hygiene; not live Google enablement)*
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-098**
+    - [x] Business outcome demonstrated *(local Vitest + pytest; live Google allowlist sign-in on public UI)*
+    - [x] Acceptance criteria validated — operator-validated 2026-07-23
+    - [x] Story accepted — operator-accepted 2026-07-23
+  - [x] **US-098**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated *(local Vitest + pytest for operator JWT mint/validate / n8n API-key hold / Google path no worker API key / logout; not Story accepted; not US-099)*
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] **US-099**
+    - [x] Business outcome demonstrated *(local Vitest + pytest; live Google path without worker API key)*
+    - [x] Acceptance criteria validated — operator-validated 2026-07-23
+    - [x] Story accepted — operator-accepted 2026-07-23
+  - [x] **US-099**
     - [x] Story reviewed
     - [x] Acceptance criteria agreed
     - [x] Work started
-    - [x] Business outcome demonstrated *(local Vitest + pytest for same-origin private hop / public-origin CORS / fail-closed auth vocabulary; tunnel examples UI-only; not live tunnel; not Story accepted)*
-    - [ ] Acceptance criteria validated
-    - [ ] Story accepted
-  - [ ] All user stories completed
-  - [ ] Backlog item business outcome validated
-  - [ ] Backlog item closed
+    - [x] Business outcome demonstrated *(private hop + front-only public UI live; Google on public URL)*
+    - [x] Acceptance criteria validated — operator-validated 2026-07-23
+    - [x] Story accepted — operator-accepted 2026-07-23
+  - [x] All user stories completed
+  - [x] Backlog item business outcome validated
+  - [x] Backlog item closed — 2026-07-23

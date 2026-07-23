@@ -2180,15 +2180,15 @@ As a system owner, I want the operator UI and the worker API to be independent p
 
 ## BL-035 — Authenticate the Operator Console With Google
 
-**Priority:** P8 — immediate / next (operator 2026-07-22)
+**Priority:** Closed (operator 2026-07-23). Follow-up UI polish is separate.
 
-**Business context:** BL-034 separated Authority Manager onto `:8011` with US-040D injectable auth still using worker API-key paste. Public front exposure via Cloudflare Tunnel requires Google login, an email allowlist, operator JWT/session instead of browser API keys, and a topology where **only the UI** is internet-reachable.
+**Business need:** Expose Silverman Authority Manager on the public internet via a Cloudflare Tunnel **front-only** topology while keeping the worker API private, and replace browser API-key paste with Google-authenticated operator access limited to approved emails.
 
 **Apply order:** US-097 → US-098 → US-099.
 
 ### US-097 — Authenticate the Operator Console With Google: Story 1
 
-**Status:** **Implemented** (code/tests/docs on `feat/us-097-authenticate-operator-console-google`; OpenSpec change `authenticate-operator-console-google-us-097`). ACs demonstrable via Vitest `us097.google-auth.test.tsx` + pytest `test_operator_google_oidc_us097.py`. **Not Story accepted** (operator gate pending). Live Google enablement on LAN deploy is a separate env/deploy step. US-098 is implemented separately (not Story accepted); US-099 remains deferred.
+**Status:** **Story accepted** (operator-accepted 2026-07-23). Implemented and live-validated on public UI `https://authority.silverman.pro` with allowlisted Google sign-in (OpenSpec archive `2026-07-22-authenticate-operator-console-google-us-097`; userinfo URL fix `09547be`). Depends on BL-034 separated UI. BL-035 Story 1 of 3.
 
 **Description**
 
@@ -2206,7 +2206,7 @@ As a system owner, I want operators to sign into Silverman Authority Manager wit
 - [x] Existing completed work is not duplicated or unintentionally changed (no Flow/LinkedIn business-screen rewrite; no n8n Execute Command; no `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED` mutation; BL-034 separated UI preserved). — Demonstrated: AuthProvider seam only; US-093/094/095 Vitest holds green; dual-accept keeps API-key path.
 ### US-098 — Authenticate the Operator Console With Google: Story 2
 
-**Status:** **Implemented** (code/tests/docs on OpenSpec change `replace-operator-console-api-key-with-jwt-us-098`). ACs demonstrable via Vitest `us098.operator-jwt.test.tsx` + pytest `test_operator_jwt_us098.py`. **Not Story accepted** (operator gate pending). **Not US-099**. Depends on US-097 identity/allowlist behavior.
+**Status:** **Story accepted** (operator-accepted 2026-07-23). Implemented and live-validated: Google console path uses HttpOnly operator JWT (no worker API key in browser); n8n retains API-key auth (OpenSpec archive `2026-07-22-replace-operator-console-api-key-with-jwt-us-098`). Depends on US-097. BL-035 Story 2 of 3.
 
 **Description**
 
@@ -2225,7 +2225,7 @@ As a system owner, I want the console to authenticate to the worker with an oper
 
 ### US-099 — Authenticate the Operator Console With Google: Story 3
 
-**Status:** **Implemented** (code/tests/docs on `feat/us-099-expose-operator-ui-cloudflare-tunnel`; OpenSpec change `expose-operator-ui-cloudflare-tunnel-front-only-us-099`). ACs demonstrable via Vitest `us099.front-only-private-hop.test.tsx` + pytest CORS public-origin hold + deploy topology examples. **Not Story accepted** (operator gate pending). **Live Cloudflare tunnel hostname not activated** (RUNTIME-STATE records not-live). Depends on US-097 / US-098.
+**Status:** **Story accepted** (operator-accepted 2026-07-23). Implemented and live-validated: front-only public UI via Cloudflare (`https://authority.silverman.pro`), private worker API, same-origin private hop, Google allowlist on public URL (OpenSpec archive `2026-07-22-expose-operator-ui-cloudflare-tunnel-front-only-us-099`). Depends on US-097 / US-098. **BL-035 closed** with this acceptance. Follow-up (out of BL-035): operator console UI polish, especially mobile.
 
 **Description**
 

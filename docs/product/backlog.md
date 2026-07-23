@@ -701,7 +701,7 @@ US-074 → US-075 → US-076 → US-077 → US-078 → US-079 → US-080 → US-
 
 **Completion outcome:** Approved operators open the public console URL, sign in with Google, and supervise via the private API path without pasting a worker API key; unapproved Google accounts and unauthenticated callers are blocked; the worker API is not publicly reachable.
 
-**Status:** **Open** — US-097, US-098, and US-099 implemented (not Story accepted); US-099 live tunnel hostname not activated. Product stories drafted 2026-07-22; US-099 applied on `feat/us-099-expose-operator-ui-cloudflare-tunnel`.
+**Status:** **Closed** — US-097 / US-098 / US-099 **Story accepted** 2026-07-23 (operator). Live public UI `https://authority.silverman.pro` with Google allowlist + operator JWT; worker API private; same-origin private hop. UI polish (especially mobile) is an explicit follow-up outside this backlog item.
 
 **Depends on / aligns with:** BL-034 separated UI (US-093–US-096). Extends US-040D readiness into activation. Aligns with BL-026 least-privilege exposure (API stays private). Does **not** establish full BL-029 CI/UAT. Does **not** mutate `SILVERMAN_LINKEDIN_PUBLICATION_ENABLED`. Does **not** introduce n8n Execute Command.
 
